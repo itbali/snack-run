@@ -40,3 +40,10 @@ func _bones_aabb(skel: Skeleton3D) -> AABB:
 	for i in skel.get_bone_count():
 		result = result.expand(skel.global_transform * skel.get_bone_global_rest(i).origin)
 	return result
+
+func test_cat_has_generated_clips() -> void:
+	var inst := _instance()
+	var ap := inst.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	for clip in ["jump", "hide", "hit"]:
+		assert_true(ap.has_animation(clip), "нет клипа " + clip)
+	assert_between(ap.get_animation("jump").length, 1.5, 2.5, "jump около 2 с: столько генерирует UniMate")
