@@ -6,8 +6,11 @@ import bpy
 
 def export_glb(path: str, objects, animations: bool = False) -> None:
 	os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-	bpy.ops.object.select_all(action="DESELECT")
+	# Сбрасываем выделение напрямую: в открытом .blend могут быть выделены посторонние объекты.
+	for o in bpy.context.view_layer.objects:
+		o.select_set(False)
 	for o in objects:
+		o.hide_set(False)
 		o.select_set(True)
 	bpy.context.view_layer.objects.active = objects[0]
 	bpy.ops.export_scene.gltf(

@@ -38,7 +38,7 @@ def main():
 			continue
 		path = os.path.join(OUT, f"{name}.glb")
 		export.export_glb(path, objs, animations=mod.SPEC.get("animations", False))
-		print(f"ОК {name} -> {os.path.relpath(path, ROOT)} ({sum(lib.tri_count(o) for o in objs)} tri)")
+		print(f"ОК {name} -> {os.path.relpath(path, ROOT)} ({sum(lib.tri_count(o) for o in objs if o.type == "MESH")} tri)")
 	if failed:
 		print("ПРОВАЛ:", ", ".join(failed))
 		sys.exit(1)

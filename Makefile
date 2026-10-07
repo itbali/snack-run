@@ -15,10 +15,10 @@ test-godot:
 	@! grep -q "SCRIPT ERROR" build/gut.log || (echo "Ошибки скриптов в тестах, см. build/gut.log"; exit 1)
 
 test-blender:
-	$(BLENDER) -b --python tools/blender/tests/run.py
+	$(BLENDER) -b --python-exit-code 1 --python tools/blender/tests/run.py
 
 assets:
-	$(BLENDER) -b --python tools/blender/build.py -- $(ONLY)
+	$(BLENDER) -b --python-exit-code 1 --python tools/blender/build.py -- $(ONLY)
 
 shot:
 	mkdir -p build
