@@ -1,0 +1,90 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/models/ground.glb" id="1"]
+[ext_resource type="PackedScene" path="res://assets/models/bin.glb" id="2"]
+[ext_resource type="PackedScene" path="res://assets/models/box.glb" id="3"]
+
+[sub_resource type="BoxShape3D" id="floor"]
+size = Vector3(60, 0.2, 60)
+
+[sub_resource type="BoxShape3D" id="binshape"]
+size = Vector3(0.74, 1.12, 0.84)
+
+[sub_resource type="BoxShape3D" id="boxshape"]
+size = Vector3(0.45, 0.3, 0.35)
+
+[node name="DistrictYard" type="Node3D"]
+
+[node name="Ground" parent="." instance=ExtResource("1")]
+
+[node name="Floor" type="StaticBody3D" parent="."]
+
+[node name="Shape" type="CollisionShape3D" parent="Floor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
+shape = SubResource("floor")
+
+[node name="Bin1" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, -4)
+
+[node name="Model" parent="Bin1" instance=ExtResource("2")]
+
+[node name="Shape" type="CollisionShape3D" parent="Bin1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.56, 0)
+shape = SubResource("binshape")
+
+[node name="Bin2" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, -4)
+
+[node name="Model" parent="Bin2" instance=ExtResource("2")]
+
+[node name="Shape" type="CollisionShape3D" parent="Bin2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.56, 0)
+shape = SubResource("binshape")
+
+[node name="Bin3" type="StaticBody3D" parent="."]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -6, 0, 2)
+
+[node name="Model" parent="Bin3" instance=ExtResource("2")]
+
+[node name="Shape" type="CollisionShape3D" parent="Bin3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.56, 0)
+shape = SubResource("binshape")
+
+[node name="Bin4" type="StaticBody3D" parent="."]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -6, 0, 3)
+
+[node name="Model" parent="Bin4" instance=ExtResource("2")]
+
+[node name="Shape" type="CollisionShape3D" parent="Bin4"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.56, 0)
+shape = SubResource("binshape")
+
+[node name="Box1" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0, 1.5)
+
+[node name="Model" parent="Box1" instance=ExtResource("3")]
+
+[node name="Shape" type="CollisionShape3D" parent="Box1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0)
+shape = SubResource("boxshape")
+
+[node name="Box2" type="StaticBody3D" parent="."]
+transform = Transform3D(0.7071, 0, 0.7071, 0, 1, 0, -0.7071, 0, 0.7071, -2, 0, -1)
+
+[node name="Model" parent="Box2" instance=ExtResource("3")]
+
+[node name="Shape" type="CollisionShape3D" parent="Box2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0)
+shape = SubResource("boxshape")
+
+[node name="Box3" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.3, 1.5)
+
+[node name="Model" parent="Box3" instance=ExtResource("3")]
+
+[node name="Shape" type="CollisionShape3D" parent="Box3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0)
+shape = SubResource("boxshape")
+
+[node name="Spawn" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)

@@ -3,11 +3,11 @@ extends Node3D
 ## Третье лицо: пружина 3,5 м, взгляд с высоты 0,6 м, сглаживание 8/с (спек 2.3).
 
 const HEIGHT := 0.6
-const DISTANCE := 3.5
+const DISTANCE := 1.8
 const SMOOTH := 8.0
 const HIDE_BELOW := 0.9
 const YAW_SPEED := 2.2
-const PITCH_DEG := -10.0
+const PITCH_DEG := -14.0
 
 @export var target: Node3D
 var _yaw := 0.0

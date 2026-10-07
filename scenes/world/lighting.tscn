@@ -16,7 +16,7 @@ background_mode = 2
 sky = SubResource("skyres")
 ambient_light_source = 2
 ambient_light_color = Color(0.624, 0.769, 0.910, 1)
-ambient_light_energy = 0.6
+ambient_light_energy = 0.45
 tonemap_mode = 0
 
 [node name="Lighting" type="Node3D"]
@@ -24,7 +24,7 @@ script = ExtResource("1")
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
 light_color = Color(1, 0.945, 0.839, 1)
-light_energy = 1.2
+light_energy = 1.0
 shadow_enabled = true
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
