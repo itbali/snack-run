@@ -10,7 +10,9 @@ import:
 test: import test-blender test-godot
 
 test-godot:
-	$(GODOT) --headless --path . -s addons/gut/gut_cmdln.gd -gconfig=res://.gutconfig.json
+	mkdir -p build
+	set -o pipefail; $(GODOT) --headless --path . -s addons/gut/gut_cmdln.gd -gconfig=res://.gutconfig.json 2>&1 | tee build/gut.log
+	@! grep -q "SCRIPT ERROR" build/gut.log || (echo "Ошибки скриптов в тестах, см. build/gut.log"; exit 1)
 
 test-blender:
 	$(BLENDER) -b --python tools/blender/tests/run.py
