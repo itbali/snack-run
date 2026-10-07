@@ -28,7 +28,8 @@ func test_cat_lands_on_ground() -> void:
 		return
 	await wait_physics_frames(90)
 	assert_true(cat.is_on_floor(), "кот должен стоять на земле через 1,5 с")
-	assert_between(cat.global_position.y, -0.05, 0.1)
+	# Ревью: нижняя точка коллизии должна совпадать с лапами, кот не тонет в землю.
+	assert_between(cat.global_position.y, -0.005, 0.02)
 
 func test_cat_walks_and_jumps_on_input() -> void:
 	# Замена ручного прогона: нажимаем действия программно.
@@ -53,3 +54,14 @@ func test_cat_walks_and_jumps_on_input() -> void:
 	assert_false(cat.is_on_floor())
 	await wait_physics_frames(90)
 	assert_true(cat.is_on_floor(), "кот приземлился")
+
+func test_cat_keeps_animating_longer_than_one_clip() -> void:
+	var main := _spawn_main()
+	var cat = main.find_child("Cat", true, false)
+	var ap := cat.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	await wait_physics_frames(60)
+	Input.action_press("move_forward")
+	await wait_physics_frames(150)   # 2,5 с > длины клипа walk (1,67 с)
+	Input.action_release("move_forward")
+	assert_true(ap.is_playing(), "анимация должна идти дольше одного клипа")
+	assert_eq(ap.current_animation, "walk")

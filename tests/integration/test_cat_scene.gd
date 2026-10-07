@@ -50,3 +50,10 @@ func test_camera_rig_hides_target_when_too_close() -> void:
 	assert_false(cat.visible)
 	rig.apply_arm_length(3.5)
 	assert_true(cat.visible)
+
+func test_locomotion_clips_loop() -> void:
+	# Ревью: idle/walk/run без зацикливания останавливаются через 1,7 с.
+	var cat = _spawn()
+	var ap := cat.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	for clip in ["idle", "walk", "run", "hide"]:
+		assert_eq(ap.get_animation(clip).loop_mode, Animation.LOOP_LINEAR, "клип %s должен зацикливаться" % clip)

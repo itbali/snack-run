@@ -3,11 +3,13 @@ extends RefCounted
 ## Переводит материалы в тун-режим и добавляет обводку инвертированным hull-ом (спек 2.3).
 
 const OUTLINE_COLOR := Color("#394151")
-const OUTLINE_CHARACTER := 0.02
-const OUTLINE_FOOD := 0.006
+const OUTLINE_CHARACTER := 0.006   # метры; 0,02 из первой версии спека на 35-см коте рвёт hull
+const OUTLINE_FOOD := 0.004
 const OUTLINE_NONE := 0.0
 
 
+## outline_width задаётся в метрах: grow работает в пространстве модели, поэтому
+## для вложенных в масштабированный узел мешей (скиновый кот) ширина пересчитывается.
 static func apply(root: Node, outline_width: float = OUTLINE_CHARACTER) -> int:
 	var count := 0
 	if root is MeshInstance3D:
@@ -33,8 +35,15 @@ static func _apply_to_mesh(mi: MeshInstance3D, outline_width: float) -> int:
 		mat.roughness = 0.85
 		mi.set_surface_override_material(i, mat)
 	if outline_width > 0.0:
-		mi.material_overlay = _make_outline(outline_width)
+		mi.material_overlay = _make_outline(outline_width / _world_scale(mi))
 	return surfaces
+
+
+static func _world_scale(mi: MeshInstance3D) -> float:
+	if not mi.is_inside_tree():
+		return 1.0
+	var s := mi.global_transform.basis.get_scale().x
+	return s if s > 0.0001 else 1.0
 
 
 static func _make_outline(width: float) -> StandardMaterial3D:

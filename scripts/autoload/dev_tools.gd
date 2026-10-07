@@ -8,8 +8,8 @@ func _ready() -> void:
 
 
 func _screenshot_and_quit(path: String) -> void:
-	# Ждём, пока сцена загрузится и отрисуется несколько кадров.
-	for i in 5:
+	# Ждём, пока сцена загрузится, кот приземлится и анимация перейдёт в idle.
+	for i in 40:
 		await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()

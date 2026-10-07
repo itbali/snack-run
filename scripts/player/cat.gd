@@ -6,6 +6,7 @@ signal state_changed(state: StringName)
 
 const FALLBACK := {&"run": [&"walk", 1.8], &"jump": [&"idle", 1.0], &"hide": [&"idle", 1.0], &"hit": [&"idle", 1.0]}
 const TURN_SPEED := 12.0
+const LOOPING_CLIPS := ["idle", "walk", "run", "hide"]   # jump и hit играют один раз
 
 var camera_rig: CameraRig
 var state: StringName = &"idle":
@@ -21,6 +22,9 @@ var state: StringName = &"idle":
 
 func _ready() -> void:
 	Toon.apply(_model, Toon.OUTLINE_CHARACTER)
+	for clip in LOOPING_CLIPS:
+		if _anim and _anim.has_animation(clip):
+			_anim.get_animation(clip).loop_mode = Animation.LOOP_LINEAR
 	var skel := _model.find_child("Skeleton3D", true, false)
 	if skel and skel.find_child("HeadScaler", false, false) == null:
 		var hs := HeadScaler.new()

@@ -1,6 +1,5 @@
 # Godot
 .godot/
-*.import
 # Blender
 *.blend1
 *.blend2
