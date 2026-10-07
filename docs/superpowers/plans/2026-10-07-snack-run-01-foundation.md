@@ -228,7 +228,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - Create: `tools/blender/palette.py`, `tools/blender/lib.py`, `tools/blender/export.py`, `tools/blender/build.py`, `tools/blender/gen/box.py`, `tools/blender/tests/run.py`, `tools/blender/tests/test_lib.py`, `tools/blender/tests/test_export.py`, `tools/blender/tests/list_glb.py`
 
 **Interfaces:**
-- Produces: `palette.PALETTE: dict[str, str]`, `palette.get_material(key: str) -> bpy.types.Material`; `lib.clear_scene()`, `lib.rounded_box(name, size, bevel=0.02, segments=3, material=None) -> Object`, `lib.tri_count(obj) -> int`, `lib.check_asset(objs, max_tris, max_dim) -> list[str]` (список ошибок, пустой = ок); `export.export_glb(path, objects, animations=False)`; генератор в `gen/*.py` обязан иметь `SPEC = {"max_tris": int, "max_dim": float}` и `build() -> list[Object]`; `make assets ONLY=box` собирает один ассет.
+- Produces: `palette.PALETTE: dict[str, str]`, `palette.get_material(key: str) -> bpy.types.Material`; `lib.clear_scene()`, `lib.rounded_box(name, size, bevel=0.02, segments=3, material=None) -> Object`, `lib.world_extent(obj) -> float`, `lib.tri_count(obj) -> int`, `lib.check_asset(objs, max_tris, max_dim) -> list[str]` (список ошибок, пустой = ок); `export.export_glb(path, objects, animations=False)`; генератор в `gen/*.py` обязан иметь `SPEC = {"max_tris": int, "max_dim": float}` и `build() -> list[Object]`; `make assets ONLY=box` собирает один ассет.
 
 - [ ] **Step 1: Тестовый раннер и первый падающий тест**
 
@@ -266,7 +266,8 @@ class TestPalette(unittest.TestCase):
         m1 = palette.get_material("cat_orange")
         m2 = palette.get_material("cat_orange")
         self.assertIs(m1, m2)
-        rgba = m1.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value
+        bsdf = next(n for n in m1.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+        rgba = bsdf.inputs["Base Color"].default_value
         # #FAAE45 -> sRGB (0.98, 0.68, 0.27) -> linear около (0.96, 0.42, 0.06)
         self.assertAlmostEqual(rgba[0], 0.955, places=2)
         self.assertAlmostEqual(rgba[1], 0.423, places=2)
@@ -295,6 +296,17 @@ class TestRoundedBox(unittest.TestCase):
         self.assertEqual(len(errors), 2)
         self.assertTrue(any("треугольник" in e for e in errors))
         self.assertTrue(any("габарит" in e for e in errors))
+
+    def test_check_asset_uses_world_scale_of_parent(self):
+        lib.clear_scene()
+        child = lib.rounded_box("child", (5, 1, 1), bevel=0.0)
+        parent = bpy.data.objects.new("parent", None)
+        bpy.context.scene.collection.objects.link(parent)
+        child.parent = parent
+        parent.scale = (0.1, 0.1, 0.1)
+        bpy.context.view_layer.update()
+        self.assertAlmostEqual(lib.world_extent(child), 0.5, places=3)
+        self.assertEqual(lib.check_asset([child], max_tris=50, max_dim=1.0), [])
 
     def test_check_asset_rejects_foreign_material(self):
         lib.clear_scene()
@@ -357,7 +369,7 @@ def get_material(key: str) -> bpy.types.Material:
     if mat is None:
         mat = bpy.data.materials.new(name)
         mat.use_nodes = True
-        bsdf = mat.node_tree.nodes["Principled BSDF"]
+        bsdf = next(n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
         bsdf.inputs["Base Color"].default_value = hex_to_linear(PALETTE[key])
         bsdf.inputs["Roughness"].default_value = 0.85
     return mat
@@ -373,6 +385,7 @@ def is_palette_material(mat: bpy.types.Material) -> bool:
 """Примитивы и проверки для генераторов ассетов."""
 import bmesh
 import bpy
+from mathutils import Vector
 
 import palette
 
@@ -406,7 +419,15 @@ def rounded_box(name, size, bevel=0.02, segments=3, material=None):
 		mod.limit_method = "ANGLE"
 	if material:
 		mesh.materials.append(palette.get_material(material))
+	bpy.context.view_layer.update()   # иначе dimensions нулевые до первой оценки сцены
 	return obj
+
+
+def world_extent(obj) -> float:
+	"""Наибольший габарит в мировых координатах (учитывает масштаб родителя, в отличие от obj.dimensions)."""
+	corners = [obj.matrix_world @ Vector(c) for c in obj.bound_box]
+	spans = [max(c[i] for c in corners) - min(c[i] for c in corners) for i in range(3)]
+	return max(spans)
 
 
 def tri_count(obj) -> int:
@@ -423,10 +444,11 @@ def tri_count(obj) -> int:
 def check_asset(objs, max_tris: int, max_dim: float):
 	"""Возвращает список ошибок (пустой список = ассет валиден)."""
 	errors = []
+	bpy.context.view_layer.update()
 	total = sum(tri_count(o) for o in objs if o.type == "MESH")
 	if total > max_tris:
 		errors.append(f"треугольников {total} > лимита {max_tris}")
-	biggest = max((max(o.dimensions) for o in objs if o.type == "MESH"), default=0.0)
+	biggest = max((world_extent(o) for o in objs if o.type == "MESH"), default=0.0)
 	if biggest > max_dim:
 		errors.append(f"габарит {biggest:.2f} м > лимита {max_dim} м")
 	for o in objs:
@@ -441,7 +463,7 @@ def check_asset(objs, max_tris: int, max_dim: float):
 - [ ] **Step 5: Запустить тесты библиотеки**
 
 Run: `make test-blender`
-Expected: `Ran 6 tests ... OK`. Если `tri_count` для чистого куба не равен 12, проверьте, что `create_cube` создал 6 четырёхугольников (6×2 = 12).
+Expected: `Ran 7 tests ... OK`. Если `tri_count` для чистого куба не равен 12, проверьте, что `create_cube` создал 6 четырёхугольников (6×2 = 12).
 
 - [ ] **Step 6: Тест экспорта (падающий)**
 
@@ -511,7 +533,7 @@ def export_glb(path: str, objects, animations: bool = False) -> None:
 - [ ] **Step 8: Запустить тесты**
 
 Run: `make test-blender`
-Expected: `Ran 7 tests ... OK`.
+Expected: `Ran 8 tests ... OK`.
 
 - [ ] **Step 9: build.py и первый генератор**
 
@@ -1068,6 +1090,7 @@ def build():
 
 Run: `make assets ONLY=cat && $BLENDER -b --python tools/blender/tests/list_glb.py -- assets/models/cat.glb 2>&1 | grep -E "^(OBJ|   MATS|ANIM)"`
 Expected: `OBJ ARMATURE CatRig`, `OBJ MESH cat` с наибольшим габаритом ≈0.35, `MATS ['sr_cat_orange', 'sr_cream', 'sr_coral']`, `ANIM idle`, `ANIM walk`. Если клипов нет, экспортёр не увидел action: убедитесь, что `use_fake_user = True` и `export_animation_mode="ACTIONS"`; запасной вариант: положить оба action в NLA-дорожки арматуры (`arm.animation_data.nla_tracks.new().strips.new(name, 1, action)`) и экспортировать с `export_animation_mode="NLA_TRACKS"`.
+Если наибольший габарит в glb не ≈0,35 (экспортёр плохо переносит масштаб арматуры со скином) или меш отвалился от скелета (в `list_glb` у меша нет родителя-ARMATURE), оставьте в `cat.py` `arm.scale = (1, 1, 1)`, а масштаб `0.0618` задайте в `cat.tscn` на узле `Model` (`transform = Transform3D(0.0618, 0, 0, 0, 0.0618, 0, 0, 0, 0.0618, 0, 0, 0)`); тогда проверку размера перенесите из `test_cat_asset.gd` в `test_cat_scene.gd` (задача 7), а `SPEC["max_dim"]` для кота поднимите до 6.0.
 
 - [ ] **Step 6: Запустить Godot-тесты**
 
@@ -1174,6 +1197,10 @@ def _new_action(arm, name, frames):
 		pb.location = (0, 0, 0)
 		pb.rotation_quaternion = (1, 0, 0, 0)
 		pb.scale = (1, 1, 1)
+		# Ключ на каждой кости: иначе в Godot кости без дорожки застывают в позе прошлого клипа.
+		pb.keyframe_insert("location", frame=0)
+		pb.keyframe_insert("rotation_quaternion", frame=0)
+		pb.keyframe_insert("scale", frame=0)
 	return action
 
 
@@ -1563,6 +1590,8 @@ extends SkeletonModifier3D
 @export var scale_factor := 1.4
 
 
+# Если в 4.7 этот колбэк не вызывается (голова не масштабируется в тесте),
+# переименуйте в `_process_modification_with_delta(_delta: float)`.
 func _process_modification() -> void:
 	var skel := get_skeleton()
 	if skel == null:
