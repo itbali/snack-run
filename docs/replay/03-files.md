@@ -140,6 +140,7 @@ test-godot: import
 	mkdir -p build
 	set -o pipefail; $(GODOT) --headless --path . -s addons/gut/gut_cmdln.gd -gconfig=res://.gutconfig.json 2>&1 | tee build/gut.log
 	@! grep -q "SCRIPT ERROR" build/gut.log || (echo "Ошибки скриптов в тестах, см. build/gut.log"; exit 1)
+	@! (grep -E "^ERROR:" build/gut.log | grep -v 'Parameter "material" is null' | grep -q .) || (echo "Ошибки движка в тестах (кроме известного шума dummy-рендерера), см. build/gut.log"; exit 1)
 
 test-blender:
 	$(BLENDER) -b --python-exit-code 1 --python tools/blender/tests/run.py
@@ -326,7 +327,7 @@ shape = SubResource("hit")
 [ext_resource type="PackedScene" path="res://assets/models/wasp.glb" id="2"]
 
 [sub_resource type="SphereShape3D" id="hit"]
-radius = 0.2
+radius = 0.35
 
 [node name="Wasp" type="Node3D"]
 script = ExtResource("1")
@@ -336,6 +337,7 @@ script = ExtResource("1")
 [node name="HitZone" type="Area3D" parent="."]
 
 [node name="Shape" type="CollisionShape3D" parent="HitZone"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.25, 0)
 shape = SubResource("hit")
 ```
 
@@ -911,6 +913,10 @@ func _process(delta: float) -> void:
 	_t += delta
 	if grace > 0.0:
 		grace -= delta
+		if grace <= 0.0:
+			# Пауза кончилась: кот мог всё это время стоять на еде, body_entered уже не придёт.
+			for body in get_overlapping_bodies():
+				_on_body_entered(body)
 	if lifetime > 0.0:
 		lifetime -= delta
 		if lifetime <= 0.0:
@@ -1144,6 +1150,10 @@ func _ready() -> void:
 	play_clip(&"sleep")
 
 
+func reset_pursuit() -> void:
+	brain.reset()
+
+
 func sees_cat() -> bool:
 	var c := _find_cat()
 	if c == null or c.get("hidden"):
@@ -1160,6 +1170,7 @@ func _physics_process(delta: float) -> void:
 	var s := brain.update(delta, sees_cat(), cat_hidden, at_home)
 	match s:
 		ChaseBrain.State.IDLE:
+			rotation.y = lerp_angle(rotation.y, home_yaw, 6.0 * delta)   # снова сторожит в исходную сторону
 			velocity.x = 0.0
 			velocity.z = 0.0
 			_apply_gravity(delta)
@@ -1213,6 +1224,7 @@ const GRAVITY := 12.0
 @export var walk_speed := 1.5
 @export var run_speed := 4.8
 var home: Vector3
+var home_yaw := 0.0
 var cat: Node3D
 var _home_set := false
 
@@ -1233,6 +1245,7 @@ func _ensure_home() -> void:
 	# WorldBuilder ставит global_position после add_child, поэтому дом фиксируется на первом физическом кадре.
 	if not _home_set:
 		home = global_position
+		home_yaw = rotation.y
 		_home_set = true
 
 
@@ -1312,6 +1325,8 @@ var _t := 0.0
 
 @onready var _hit: Area3D = $HitZone
 @onready var _model: Node3D = $Model
+@onready var _wing_l: Node3D = _model.find_child("wasp_wing_l", true, false)
+@onready var _wing_r: Node3D = _model.find_child("wasp_wing_r", true, false)
 
 
 func configure(hz: Dictionary, _builder: Node3D) -> void:
@@ -1334,19 +1349,17 @@ func _physics_process(delta: float) -> void:
 	_t += delta
 	_angle += angular_speed * delta
 	_place()
-	var wing_l := _model.find_child("wasp_wing_l", true, false) as Node3D
-	var wing_r := _model.find_child("wasp_wing_r", true, false) as Node3D
-	if wing_l and wing_r:
+	if _wing_l and _wing_r:
 		var flap := sin(_t * 60.0) * 0.6
-		wing_l.rotation.y = 0.25 + flap
-		wing_r.rotation.y = -0.25 - flap
+		_wing_l.rotation.y = 0.25 + flap
+		_wing_r.rotation.y = -0.25 - flap
 
 
 func _place() -> void:
 	var bob := sin(_t * 4.0) * 0.08
 	if radius > 0.0:
 		global_position = Vector3(anchor.x + cos(_angle) * radius, height + bob, anchor.z + sin(_angle) * radius)
-		rotation.y = -_angle   # мордой по касательной
+		rotation.y = PI - _angle   # головой (−Z модели) по касательной движения
 	else:
 		global_position = Vector3(anchor.x, height + bob, anchor.z)
 
@@ -1472,6 +1485,9 @@ func _on_cat_fainted() -> void:
 
 
 func respawn_cat() -> void:
+	for h in get_tree().get_nodes_in_group("hazards"):
+		if h.has_method("reset_pursuit"):
+			h.call("reset_pursuit")
 	_cat.teleport($DistrictYard/Spawn.global_position)
 	_rig.global_position = _cat.global_position + Vector3(0, CameraRig.HEIGHT, 0)
 	GameState.revive()
@@ -1660,6 +1676,7 @@ func teleport(pos: Vector3) -> void:
 	global_position = pos
 	velocity = Vector3.ZERO
 	stunned_left = 0.0
+	invulnerable_left = INVULNERABLE_TIME   # после возрождения дать прийти в себя
 	state = &"idle"
 
 
@@ -2285,6 +2302,19 @@ func test_cyclist_hits_cat_on_road() -> void:
 	cat.global_position = Vector3(0, 0.05, 0)
 	await wait_seconds(1.2)
 	assert_eq(GameState.hearts, 2)
+
+func test_cyclist_model_faces_direction_of_motion() -> void:
+	var c = _cyclist(0.1, 0.1)
+	await wait_seconds(0.35)
+	assert_true(c.riding)
+	var p0: Vector3 = c.global_position
+	await wait_physics_frames(6)
+	var motion: Vector3 = (c.global_position - p0).normalized()
+	var model := c.get_node("Model") as Node3D
+	var wheel_f := model.find_child("cyclist_wheel_f", true, false) as Node3D
+	var wheel_b := model.find_child("cyclist_wheel_b", true, false) as Node3D
+	var front_dir: Vector3 = (wheel_f.global_position - wheel_b.global_position).normalized()
+	assert_gt(motion.dot(front_dir), 0.9, "переднее колесо впереди по ходу движения")
 ```
 
 ## `tests/integration/test_dog.gd`
@@ -2352,6 +2382,20 @@ func test_dog_returns_home_after_losing_cat() -> void:
 	dog.walk_speed = 8.0   # чтобы не ждать 7 с возврата в тесте
 	await wait_seconds(2.5)
 	assert_lt(dog.global_position.distance_to(dog.home), 0.6)
+
+func test_dog_faces_home_direction_again_after_chase() -> void:
+	cat.global_position = Vector3(0, 0.05, -4)
+	await wait_seconds(1.3)
+	assert_eq(dog.brain.state, ChaseBrain.State.CHASE)
+	cat.hidden = true
+	cat.global_position = Vector3(0, 0.05, -12)
+	dog.walk_speed = 8.0
+	await wait_seconds(4.5)
+	assert_eq(dog.brain.state, ChaseBrain.State.IDLE, "вернулась и спит")
+	cat.hidden = false
+	cat.global_position = Vector3(0, 0.05, -4)
+	await wait_seconds(0.8)
+	assert_true(dog.sees_cat(), "после возврата снова смотрит туда же и видит кота")
 ```
 
 ## `tests/integration/test_dog_asset.gd`
@@ -2445,11 +2489,23 @@ func test_spilled_food_has_grace_then_expires() -> void:
 	p.setup(FoodCatalog.get_by_id(&"fish"), true, 0.6)
 	world.add_child(p)
 	p.global_position = Vector3(0, 0.05, 0)
-	_cat_at(Vector3(0, 0.05, 0))
+	_cat_at(Vector3(5, 0.05, 5))
 	await wait_physics_frames(3)
 	assert_eq(GameState.mouth.size(), 0, "в первые 0,5 с не подбирается")
 	await wait_seconds(0.7)
 	assert_true(not is_instance_valid(p) or p.is_queued_for_deletion(), "истёк срок жизни")
+
+func test_spilled_food_under_standing_cat_is_picked_after_grace() -> void:
+	# Ревью: после паузы подбор должен возобновиться даже если кот не двигался.
+	var p = PickupScene.instantiate()
+	p.setup(FoodCatalog.get_by_id(&"fish"), true, 3.0)
+	world.add_child(p)
+	p.global_position = Vector3(0, 0.05, 0)
+	_cat_at(Vector3(0, 0.05, 0))
+	await wait_physics_frames(3)
+	assert_eq(GameState.mouth.size(), 0, "в первые 0,5 с не подбирается")
+	await wait_seconds(0.7)
+	assert_eq(GameState.mouth.size(), 1, "через 0,5 с еда под котом подобрана")
 
 func test_pickup_visual_has_ring_in_rarity_color() -> void:
 	var p = _pickup(&"donut", Vector3(5, 0, 5))
@@ -2616,6 +2672,10 @@ func test_faint_respawns_at_spawn_unhidden_with_full_hearts() -> void:
 	assert_false(cat.camera_rig.crouch)
 	var spawn: Vector3 = main.get_node("DistrictYard/Spawn").global_position
 	assert_lt(cat.global_position.distance_to(spawn), 0.5)
+	assert_gt(cat.invulnerable_left, 1.5, "после возрождения кот неуязвим ~2 с")
+	for h in get_tree().get_nodes_in_group("hazards"):
+		if h.has_method("reset_pursuit"):
+			assert_eq(h.brain.state, ChaseBrain.State.IDLE, "опасности сброшены после возрождения")
 ```
 
 ## `tests/integration/test_hud.gd`
@@ -2776,6 +2836,38 @@ func test_wasp_stings_on_contact_but_not_hidden_cat() -> void:
 	cat.global_position = Vector3(0.05, 0.0, 0)
 	await wait_physics_frames(6)
 	assert_eq(GameState.hearts, 2, "спрятанный кот не жалится")
+
+func test_wasp_at_default_height_stings_cat_on_floor() -> void:
+	var w = WaspScene.instantiate()
+	w.radius = 0.0
+	world.add_child(w)
+	w.global_position = Vector3(0, 0.5, 0)
+	var floor_body := StaticBody3D.new()
+	floor_body.collision_layer = Layers.WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(10, 0.2, 10)
+	shape.shape = box
+	shape.position.y = -0.1
+	floor_body.add_child(shape)
+	world.add_child(floor_body)
+	var cat = CatScene.instantiate()
+	world.add_child(cat)
+	cat.global_position = Vector3(0, 0.05, 0)
+	await wait_seconds(0.6)
+	assert_eq(GameState.hearts, 2, "оса на высоте по умолчанию достаёт стоящего кота")
+
+func test_wasp_faces_direction_of_motion() -> void:
+	var w = WaspScene.instantiate()
+	w.radius = 2.0
+	world.add_child(w)
+	w.global_position = Vector3(0, 0.5, 0)
+	await wait_physics_frames(2)
+	var p0: Vector3 = w.global_position
+	await wait_physics_frames(6)
+	var motion: Vector3 = (w.global_position - p0).normalized()
+	var forward: Vector3 = -w.global_transform.basis.z
+	assert_gt(motion.dot(forward), 0.9, "оса летит головой вперёд")
 ```
 
 ## `tests/integration/test_world_builder.gd`
@@ -2832,6 +2924,68 @@ func test_real_yard_layout_loads() -> void:
 	var b = _builder()
 	b.build(data)
 	assert_eq(b.props_built, data["props"].size(), "все модели существуют")
+
+# --- Инварианты раскладки (после ревью плана 2) ---
+
+func _yard_with_floor() -> Node3D:
+	var world := Node3D.new()
+	add_child_autofree(world)
+	var floor_body := StaticBody3D.new()
+	floor_body.name = "Floor"
+	floor_body.collision_layer = Layers.WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(60, 0.2, 60)
+	shape.shape = box
+	shape.position.y = -0.1
+	floor_body.add_child(shape)
+	world.add_child(floor_body)
+	var b: Node3D = BuilderScript.new()
+	world.add_child(b)
+	b.build(BuilderScript.load_layout("res://data/layout/yard.json"))
+	return world
+
+func _prop_at(world: Node3D, point: Vector3) -> String:
+	var space := world.get_world_3d().direct_space_state
+	var q := PhysicsPointQueryParameters3D.new()
+	q.position = point
+	q.collision_mask = Layers.WORLD
+	for hit in space.intersect_point(q, 8):
+		var body: Node = hit["collider"]
+		if body.name != "Floor":
+			return body.name
+	return ""
+
+func test_elevated_spawn_points_stand_on_props_not_air() -> void:
+	var world := _yard_with_floor()
+	await wait_physics_frames(3)
+	var space := world.get_world_3d().direct_space_state
+	for sp in world.find_children("*", "FoodSpawnPoint", true, false):
+		var pos: Vector3 = (sp as Node3D).global_position
+		if pos.y < 0.5:
+			continue
+		var ray := PhysicsRayQueryParameters3D.create(pos + Vector3(0, 0.1, 0), pos + Vector3(0, -3, 0), Layers.WORLD)
+		var hit := space.intersect_ray(ray)
+		assert_false(hit.is_empty(), "под точкой %s что-то есть" % pos)
+		if not hit.is_empty():
+			assert_ne(hit["collider"].name, "Floor", "точка %s должна стоять на пропсе, а не висеть над полом" % pos)
+			assert_lt(pos.y - hit["position"].y, 0.3, "еда не выше 30 см над опорой")
+
+func test_spawn_points_and_hideouts_are_not_inside_props() -> void:
+	var world := _yard_with_floor()
+	await wait_physics_frames(3)
+	for sp in world.find_children("*", "FoodSpawnPoint", true, false):
+		var pos: Vector3 = (sp as Node3D).global_position + Vector3(0, 0.1, 0)
+		assert_eq(_prop_at(world, pos), "", "точка спавна %s внутри пропса" % pos)
+	for h in world.find_children("*", "Hideout", true, false):
+		var pos: Vector3 = (h as Node3D).global_position
+		assert_eq(_prop_at(world, pos), "", "укрытие %s (%s) внутри пропса: кот не сможет туда встать" % [pos, h.kind])
+
+func test_arch_opening_and_tree_sides_are_passable() -> void:
+	var world := _yard_with_floor()
+	await wait_physics_frames(3)
+	assert_eq(_prop_at(world, Vector3(0, 0.5, 10.5)), "", "проём арки должен быть проходим")
+	assert_eq(_prop_at(world, Vector3(9.7, 0.5, -6)), "", "рядом со стволом дерева должно быть проходимо")
 ```
 
 ## `tests/unit/test_cat_motion.gd`
@@ -3718,7 +3872,7 @@ def build():
 ## `tools/blender/gen/cyclist.py`
 
 ```python
-"""Велосипедист: два колеса, рама, седок с шлемом. Длина 1,8 м, едет по -Y Blender (= -Z Godot)."""
+"""Велосипедист: два колеса, рама, седок с шлемом. Длина 1,8 м, перёд по +Y Blender (= -Z Godot, вперёд в игре)."""
 import lib
 
 SPEC = {"max_tris": 1800, "max_dim": 2.0}   # два тора колёс по 256 + две сферы
@@ -3728,28 +3882,28 @@ def build():
 	frame = lib.rounded_box("cyclist", (0.08, 0.9, 0.08), bevel=0.02, material="brick")
 	frame.location.z = 0.55
 	parts = [frame]
-	for name, y in (("cyclist_wheel_f", -0.6), ("cyclist_wheel_b", 0.6)):
+	for name, y in (("cyclist_wheel_f", 0.6), ("cyclist_wheel_b", -0.6)):
 		wheel = lib.torus(name, major=0.3, minor=0.04, material="ink")
 		wheel.rotation_euler = (0, 1.5708, 0)
 		wheel.location = (0, y, 0.34)
 		parts.append(wheel)
 	post = lib.cylinder("cyclist_post", radius=0.03, depth=0.4, material="brick")
-	post.location = (0, 0.2, 0.75)
+	post.location = (0, -0.2, 0.75)
 	parts.append(post)
 	body = lib.rounded_box("cyclist_body", (0.32, 0.45, 0.5), bevel=0.06, material="sky")
-	body.location = (0, 0.05, 1.2)
-	body.rotation_euler = (0.5, 0, 0)
+	body.location = (0, -0.05, 1.2)
+	body.rotation_euler = (-0.5, 0, 0)
 	parts.append(body)
 	head = lib.sphere("cyclist_head", radius=0.14, material="cream")
-	head.location = (0, -0.2, 1.62)
+	head.location = (0, 0.2, 1.62)
 	parts.append(head)
 	helmet = lib.sphere("cyclist_helmet", radius=0.155, material="coral")
 	helmet.scale = (1, 1, 0.6)
-	helmet.location = (0, -0.2, 1.7)
+	helmet.location = (0, 0.2, 1.7)
 	parts.append(helmet)
 	for name, x in (("cyclist_leg_l", 0.12), ("cyclist_leg_r", -0.12)):
 		leg = lib.rounded_box(name, (0.1, 0.12, 0.5), bevel=0.03, material="asphalt")
-		leg.location = (x, -0.05, 0.75)
+		leg.location = (x, 0.05, 0.75)
 		parts.append(leg)
 	return lib.group(parts)
 ```
@@ -4016,7 +4170,8 @@ def build():
 ## `tools/blender/gen/stairs.py`
 
 ```python
-"""Лестница на балкон: 4 ступени по 0,25 м и площадка 1,2×1,2 на высоте 1,0 м."""
+"""Лестница на балкон: 4 ступени по 0,25 м и площадка 1,2×1,2 на высоте 1,0 м.
+Ступени идут по -Y Blender (= +Z Godot), как коллайдеры в data/layout/yard.json."""
 import lib
 
 SPEC = {"max_tris": 800, "max_dim": 3.5}
@@ -4026,13 +4181,13 @@ def build():
 	parts = []
 	for i in range(4):
 		step = lib.rounded_box("stairs" if i == 0 else f"stairs_step{i}", (1.2, 0.5, 0.25), bevel=0.02, segments=1, material="sand")
-		step.location = (0, i * 0.5, 0.125 + i * 0.25)
+		step.location = (0, -i * 0.5, 0.125 + i * 0.25)
 		parts.append(step)
 	deck = lib.rounded_box("stairs_deck", (1.2, 1.2, 0.12), bevel=0.02, segments=1, material="sand")
-	deck.location = (0, 2.55, 0.94)
+	deck.location = (0, -2.55, 0.94)
 	parts.append(deck)
 	rail = lib.rounded_box("stairs_rail", (0.06, 1.2, 0.9), bevel=0.0, material="ink")
-	rail.location = (0.6, 2.55, 1.45)
+	rail.location = (0.6, -2.55, 1.45)
 	parts.append(rail)
 	return lib.group(parts)
 ```
@@ -5467,6 +5622,13 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
 - Баки 1,12 м недостижимы прыжком 0,84 м (спек 3.1 «прыжок на бак»): лестница на балкон есть, на баки по-прежнему не запрыгнуть.
 - Спящая собака играет idle (UniMate не дал позу лёжа): нужен другой источник клипа или поза скриптом (план 4).
 - Еда респавнится 30–90 с: за 3–5-минутную сессию двор может опустеть; проверить на плейтесте.
+- Оса кружит у точки спавна независимо от сладости еды (`FoodDef.sweet` не используется); орбита проходит сквозь спинку лавки.
+- Камера в укрытии под лавкой (−5,−8) сжимается до 0,34 м и прячет модель кота; под машиной кот может торчать сквозь днище.
+- `main.gd` повторно применяет Toon ко всему двору (дублирование материалов).
+- Рассыпанная еда кладётся на y=0 независимо от высоты кота (на балконе уйдёт под площадку).
+- При обмороке еда из зубов рассыпается и её можно подобрать после возрождения; спек говорит «потеряна».
+- Укрытие «коробка» — присед за коробкой, а не внутри (модель сплошная).
+- Собака не обходит препятствия (бежит в коробку/машину).
 - Кот прячется целиком при упоре камеры в стену (порог 0,9 м при дистанции 1,8 м); рассмотреть прозрачность.
 - Камера только Q/R, добавить мышь/правый стик.
 - Лицензия весов UniMate для сгенерированных движений — уточнить владельцу.
