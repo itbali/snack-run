@@ -2,6 +2,13 @@ extends GutTest
 
 const MAIN_SCENE := "res://scenes/main.tscn"
 
+func before_each() -> void:
+	SaveGame.path = "user://test_save.json"
+	SaveGame.clear()
+
+func after_each() -> void:
+	SaveGame.clear()
+
 func _spawn_main() -> Node:
 	var main := (load(MAIN_SCENE) as PackedScene).instantiate()
 	add_child_autofree(main)

@@ -7,10 +7,21 @@ var cat
 
 func before_each() -> void:
 	GameState.reset()
+	SaveGame.path = "user://test_save.json"
+	SaveGame.clear()
 	main = MainScene.instantiate()
 	add_child_autofree(main)
 	await wait_physics_frames(30)
 	cat = main.find_child("Cat", true, false)
+
+func after_each() -> void:
+	SaveGame.clear()
+
+func test_main_autosaves_on_progress() -> void:
+	GameState.pick_up(FoodCatalog.get_by_id(&"sausage"))
+	GameState.eat_all()
+	await wait_process_frames(1)
+	assert_true(FileAccess.file_exists(SaveGame.path), "после съедания прогресс сохранён")
 
 func test_hit_spills_food_knocks_back_and_stuns() -> void:
 	GameState.pick_up(FoodCatalog.get_by_id(&"sausage"))

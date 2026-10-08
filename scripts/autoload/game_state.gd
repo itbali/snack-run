@@ -211,3 +211,53 @@ func select_skin(id: StringName) -> bool:
 	skin = id
 	skin_changed.emit(skin)
 	return true
+
+
+func to_dict() -> Dictionary:
+	var album_out := {}
+	for k in album:
+		album_out[String(k)] = album[k]
+	var upgrades_out := {}
+	for k in upgrades:
+		upgrades_out[String(k)] = true
+	return {
+		"version": 1,
+		"album": album_out,
+		"satiety": satiety,
+		"yarn": yarn,
+		"upgrades": upgrades_out,
+		"skin": String(skin),
+		"goal_target": goal_target,
+		"goal_done": goal_done,
+	}
+
+
+func from_dict(d: Dictionary) -> void:
+	reset()
+	if d.get("album") is Dictionary:
+		for k in d["album"]:
+			if d["album"][k] is float or d["album"][k] is int:
+				album[StringName(k)] = int(d["album"][k])
+	if d.get("satiety") is float or d.get("satiety") is int:
+		satiety = int(d["satiety"])
+	if d.get("yarn") is float or d.get("yarn") is int:
+		yarn = int(d["yarn"])
+	if d.get("upgrades") is Dictionary:
+		for k in d["upgrades"]:
+			if ShopCatalog.get_by_id(StringName(k)) != null:
+				upgrades[StringName(k)] = true
+	_apply_upgrades()
+	hearts = max_hearts
+	if d.get("skin") is String and owned_skins().has(StringName(d["skin"])):
+		skin = StringName(d["skin"])
+	if d.get("goal_target") is float or d.get("goal_target") is int:
+		goal_target = maxi(int(d["goal_target"]), GOAL_FIRST)
+	if d.get("goal_done") is float or d.get("goal_done") is int:
+		goal_done = maxi(int(d["goal_done"]), 0)
+	hearts_changed.emit(hearts, max_hearts)
+	mouth_changed.emit(mouth)
+	satiety_changed.emit(satiety)
+	album_changed.emit(album)
+	yarn_changed.emit(yarn)
+	skin_changed.emit(skin)
+	goal_changed.emit(goal_done, goal_target)

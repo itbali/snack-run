@@ -7,6 +7,7 @@ const CatScene := preload("res://scenes/player/cat.tscn")
 const RigScene := preload("res://scenes/player/camera_rig.tscn")
 
 var fade_time := 0.6
+var autosave := true
 var _cat: Cat
 var _rig: CameraRig
 var _spill: SpillSpawner
@@ -15,6 +16,7 @@ var _fade: ColorRect
 
 
 func _ready() -> void:
+	SaveGame.load_now()
 	Toon.apply($DistrictYard, Toon.OUTLINE_NONE)
 	_rig = RigScene.instantiate()
 	_rig.name = "CameraRig"
@@ -36,6 +38,18 @@ func _ready() -> void:
 	for c in get_tree().get_nodes_in_group("hazards"):
 		if c.has_signal("bell"):
 			c.bell.connect(func() -> void: hud.flash_bell())
+	for sig in [GameState.album_changed, GameState.satiety_changed, GameState.yarn_changed, GameState.upgrade_bought, GameState.skin_changed]:
+		sig.connect(_on_progress_changed.unbind(1))
+
+
+func _on_progress_changed() -> void:
+	if autosave:
+		SaveGame.save_now()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST and autosave:
+		SaveGame.save_now()
 
 
 func _make_fade() -> ColorRect:
