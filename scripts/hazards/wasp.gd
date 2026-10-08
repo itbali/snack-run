@@ -12,6 +12,8 @@ var _t := 0.0
 
 @onready var _hit: Area3D = $HitZone
 @onready var _model: Node3D = $Model
+@onready var _wing_l: Node3D = _model.find_child("wasp_wing_l", true, false)
+@onready var _wing_r: Node3D = _model.find_child("wasp_wing_r", true, false)
 
 
 func configure(hz: Dictionary, _builder: Node3D) -> void:
@@ -34,19 +36,17 @@ func _physics_process(delta: float) -> void:
 	_t += delta
 	_angle += angular_speed * delta
 	_place()
-	var wing_l := _model.find_child("wasp_wing_l", true, false) as Node3D
-	var wing_r := _model.find_child("wasp_wing_r", true, false) as Node3D
-	if wing_l and wing_r:
+	if _wing_l and _wing_r:
 		var flap := sin(_t * 60.0) * 0.6
-		wing_l.rotation.y = 0.25 + flap
-		wing_r.rotation.y = -0.25 - flap
+		_wing_l.rotation.y = 0.25 + flap
+		_wing_r.rotation.y = -0.25 - flap
 
 
 func _place() -> void:
 	var bob := sin(_t * 4.0) * 0.08
 	if radius > 0.0:
 		global_position = Vector3(anchor.x + cos(_angle) * radius, height + bob, anchor.z + sin(_angle) * radius)
-		rotation.y = -_angle   # мордой по касательной
+		rotation.y = PI - _angle   # головой (−Z модели) по касательной движения
 	else:
 		global_position = Vector3(anchor.x, height + bob, anchor.z)
 

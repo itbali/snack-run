@@ -43,3 +43,35 @@ func test_wasp_stings_on_contact_but_not_hidden_cat() -> void:
 	cat.global_position = Vector3(0.05, 0.0, 0)
 	await wait_physics_frames(6)
 	assert_eq(GameState.hearts, 2, "спрятанный кот не жалится")
+
+func test_wasp_at_default_height_stings_cat_on_floor() -> void:
+	var w = WaspScene.instantiate()
+	w.radius = 0.0
+	world.add_child(w)
+	w.global_position = Vector3(0, 0.5, 0)
+	var floor_body := StaticBody3D.new()
+	floor_body.collision_layer = Layers.WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(10, 0.2, 10)
+	shape.shape = box
+	shape.position.y = -0.1
+	floor_body.add_child(shape)
+	world.add_child(floor_body)
+	var cat = CatScene.instantiate()
+	world.add_child(cat)
+	cat.global_position = Vector3(0, 0.05, 0)
+	await wait_seconds(0.6)
+	assert_eq(GameState.hearts, 2, "оса на высоте по умолчанию достаёт стоящего кота")
+
+func test_wasp_faces_direction_of_motion() -> void:
+	var w = WaspScene.instantiate()
+	w.radius = 2.0
+	world.add_child(w)
+	w.global_position = Vector3(0, 0.5, 0)
+	await wait_physics_frames(2)
+	var p0: Vector3 = w.global_position
+	await wait_physics_frames(6)
+	var motion: Vector3 = (w.global_position - p0).normalized()
+	var forward: Vector3 = -w.global_transform.basis.z
+	assert_gt(motion.dot(forward), 0.9, "оса летит головой вперёд")

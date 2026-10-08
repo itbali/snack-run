@@ -49,3 +49,65 @@ func test_real_yard_layout_loads() -> void:
 	var b = _builder()
 	b.build(data)
 	assert_eq(b.props_built, data["props"].size(), "все модели существуют")
+
+# --- Инварианты раскладки (после ревью плана 2) ---
+
+func _yard_with_floor() -> Node3D:
+	var world := Node3D.new()
+	add_child_autofree(world)
+	var floor_body := StaticBody3D.new()
+	floor_body.name = "Floor"
+	floor_body.collision_layer = Layers.WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(60, 0.2, 60)
+	shape.shape = box
+	shape.position.y = -0.1
+	floor_body.add_child(shape)
+	world.add_child(floor_body)
+	var b: Node3D = BuilderScript.new()
+	world.add_child(b)
+	b.build(BuilderScript.load_layout("res://data/layout/yard.json"))
+	return world
+
+func _prop_at(world: Node3D, point: Vector3) -> String:
+	var space := world.get_world_3d().direct_space_state
+	var q := PhysicsPointQueryParameters3D.new()
+	q.position = point
+	q.collision_mask = Layers.WORLD
+	for hit in space.intersect_point(q, 8):
+		var body: Node = hit["collider"]
+		if body.name != "Floor":
+			return body.name
+	return ""
+
+func test_elevated_spawn_points_stand_on_props_not_air() -> void:
+	var world := _yard_with_floor()
+	await wait_physics_frames(3)
+	var space := world.get_world_3d().direct_space_state
+	for sp in world.find_children("*", "FoodSpawnPoint", true, false):
+		var pos: Vector3 = (sp as Node3D).global_position
+		if pos.y < 0.5:
+			continue
+		var ray := PhysicsRayQueryParameters3D.create(pos + Vector3(0, 0.1, 0), pos + Vector3(0, -3, 0), Layers.WORLD)
+		var hit := space.intersect_ray(ray)
+		assert_false(hit.is_empty(), "под точкой %s что-то есть" % pos)
+		if not hit.is_empty():
+			assert_ne(hit["collider"].name, "Floor", "точка %s должна стоять на пропсе, а не висеть над полом" % pos)
+			assert_lt(pos.y - hit["position"].y, 0.3, "еда не выше 30 см над опорой")
+
+func test_spawn_points_and_hideouts_are_not_inside_props() -> void:
+	var world := _yard_with_floor()
+	await wait_physics_frames(3)
+	for sp in world.find_children("*", "FoodSpawnPoint", true, false):
+		var pos: Vector3 = (sp as Node3D).global_position + Vector3(0, 0.1, 0)
+		assert_eq(_prop_at(world, pos), "", "точка спавна %s внутри пропса" % pos)
+	for h in world.find_children("*", "Hideout", true, false):
+		var pos: Vector3 = (h as Node3D).global_position
+		assert_eq(_prop_at(world, pos), "", "укрытие %s (%s) внутри пропса: кот не сможет туда встать" % [pos, h.kind])
+
+func test_arch_opening_and_tree_sides_are_passable() -> void:
+	var world := _yard_with_floor()
+	await wait_physics_frames(3)
+	assert_eq(_prop_at(world, Vector3(0, 0.5, 10.5)), "", "проём арки должен быть проходим")
+	assert_eq(_prop_at(world, Vector3(9.7, 0.5, -6)), "", "рядом со стволом дерева должно быть проходимо")

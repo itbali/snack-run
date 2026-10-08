@@ -7,6 +7,7 @@ const GRAVITY := 12.0
 @export var walk_speed := 1.5
 @export var run_speed := 4.8
 var home: Vector3
+var home_yaw := 0.0
 var cat: Node3D
 var _home_set := false
 
@@ -27,6 +28,7 @@ func _ensure_home() -> void:
 	# WorldBuilder ставит global_position после add_child, поэтому дом фиксируется на первом физическом кадре.
 	if not _home_set:
 		home = global_position
+		home_yaw = rotation.y
 		_home_set = true
 
 

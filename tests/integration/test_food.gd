@@ -55,11 +55,23 @@ func test_spilled_food_has_grace_then_expires() -> void:
 	p.setup(FoodCatalog.get_by_id(&"fish"), true, 0.6)
 	world.add_child(p)
 	p.global_position = Vector3(0, 0.05, 0)
-	_cat_at(Vector3(0, 0.05, 0))
+	_cat_at(Vector3(5, 0.05, 5))
 	await wait_physics_frames(3)
 	assert_eq(GameState.mouth.size(), 0, "в первые 0,5 с не подбирается")
 	await wait_seconds(0.7)
 	assert_true(not is_instance_valid(p) or p.is_queued_for_deletion(), "истёк срок жизни")
+
+func test_spilled_food_under_standing_cat_is_picked_after_grace() -> void:
+	# Ревью: после паузы подбор должен возобновиться даже если кот не двигался.
+	var p = PickupScene.instantiate()
+	p.setup(FoodCatalog.get_by_id(&"fish"), true, 3.0)
+	world.add_child(p)
+	p.global_position = Vector3(0, 0.05, 0)
+	_cat_at(Vector3(0, 0.05, 0))
+	await wait_physics_frames(3)
+	assert_eq(GameState.mouth.size(), 0, "в первые 0,5 с не подбирается")
+	await wait_seconds(0.7)
+	assert_eq(GameState.mouth.size(), 1, "через 0,5 с еда под котом подобрана")
 
 func test_pickup_visual_has_ring_in_rarity_color() -> void:
 	var p = _pickup(&"donut", Vector3(5, 0, 5))

@@ -60,3 +60,17 @@ func test_dog_returns_home_after_losing_cat() -> void:
 	dog.walk_speed = 8.0   # чтобы не ждать 7 с возврата в тесте
 	await wait_seconds(2.5)
 	assert_lt(dog.global_position.distance_to(dog.home), 0.6)
+
+func test_dog_faces_home_direction_again_after_chase() -> void:
+	cat.global_position = Vector3(0, 0.05, -4)
+	await wait_seconds(1.3)
+	assert_eq(dog.brain.state, ChaseBrain.State.CHASE)
+	cat.hidden = true
+	cat.global_position = Vector3(0, 0.05, -12)
+	dog.walk_speed = 8.0
+	await wait_seconds(4.5)
+	assert_eq(dog.brain.state, ChaseBrain.State.IDLE, "вернулась и спит")
+	cat.hidden = false
+	cat.global_position = Vector3(0, 0.05, -4)
+	await wait_seconds(0.8)
+	assert_true(dog.sees_cat(), "после возврата снова смотрит туда же и видит кота")

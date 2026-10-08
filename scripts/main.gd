@@ -69,6 +69,9 @@ func _on_cat_fainted() -> void:
 
 
 func respawn_cat() -> void:
+	for h in get_tree().get_nodes_in_group("hazards"):
+		if h.has_method("reset_pursuit"):
+			h.call("reset_pursuit")
 	_cat.teleport($DistrictYard/Spawn.global_position)
 	_rig.global_position = _cat.global_position + Vector3(0, CameraRig.HEIGHT, 0)
 	GameState.revive()

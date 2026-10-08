@@ -132,6 +132,7 @@ func teleport(pos: Vector3) -> void:
 	global_position = pos
 	velocity = Vector3.ZERO
 	stunned_left = 0.0
+	invulnerable_left = INVULNERABLE_TIME   # после возрождения дать прийти в себя
 	state = &"idle"
 
 

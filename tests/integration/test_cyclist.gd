@@ -60,3 +60,16 @@ func test_cyclist_hits_cat_on_road() -> void:
 	cat.global_position = Vector3(0, 0.05, 0)
 	await wait_seconds(1.2)
 	assert_eq(GameState.hearts, 2)
+
+func test_cyclist_model_faces_direction_of_motion() -> void:
+	var c = _cyclist(0.1, 0.1)
+	await wait_seconds(0.35)
+	assert_true(c.riding)
+	var p0: Vector3 = c.global_position
+	await wait_physics_frames(6)
+	var motion: Vector3 = (c.global_position - p0).normalized()
+	var model := c.get_node("Model") as Node3D
+	var wheel_f := model.find_child("cyclist_wheel_f", true, false) as Node3D
+	var wheel_b := model.find_child("cyclist_wheel_b", true, false) as Node3D
+	var front_dir: Vector3 = (wheel_f.global_position - wheel_b.global_position).normalized()
+	assert_gt(motion.dot(front_dir), 0.9, "переднее колесо впереди по ходу движения")

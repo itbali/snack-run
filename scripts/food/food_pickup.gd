@@ -61,6 +61,10 @@ func _process(delta: float) -> void:
 	_t += delta
 	if grace > 0.0:
 		grace -= delta
+		if grace <= 0.0:
+			# Пауза кончилась: кот мог всё это время стоять на еде, body_entered уже не придёт.
+			for body in get_overlapping_bodies():
+				_on_body_entered(body)
 	if lifetime > 0.0:
 		lifetime -= delta
 		if lifetime <= 0.0:

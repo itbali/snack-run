@@ -53,3 +53,7 @@ func test_faint_respawns_at_spawn_unhidden_with_full_hearts() -> void:
 	assert_false(cat.camera_rig.crouch)
 	var spawn: Vector3 = main.get_node("DistrictYard/Spawn").global_position
 	assert_lt(cat.global_position.distance_to(spawn), 0.5)
+	assert_gt(cat.invulnerable_left, 1.5, "после возрождения кот неуязвим ~2 с")
+	for h in get_tree().get_nodes_in_group("hazards"):
+		if h.has_method("reset_pursuit"):
+			assert_eq(h.brain.state, ChaseBrain.State.IDLE, "опасности сброшены после возрождения")

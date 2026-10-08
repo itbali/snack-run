@@ -22,6 +22,10 @@ func _ready() -> void:
 	play_clip(&"sleep")
 
 
+func reset_pursuit() -> void:
+	brain.reset()
+
+
 func sees_cat() -> bool:
 	var c := _find_cat()
 	if c == null or c.get("hidden"):
@@ -38,6 +42,7 @@ func _physics_process(delta: float) -> void:
 	var s := brain.update(delta, sees_cat(), cat_hidden, at_home)
 	match s:
 		ChaseBrain.State.IDLE:
+			rotation.y = lerp_angle(rotation.y, home_yaw, 6.0 * delta)   # снова сторожит в исходную сторону
 			velocity.x = 0.0
 			velocity.z = 0.0
 			_apply_gravity(delta)
