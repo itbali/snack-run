@@ -80,3 +80,12 @@ func test_shop_view_makes_cat_visible_even_if_camera_was_pinned() -> void:
 	await wait_physics_frames(2)
 	assert_true(cat.visible, "в витрине кот всегда виден")
 	rig.shop_view = false
+
+func test_floor_plate_is_solid() -> void:
+	await wait_physics_frames(2)
+	var space := world.get_world_3d().direct_space_state
+	var q := PhysicsRayQueryParameters3D.create(Vector3(0, 1, -5), Vector3(0, -1, -5), Layers.WORLD)
+	var hit := space.intersect_ray(q)
+	assert_false(hit.is_empty(), "луч вниз в будке во что-то упирается")
+	if not hit.is_empty():
+		assert_almost_eq((hit["position"] as Vector3).y, 0.03, 0.005, "упирается в плиту будки, а не в землю")

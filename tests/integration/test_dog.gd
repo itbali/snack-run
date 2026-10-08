@@ -88,13 +88,20 @@ func test_quiet_upgrade_narrows_dog_cone() -> void:
 	assert_false(dog.sees_cat(), "с тихими шагами конус 31,5° — не видит")
 
 func test_safe_zone_cancels_chase() -> void:
-	# Review Focus 5
+	# Review Focus 5 плана 3, ужесточено планом 4: «в будку собаки не заходят» — уходит сразу.
 	cat.global_position = Vector3(0, 0.05, -4)
 	await wait_seconds(1.3)
 	assert_eq(dog.brain.state, ChaseBrain.State.CHASE)
 	cat.in_safe_zone = true
-	await wait_seconds(2.3)
-	assert_eq(dog.brain.state, ChaseBrain.State.RETURN, "в безопасной зоне собака теряет кота через 2 с")
+	await wait_physics_frames(3)
+	assert_eq(dog.brain.state, ChaseBrain.State.RETURN, "в безопасной зоне собака разворачивается сразу")
+
+func test_idle_dog_plays_sleep_clip() -> void:
+	await wait_physics_frames(3)
+	var ap := dog.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	assert_true(ap.has_animation("sleep"), "в dog.glb есть клип sleep")
+	assert_eq(ap.current_animation, "sleep")
+	assert_eq(ap.get_animation("sleep").loop_mode, Animation.LOOP_LINEAR)
 
 func test_chasing_dog_scares_cat() -> void:
 	cat.global_position = Vector3(0, 0.05, -4)

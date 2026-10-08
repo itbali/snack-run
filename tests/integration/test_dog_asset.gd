@@ -24,3 +24,10 @@ func test_dog_glb_has_clips_head_and_two_materials() -> void:
 	for i in skel.get_bone_count():
 		aabb = aabb.expand(skel.global_transform * skel.get_bone_global_rest(i).origin)
 	assert_between(maxf(aabb.size.x, aabb.size.z), 0.35, 0.7, "длина собаки по скелету около 0,5 м")
+
+func test_dog_has_sleep_clip_of_two_seconds() -> void:
+	var dog := (load("res://assets/models/dog.glb") as PackedScene).instantiate()
+	add_child_autofree(dog)
+	var ap := dog.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	assert_true(ap.has_animation("sleep"))
+	assert_between(ap.get_animation("sleep").length, 1.8, 2.2)

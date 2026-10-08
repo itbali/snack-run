@@ -1,9 +1,10 @@
-"""Собака из Quaternius Dog.blend: рыжая с белой грудкой, 0,55 м, клипы idle/walk, кость head."""
+"""Собака из Quaternius Dog.blend: рыжая с белой грудкой, 0,55 м, клипы idle/walk и процедурный sleep, кость head."""
 import os
 
 import bpy
 from mathutils import Matrix
 
+import dog_sleep
 import lib
 import rig_inspect
 import rig_utils
@@ -35,6 +36,7 @@ def build():
 		act = bpy.data.actions[old]
 		act.name = new
 		rig_utils.clean_action(act, arm)
+	dog_sleep.make_sleep_action(arm)
 	rig_utils.split_material_by_height(mesh, "cat_orange", "cream", 0.35)
 	arm.animation_data_create()
 	arm.animation_data.action = None

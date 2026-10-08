@@ -12,6 +12,9 @@ size = Vector3(2.2, 2.4, 0.12)
 [sub_resource type="BoxShape3D" id="side"]
 size = Vector3(0.12, 2.4, 2.2)
 
+[sub_resource type="BoxShape3D" id="floor"]
+size = Vector3(2.2, 0.03, 2.2)
+
 [node name="YarnShop" type="Node3D"]
 script = ExtResource("1")
 
@@ -32,6 +35,10 @@ shape = SubResource("side")
 [node name="Right" type="CollisionShape3D" parent="Walls"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.04, 1.2, 0)
 shape = SubResource("side")
+
+[node name="Floor" type="CollisionShape3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.015, 0)
+shape = SubResource("floor")
 
 [node name="Zone" type="Area3D" parent="."]
 

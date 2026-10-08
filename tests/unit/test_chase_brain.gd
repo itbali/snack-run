@@ -39,3 +39,14 @@ func test_return_becomes_idle_at_home() -> void:
 	brain.state = ChaseBrain.State.RETURN
 	assert_eq(brain.update(0.1, false, false, false), ChaseBrain.State.RETURN)
 	assert_eq(brain.update(0.1, false, false, true), ChaseBrain.State.IDLE)
+
+func test_safe_zone_ends_chase_immediately() -> void:
+	var b := ChaseBrain.new()
+	b.update(0.1, true, false, false)
+	b.update(1.0, true, false, false)
+	assert_eq(b.state, ChaseBrain.State.CHASE)
+	assert_eq(b.update(0.1, false, true, false, true), ChaseBrain.State.RETURN, "кот в будке — собака уходит сразу")
+	var a := ChaseBrain.new()
+	a.update(0.1, true, false, false)
+	assert_eq(a.state, ChaseBrain.State.ALERT)
+	assert_eq(a.update(0.1, true, true, false, true), ChaseBrain.State.IDLE, "насторожилась, но кот уже в будке")
