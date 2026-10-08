@@ -55,6 +55,7 @@ func _ready() -> void:
 		g.opened.connect(func() -> void: hud.flash_bell("🎉 Арка в кафе открыта!", 3.0))
 	for sig in [GameState.album_changed, GameState.satiety_changed, GameState.yarn_changed, GameState.upgrade_bought, GameState.skin_changed]:
 		sig.connect(_on_progress_changed.unbind(1))
+	Mouse.capture(true)
 
 
 func _on_progress_changed() -> void:
@@ -128,6 +129,7 @@ func on_interact_pressed() -> void:
 
 
 func open_shop() -> void:
+	Mouse.capture(false)
 	_cat.input_enabled = false
 	var shop := get_tree().get_first_node_in_group("yarn_shop")
 	if shop:
@@ -145,6 +147,7 @@ func close_shop() -> void:
 	_cat.input_enabled = true
 	_rig.shop_view = false
 	hud.visible = true
+	Mouse.capture(true)
 
 
 func on_back_pressed() -> void:
@@ -163,6 +166,7 @@ func on_album_pressed() -> void:
 
 func _set_paused(on: bool) -> void:
 	get_tree().paused = on
+	Mouse.capture(not on)
 
 
 func toggle_album() -> void:

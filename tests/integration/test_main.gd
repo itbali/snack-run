@@ -100,3 +100,13 @@ func test_eating_plays_eat_sound() -> void:
 	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
 	GameState.eat_all()
 	assert_eq(Sfx.last_played, &"eat")
+
+func test_vignette_overlay_exists_and_ignores_mouse() -> void:
+	var main := _spawn_main()
+	var rect := main.get_node_or_null("Vignette/Rect") as ColorRect
+	assert_not_null(rect)
+	if rect == null:
+		return
+	assert_true(rect.material is ShaderMaterial)
+	assert_eq(rect.mouse_filter, Control.MOUSE_FILTER_IGNORE)
+	assert_lt((main.get_node("Vignette") as CanvasLayer).layer, (main.get_node("Hud") as CanvasLayer).layer + 1, "виньетка под HUD")

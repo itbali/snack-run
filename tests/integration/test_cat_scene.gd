@@ -41,15 +41,47 @@ func test_head_is_scaled() -> void:
 	await wait_process_frames(3)
 	assert_almost_eq(_captured_head_scale.x, 1.4, 0.01)
 
-func test_camera_rig_hides_target_when_too_close() -> void:
+func _body_material(cat) -> StandardMaterial3D:
+	for mi in cat.find_children("*", "MeshInstance3D", true, false):
+		for i in (mi as MeshInstance3D).mesh.get_surface_count():
+			var m := (mi as MeshInstance3D).get_surface_override_material(i) as StandardMaterial3D
+			if m and m.resource_name == "sr_cat_orange":
+				return m
+	return null
+
+func test_camera_rig_fades_target_instead_of_hiding() -> void:
+	# Отложенное замечание ревью плана 1: у стены кот исчезал целиком.
 	var cat = _spawn()
 	var rig = (load(RIG_SCENE) as PackedScene).instantiate()
 	rig.target = cat
 	add_child_autofree(rig)
-	rig.apply_arm_length(0.5)   # имитация упора в стену
-	assert_false(cat.visible)
+	rig.apply_arm_length(0.5)   # упор в стену
+	assert_true(cat.visible, "кот не исчезает")
+	assert_lt(cat.fade, 0.5)
+	var body := _body_material(cat)
+	assert_eq(body.transparency, BaseMaterial3D.TRANSPARENCY_ALPHA)
+	assert_almost_eq(body.albedo_color.a, cat.fade, 0.01)
 	rig.apply_arm_length(3.5)
-	assert_true(cat.visible)
+	assert_almost_eq(cat.fade, 1.0, 0.001, "отошли от стены — непрозрачен")
+	assert_eq(_body_material(cat).transparency, BaseMaterial3D.TRANSPARENCY_DISABLED)
+
+func test_skin_change_keeps_fade() -> void:
+	# Review Focus 4
+	GameState.reset()
+	GameState.add_yarn(12)
+	var cat = _spawn()
+	cat.set_fade(0.4)
+	GameState.buy(ShopCatalog.get_by_id(&"skin_black"))
+	await wait_process_frames(1)
+	assert_almost_eq(_body_material(cat).albedo_color.a, 0.4, 0.01, "скин не возвращает непрозрачность")
+	GameState.reset()
+
+func test_mouse_turns_camera() -> void:
+	var rig = (load(RIG_SCENE) as PackedScene).instantiate()
+	add_child_autofree(rig)
+	var before: Basis = rig.yaw_basis()
+	rig.turn_by_pixels(100.0)
+	assert_false(rig.yaw_basis().is_equal_approx(before), "100 px мыши поворачивают камеру")
 
 func test_locomotion_clips_loop() -> void:
 	# Ревью: idle/walk/run без зацикливания останавливаются через 1,7 с.

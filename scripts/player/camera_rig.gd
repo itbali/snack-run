@@ -1,6 +1,7 @@
 class_name CameraRig
 extends Node3D
 ## Третье лицо: пружина 1,8 м, взгляд с высоты 0,6 м, наклон −14°, сглаживание 8/с (спек 2.3).
+## Мышь и правый стик крутят yaw, наклон фиксирован. У стены кот становится прозрачным, не исчезает.
 
 const HEIGHT := 0.6
 const DISTANCE := 1.8
@@ -10,6 +11,8 @@ const YAW_SPEED := 2.2
 const PITCH_DEG := -14.0
 const SHOP_OFFSET := Vector3(1.4, 0.6, 1.4)   # витрина: камера спереди-сбоку кота
 const CROUCH_HEIGHT := 0.3
+const MOUSE_SENS := 0.004   # рад на пиксель
+const FADE_FULL := 0.3      # при такой длине пружины кот почти прозрачен (0,15)
 
 @export var target: Node3D
 var crouch := false
@@ -33,6 +36,7 @@ func _physics_process(delta: float) -> void:
 	rotation.y = _yaw
 	if shop_view:
 		target.visible = true   # витрина: кот виден, даже если пружина до этого прятала его у стены
+		_set_target_fade(1.0)
 		var want := shop_view_point if use_shop_point else target.global_position + SHOP_OFFSET
 		global_position = global_position.lerp(want, 1.0 - exp(-SMOOTH * delta))
 		look_at(target.global_position + Vector3(0, 0.15, 0), Vector3.UP)
@@ -45,9 +49,25 @@ func _physics_process(delta: float) -> void:
 	apply_arm_length(_arm.get_hit_length())
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		turn_by_pixels((event as InputEventMouseMotion).relative.x)
+
+
+func turn_by_pixels(dx: float) -> void:
+	_yaw -= dx * MOUSE_SENS
+
+
 func apply_arm_length(length: float) -> void:
-	# Review Focus 3: камера упёрлась в стену и оказалась внутри кота — прячем модель.
-	target.visible = length >= HIDE_BELOW
+	# Камера упёрлась в стену: кот не исчезает, а становится прозрачным (замечание ревью плана 1).
+	_set_target_fade(clampf((length - FADE_FULL) / (HIDE_BELOW - FADE_FULL), 0.15, 1.0))
+
+
+func _set_target_fade(alpha: float) -> void:
+	if target.has_method("set_fade"):
+		target.call("set_fade", alpha)
+	else:
+		target.visible = alpha > 0.5
 
 
 func yaw_basis() -> Basis:

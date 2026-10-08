@@ -23,6 +23,7 @@ var input_enabled := true   # false, пока открыт экран магаз
 var stunned_left := 0.0
 var invulnerable_left := 0.0
 var face := CatFace.new()   # выражения глаз, переключает меши eyes_* модели
+var fade := 1.0   # 1 = непрозрачен; значением владеет камера (set_fade), скин его не трогает
 var state: StringName = &"idle":
 	set(value):
 		if value != state:
@@ -101,6 +102,8 @@ func _apply_skin(id: StringName) -> void:
 	var skin := SkinCatalog.get_by_id(id)
 	if skin:
 		CatSkin.apply(_model, skin)
+		if fade < 1.0:
+			_apply_fade()   # перекраска сбрасывает альфу, прозрачность у стены должна остаться
 
 
 func try_hide() -> bool:
@@ -148,6 +151,30 @@ func take_hit(from: Vector3) -> void:
 	state = &"hit"
 	hit_taken.emit(from)
 	GameState.take_hit()
+
+
+func set_fade(alpha: float) -> void:
+	if is_equal_approx(alpha, fade):
+		return
+	fade = alpha
+	_apply_fade()
+
+
+func _apply_fade() -> void:
+	for mi in _model.find_children("*", "MeshInstance3D", true, false):
+		var m3 := mi as MeshInstance3D
+		if m3.mesh == null:
+			continue
+		for i in m3.mesh.get_surface_count():
+			_fade_material(m3.get_surface_override_material(i) as StandardMaterial3D)
+		_fade_material(m3.material_overlay as StandardMaterial3D)
+
+
+func _fade_material(mat: StandardMaterial3D) -> void:
+	if mat == null:
+		return
+	mat.albedo_color.a = fade
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED if fade >= 0.999 else BaseMaterial3D.TRANSPARENCY_ALPHA
 
 
 func threaten() -> void:
