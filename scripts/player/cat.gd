@@ -21,6 +21,9 @@ var state: StringName = &"idle":
 
 
 func _ready() -> void:
+	add_to_group("cat")
+	collision_layer = Layers.CAT
+	collision_mask = Layers.WORLD | Layers.HAZARD
 	Toon.apply(_model, Toon.OUTLINE_CHARACTER)
 	for clip in LOOPING_CLIPS:
 		if _anim and _anim.has_animation(clip):

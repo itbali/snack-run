@@ -1,7 +1,13 @@
 {
-  "dirs": ["res://tests/"],
+  "dirs": [
+    "res://tests/"
+  ],
   "include_subdirs": true,
   "should_exit": true,
   "log_level": 1,
-  "prefix": "test_"
+  "prefix": "test_",
+  "failure_error_types": [
+    "gut",
+    "push_error"
+  ]
 }
