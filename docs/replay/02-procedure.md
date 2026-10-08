@@ -587,13 +587,20 @@ dummy-рендерера. Итог: 12 Blender + 88 GUT тестов.
 параллельными диапазонами — один поток с GitHub шёл 150 КБ/с — и кладёт `macos.zip` и `version.txt`
 в `~/Library/Application Support/Godot/export_templates/4.7.2.stable/`),
 `export_presets.cfg` (macOS, universal, `codesign/codesign=1` — встроенная ad-hoc подпись без сертификата, нотаризации нет),
-`make export` → `build/SnackRun.zip`. Проверка запуска: `unzip -q -o build/SnackRun.zip -d build && build/SnackRun.app/Contents/MacOS/SnackRun --quit-after 60; echo $?` → 0.
+`make export` → `build/SnackRun.zip` (62,7 МБ, внутри `Snack Run.app` — имя с пробелом, как `config/name`). Экспорт для universal
+требует в `project.godot` строку `textures/vram_compression/import_etc2_astc=true` в `[rendering]` (иначе «Невозможно экспортировать для
+Universal или Arm64…»). Проверка запуска: `unzip -q -o build/SnackRun.zip -d build && "build/Snack Run.app/Contents/MacOS/Snack Run" --quit-after 60; echo $?` → 0.
 
 ## Задача 10: эта документация, `make replay` (в приложение добавлены `.cfg/.tres/.gdshader/.txt`, `tools/audio`), дорожная карта, `CLAUDE.md`.
 
 ## Ревью плана 4 и исправления
 
-(заполняется после ревью; см. конец раздела)
+Ревьюер (критичных нет, 2 важных, 8 минорных): экспорт был задокументирован до выполнения (шаблоны качались) — выполнен,
+см. задачу 9; рассыпанная еда на `pos.y` висела в воздухе вокруг стола кафе и балкона (радиус разлёта 1–2 м больше
+столешницы) — `SpillSpawner` кладёт каждую порцию лучом вниз по слою `WORLD` на поверхность под точкой
+(`test_spilled_food_lands_on_surface_below`). Минорные отложены в дорожную карту: `reset_progress` ставит `autosave = true`
+безусловно; `addons/*` не исключён из pack; `build/` без `.gdignore`; B геймпада не закрывает паузу; оценка баланса —
+нижняя граница; «рентген» полупрозрачного кота (depth draw). Итог: 158 GUT-тестов, 20 Blender.
 
 ---
 
