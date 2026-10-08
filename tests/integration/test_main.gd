@@ -72,3 +72,23 @@ func test_cat_keeps_animating_longer_than_one_clip() -> void:
 	Input.action_release("move_forward")
 	assert_true(ap.is_playing(), "анимация должна идти дольше одного клипа")
 	assert_eq(ap.current_animation, "walk")
+
+func test_eating_spawns_burst_in_rarity_color() -> void:
+	var main := _spawn_main()
+	await wait_physics_frames(2)
+	GameState.pick_up(FoodCatalog.get_by_id(&"pizza"))   # редкая, синяя
+	GameState.eat_all()
+	var fx := get_tree().get_nodes_in_group("fx")
+	assert_eq(fx.size(), 1, "один всплеск на съедание")
+	if fx.size() == 1:
+		assert_eq((fx[0] as CPUParticles3D).color, Rarity.COLORS[Rarity.Tier.RARE])
+
+func test_hit_spawns_star_burst() -> void:
+	var main := _spawn_main()
+	var cat = main.find_child("Cat", true, false)
+	await wait_physics_frames(30)
+	cat.take_hit(cat.global_position + Vector3(1, 0, 0))
+	var fx := get_tree().get_nodes_in_group("fx")
+	assert_eq(fx.size(), 1)
+	if fx.size() == 1:
+		assert_eq((fx[0] as CPUParticles3D).color, Effects.HIT_COLOR)

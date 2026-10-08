@@ -40,6 +40,7 @@ func _ready() -> void:
 	add_child(_spill)
 	_fade = _make_fade()
 	GameState.cat_hit.connect(_on_cat_hit)
+	GameState.food_eaten.connect(_on_food_eaten)
 	GameState.cat_fainted.connect(_on_cat_fainted)
 	for c in get_tree().get_nodes_in_group("hazards"):
 		if c.has_signal("bell"):
@@ -77,7 +78,15 @@ func _make_fade() -> ColorRect:
 	return rect
 
 
+func _on_food_eaten(items: Array) -> void:
+	var top: int = Rarity.Tier.COMMON
+	for f in items:
+		top = maxi(top, f.tier)
+	Effects.burst(self, _cat.global_position + Vector3(0, 0.25, 0), Rarity.COLORS[top])
+
+
 func _on_cat_hit(spilled: Array) -> void:
+	Effects.burst(self, _cat.global_position + Vector3(0, 0.3, 0), Effects.HIT_COLOR, 16, 0.06, 1.5)
 	if spilled.is_empty():
 		return
 	_spill.spill_around(_cat.global_position, spilled)
