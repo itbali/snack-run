@@ -583,8 +583,9 @@ dummy-рендерера. Итог: 12 Blender + 88 GUT тестов.
 
 ## Задача 9: экспорт mac-билда
 
-`make templates` (скачивает 1,28 ГБ `Godot_v4.7.2-stable_export_templates.tpz` в `build/`, кладёт `macos.zip` и `version.txt`
-в `~/Library/Application Support/Godot/export_templates/4.7.2.stable/`; с GitHub идёт медленно, `curl -C -` докачивает),
+`make templates` (скрипт `tools/release/fetch_templates.sh` качает 1,28 ГБ `Godot_v4.7.2-stable_export_templates.tpz` восемью
+параллельными диапазонами — один поток с GitHub шёл 150 КБ/с — и кладёт `macos.zip` и `version.txt`
+в `~/Library/Application Support/Godot/export_templates/4.7.2.stable/`),
 `export_presets.cfg` (macOS, universal, `codesign/codesign=1` — встроенная ad-hoc подпись без сертификата, нотаризации нет),
 `make export` → `build/SnackRun.zip`. Проверка запуска: `unzip -q -o build/SnackRun.zip -d build && build/SnackRun.app/Contents/MacOS/SnackRun --quit-after 60; echo $?` → 0.
 

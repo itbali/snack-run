@@ -3,7 +3,6 @@ GODOT   ?= /Applications/Godot.app/Contents/MacOS/Godot
 BLENDER ?= /Applications/Blender.app/Contents/MacOS/Blender
 SHOT    ?= build/shot.png
 TEMPLATES_DIR := $(HOME)/Library/Application Support/Godot/export_templates/4.7.2.stable
-TPZ_URL := https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_export_templates.tpz
 
 .PHONY: import test test-godot test-blender assets shot run replay sfx templates export
 
@@ -39,7 +38,7 @@ sfx:
 
 templates:
 	mkdir -p "$(TEMPLATES_DIR)" build
-	[ -f build/templates.tpz ] || curl -L -C - -o build/templates.tpz "$(TPZ_URL)"
+	[ -f build/templates.tpz ] || tools/release/fetch_templates.sh
 	unzip -o -j build/templates.tpz 'templates/macos.zip' 'templates/version.txt' -d "$(TEMPLATES_DIR)"
 	ls -la "$(TEMPLATES_DIR)"
 

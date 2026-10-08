@@ -70,9 +70,20 @@ func test_faint_respawns_at_spawn_unhidden_with_full_hearts() -> void:
 		if h.has_method("reset_pursuit"):
 			assert_eq(h.brain.state, ChaseBrain.State.IDLE, "опасности сброшены после возрождения")
 
-func test_spilled_food_lands_at_cat_height() -> void:
-	var spawner := SpillSpawner.new()
-	add_child_autofree(spawner)
-	var out: Array = spawner.spill_around(Vector3(-11.3, 1.0, -9.0), [FoodCatalog.get_by_id(&"cookie")])
-	assert_eq(out.size(), 1)
-	assert_almost_eq((out[0] as Node3D).global_position.y, 1.0, 0.001, "еда с балкона не уходит под площадку")
+func test_spilled_food_lands_on_surface_below() -> void:
+	# Ревью плана 4: еда на pos.y висела в воздухе вокруг стола кафе и балкона (радиус разлёта 1–2 м больше столешницы).
+	var spawner: SpillSpawner = main.find_child("SpillSpawner", true, false)
+	cat.global_position = Vector3(0, 0.95, 17)   # стол кафе, верх 0,75
+	await wait_physics_frames(10)
+	assert_almost_eq(cat.global_position.y, 0.75, 0.05, "кот стоит на столе")
+	var foods := []
+	for i in 6:
+		foods.append(FoodCatalog.get_by_id(&"cookie"))
+	var out: Array = spawner.spill_around(cat.global_position, foods)
+	var on_ground := 0
+	for p in out:
+		var y: float = (p as Node3D).global_position.y
+		assert_true(y < 0.1 or absf(y - 0.75) < 0.05, "еда лежит на земле или на столе, не в воздухе: y=%.2f" % y)
+		if y < 0.1:
+			on_ground += 1
+	assert_gt(on_ground, 0, "в 1–2 м от стола еда падает на землю")
