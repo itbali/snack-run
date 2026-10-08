@@ -136,6 +136,8 @@ func try_eat() -> bool:
 func take_hit(from: Vector3) -> void:
 	if invulnerable_left > 0.0 or stunned_left > 0.0 or hidden or in_safe_zone:
 		return
+	Sfx.play(&"hit")   # один вызов на реальный удар: повторные касания блокирует неуязвимость
+	Sfx.play(&"meow", 0.12)
 	var away := global_position - from
 	away.y = 0.0
 	if away.length() < 0.01:

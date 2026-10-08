@@ -44,7 +44,9 @@ func _ready() -> void:
 	GameState.cat_fainted.connect(_on_cat_fainted)
 	for c in get_tree().get_nodes_in_group("hazards"):
 		if c.has_signal("bell"):
-			c.bell.connect(func() -> void: hud.flash_bell())
+			c.bell.connect(func() -> void:
+				hud.flash_bell()
+				Sfx.play(&"bell"))
 	shop_menu.closed.connect(close_shop)
 	album_menu.closed.connect(func() -> void: _set_paused(false))
 	pause_menu.resumed.connect(func() -> void: _set_paused(false))
@@ -79,6 +81,7 @@ func _make_fade() -> ColorRect:
 
 
 func _on_food_eaten(items: Array) -> void:
+	Sfx.play(&"eat")
 	var top: int = Rarity.Tier.COMMON
 	for f in items:
 		top = maxi(top, f.tier)

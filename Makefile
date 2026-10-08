@@ -3,7 +3,7 @@ GODOT   ?= /Applications/Godot.app/Contents/MacOS/Godot
 BLENDER ?= /Applications/Blender.app/Contents/MacOS/Blender
 SHOT    ?= build/shot.png
 
-.PHONY: import test test-godot test-blender assets shot run replay
+.PHONY: import test test-godot test-blender assets shot run replay sfx
 
 import:
 	$(GODOT) --headless --path . --import
@@ -31,3 +31,6 @@ run: import
 
 replay:
 	python3 tools/replay/build_files_md.py
+
+sfx:
+	python3 tools/audio/gen_sfx.py

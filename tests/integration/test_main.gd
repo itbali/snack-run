@@ -92,3 +92,11 @@ func test_hit_spawns_star_burst() -> void:
 	assert_eq(fx.size(), 1)
 	if fx.size() == 1:
 		assert_eq((fx[0] as CPUParticles3D).color, Effects.HIT_COLOR)
+
+func test_eating_plays_eat_sound() -> void:
+	var main := _spawn_main()
+	await wait_physics_frames(2)
+	Sfx.reset_counters()
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	GameState.eat_all()
+	assert_eq(Sfx.last_played, &"eat")

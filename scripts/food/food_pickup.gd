@@ -78,6 +78,7 @@ func _on_body_entered(body: Node3D) -> void:
 	if grace > 0.0 or not body.is_in_group("cat"):
 		return
 	if GameState.pick_up(food):
+		Sfx.play(&"pickup")
 		picked.emit(food, self)
 		set_deferred("monitoring", false)
 		queue_free()

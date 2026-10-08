@@ -28,6 +28,7 @@ func _on_body(body: Node3D) -> void:
 	if not body.is_in_group("cat"):
 		return
 	GameState.take_yarn(key)
+	Sfx.play(&"pickup", 0.15)
 	if body.has_method("cheer"):
 		body.call("cheer")
 	Effects.burst(get_parent(), global_position + Vector3(0, 0.1, 0), Effects.YARN_COLOR, 16, 0.04)

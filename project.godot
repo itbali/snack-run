@@ -13,6 +13,7 @@ InputSetup="*res://scripts/autoload/input_setup.gd"
 DevTools="*res://scripts/autoload/dev_tools.gd"
 GameState="*res://scripts/autoload/game_state.gd"
 SaveGame="*res://scripts/autoload/save_game.gd"
+Sfx="*res://scripts/autoload/sfx.gd"
 
 [display]
 

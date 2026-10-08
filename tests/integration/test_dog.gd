@@ -104,3 +104,13 @@ func test_chasing_dog_scares_cat() -> void:
 	cat.global_position = Vector3(0, 0.05, 12)   # дальше 6 м: собака ещё гонится, но угрозы рядом нет
 	await wait_seconds(0.8)
 	assert_eq(cat.face.expression, &"normal", "испуг гаснет без сигналов от собаки")
+
+func test_dog_contact_plays_hit_once_and_barks_on_alert() -> void:
+	# Review Focus 3
+	Sfx.reset_counters()
+	cat.global_position = Vector3(0, 0.05, -0.2)   # перед носом: собака сразу настораживается и бьёт касанием
+	await wait_physics_frames(30)   # полсекунды в зоне собаки
+	assert_eq(GameState.hearts, 2)
+	assert_eq(Sfx.counts.get(&"hit", 0), 1, "один удар — один звук, не по кадрам")
+	assert_eq(Sfx.counts.get(&"meow", 0), 1)
+	assert_eq(Sfx.counts.get(&"bark", 0), 1, "лай при входе в ALERT, один раз за настороженность")
