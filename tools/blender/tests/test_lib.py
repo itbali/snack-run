@@ -64,3 +64,36 @@ class TestRoundedBox(unittest.TestCase):
         errors = lib.check_asset([o], max_tris=5000, max_dim=10)
         self.assertEqual(len(errors), 1)
         self.assertIn("палитр", errors[0])
+
+
+class TestPrimitives(unittest.TestCase):
+    def test_cylinder_dims_and_smooth(self):
+        lib.clear_scene()
+        o = lib.cylinder("c", radius=0.1, depth=0.3, material="coral")
+        self.assertAlmostEqual(o.dimensions.x, 0.2, places=2)
+        self.assertAlmostEqual(o.dimensions.z, 0.3, places=2)
+        self.assertTrue(all(p.use_smooth for p in o.data.polygons))
+        self.assertGreater(lib.tri_count(o), 20)
+
+    def test_sphere_and_cone_dims(self):
+        lib.clear_scene()
+        s = lib.sphere("s", radius=0.05)
+        c = lib.cone("k", radius=0.05, depth=0.12)
+        self.assertAlmostEqual(s.dimensions.x, 0.1, places=2)
+        self.assertAlmostEqual(c.dimensions.z, 0.12, places=2)
+
+    def test_torus_and_wedge_dims(self):
+        lib.clear_scene()
+        t = lib.torus("t", major=0.08, minor=0.03)
+        w = lib.wedge("w", width=0.2, length=0.25, height=0.03)
+        self.assertAlmostEqual(t.dimensions.x, 0.22, places=2)
+        self.assertAlmostEqual(w.dimensions.y, 0.25, places=2)
+        self.assertEqual(lib.tri_count(w), 8)
+
+    def test_group_parents_parts(self):
+        lib.clear_scene()
+        a = lib.rounded_box("a", (1, 1, 1))
+        b = lib.rounded_box("b", (1, 1, 1))
+        parts = lib.group([a, b])
+        self.assertIs(b.parent, a)
+        self.assertEqual(parts, [a, b])

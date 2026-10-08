@@ -39,6 +39,80 @@ def rounded_box(name, size, bevel=0.02, segments=3, material=None):
 	return obj
 
 
+def _finish(name, bm, material=None, smooth=False):
+	mesh = bpy.data.meshes.new(name)
+	bm.to_mesh(mesh)
+	bm.free()
+	if smooth:
+		for p in mesh.polygons:
+			p.use_smooth = True
+	obj = bpy.data.objects.new(name, mesh)
+	bpy.context.scene.collection.objects.link(obj)
+	if material:
+		mesh.materials.append(palette.get_material(material))
+	bpy.context.view_layer.update()
+	return obj
+
+
+def cylinder(name, radius, depth, segments=16, material=None, smooth=True):
+	bm = bmesh.new()
+	bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=segments,
+	                      radius1=radius, radius2=radius, depth=depth)
+	return _finish(name, bm, material, smooth)
+
+
+def cone(name, radius, depth, segments=12, material=None, smooth=True):
+	bm = bmesh.new()
+	bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=segments,
+	                      radius1=radius, radius2=0.0, depth=depth)
+	return _finish(name, bm, material, smooth)
+
+
+def sphere(name, radius, material=None, segments=12, rings=8, smooth=True):
+	bm = bmesh.new()
+	bmesh.ops.create_uvsphere(bm, u_segments=segments, v_segments=rings, radius=radius)
+	return _finish(name, bm, material, smooth)
+
+
+def torus(name, major, minor, material=None):
+	bpy.ops.mesh.primitive_torus_add(major_radius=major, minor_radius=minor,
+	                                 major_segments=16, minor_segments=8)
+	obj = bpy.context.object
+	obj.name = name
+	obj.data.name = name
+	for p in obj.data.polygons:
+		p.use_smooth = True
+	if material:
+		obj.data.materials.append(palette.get_material(material))
+	bpy.context.view_layer.update()
+	return obj
+
+
+def wedge(name, width, length, height, material=None):
+	"""Треугольная призма (ломтик пиццы): острый угол в начале координат, основание на +Y."""
+	bm = bmesh.new()
+	h = height / 2.0
+	v = [bm.verts.new(c) for c in (
+		(0, 0, -h), (-width / 2, length, -h), (width / 2, length, -h),
+		(0, 0, h), (-width / 2, length, h), (width / 2, length, h))]
+	bm.faces.new((v[0], v[2], v[1]))
+	bm.faces.new((v[3], v[4], v[5]))
+	bm.faces.new((v[0], v[1], v[4], v[3]))
+	bm.faces.new((v[1], v[2], v[5], v[4]))
+	bm.faces.new((v[2], v[0], v[3], v[5]))
+	bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+	return _finish(name, bm, material, smooth=False)
+
+
+def group(parts):
+	"""Первый объект становится родителем остальных (мировые позиции сохраняются)."""
+	root = parts[0]
+	for p in parts[1:]:
+		p.parent = root
+		p.matrix_parent_inverse = root.matrix_world.inverted()
+	return parts
+
+
 def world_extent(obj) -> float:
 	"""Наибольший габарит в мировых координатах (учитывает масштаб родителя, в отличие от obj.dimensions)."""
 	corners = [obj.matrix_world @ Vector(c) for c in obj.bound_box]
