@@ -12,11 +12,15 @@ const ACTIONS := {
 	"eat": [KEY_E],
 	"cam_left": [KEY_Q],
 	"cam_right": [KEY_R],
+	"album": [KEY_TAB],
+	"pause": [KEY_ESCAPE],
 }
 const PAD_BUTTONS := {
 	"jump": JOY_BUTTON_A,
 	"hide": JOY_BUTTON_B,
 	"eat": JOY_BUTTON_X,
+	"album": JOY_BUTTON_Y,
+	"pause": JOY_BUTTON_START,
 }
 const PAD_AXES := {
 	"move_left": [JOY_AXIS_LEFT_X, -1.0],

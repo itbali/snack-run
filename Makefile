@@ -24,7 +24,7 @@ assets:
 
 shot: import
 	mkdir -p build
-	$(GODOT) --path . --resolution 1280x720 ++ --screenshot=$(SHOT)
+	$(GODOT) --path . --resolution 1280x720 res://scenes/main.tscn ++ --screenshot=$(SHOT)
 
 run: import
 	$(GODOT) --path .

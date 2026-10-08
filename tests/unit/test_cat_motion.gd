@@ -61,7 +61,7 @@ func test_small_vertical_wobble_on_slope_is_not_jump() -> void:
 func test_input_actions_registered() -> void:
 	var InputSetupScript := load("res://scripts/autoload/input_setup.gd")
 	InputSetupScript.register()
-	for a in ["move_left", "move_right", "move_forward", "move_back", "run", "jump", "hide", "eat", "cam_left", "cam_right"]:
+	for a in ["move_left", "move_right", "move_forward", "move_back", "run", "jump", "hide", "eat", "cam_left", "cam_right", "album", "pause"]:
 		assert_true(InputMap.has_action(a), "нет действия " + a)
 
 func test_speed_mult_scales_walk_and_state_threshold() -> void:

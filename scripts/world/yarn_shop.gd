@@ -44,6 +44,11 @@ func respawn_position() -> Vector3:
 	return ($Respawn as Node3D).global_position
 
 
+func view_position() -> Vector3:
+	## Точка камеры-витрины: снаружи у открытого входа, поворачивается вместе с будкой.
+	return ($ViewPoint as Node3D).global_position
+
+
 func _on_enter(body: Node3D) -> void:
 	if body.is_in_group("cat"):
 		cat_inside = true

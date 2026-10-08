@@ -14,6 +14,8 @@ const CROUCH_HEIGHT := 0.3
 @export var target: Node3D
 var crouch := false
 var shop_view := false
+var shop_view_point := Vector3.ZERO   # если use_shop_point, камера едет сюда, иначе target + SHOP_OFFSET
+var use_shop_point := false
 var _yaw := 0.0
 @onready var _arm: SpringArm3D = $SpringArm3D
 
@@ -30,7 +32,7 @@ func _physics_process(delta: float) -> void:
 	_yaw -= axis * YAW_SPEED * delta
 	rotation.y = _yaw
 	if shop_view:
-		var want := target.global_position + SHOP_OFFSET
+		var want := shop_view_point if use_shop_point else target.global_position + SHOP_OFFSET
 		global_position = global_position.lerp(want, 1.0 - exp(-SMOOTH * delta))
 		look_at(target.global_position + Vector3(0, 0.15, 0), Vector3.UP)
 		_arm.spring_length = 0.0

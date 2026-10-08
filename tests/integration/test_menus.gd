@@ -1,0 +1,89 @@
+extends GutTest
+
+const MainScene := preload("res://scenes/main.tscn")
+const CyclistScene := preload("res://scenes/hazards/cyclist.tscn")
+
+var main
+var cat
+
+func before_each() -> void:
+	GameState.reset()
+	SaveGame.path = "user://test_save.json"
+	SaveGame.clear()
+	main = MainScene.instantiate()
+	add_child_autofree(main)
+	await wait_physics_frames(20)
+	cat = main.find_child("Cat", true, false)
+
+func after_each() -> void:
+	get_tree().paused = false
+	SaveGame.clear()
+
+func test_album_shows_cards_locked_and_unlocked() -> void:
+	GameState.pick_up(FoodCatalog.get_by_id(&"pizza"))
+	GameState.eat_all()
+	main.toggle_album()
+	assert_true(main.album_menu.is_open)
+	assert_true(get_tree().paused)
+	var cards: Array = main.album_menu.cards()
+	assert_eq(cards.size(), 8)
+	var pizza: Control = null
+	var donut: Control = null
+	for c in cards:
+		if c.name == "pizza":
+			pizza = c
+		if c.name == "donut":
+			donut = c
+	assert_eq((pizza.get_node("Name") as Label).text, "Пицца")
+	assert_eq((pizza.get_node("Count") as Label).text, "×1")
+	assert_eq((donut.get_node("Name") as Label).text, "???")
+	assert_almost_eq(donut.modulate.a, 0.4, 0.01)
+	assert_eq((donut.get_node("Rarity") as ColorRect).color, Rarity.COLORS[Rarity.Tier.LEGENDARY])
+	main.toggle_album()
+	assert_false(main.album_menu.is_open)
+	assert_false(get_tree().paused, "после закрытия альбома игра не заморожена")
+
+func test_pause_stops_cyclist_and_resume_unfreezes() -> void:
+	# Review Focus 4
+	var c = CyclistScene.instantiate()
+	c.interval_min = 0.2
+	c.interval_max = 0.2
+	c.bell_lead = 0.1
+	main.add_child(c)
+	c.set_path(main.find_child("Road", true, false))
+	watch_signals(c)
+	main.toggle_pause()
+	assert_true(main.pause_menu.is_open)
+	assert_true(get_tree().paused)
+	# Ожидания GUT сами стоят на паузе, поэтому ждём таймером с process_always = true.
+	await get_tree().create_timer(0.6, true).timeout
+	assert_signal_not_emitted(c, "bell", "во время паузы велосипедист не звонит")
+	var p0: Vector3 = cat.global_position
+	Input.action_press("move_forward")
+	await get_tree().create_timer(0.3, true).timeout
+	Input.action_release("move_forward")
+	assert_lt(cat.global_position.distance_to(p0), 0.05, "кот стоит на паузе")
+	main.toggle_pause()
+	assert_false(get_tree().paused)
+	await wait_seconds(0.6)
+	assert_signal_emitted(c, "bell", "после паузы цикл продолжился")
+
+func test_reset_progress_clears_save_and_state() -> void:
+	GameState.add_yarn(7)
+	SaveGame.save_now()
+	main.toggle_pause()
+	main.reset_progress()
+	assert_eq(GameState.yarn, 0)
+	# Автосохранение после reset() может сразу записать чистое состояние — это допустимо.
+	if FileAccess.file_exists(SaveGame.path):
+		var saved = JSON.parse_string(FileAccess.get_file_as_string(SaveGame.path))
+		assert_eq(int(saved["yarn"]), 0, "в файле чистое состояние")
+	assert_false(get_tree().paused)
+
+func test_title_scene_has_play_button() -> void:
+	var title := (load("res://scenes/ui/title.tscn") as PackedScene).instantiate()
+	add_child_autofree(title)
+	var play := title.find_child("Play", true, false) as Button
+	assert_not_null(play)
+	assert_eq(play.text, "Играть")
+	assert_eq(ProjectSettings.get_setting("application/run/main_scene"), "res://scenes/ui/title.tscn")

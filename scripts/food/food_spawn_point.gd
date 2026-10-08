@@ -39,4 +39,4 @@ func spawn_now() -> FoodPickup:
 func _on_picked(_food: FoodDef, _pickup: FoodPickup) -> void:
 	current = null
 	var delay := rng.randf_range(respawn_min, respawn_max)
-	get_tree().create_timer(delay).timeout.connect(spawn_now)
+	get_tree().create_timer(delay, false).timeout.connect(spawn_now)

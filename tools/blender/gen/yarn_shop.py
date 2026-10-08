@@ -6,8 +6,8 @@ SPEC = {"max_tris": 1500, "max_dim": 2.6}
 
 
 def build():
-	floor = lib.rounded_box("yarn_shop", (2.2, 2.2, 0.08), bevel=0.02, segments=1, material="sand")
-	floor.location.z = 0.04
+	floor = lib.rounded_box("yarn_shop", (2.2, 2.2, 0.03), bevel=0.01, segments=1, material="sand")
+	floor.location.z = 0.015   # тонкая плита без коллайдера: кот и шарики стоят на полу двора
 	back = lib.rounded_box("yarn_shop_back", (2.2, 0.12, 2.2), bevel=0.02, segments=1, material="lilac")
 	back.location = (0, -1.04, 1.18)
 	parts = [floor, back]

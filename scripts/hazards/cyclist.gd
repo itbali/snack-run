@@ -45,14 +45,14 @@ func _ready() -> void:
 
 func start_cycle() -> void:
 	var wait := _rng.randf_range(interval_min, interval_max)
-	get_tree().create_timer(wait).timeout.connect(_ring)
+	get_tree().create_timer(wait, false).timeout.connect(_ring)
 
 
 func _ring() -> void:
 	if not is_inside_tree():
 		return
 	bell.emit()
-	get_tree().create_timer(bell_lead).timeout.connect(_depart)
+	get_tree().create_timer(bell_lead, false).timeout.connect(_depart)
 
 
 func _depart() -> void:

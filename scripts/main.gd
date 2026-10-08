@@ -14,6 +14,8 @@ var _spill: SpillSpawner
 var _fade: ColorRect
 @onready var hud: Hud = $Hud
 @onready var shop_menu: ShopMenu = $ShopMenu
+@onready var album_menu: AlbumMenu = $AlbumMenu
+@onready var pause_menu: PauseMenu = $PauseMenu
 
 
 func _ready() -> void:
@@ -40,6 +42,9 @@ func _ready() -> void:
 		if c.has_signal("bell"):
 			c.bell.connect(func() -> void: hud.flash_bell())
 	shop_menu.closed.connect(close_shop)
+	album_menu.closed.connect(func() -> void: _set_paused(false))
+	pause_menu.resumed.connect(func() -> void: _set_paused(false))
+	pause_menu.reset_requested.connect(reset_progress)
 	for g in get_tree().get_nodes_in_group("gates"):
 		g.opened.connect(func() -> void: hud.flash_bell("🎉 Арка в кафе открыта!", 3.0))
 	for sig in [GameState.album_changed, GameState.satiety_changed, GameState.yarn_changed, GameState.upgrade_bought, GameState.skin_changed]:
@@ -109,6 +114,10 @@ func on_interact_pressed() -> void:
 
 func open_shop() -> void:
 	_cat.input_enabled = false
+	var shop := get_tree().get_first_node_in_group("yarn_shop")
+	if shop:
+		_rig.shop_view_point = shop.view_position()
+		_rig.use_shop_point = true
 	_rig.shop_view = true
 	hud.visible = false
 	shop_menu.open()
@@ -121,3 +130,46 @@ func close_shop() -> void:
 	_cat.input_enabled = true
 	_rig.shop_view = false
 	hud.visible = true
+
+
+func on_back_pressed() -> void:
+	if shop_menu.is_open:
+		close_shop()
+	elif album_menu.is_open:
+		toggle_album()
+	else:
+		toggle_pause()
+
+
+func on_album_pressed() -> void:
+	if not shop_menu.is_open and not pause_menu.is_open:
+		toggle_album()
+
+
+func _set_paused(on: bool) -> void:
+	get_tree().paused = on
+
+
+func toggle_album() -> void:
+	if album_menu.is_open:
+		album_menu.close()
+	else:
+		_set_paused(true)
+		album_menu.open()
+
+
+func toggle_pause() -> void:
+	if pause_menu.is_open:
+		pause_menu.close()
+	else:
+		_set_paused(true)
+		pause_menu.open()
+
+
+func reset_progress() -> void:
+	SaveGame.clear()
+	GameState.reset()
+	if pause_menu.is_open:
+		pause_menu.close()
+	_set_paused(false)
+	respawn_cat()
