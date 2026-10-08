@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ShopItem" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/shop_item.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"skin_black"
+display_name = "Скин: чёрный с белой грудкой"
+price = 12
+kind = "skin"
+value = 0
+skin_id = &"black"
+requires = &""
+order = 8

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ShopItem" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/shop_item.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"mouth_4"
+display_name = "Зубы вмещают 4"
+price = 6
+kind = "mouth"
+value = 4
+skin_id = &""
+requires = &""
+order = 4

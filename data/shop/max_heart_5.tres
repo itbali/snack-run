@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ShopItem" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/shop_item.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"max_heart_5"
+display_name = "+1 сердечко (до 5)"
+price = 15
+kind = "max_heart"
+value = 5
+skin_id = &""
+requires = &"max_heart_4"
+order = 3

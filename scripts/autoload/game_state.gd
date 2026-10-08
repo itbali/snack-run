@@ -12,6 +12,8 @@ signal cat_fainted()
 signal goal_changed(done: int, target: int)
 signal goal_completed(target: int)
 signal yarn_changed(count: int)
+signal upgrade_bought(id: StringName)
+signal skin_changed(id: StringName)
 
 const MAX_HEARTS := 3
 const MOUTH_CAPACITY := 3
@@ -19,6 +21,9 @@ const GOAL_FIRST := 3
 const GOAL_STEP := 2
 const SATIETY_GATE := 10   # сытость, открывающая арку в кафе (план 3)
 const YARN_PER_CARD := 3
+const SPEED_BONUS := 1.15
+const STEALTH_BONUS := 0.7
+const DEFAULT_SKIN := &"orange"
 
 var max_hearts := MAX_HEARTS
 var hearts := MAX_HEARTS
@@ -29,6 +34,10 @@ var album := {}          # id -> сколько раз съедено
 var goal_target := GOAL_FIRST
 var goal_done := 0       # новых карточек с начала текущей цели
 var yarn := 0            # клубочки, валюта магазина
+var upgrades := {}       # id товара -> true
+var skin: StringName = DEFAULT_SKIN
+var speed_mult := 1.0
+var stealth_mult := 1.0
 
 
 func reset() -> void:
@@ -41,12 +50,16 @@ func reset() -> void:
 	goal_target = GOAL_FIRST
 	goal_done = 0
 	yarn = 0
+	upgrades = {}
+	skin = DEFAULT_SKIN
+	_apply_upgrades()
 	hearts_changed.emit(hearts, max_hearts)
 	mouth_changed.emit(mouth)
 	satiety_changed.emit(satiety)
 	album_changed.emit(album)
 	goal_changed.emit(goal_done, goal_target)
 	yarn_changed.emit(yarn)
+	skin_changed.emit(skin)
 
 
 func mouth_full() -> bool:
@@ -128,4 +141,73 @@ func spend_yarn(n: int) -> bool:
 		return false
 	yarn -= n
 	yarn_changed.emit(yarn)
+	return true
+
+
+func owns(id: StringName) -> bool:
+	return upgrades.has(id)
+
+
+func can_buy(item: ShopItem) -> bool:
+	if item == null or yarn < item.price:
+		return false
+	if item.requires != &"" and not owns(item.requires):
+		return false
+	if item.kind == "refill":
+		return hearts < max_hearts
+	return not owns(item.id)
+
+
+func buy(item: ShopItem) -> bool:
+	if not can_buy(item):
+		return false
+	spend_yarn(item.price)
+	if item.kind == "refill":
+		hearts = max_hearts
+		hearts_changed.emit(hearts, max_hearts)
+		return true
+	upgrades[item.id] = true
+	_apply_upgrades()
+	if item.kind == "max_heart":
+		hearts = max_hearts
+		hearts_changed.emit(hearts, max_hearts)
+	if item.kind == "skin":
+		select_skin(item.skin_id)
+	upgrade_bought.emit(item.id)
+	return true
+
+
+func _apply_upgrades() -> void:
+	max_hearts = MAX_HEARTS
+	mouth_capacity = MOUTH_CAPACITY
+	speed_mult = 1.0
+	stealth_mult = 1.0
+	for it in ShopCatalog.all():
+		if not owns(it.id):
+			continue
+		match it.kind:
+			"max_heart":
+				max_hearts = maxi(max_hearts, it.value)
+			"mouth":
+				mouth_capacity = maxi(mouth_capacity, it.value)
+			"speed":
+				speed_mult = SPEED_BONUS
+			"quiet":
+				stealth_mult = STEALTH_BONUS
+	hearts = mini(hearts, max_hearts)
+
+
+func owned_skins() -> Array[StringName]:
+	var out: Array[StringName] = [DEFAULT_SKIN]
+	for it in ShopCatalog.all():
+		if it.kind == "skin" and owns(it.id):
+			out.append(it.skin_id)
+	return out
+
+
+func select_skin(id: StringName) -> bool:
+	if not owned_skins().has(id):
+		return false
+	skin = id
+	skin_changed.emit(skin)
 	return true
