@@ -5,7 +5,7 @@
 Отступы в GDScript и Makefile — табы; в Python проекта — тоже табы, кроме
 `palette.py` и тестов Blender (пробелы). Копировать как есть.
 
-Файлов: 164
+Файлов: 165
 
 ## `CLAUDE.md`
 
@@ -141,7 +141,6 @@ GODOT   ?= /Applications/Godot.app/Contents/MacOS/Godot
 BLENDER ?= /Applications/Blender.app/Contents/MacOS/Blender
 SHOT    ?= build/shot.png
 TEMPLATES_DIR := $(HOME)/Library/Application Support/Godot/export_templates/4.7.2.stable
-TPZ_URL := https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_export_templates.tpz
 
 .PHONY: import test test-godot test-blender assets shot run replay sfx templates export
 
@@ -177,7 +176,7 @@ sfx:
 
 templates:
 	mkdir -p "$(TEMPLATES_DIR)" build
-	[ -f build/templates.tpz ] || curl -L -C - -o build/templates.tpz "$(TPZ_URL)"
+	[ -f build/templates.tpz ] || tools/release/fetch_templates.sh
 	unzip -o -j build/templates.tpz 'templates/macos.zip' 'templates/version.txt' -d "$(TEMPLATES_DIR)"
 	ls -la "$(TEMPLATES_DIR)"
 
@@ -3502,18 +3501,22 @@ func _ready() -> void:
 ```gdscript
 class_name SpillSpawner
 extends Node3D
-## Раскладывает выбитую из зубов еду вокруг кота на его высоте (спек 3.2: 1–2 м, 5 с; на балконе — на балконе).
+## Раскладывает выбитую из зубов еду вокруг кота (спек 3.2: 1–2 м, 5 с). Каждая порция кладётся
+## на поверхность под своей точкой (луч вниз по слою WORLD): со стола и балкона падает на землю рядом.
 
 const PickupScene := preload("res://scenes/food/food_pickup.tscn")
 const SPILL_LIFETIME := 5.0
 const MIN_R := 1.0
 const MAX_R := 2.0
+const RAY_UP := 0.5     # луч стартует чуть выше точки кота: он может стоять на краю стола
+const RAY_DOWN := 10.0
 
 var rng := RandomNumberGenerator.new()
 
 
 func spill_around(pos: Vector3, foods: Array) -> Array:
 	var out := []
+	var space := get_world_3d().direct_space_state
 	for f in foods:
 		var p := PickupScene.instantiate() as FoodPickup
 		p.setup(f, true, SPILL_LIFETIME)
@@ -3521,9 +3524,18 @@ func spill_around(pos: Vector3, foods: Array) -> Array:
 		add_child(p)
 		var ang := rng.randf_range(0.0, TAU)
 		var r := rng.randf_range(MIN_R, MAX_R)
-		p.global_position = Vector3(pos.x + cos(ang) * r, pos.y, pos.z + sin(ang) * r)
+		var x := pos.x + cos(ang) * r
+		var z := pos.z + sin(ang) * r
+		p.global_position = Vector3(x, surface_y(space, Vector3(x, pos.y + RAY_UP, z)), z)
 		out.append(p)
 	return out
+
+
+static func surface_y(space: PhysicsDirectSpaceState3D, from: Vector3) -> float:
+	## Высота первой поверхности мира под точкой; без попадания — уровень земли.
+	var q := PhysicsRayQueryParameters3D.create(from, from + Vector3(0, -RAY_DOWN, 0), Layers.WORLD)
+	var hit := space.intersect_ray(q)
+	return (hit["position"] as Vector3).y if not hit.is_empty() else 0.0
 ```
 
 ## `scripts/world/world_builder.gd`
@@ -4594,12 +4606,23 @@ func test_faint_respawns_at_spawn_unhidden_with_full_hearts() -> void:
 		if h.has_method("reset_pursuit"):
 			assert_eq(h.brain.state, ChaseBrain.State.IDLE, "опасности сброшены после возрождения")
 
-func test_spilled_food_lands_at_cat_height() -> void:
-	var spawner := SpillSpawner.new()
-	add_child_autofree(spawner)
-	var out: Array = spawner.spill_around(Vector3(-11.3, 1.0, -9.0), [FoodCatalog.get_by_id(&"cookie")])
-	assert_eq(out.size(), 1)
-	assert_almost_eq((out[0] as Node3D).global_position.y, 1.0, 0.001, "еда с балкона не уходит под площадку")
+func test_spilled_food_lands_on_surface_below() -> void:
+	# Ревью плана 4: еда на pos.y висела в воздухе вокруг стола кафе и балкона (радиус разлёта 1–2 м больше столешницы).
+	var spawner: SpillSpawner = main.find_child("SpillSpawner", true, false)
+	cat.global_position = Vector3(0, 0.95, 17)   # стол кафе, верх 0,75
+	await wait_physics_frames(10)
+	assert_almost_eq(cat.global_position.y, 0.75, 0.05, "кот стоит на столе")
+	var foods := []
+	for i in 6:
+		foods.append(FoodCatalog.get_by_id(&"cookie"))
+	var out: Array = spawner.spill_around(cat.global_position, foods)
+	var on_ground := 0
+	for p in out:
+		var y: float = (p as Node3D).global_position.y
+		assert_true(y < 0.1 or absf(y - 0.75) < 0.05, "еда лежит на земле или на столе, не в воздухе: y=%.2f" % y)
+		if y < 0.1:
+			on_ground += 1
+	assert_gt(on_ground, 0, "в 1–2 м от стола еда падает на землю")
 ```
 
 ## `tests/integration/test_hud.gd`
@@ -8049,14 +8072,14 @@ INCLUDE = [
     "third_party/unimate_clips/annotation.json",
     "docs/superpowers/specs/*.md", "docs/superpowers/plans/*roadmap.md",
     "docs/superpowers/notes/*.md",
-    "export_presets.cfg", "tools/audio/*.py", "assets/ui/*.tres", "assets/shaders/*.gdshader",
+    "export_presets.cfg", "tools/audio/*.py", "tools/release/*.sh", "assets/ui/*.tres", "assets/shaders/*.gdshader",
     "assets/sfx/README.md", "assets/fonts/OFL.txt",
 ]
 EXCLUDE_DIRS = {"addons", "build", ".godot", ".superpowers"}
 # Двоичные файлы (.ttf/.ogg/.wav/.glb) в приложение не входят: откуда их взять, описано в процедуре.
 LANG = {".py": "python", ".gd": "gdscript", ".tscn": "", ".json": "json", ".md": "markdown",
         ".godot": "ini", "Makefile": "makefile", ".gitignore": "", ".gdignore": "",
-        ".cfg": "ini", ".tres": "", ".gdshader": "glsl", ".txt": ""}
+        ".cfg": "ini", ".tres": "", ".gdshader": "glsl", ".txt": "", ".sh": "bash"}
 
 
 def lang_for(p: pathlib.Path) -> str:
@@ -9080,6 +9103,30 @@ if __name__ == "__main__":
 	write("meow.wav", meow())
 	write("bark.wav", bark())
 	print("ОК assets/sfx/meow.wav, assets/sfx/bark.wav")
+```
+
+## `tools/release/fetch_templates.sh`
+
+```bash
+#!/bin/bash
+# Скачивает шаблоны экспорта Godot 4.7.2 (1,28 ГБ) восемью параллельными диапазонами:
+# один поток с GitHub шёл 150 КБ/с, восемь — около 1 МБ/с. Результат: build/templates.tpz.
+set -e
+cd "$(dirname "$0")/../.."
+URL=https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_export_templates.tpz
+mkdir -p build/tpz_parts
+SIZE=$(curl -sIL "$URL" | grep -i '^content-length' | tail -1 | tr -dc '0-9')
+[ -n "$SIZE" ] || { echo "не удалось узнать размер $URL"; exit 1; }
+N=8; CHUNK=$(( (SIZE + N - 1) / N ))
+for i in $(seq 0 $((N-1))); do
+  S=$((i*CHUNK)); E=$(( (i+1)*CHUNK - 1 )); [ $E -ge $SIZE ] && E=$((SIZE-1))
+  curl -sL -r $S-$E -o build/tpz_parts/part_$i "$URL" &
+done
+wait
+cat $(for i in $(seq 0 $((N-1))); do echo build/tpz_parts/part_$i; done) > build/templates.tpz
+[ "$(stat -f %z build/templates.tpz)" = "$SIZE" ] || { echo "размер не совпал"; exit 1; }
+rm -rf build/tpz_parts
+echo "ОК build/templates.tpz ($SIZE байт)"
 ```
 
 ## `assets/ui/theme.tres`
