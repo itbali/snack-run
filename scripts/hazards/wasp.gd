@@ -18,6 +18,7 @@ var _t := 0.0
 
 func configure(hz: Dictionary, _builder: Node3D) -> void:
 	radius = float(hz.get("radius", radius))
+	height = float(hz.get("height", height))
 
 
 func _ready() -> void:

@@ -52,6 +52,20 @@ func test_real_yard_layout_loads() -> void:
 		models[p["model"]] = true
 	for m in ["bench", "lamp", "car", "wall", "fence", "bag", "stairs", "bush", "tree", "puddle", "arch", "door"]:
 		assert_true(models.has(m), "в раскладке есть " + m)
+	for m in ["cafe_table", "chair", "umbrella", "cafe_sign"]:
+		assert_true(models.has(m), "в раскладке есть " + m)
+	var tables := 0
+	var elevated_spawns := 0
+	for p in data["props"]:
+		if p["model"] == "cafe_table":
+			tables += 1
+			assert_true(p.has("colliders"), "у стола явный коллайдер столешницы")
+	for sp in data["spawn_points"]:
+		if sp["pos"][1] > 0.5:
+			elevated_spawns += 1
+	assert_gte(tables, 4)
+	assert_gte(elevated_spawns, 3, "еда на столах и балконе")
+	assert_eq(data["hazards"].size(), 4, "две осы, собака, велосипедист")
 	var b = _builder()
 	b.build(data)
 	assert_eq(b.props_built, data["props"].size(), "все модели существуют")
