@@ -35,9 +35,17 @@ func test_build_from_dictionary_counts_nodes() -> void:
 
 func test_real_yard_layout_loads() -> void:
 	var data := BuilderScript.load_layout("res://data/layout/yard.json")
-	assert_gt(data["props"].size(), 10, "во дворе больше 10 пропсов")
-	assert_gte(data["hideouts"].size(), 3)
-	assert_gte(data["spawn_points"].size(), 6)
+	assert_gte(data["props"].size(), 24, "во дворе не меньше 24 пропсов")
+	var kinds := {}
+	for h in data["hideouts"]:
+		kinds[h["kind"]] = true
+	assert_true(kinds.has("box") and kinds.has("car") and kinds.has("bench"), "три типа укрытий")
+	assert_gte(data["spawn_points"].size(), 8)
+	var models := {}
+	for p in data["props"]:
+		models[p["model"]] = true
+	for m in ["bench", "lamp", "car", "wall", "fence", "bag", "stairs", "bush", "tree", "puddle", "arch", "door"]:
+		assert_true(models.has(m), "в раскладке есть " + m)
 	var b = _builder()
 	b.build(data)
-	assert_eq(b.props_built, data["props"].size())
+	assert_eq(b.props_built, data["props"].size(), "все модели существуют")
