@@ -1,23 +1,24 @@
 class_name Hud
 extends CanvasLayer
-## HUD: сердечки, сытость, слоты зубов, цель сессии, вспышка звонка (спек 2.6).
+## HUD на белых плашках темы: сердечки, сытость, слоты зубов, клубочки, цель сессии, вспышка звонка (спек 2.6).
 
 const HEART_FULL := "♥"
 const HEART_EMPTY := "♡"
 const MAX_MOUTH := 5   # максимум после улучшений магазина
 
-@onready var _hearts: Label = $Hearts
-@onready var _satiety: ProgressBar = $Satiety
-@onready var _mouth: HBoxContainer = $Mouth
-@onready var _goal: Label = $Goal
-@onready var _bell: Label = $Bell
-@onready var _yarn: Label = $Yarn
-@onready var _satiety_label: Label = $SatietyLabel
+@onready var _hearts: Label = %Hearts
+@onready var _satiety: ProgressBar = %Satiety
+@onready var _satiety_label: Label = %SatietyLabel
+@onready var _yarn: Label = %Yarn
+@onready var _mouth: HBoxContainer = %Mouth
+@onready var _goal: Label = %Goal
+@onready var _bell: Label = %Bell
+@onready var _bell_panel: PanelContainer = %BellPanel
 
 
 func _ready() -> void:
 	_satiety.max_value = GameState.SATIETY_GATE
-	_bell.visible = false
+	_bell_panel.visible = false
 	for i in MAX_MOUTH:
 		var panel := PanelContainer.new()
 		panel.custom_minimum_size = Vector2(90, 32)
@@ -69,8 +70,8 @@ func _on_yarn(count: int) -> void:
 
 func flash_bell(text := "🔔 Велосипед!", seconds := 2.0) -> void:
 	_bell.text = text
-	_bell.visible = true
-	get_tree().create_timer(seconds).timeout.connect(func() -> void: _bell.visible = false)
+	_bell_panel.visible = true
+	get_tree().create_timer(seconds).timeout.connect(func() -> void: _bell_panel.visible = false)
 
 
 func _on_hearts(hearts: int, max_hearts: int) -> void:

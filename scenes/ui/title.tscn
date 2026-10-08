@@ -37,19 +37,25 @@ theme_override_constants/separation = 16
 
 [node name="Logo" type="Label" parent="VBox"]
 layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 64
 horizontal_alignment = 1
 text = "Snack Run"
 
 [node name="Tagline" type="Label" parent="VBox"]
 layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 20
 horizontal_alignment = 1
 text = "Маленький кот. Большой мир. Вкусные приключения."
 
+[node name="Continue" type="Button" parent="VBox"]
+layout_mode = 2
+text = "Продолжить"
+
 [node name="Play" type="Button" parent="VBox"]
 layout_mode = 2
-text = "Играть"
+text = "Новая игра"
 
 [node name="Quit" type="Button" parent="VBox"]
 layout_mode = 2

@@ -80,10 +80,17 @@ func test_reset_progress_clears_save_and_state() -> void:
 		assert_eq(int(saved["yarn"]), 0, "в файле чистое состояние")
 	assert_false(get_tree().paused)
 
-func test_title_scene_has_play_button() -> void:
-	var title := (load("res://scenes/ui/title.tscn") as PackedScene).instantiate()
-	add_child_autofree(title)
-	var play := title.find_child("Play", true, false) as Button
-	assert_not_null(play)
-	assert_eq(play.text, "Играть")
+func test_title_offers_continue_only_with_save() -> void:
 	assert_eq(ProjectSettings.get_setting("application/run/main_scene"), "res://scenes/ui/title.tscn")
+	var title := (load("res://scenes/ui/title.tscn") as PackedScene).instantiate()
+	title.switch_scenes = false
+	add_child_autofree(title)
+	assert_false((title.get_node("VBox/Continue") as Button).visible, "без сохранения «Продолжить» скрыта")
+	assert_eq((title.get_node("VBox/Play") as Button).text, "Новая игра")
+	SaveGame.save_now()
+	var title2 := (load("res://scenes/ui/title.tscn") as PackedScene).instantiate()
+	title2.switch_scenes = false
+	add_child_autofree(title2)
+	assert_true((title2.get_node("VBox/Continue") as Button).visible, "с сохранением «Продолжить» видна")
+	title2.new_game()
+	assert_false(FileAccess.file_exists(SaveGame.path), "«Новая игра» стирает сохранение")
