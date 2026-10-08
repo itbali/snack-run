@@ -6,6 +6,7 @@ import os
 import bpy
 
 import palette
+import rig_utils
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CLIPS_DIR = os.path.join(ROOT, "third_party", "unimate_clips")
@@ -103,19 +104,6 @@ def recolor(mesh):
 		mesh.data.materials[i] = palette.get_material(key)
 
 
-def face_forward(arm):
-	"""Поворачивает арматуру так, чтобы вектор таз→голова смотрел по +Y Blender (= -Z Godot)."""
-	arm.rotation_mode = "XYZ"   # импортёр glTF ставит QUATERNION, и правка rotation_euler игнорируется
-	hips = arm.data.bones["Bone"].head_local
-	head = arm.data.bones["head"].head_local
-	d = arm.matrix_world.to_3x3() @ (head - hips)
-	angle = math.atan2(d.y, d.x)
-	arm.rotation_euler.z += math.pi / 2 - angle
-	bpy.context.view_layer.update()
-	d2 = arm.matrix_world.to_3x3() @ (head - hips)
-	print(f"КОТ СМОТРИТ: ({d2.x:.2f}, {d2.y:.2f}, {d2.z:.2f}), ожидается +Y")
-
-
 def rescale(arm, mesh):
 	bpy.context.view_layer.update()
 	factor = TARGET_LENGTH / max(mesh.dimensions)
@@ -131,7 +119,7 @@ def build():
 	for pb in arm.pose.bones:
 		pb.rotation_mode = "QUATERNION"
 	recolor(mesh)
-	face_forward(arm)
+	rig_utils.face_forward(arm)
 	rescale(arm, mesh)
 	arm.name = "CatRig"
 	mesh.name = "cat"
