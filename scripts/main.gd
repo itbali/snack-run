@@ -33,6 +33,9 @@ func _ready() -> void:
 	_fade = _make_fade()
 	GameState.cat_hit.connect(_on_cat_hit)
 	GameState.cat_fainted.connect(_on_cat_fainted)
+	for c in get_tree().get_nodes_in_group("hazards"):
+		if c.has_signal("bell"):
+			c.bell.connect(func() -> void: hud.flash_bell())
 
 
 func _make_fade() -> ColorRect:
