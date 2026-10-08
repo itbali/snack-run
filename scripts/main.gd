@@ -5,6 +5,7 @@ signal faint_sequence_done
 
 const CatScene := preload("res://scenes/player/cat.tscn")
 const RigScene := preload("res://scenes/player/camera_rig.tscn")
+const KILL_Y := -5.0   # ниже этого кот считается упавшим за край мира
 
 var fade_time := 0.6
 var autosave := true
@@ -58,6 +59,18 @@ func _ready() -> void:
 	Mouse.capture(true)
 
 
+func _physics_process(_delta: float) -> void:
+	if _cat and _cat.global_position.y < KILL_Y:
+		fall_respawn()
+
+
+func fall_respawn() -> void:
+	## Падение за край мира: назад к будке без потери сердечка; еда из зубов теряется.
+	GameState.spill()
+	_cat.teleport(respawn_position())
+	_rig.global_position = _cat.global_position + Vector3(0, CameraRig.HEIGHT, 0)
+
+
 func _on_progress_changed() -> void:
 	if autosave:
 		SaveGame.save_now()
@@ -91,8 +104,8 @@ func _on_food_eaten(items: Array) -> void:
 
 func _on_cat_hit(spilled: Array) -> void:
 	Effects.burst(self, _cat.global_position + Vector3(0, 0.3, 0), Effects.HIT_COLOR, 16, 0.06, 1.5)
-	if spilled.is_empty():
-		return
+	if spilled.is_empty() or GameState.hearts == 0:
+		return   # при обмороке еда потеряна (спек 3.2), рассыпать нечего
 	_spill.spill_around(_cat.global_position, spilled)
 
 
@@ -186,8 +199,10 @@ func toggle_pause() -> void:
 
 
 func reset_progress() -> void:
-	SaveGame.clear()
+	autosave = false   # reset() шлёт сигналы прогресса, автосохранение тут же записало бы нули
 	GameState.reset()
+	SaveGame.clear()
+	autosave = true
 	if pause_menu.is_open:
 		pause_menu.close()
 	_set_paused(false)

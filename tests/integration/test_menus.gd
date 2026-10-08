@@ -74,10 +74,7 @@ func test_reset_progress_clears_save_and_state() -> void:
 	main.toggle_pause()
 	main.reset_progress()
 	assert_eq(GameState.yarn, 0)
-	# Автосохранение после reset() может сразу записать чистое состояние — это допустимо.
-	if FileAccess.file_exists(SaveGame.path):
-		var saved = JSON.parse_string(FileAccess.get_file_as_string(SaveGame.path))
-		assert_eq(int(saved["yarn"]), 0, "в файле чистое состояние")
+	assert_false(FileAccess.file_exists(SaveGame.path), "после сброса файла сохранения нет (reset() не должен тут же писать нули)")
 	assert_false(get_tree().paused)
 
 func test_title_offers_continue_only_with_save() -> void:
@@ -94,3 +91,18 @@ func test_title_offers_continue_only_with_save() -> void:
 	assert_true((title2.get_node("VBox/Continue") as Button).visible, "с сохранением «Продолжить» видна")
 	title2.new_game()
 	assert_false(FileAccess.file_exists(SaveGame.path), "«Новая игра» стирает сохранение")
+
+func test_ui_cancel_closes_shop_and_album() -> void:
+	main.open_shop()
+	assert_true(main.shop_menu.is_open)
+	Input.action_press("ui_cancel")
+	await wait_process_frames(2)
+	Input.action_release("ui_cancel")
+	assert_false(main.shop_menu.is_open, "B геймпада (ui_cancel) закрывает магазин")
+	main.toggle_album()
+	assert_true(main.album_menu.is_open)
+	Input.action_press("ui_cancel")
+	await get_tree().create_timer(0.1, true).timeout
+	Input.action_release("ui_cancel")
+	assert_false(main.album_menu.is_open, "и альбом")
+	assert_false(get_tree().paused)

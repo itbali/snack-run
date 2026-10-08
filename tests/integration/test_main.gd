@@ -110,3 +110,37 @@ func test_vignette_overlay_exists_and_ignores_mouse() -> void:
 	assert_true(rect.material is ShaderMaterial)
 	assert_eq(rect.mouse_filter, Control.MOUSE_FILTER_IGNORE)
 	assert_lt((main.get_node("Vignette") as CanvasLayer).layer, (main.get_node("Hud") as CanvasLayer).layer + 1, "виньетка под HUD")
+
+func test_fall_below_kill_plane_returns_cat_to_shop_without_penalty() -> void:
+	var main := _spawn_main()
+	var cat = main.find_child("Cat", true, false)
+	await wait_physics_frames(5)
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	cat.global_position = Vector3(0, -6, 0)
+	await wait_physics_frames(3)
+	assert_lt(cat.global_position.distance_to(main.respawn_position()), 0.5, "кот вернулся к будке")
+	assert_eq(GameState.hearts, 3, "падение не отнимает сердечко")
+	assert_true(GameState.mouth.is_empty(), "еда из зубов потеряна")
+
+func test_kill_plane_ignores_balcony_and_tables() -> void:
+	# Review Focus 5
+	var main := _spawn_main()
+	var cat = main.find_child("Cat", true, false)
+	await wait_physics_frames(5)
+	for p in [Vector3(-11.3, 1.2, -9.0), Vector3(0, 0.95, 17)]:
+		cat.global_position = p
+		await wait_physics_frames(3)
+		assert_gt(cat.global_position.y, 0.3, "кот на возвышении остаётся на месте: %s" % p)
+		assert_gt(cat.global_position.distance_to(main.respawn_position()), 2.0)
+
+func test_faint_loses_carried_food_instead_of_spilling() -> void:
+	var main := _spawn_main()
+	var cat = main.find_child("Cat", true, false)
+	await wait_physics_frames(5)
+	GameState.take_hit()
+	GameState.take_hit()   # осталось одно сердечко
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	cat.invulnerable_left = 0.0
+	cat.take_hit(cat.global_position + Vector3(1, 0, 0))
+	assert_eq(GameState.hearts, 0)
+	assert_eq(get_tree().get_nodes_in_group("spilled_food").size(), 0, "при обмороке еда потеряна, не рассыпана (спек 3.2)")

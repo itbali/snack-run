@@ -1,6 +1,6 @@
 class_name SpillSpawner
 extends Node3D
-## Раскладывает выбитую из зубов еду вокруг кота (спек 3.2: 1–2 м, 5 с).
+## Раскладывает выбитую из зубов еду вокруг кота на его высоте (спек 3.2: 1–2 м, 5 с; на балконе — на балконе).
 
 const PickupScene := preload("res://scenes/food/food_pickup.tscn")
 const SPILL_LIFETIME := 5.0
@@ -19,6 +19,6 @@ func spill_around(pos: Vector3, foods: Array) -> Array:
 		add_child(p)
 		var ang := rng.randf_range(0.0, TAU)
 		var r := rng.randf_range(MIN_R, MAX_R)
-		p.global_position = Vector3(pos.x + cos(ang) * r, 0.0, pos.z + sin(ang) * r)
+		p.global_position = Vector3(pos.x + cos(ang) * r, pos.y, pos.z + sin(ang) * r)
 		out.append(p)
 	return out

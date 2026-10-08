@@ -69,3 +69,10 @@ func test_faint_respawns_at_spawn_unhidden_with_full_hearts() -> void:
 	for h in get_tree().get_nodes_in_group("hazards"):
 		if h.has_method("reset_pursuit"):
 			assert_eq(h.brain.state, ChaseBrain.State.IDLE, "опасности сброшены после возрождения")
+
+func test_spilled_food_lands_at_cat_height() -> void:
+	var spawner := SpillSpawner.new()
+	add_child_autofree(spawner)
+	var out: Array = spawner.spill_around(Vector3(-11.3, 1.0, -9.0), [FoodCatalog.get_by_id(&"cookie")])
+	assert_eq(out.size(), 1)
+	assert_almost_eq((out[0] as Node3D).global_position.y, 1.0, 0.001, "еда с балкона не уходит под площадку")
