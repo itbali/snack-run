@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="FoodDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/food/food_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"pizza"
+display_name = "Пицца"
+tier = 1
+model_path = "res://assets/models/food_pizza.glb"
+sweet = false
