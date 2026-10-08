@@ -1,0 +1,35 @@
+{
+  "props": [
+    {"model": "bin", "pos": [3, 0, -4], "rot": 0, "colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}]},
+    {"model": "bin", "pos": [4, 0, -4], "rot": 0, "colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}]},
+    {"model": "bin", "pos": [-6, 0, 2], "rot": 90, "colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}]},
+    {"model": "bin", "pos": [-6, 0, 3], "rot": 90, "colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}]},
+    {"model": "box", "pos": [1.5, 0, 1.5], "rot": 0, "outline": true},
+    {"model": "box", "pos": [-2, 0, -1], "rot": 45, "outline": true},
+    {"model": "box", "pos": [1.5, 0.3, 1.5], "rot": 20, "outline": true},
+    {"model": "box", "pos": [-3.5, 0, 4], "rot": 0, "outline": true},
+    {"model": "box", "pos": [5, 0, 3], "rot": 70, "outline": true},
+    {"model": "box", "pos": [-1, 0, -6], "rot": 10, "outline": true},
+    {"model": "box", "pos": [6, 0, -1], "rot": 0, "outline": true}
+  ],
+  "hideouts": [
+    {"kind": "box", "pos": [-2, 0.2, -1], "size": [0.7, 0.4, 0.6]},
+    {"kind": "box", "pos": [-3.5, 0.2, 4], "size": [0.7, 0.4, 0.6]},
+    {"kind": "box", "pos": [6, 0.2, -1], "size": [0.7, 0.4, 0.6]}
+  ],
+  "spawn_points": [
+    {"pos": [3.5, 0, -3], "allowed": [0]},
+    {"pos": [-5, 0, 2.5], "allowed": [0]},
+    {"pos": [0, 0, -4], "allowed": [0]},
+    {"pos": [4, 0, 4], "allowed": [0, 1]},
+    {"pos": [-4, 0, -4], "allowed": [0]},
+    {"pos": [2, 0, 6], "allowed": [1]},
+    {"pos": [7.5, 0, -8], "allowed": [2, 3]}
+  ],
+  "hazards": [
+    {"type": "dog", "pos": [7, 0, -7], "rot": 90},
+    {"type": "wasp", "pos": [2, 0.5, 6], "radius": 2.5},
+    {"type": "cyclist", "pos": [0, 0, 12]}
+  ],
+  "road": {"points": [[-25, 0, 12], [25, 0, 12]]}
+}
