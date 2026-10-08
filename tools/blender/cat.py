@@ -1,10 +1,11 @@
 """Готовит кота: канонический риг UniMate + клипы (idle/walk из Quaternius, остальные из UniMate),
-палитра, масштаб 0,35 м, разворот мордой по -Z Godot."""
+палитра, масштаб 0,35 м, разворот мордой по -Z Godot, плюс четыре набора глаз (cat_eyes.py)."""
 import math
 import os
 
 import bpy
 
+import cat_eyes
 import palette
 import rig_utils
 
@@ -121,6 +122,7 @@ def build():
 	recolor(mesh)
 	rig_utils.face_forward(arm)
 	rescale(arm, mesh)
+	eyes = cat_eyes.build_eyes(arm, mesh)
 	arm.name = "CatRig"
 	mesh.name = "cat"
-	return [arm, mesh]
+	return [arm, mesh] + eyes

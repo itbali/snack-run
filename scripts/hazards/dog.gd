@@ -40,6 +40,8 @@ func _physics_process(delta: float) -> void:
 	var cat_hidden: bool = c != null and (bool(c.get("hidden")) or bool(c.get("in_safe_zone")))
 	var at_home := global_position.distance_to(home) < HOME_RADIUS
 	var s := brain.update(delta, sees_cat(), cat_hidden, at_home)
+	if c and c.has_method("threaten") and s in [ChaseBrain.State.ALERT, ChaseBrain.State.CHASE] and global_position.distance_to(c.global_position) < VISION_RANGE:
+		c.call("threaten")   # испуг, пока собака насторожилась или гонится и она ближе 6 м
 	match s:
 		ChaseBrain.State.IDLE:
 			rotation.y = lerp_angle(rotation.y, home_yaw, 6.0 * delta)   # снова сторожит в исходную сторону

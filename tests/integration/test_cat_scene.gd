@@ -13,7 +13,7 @@ func _spawn() -> Node:
 func test_cat_starts_idle_with_toon_materials() -> void:
 	var cat = _spawn()
 	assert_eq(cat.state, &"idle")
-	var mesh := cat.find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D
+	var mesh := cat.find_child("cat", true, false) as MeshInstance3D   # первым ребёнком скелета может быть набор глаз без обводки
 	assert_not_null(mesh.material_overlay, "обводка должна быть установлена")
 	assert_eq((mesh.get_surface_override_material(0) as StandardMaterial3D).diffuse_mode, BaseMaterial3D.DIFFUSE_TOON)
 
@@ -72,4 +72,55 @@ func test_cat_recolors_on_skin_change() -> void:
 				found = true
 				assert_eq(m.albedo_color.to_html(false), "394151", "тело перекрашено в чёрный")
 	assert_true(found, "у кота есть поверхность тела")
+	GameState.reset()
+
+func test_eye_sets_exist_and_only_normal_is_visible() -> void:
+	var cat = _spawn()
+	var names := []
+	for mi in cat.find_children("eyes_*", "MeshInstance3D", true, false):
+		names.append(String(mi.name))
+		assert_null((mi as MeshInstance3D).material_overlay, "у глаз нет обводки: 6 мм на 3-см глазу — рамка")
+	names.sort()
+	assert_eq(names, ["eyes_dizzy", "eyes_happy", "eyes_normal", "eyes_scared"])
+	assert_eq(cat.face.expression, &"normal")
+	assert_true(cat.find_child("eyes_normal", true, false).visible)
+	assert_false(cat.find_child("eyes_scared", true, false).visible)
+
+func test_expression_priority_and_timers() -> void:
+	# Review Focus 2
+	GameState.reset()
+	var cat = _spawn()
+	await wait_physics_frames(2)
+	cat.cheer()
+	await wait_physics_frames(2)
+	assert_eq(cat.face.expression, &"happy")
+	assert_true(cat.find_child("eyes_happy", true, false).visible)
+	cat.threaten()
+	await wait_physics_frames(2)
+	assert_eq(cat.face.expression, &"scared", "испуг важнее довольного")
+	cat.take_hit(cat.global_position + Vector3(1, 0, 0))
+	await wait_physics_frames(2)
+	assert_eq(cat.face.expression, &"dizzy", "оглушение важнее всего")
+	await wait_seconds(1.3)   # STUN_TIME 1,0; испуг (0,4) и довольство (1,0) к этому времени погасли
+	assert_eq(cat.face.expression, &"normal", "все выражения снимаются сами")
+	assert_true(cat.find_child("eyes_normal", true, false).visible)
+
+func test_black_skin_keeps_eye_colors() -> void:
+	# Review Focus 1
+	GameState.reset()
+	GameState.add_yarn(12)
+	var cat = _spawn()
+	GameState.buy(ShopCatalog.get_by_id(&"skin_black"))
+	await wait_process_frames(1)
+	var eyes := cat.find_child("eyes_normal", true, false) as MeshInstance3D
+	var white := false
+	var ink := false
+	for i in eyes.mesh.get_surface_count():
+		var c := (eyes.get_surface_override_material(i) as StandardMaterial3D).albedo_color
+		if c.r > 0.9 and c.g > 0.9 and c.b > 0.85:
+			white = true
+		if c.r < 0.3 and c.g < 0.3 and c.b < 0.4:
+			ink = true
+	assert_true(white, "белок остался светлым при чёрном скине")
+	assert_true(ink, "зрачок графитовый")
 	GameState.reset()

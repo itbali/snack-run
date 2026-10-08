@@ -22,6 +22,7 @@ var in_safe_zone := false   # внутри будки пряжи: удары н�
 var input_enabled := true   # false, пока открыт экран магазина
 var stunned_left := 0.0
 var invulnerable_left := 0.0
+var face := CatFace.new()   # выражения глаз, переключает меши eyes_* модели
 var state: StringName = &"idle":
 	set(value):
 		if value != state:
@@ -38,6 +39,9 @@ func _ready() -> void:
 	collision_layer = Layers.CAT
 	collision_mask = Layers.WORLD | Layers.HAZARD
 	Toon.apply(_model, Toon.OUTLINE_CHARACTER)
+	for mi in _model.find_children("eyes_*", "MeshInstance3D", true, false):
+		(mi as MeshInstance3D).material_overlay = null   # обводка 6 мм на 3-см глазу — рамка
+	face.bind(_model)
 	_apply_skin(GameState.skin)
 	GameState.skin_changed.connect(_apply_skin)
 	for clip in LOOPING_CLIPS:
@@ -54,6 +58,7 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	face.update(delta, stunned_left > 0.0)
 	stunned_left = maxf(stunned_left - delta, 0.0)
 	invulnerable_left = maxf(invulnerable_left - delta, 0.0)
 	if stunned_left > 0.0:
@@ -123,6 +128,7 @@ func try_eat() -> bool:
 	if not hidden or GameState.mouth.is_empty():
 		return false
 	var items := GameState.eat_all()
+	face.cheer()
 	ate.emit(items)
 	return true
 
@@ -140,6 +146,15 @@ func take_hit(from: Vector3) -> void:
 	state = &"hit"
 	hit_taken.emit(from)
 	GameState.take_hit()
+
+
+func threaten() -> void:
+	## Собака насторожилась или гонится рядом: зовётся каждый физический кадр, пока угроза есть.
+	face.threaten()
+
+
+func cheer() -> void:
+	face.cheer()
 
 
 func teleport(pos: Vector3) -> void:

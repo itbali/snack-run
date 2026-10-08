@@ -20,11 +20,14 @@ func before_each() -> void:
 	shape.position.y = -0.1
 	floor_body.add_child(shape)
 	world.add_child(floor_body)
+	# Позиции до add_child: пары Area3D берутся по позициям в момент добавления, и кот, созданный
+	# в точке собаки, ловил удар на первом кадре, куда бы его потом ни переставили.
 	cat = CatScene.instantiate()
+	cat.position = Vector3(0, 0.05, 8)   # за спиной и далеко
 	world.add_child(cat)
 	dog = DogScene.instantiate()
+	dog.position = Vector3(0, 0.05, 0)   # смотрит по -Z
 	world.add_child(dog)
-	dog.global_position = Vector3(0, 0.05, 0)   # смотрит по -Z
 
 func test_dog_sees_cat_in_front_and_chases() -> void:
 	cat.global_position = Vector3(0, 0.05, -4)
@@ -92,3 +95,12 @@ func test_safe_zone_cancels_chase() -> void:
 	cat.in_safe_zone = true
 	await wait_seconds(2.3)
 	assert_eq(dog.brain.state, ChaseBrain.State.RETURN, "в безопасной зоне собака теряет кота через 2 с")
+
+func test_chasing_dog_scares_cat() -> void:
+	cat.global_position = Vector3(0, 0.05, -4)
+	await wait_seconds(0.5)
+	assert_eq(dog.brain.state, ChaseBrain.State.ALERT)
+	assert_eq(cat.face.expression, &"scared", "насторожившаяся собака пугает кота")
+	cat.global_position = Vector3(0, 0.05, 12)   # дальше 6 м: собака ещё гонится, но угрозы рядом нет
+	await wait_seconds(0.8)
+	assert_eq(cat.face.expression, &"normal", "испуг гаснет без сигналов от собаки")
