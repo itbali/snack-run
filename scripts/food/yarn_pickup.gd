@@ -3,6 +3,7 @@ extends Area3D
 ## Клубочек: валюта магазина. Лежит в труднодоступном месте, не респавнится (спек 3.4).
 
 @onready var _visual: Node3D = $Visual
+var key := ""      # ключ позиции из раскладки; пустой у клубочков вне раскладки
 var _t := 0.0
 
 
@@ -26,6 +27,6 @@ func _process(delta: float) -> void:
 func _on_body(body: Node3D) -> void:
 	if not body.is_in_group("cat"):
 		return
-	GameState.add_yarn(1)
+	GameState.take_yarn(key)
 	set_deferred("monitoring", false)
 	queue_free()

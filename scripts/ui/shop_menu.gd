@@ -25,6 +25,7 @@ func _ready() -> void:
 	_close.pressed.connect(close)
 	GameState.yarn_changed.connect(func(_c: int) -> void: refresh())
 	GameState.hearts_changed.connect(func(_h: int, _m: int) -> void: refresh())
+	GameState.skin_changed.connect(func(_id: StringName) -> void: refresh())
 	refresh()
 
 
@@ -58,10 +59,20 @@ func refresh() -> void:
 	for i in _buttons.size():
 		var item := items[i]
 		var owned := item.kind != "refill" and GameState.owns(item.id)
+		if item.kind == "skin" and owned:
+			# Купленный скин можно переодевать бесплатно.
+			var worn := GameState.skin == item.skin_id
+			_buttons[i].text = "%s — %s" % [item.display_name, "✓ надет" if worn else "надеть"]
+			_buttons[i].disabled = worn
+			continue
 		_buttons[i].text = "%s — %d ◎%s" % [item.display_name, item.price, " ✓" if owned else ""]
 		_buttons[i].disabled = owned or not GameState.can_buy(item)
 
 
 func _on_buy(item: ShopItem) -> void:
+	if item.kind == "skin" and GameState.owns(item.id):
+		GameState.select_skin(item.skin_id)
+		refresh()
+		return
 	if GameState.buy(item):
 		refresh()

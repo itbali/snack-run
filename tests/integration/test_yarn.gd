@@ -30,3 +30,25 @@ func test_cat_collects_yarn_on_contact() -> void:
 	assert_eq(GameState.yarn, 1)
 	assert_true(not is_instance_valid(y) or y.is_queued_for_deletion())
 	assert_eq(get_tree().get_nodes_in_group("yarn").size(), 0, "клубочек не респавнится")
+
+func test_collected_yarn_does_not_return_after_relaunch() -> void:
+	SaveGame.path = "user://test_save.json"
+	SaveGame.clear()
+	var main := (load("res://scenes/main.tscn") as PackedScene).instantiate()
+	add_child_autofree(main)
+	await wait_physics_frames(5)
+	var before := get_tree().get_nodes_in_group("yarn").size()
+	assert_eq(before, 12)
+	var first = get_tree().get_nodes_in_group("yarn")[0]
+	var key: String = first.key
+	GameState.take_yarn(key)
+	SaveGame.save_now()
+	main.queue_free()
+	await wait_physics_frames(2)
+	GameState.reset()
+	var main2 := (load("res://scenes/main.tscn") as PackedScene).instantiate()
+	add_child_autofree(main2)
+	await wait_physics_frames(5)
+	assert_eq(get_tree().get_nodes_in_group("yarn").size(), 11, "собранный клубочек не вернулся")
+	assert_eq(GameState.yarn, 1)
+	SaveGame.clear()

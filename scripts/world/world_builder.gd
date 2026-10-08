@@ -170,8 +170,10 @@ func _build_hazard(hz: Dictionary) -> void:
 
 func _build_yarn(y: Dictionary) -> void:
 	var node := YarnScene.instantiate() as YarnPickup
+	var pos := _v3(y["pos"])
+	node.key = "%.1f,%.1f,%.1f" % [pos.x, pos.y, pos.z]
 	_container("Yarn").add_child(node)
-	node.global_position = _v3(y["pos"])
+	node.global_position = pos
 	yarn_built += 1
 
 

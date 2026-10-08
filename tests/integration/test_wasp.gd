@@ -75,3 +75,26 @@ func test_wasp_faces_direction_of_motion() -> void:
 	var motion: Vector3 = (w.global_position - p0).normalized()
 	var forward: Vector3 = -w.global_transform.basis.z
 	assert_gt(motion.dot(forward), 0.9, "оса летит головой вперёд")
+
+func test_wasp_over_table_stings_cat_standing_on_table() -> void:
+	# Ревью: оса над десертным столом (h 1,0, r 0,8) должна доставать кота на краю столешницы.
+	var table := StaticBody3D.new()
+	table.collision_layer = Layers.WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(0.9, 0.06, 0.9)
+	shape.shape = box
+	shape.position.y = 0.72
+	table.add_child(shape)
+	world.add_child(table)
+	var w = WaspScene.instantiate()
+	w.radius = 0.8
+	w.height = 1.0
+	w.angular_speed = 3.0
+	world.add_child(w)
+	w.global_position = Vector3(0, 1.0, 0)
+	var cat = CatScene.instantiate()
+	world.add_child(cat)
+	cat.global_position = Vector3(0.4, 0.8, 0)
+	await wait_seconds(2.5)
+	assert_eq(GameState.hearts, 2, "кот на краю стола получает укус за один оборот")

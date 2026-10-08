@@ -31,3 +31,14 @@ func test_bell_flash_shows_and_hides() -> void:
 	assert_true((hud.get_node("Bell") as Label).visible)
 	await wait_seconds(0.25)
 	assert_false((hud.get_node("Bell") as Label).visible)
+
+func test_mouth_slots_grow_with_capacity_upgrade() -> void:
+	assert_eq(hud.mouth_names().size(), 3)
+	GameState.add_yarn(20)
+	GameState.buy(ShopCatalog.get_by_id(&"mouth_4"))
+	GameState.buy(ShopCatalog.get_by_id(&"mouth_5"))
+	await wait_process_frames(1)
+	assert_eq(hud.mouth_names().size(), 5, "после улучшения видны пять слотов")
+	for id in ["sausage", "cookie", "pizza", "hotdog", "fish"]:
+		GameState.pick_up(FoodCatalog.get_by_id(StringName(id)))
+	assert_eq(hud.mouth_names()[4], "Рыба", "пятая еда видна в HUD")

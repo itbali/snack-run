@@ -20,6 +20,9 @@ var _fade: ColorRect
 
 func _ready() -> void:
 	SaveGame.load_now()
+	for y in get_tree().get_nodes_in_group("yarn"):
+		if GameState.is_yarn_taken(y.key):
+			y.queue_free()   # собранные в прошлых сессиях клубочки не возвращаются
 	Toon.apply($DistrictYard, Toon.OUTLINE_NONE)
 	_rig = RigScene.instantiate()
 	_rig.name = "CameraRig"
@@ -108,7 +111,7 @@ func respawn_cat() -> void:
 
 
 func on_interact_pressed() -> void:
-	if _cat and _cat.in_safe_zone and not _cat.hidden and not shop_menu.is_open:
+	if _cat and _cat.in_safe_zone and not _cat.hidden and not shop_menu.is_open and not get_tree().paused:
 		open_shop()
 
 

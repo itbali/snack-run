@@ -72,3 +72,11 @@ func test_yarn_play_balls_move() -> void:
 	var p0: Vector3 = (play.get_child(0) as Node3D).position
 	await wait_seconds(0.3)
 	assert_gt((play.get_child(0) as Node3D).position.distance_to(p0), 0.05, "клубочки катаются")
+
+func test_shop_view_makes_cat_visible_even_if_camera_was_pinned() -> void:
+	cat.global_position = Vector3(0, 0.05, -5)
+	cat.visible = false   # камера упиралась в стенку и спрятала кота
+	rig.shop_view = true
+	await wait_physics_frames(2)
+	assert_true(cat.visible, "в витрине кот всегда виден")
+	rig.shop_view = false

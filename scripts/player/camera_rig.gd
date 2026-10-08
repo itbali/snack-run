@@ -32,6 +32,7 @@ func _physics_process(delta: float) -> void:
 	_yaw -= axis * YAW_SPEED * delta
 	rotation.y = _yaw
 	if shop_view:
+		target.visible = true   # витрина: кот виден, даже если пружина до этого прятала его у стены
 		var want := shop_view_point if use_shop_point else target.global_position + SHOP_OFFSET
 		global_position = global_position.lerp(want, 1.0 - exp(-SMOOTH * delta))
 		look_at(target.global_position + Vector3(0, 0.15, 0), Vector3.UP)

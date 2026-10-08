@@ -4,6 +4,7 @@ extends CanvasLayer
 
 const HEART_FULL := "♥"
 const HEART_EMPTY := "♡"
+const MAX_MOUTH := 5   # максимум после улучшений магазина
 
 @onready var _hearts: Label = $Hearts
 @onready var _satiety: ProgressBar = $Satiety
@@ -17,7 +18,7 @@ const HEART_EMPTY := "♡"
 func _ready() -> void:
 	_satiety.max_value = GameState.SATIETY_GATE
 	_bell.visible = false
-	for i in GameState.MOUTH_CAPACITY:
+	for i in MAX_MOUTH:
 		var panel := PanelContainer.new()
 		panel.custom_minimum_size = Vector2(90, 32)
 		var label := Label.new()
@@ -31,6 +32,8 @@ func _ready() -> void:
 	GameState.goal_changed.connect(_on_goal)
 	GameState.goal_completed.connect(_on_goal_completed)
 	GameState.yarn_changed.connect(_on_yarn)
+	GameState.upgrade_bought.connect(func(_id: StringName) -> void: _refresh_slots())
+	_refresh_slots()
 	_on_yarn(GameState.yarn)
 	_on_hearts(GameState.hearts, GameState.max_hearts)
 	_on_mouth(GameState.mouth)
@@ -45,8 +48,15 @@ func hearts_text() -> String:
 func mouth_names() -> Array[String]:
 	var out: Array[String] = []
 	for panel in _mouth.get_children():
-		out.append((panel.get_node("Name") as Label).text)
+		if panel.visible:
+			out.append((panel.get_node("Name") as Label).text)
 	return out
+
+
+func _refresh_slots() -> void:
+	var panels := _mouth.get_children()
+	for i in panels.size():
+		panels[i].visible = i < GameState.mouth_capacity
 
 
 func yarn_text() -> String:

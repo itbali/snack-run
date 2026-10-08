@@ -34,6 +34,7 @@ var album := {}          # id -> сколько раз съедено
 var goal_target := GOAL_FIRST
 var goal_done := 0       # новых карточек с начала текущей цели
 var yarn := 0            # клубочки, валюта магазина
+var yarn_taken := {}     # ключ позиции собранного клубочка -> true (они не возвращаются после перезапуска)
 var upgrades := {}       # id товара -> true
 var skin: StringName = DEFAULT_SKIN
 var speed_mult := 1.0
@@ -50,6 +51,7 @@ func reset() -> void:
 	goal_target = GOAL_FIRST
 	goal_done = 0
 	yarn = 0
+	yarn_taken = {}
 	upgrades = {}
 	skin = DEFAULT_SKIN
 	_apply_upgrades()
@@ -134,6 +136,17 @@ func album_count() -> int:
 func add_yarn(n: int) -> void:
 	yarn += n
 	yarn_changed.emit(yarn)
+
+
+func take_yarn(key: String) -> void:
+	## Клубочек из раскладки: запоминаем ключ, чтобы он не вернулся после перезапуска.
+	if key != "":
+		yarn_taken[key] = true
+	add_yarn(1)
+
+
+func is_yarn_taken(key: String) -> bool:
+	return yarn_taken.has(key)
 
 
 func spend_yarn(n: int) -> bool:
@@ -225,6 +238,7 @@ func to_dict() -> Dictionary:
 		"album": album_out,
 		"satiety": satiety,
 		"yarn": yarn,
+		"yarn_taken": yarn_taken.keys(),
 		"upgrades": upgrades_out,
 		"skin": String(skin),
 		"goal_target": goal_target,
@@ -242,6 +256,10 @@ func from_dict(d: Dictionary) -> void:
 		satiety = int(d["satiety"])
 	if d.get("yarn") is float or d.get("yarn") is int:
 		yarn = int(d["yarn"])
+	if d.get("yarn_taken") is Array:
+		for k in d["yarn_taken"]:
+			if k is String:
+				yarn_taken[k] = true
 	if d.get("upgrades") is Dictionary:
 		for k in d["upgrades"]:
 			if ShopCatalog.get_by_id(StringName(k)) != null:

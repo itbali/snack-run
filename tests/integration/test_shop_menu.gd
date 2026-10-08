@@ -56,3 +56,28 @@ func test_eat_key_in_safe_zone_opens_shop() -> void:
 	Input.action_release("eat")
 	assert_true(main.shop_menu.is_open)
 	main.close_shop()
+
+func test_interact_does_not_open_shop_while_paused() -> void:
+	cat.global_position = main.respawn_position()
+	await wait_physics_frames(3)
+	main.toggle_pause()
+	main.on_interact_pressed()
+	assert_false(main.shop_menu.is_open, "на паузе магазин не открывается")
+	main.toggle_pause()
+
+func test_owned_skins_can_be_reselected() -> void:
+	GameState.add_yarn(24)
+	main.open_shop()
+	var buttons: Array = main.shop_menu.item_buttons()
+	var black_btn: Button = buttons[7]
+	var grey_btn: Button = buttons[8]
+	black_btn.pressed.emit()
+	grey_btn.pressed.emit()
+	assert_eq(GameState.skin, &"grey")
+	assert_false(black_btn.disabled, "купленный скин можно надеть снова")
+	assert_true(black_btn.text.ends_with("надеть"))
+	black_btn.pressed.emit()
+	assert_eq(GameState.skin, &"black")
+	assert_eq(GameState.yarn, 0, "повторный выбор бесплатен")
+	assert_true(black_btn.text.ends_with("✓ надет"))
+	main.close_shop()

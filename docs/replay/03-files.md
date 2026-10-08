@@ -121,7 +121,7 @@ make run           # запустить игру (WASD, Shift бег, Space пр
 
 ## Статус и что дальше
 
-- Планы 1–3 выполнены и слиты в `main` (2026-10-08): фундамент, игровой цикл, хаб и прогрессия (клубочки, магазин, скины, сохранение, ворота, альбом, пауза, заставка, кафе). Отложенные мелочи — в конце дорожной карты.
+- Планы 1–3 выполнены (2026-10-08): фундамент, игровой цикл, хаб и прогрессия (клубочки, магазин, скины, сохранение, ворота, альбом, пауза, заставка, кафе). Отложенные мелочи — в конце дорожной карты.
 - Следующий шаг: план 4 «Полировка под ролик» (эмоции глаз, пропорции лап, частицы, 6 звуков CC0, виньетка, экспорт mac-билда, плейтест баланса) по дорожной карте.
 - Открытый вопрос владельцу: лицензия весов UniMate для сгенерированных движений (код MIT, для весов явной лицензии не найдено).
 ````
@@ -531,7 +531,7 @@ show_percentage = false
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -320.0
+offset_left = -500.0
 offset_top = 16.0
 offset_right = -24.0
 offset_bottom = 56.0
@@ -949,6 +949,7 @@ var album := {}          # id -> сколько раз съедено
 var goal_target := GOAL_FIRST
 var goal_done := 0       # новых карточек с начала текущей цели
 var yarn := 0            # клубочки, валюта магазина
+var yarn_taken := {}     # ключ позиции собранного клубочка -> true (они не возвращаются после перезапуска)
 var upgrades := {}       # id товара -> true
 var skin: StringName = DEFAULT_SKIN
 var speed_mult := 1.0
@@ -965,6 +966,7 @@ func reset() -> void:
 	goal_target = GOAL_FIRST
 	goal_done = 0
 	yarn = 0
+	yarn_taken = {}
 	upgrades = {}
 	skin = DEFAULT_SKIN
 	_apply_upgrades()
@@ -1049,6 +1051,17 @@ func album_count() -> int:
 func add_yarn(n: int) -> void:
 	yarn += n
 	yarn_changed.emit(yarn)
+
+
+func take_yarn(key: String) -> void:
+	## Клубочек из раскладки: запоминаем ключ, чтобы он не вернулся после перезапуска.
+	if key != "":
+		yarn_taken[key] = true
+	add_yarn(1)
+
+
+func is_yarn_taken(key: String) -> bool:
+	return yarn_taken.has(key)
 
 
 func spend_yarn(n: int) -> bool:
@@ -1140,6 +1153,7 @@ func to_dict() -> Dictionary:
 		"album": album_out,
 		"satiety": satiety,
 		"yarn": yarn,
+		"yarn_taken": yarn_taken.keys(),
 		"upgrades": upgrades_out,
 		"skin": String(skin),
 		"goal_target": goal_target,
@@ -1157,6 +1171,10 @@ func from_dict(d: Dictionary) -> void:
 		satiety = int(d["satiety"])
 	if d.get("yarn") is float or d.get("yarn") is int:
 		yarn = int(d["yarn"])
+	if d.get("yarn_taken") is Array:
+		for k in d["yarn_taken"]:
+			if k is String:
+				yarn_taken[k] = true
 	if d.get("upgrades") is Dictionary:
 		for k in d["upgrades"]:
 			if ShopCatalog.get_by_id(StringName(k)) != null:
@@ -1641,6 +1659,7 @@ extends Area3D
 ## Клубочек: валюта магазина. Лежит в труднодоступном месте, не респавнится (спек 3.4).
 
 @onready var _visual: Node3D = $Visual
+var key := ""      # ключ позиции из раскладки; пустой у клубочков вне раскладки
 var _t := 0.0
 
 
@@ -1664,7 +1683,7 @@ func _process(delta: float) -> void:
 func _on_body(body: Node3D) -> void:
 	if not body.is_in_group("cat"):
 		return
-	GameState.add_yarn(1)
+	GameState.take_yarn(key)
 	set_deferred("monitoring", false)
 	queue_free()
 ```
@@ -2124,6 +2143,9 @@ var _fade: ColorRect
 
 func _ready() -> void:
 	SaveGame.load_now()
+	for y in get_tree().get_nodes_in_group("yarn"):
+		if GameState.is_yarn_taken(y.key):
+			y.queue_free()   # собранные в прошлых сессиях клубочки не возвращаются
 	Toon.apply($DistrictYard, Toon.OUTLINE_NONE)
 	_rig = RigScene.instantiate()
 	_rig.name = "CameraRig"
@@ -2212,7 +2234,7 @@ func respawn_cat() -> void:
 
 
 func on_interact_pressed() -> void:
-	if _cat and _cat.in_safe_zone and not _cat.hidden and not shop_menu.is_open:
+	if _cat and _cat.in_safe_zone and not _cat.hidden and not shop_menu.is_open and not get_tree().paused:
 		open_shop()
 
 
@@ -2316,6 +2338,7 @@ func _physics_process(delta: float) -> void:
 	_yaw -= axis * YAW_SPEED * delta
 	rotation.y = _yaw
 	if shop_view:
+		target.visible = true   # витрина: кот виден, даже если пружина до этого прятала его у стены
 		var want := shop_view_point if use_shop_point else target.global_position + SHOP_OFFSET
 		global_position = global_position.lerp(want, 1.0 - exp(-SMOOTH * delta))
 		look_at(target.global_position + Vector3(0, 0.15, 0), Vector3.UP)
@@ -2679,6 +2702,7 @@ extends CanvasLayer
 
 const HEART_FULL := "♥"
 const HEART_EMPTY := "♡"
+const MAX_MOUTH := 5   # максимум после улучшений магазина
 
 @onready var _hearts: Label = $Hearts
 @onready var _satiety: ProgressBar = $Satiety
@@ -2692,7 +2716,7 @@ const HEART_EMPTY := "♡"
 func _ready() -> void:
 	_satiety.max_value = GameState.SATIETY_GATE
 	_bell.visible = false
-	for i in GameState.MOUTH_CAPACITY:
+	for i in MAX_MOUTH:
 		var panel := PanelContainer.new()
 		panel.custom_minimum_size = Vector2(90, 32)
 		var label := Label.new()
@@ -2706,6 +2730,8 @@ func _ready() -> void:
 	GameState.goal_changed.connect(_on_goal)
 	GameState.goal_completed.connect(_on_goal_completed)
 	GameState.yarn_changed.connect(_on_yarn)
+	GameState.upgrade_bought.connect(func(_id: StringName) -> void: _refresh_slots())
+	_refresh_slots()
 	_on_yarn(GameState.yarn)
 	_on_hearts(GameState.hearts, GameState.max_hearts)
 	_on_mouth(GameState.mouth)
@@ -2720,8 +2746,15 @@ func hearts_text() -> String:
 func mouth_names() -> Array[String]:
 	var out: Array[String] = []
 	for panel in _mouth.get_children():
-		out.append((panel.get_node("Name") as Label).text)
+		if panel.visible:
+			out.append((panel.get_node("Name") as Label).text)
 	return out
+
+
+func _refresh_slots() -> void:
+	var panels := _mouth.get_children()
+	for i in panels.size():
+		panels[i].visible = i < GameState.mouth_capacity
 
 
 func yarn_text() -> String:
@@ -2858,6 +2891,7 @@ func _ready() -> void:
 	_close.pressed.connect(close)
 	GameState.yarn_changed.connect(func(_c: int) -> void: refresh())
 	GameState.hearts_changed.connect(func(_h: int, _m: int) -> void: refresh())
+	GameState.skin_changed.connect(func(_id: StringName) -> void: refresh())
 	refresh()
 
 
@@ -2891,11 +2925,21 @@ func refresh() -> void:
 	for i in _buttons.size():
 		var item := items[i]
 		var owned := item.kind != "refill" and GameState.owns(item.id)
+		if item.kind == "skin" and owned:
+			# Купленный скин можно переодевать бесплатно.
+			var worn := GameState.skin == item.skin_id
+			_buttons[i].text = "%s — %s" % [item.display_name, "✓ надет" if worn else "надеть"]
+			_buttons[i].disabled = worn
+			continue
 		_buttons[i].text = "%s — %d ◎%s" % [item.display_name, item.price, " ✓" if owned else ""]
 		_buttons[i].disabled = owned or not GameState.can_buy(item)
 
 
 func _on_buy(item: ShopItem) -> void:
+	if item.kind == "skin" and GameState.owns(item.id):
+		GameState.select_skin(item.skin_id)
+		refresh()
+		return
 	if GameState.buy(item):
 		refresh()
 ```
@@ -3257,8 +3301,10 @@ func _build_hazard(hz: Dictionary) -> void:
 
 func _build_yarn(y: Dictionary) -> void:
 	var node := YarnScene.instantiate() as YarnPickup
+	var pos := _v3(y["pos"])
+	node.key = "%.1f,%.1f,%.1f" % [pos.x, pos.y, pos.z]
 	_container("Yarn").add_child(node)
-	node.global_position = _v3(y["pos"])
+	node.global_position = pos
 	yarn_built += 1
 
 
@@ -4049,6 +4095,17 @@ func test_bell_flash_shows_and_hides() -> void:
 	assert_true((hud.get_node("Bell") as Label).visible)
 	await wait_seconds(0.25)
 	assert_false((hud.get_node("Bell") as Label).visible)
+
+func test_mouth_slots_grow_with_capacity_upgrade() -> void:
+	assert_eq(hud.mouth_names().size(), 3)
+	GameState.add_yarn(20)
+	GameState.buy(ShopCatalog.get_by_id(&"mouth_4"))
+	GameState.buy(ShopCatalog.get_by_id(&"mouth_5"))
+	await wait_process_frames(1)
+	assert_eq(hud.mouth_names().size(), 5, "после улучшения видны пять слотов")
+	for id in ["sausage", "cookie", "pizza", "hotdog", "fish"]:
+		GameState.pick_up(FoodCatalog.get_by_id(StringName(id)))
+	assert_eq(hud.mouth_names()[4], "Рыба", "пятая еда видна в HUD")
 ```
 
 ## `tests/integration/test_main.gd`
@@ -4285,6 +4342,31 @@ func test_eat_key_in_safe_zone_opens_shop() -> void:
 	Input.action_release("eat")
 	assert_true(main.shop_menu.is_open)
 	main.close_shop()
+
+func test_interact_does_not_open_shop_while_paused() -> void:
+	cat.global_position = main.respawn_position()
+	await wait_physics_frames(3)
+	main.toggle_pause()
+	main.on_interact_pressed()
+	assert_false(main.shop_menu.is_open, "на паузе магазин не открывается")
+	main.toggle_pause()
+
+func test_owned_skins_can_be_reselected() -> void:
+	GameState.add_yarn(24)
+	main.open_shop()
+	var buttons: Array = main.shop_menu.item_buttons()
+	var black_btn: Button = buttons[7]
+	var grey_btn: Button = buttons[8]
+	black_btn.pressed.emit()
+	grey_btn.pressed.emit()
+	assert_eq(GameState.skin, &"grey")
+	assert_false(black_btn.disabled, "купленный скин можно надеть снова")
+	assert_true(black_btn.text.ends_with("надеть"))
+	black_btn.pressed.emit()
+	assert_eq(GameState.skin, &"black")
+	assert_eq(GameState.yarn, 0, "повторный выбор бесплатен")
+	assert_true(black_btn.text.ends_with("✓ надет"))
+	main.close_shop()
 ```
 
 ## `tests/integration/test_wasp.gd`
@@ -4367,6 +4449,29 @@ func test_wasp_faces_direction_of_motion() -> void:
 	var motion: Vector3 = (w.global_position - p0).normalized()
 	var forward: Vector3 = -w.global_transform.basis.z
 	assert_gt(motion.dot(forward), 0.9, "оса летит головой вперёд")
+
+func test_wasp_over_table_stings_cat_standing_on_table() -> void:
+	# Ревью: оса над десертным столом (h 1,0, r 0,8) должна доставать кота на краю столешницы.
+	var table := StaticBody3D.new()
+	table.collision_layer = Layers.WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(0.9, 0.06, 0.9)
+	shape.shape = box
+	shape.position.y = 0.72
+	table.add_child(shape)
+	world.add_child(table)
+	var w = WaspScene.instantiate()
+	w.radius = 0.8
+	w.height = 1.0
+	w.angular_speed = 3.0
+	world.add_child(w)
+	w.global_position = Vector3(0, 1.0, 0)
+	var cat = CatScene.instantiate()
+	world.add_child(cat)
+	cat.global_position = Vector3(0.4, 0.8, 0)
+	await wait_seconds(2.5)
+	assert_eq(GameState.hearts, 2, "кот на краю стола получает укус за один оборот")
 ```
 
 ## `tests/integration/test_world_builder.gd`
@@ -4561,6 +4666,28 @@ func test_cat_collects_yarn_on_contact() -> void:
 	assert_eq(GameState.yarn, 1)
 	assert_true(not is_instance_valid(y) or y.is_queued_for_deletion())
 	assert_eq(get_tree().get_nodes_in_group("yarn").size(), 0, "клубочек не респавнится")
+
+func test_collected_yarn_does_not_return_after_relaunch() -> void:
+	SaveGame.path = "user://test_save.json"
+	SaveGame.clear()
+	var main := (load("res://scenes/main.tscn") as PackedScene).instantiate()
+	add_child_autofree(main)
+	await wait_physics_frames(5)
+	var before := get_tree().get_nodes_in_group("yarn").size()
+	assert_eq(before, 12)
+	var first = get_tree().get_nodes_in_group("yarn")[0]
+	var key: String = first.key
+	GameState.take_yarn(key)
+	SaveGame.save_now()
+	main.queue_free()
+	await wait_physics_frames(2)
+	GameState.reset()
+	var main2 := (load("res://scenes/main.tscn") as PackedScene).instantiate()
+	add_child_autofree(main2)
+	await wait_physics_frames(5)
+	assert_eq(get_tree().get_nodes_in_group("yarn").size(), 11, "собранный клубочек не вернулся")
+	assert_eq(GameState.yarn, 1)
+	SaveGame.clear()
 ```
 
 ## `tests/integration/test_yarn_shop.gd`
@@ -4640,6 +4767,14 @@ func test_yarn_play_balls_move() -> void:
 	var p0: Vector3 = (play.get_child(0) as Node3D).position
 	await wait_seconds(0.3)
 	assert_gt((play.get_child(0) as Node3D).position.distance_to(p0), 0.05, "клубочки катаются")
+
+func test_shop_view_makes_cat_visible_even_if_camera_was_pinned() -> void:
+	cat.global_position = Vector3(0, 0.05, -5)
+	cat.visible = false   # камера упиралась в стенку и спрятала кота
+	rig.shop_view = true
+	await wait_physics_frames(2)
+	assert_true(cat.visible, "в витрине кот всегда виден")
+	rig.shop_view = false
 ```
 
 ## `tests/unit/test_cat_motion.gd`
@@ -5026,6 +5161,16 @@ func test_clear_removes_file() -> void:
 	assert_true(FileAccess.file_exists(TEST_PATH))
 	SaveGame.clear()
 	assert_false(FileAccess.file_exists(TEST_PATH))
+
+func test_taken_yarn_keys_round_trip() -> void:
+	GameState.take_yarn("1.5,0.6,1.5")
+	assert_eq(GameState.yarn, 1)
+	assert_true(GameState.is_yarn_taken("1.5,0.6,1.5"))
+	SaveGame.save_now()
+	GameState.reset()
+	assert_false(GameState.is_yarn_taken("1.5,0.6,1.5"))
+	SaveGame.load_now()
+	assert_true(GameState.is_yarn_taken("1.5,0.6,1.5"), "список собранных клубочков сохраняется")
 ```
 
 ## `tests/unit/test_shop.gd`
@@ -7635,6 +7780,12 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
 - Счётчик клубочков в HUD сиреневый и плохо читается на фоне будки.
 - Сытость сохраняется: со второго запуска ворота открыты сразу (принятое отклонение плана 3).
 - Скины — наборы из трёх цветов, «полосатого» и «сиамского» в полном смысле нет.
+- `reset_progress()` сразу пишет обнулённый файл сохранения (порядок строк), покупка пишет файл 2–3 раза.
+- Собака в погоне ещё 2 с бежит в будку через открытый перёд (урон блокирован, но «не заходят» не выполняется).
+- Плита будки без коллайдера: лапы кота на 3 см в плите.
+- Геймпад: B (`ui_cancel`) не закрывает магазин, только Start; Space покупает товар в фокусе.
+- Нет kill-plane: с края пола 60×60 можно упасть навсегда (особенно за кафе).
+- Заставка не различает «продолжить» и «новая игра».
 - Камера в укрытии под лавкой (−5,−8) сжимается до 0,34 м и прячет модель кота; под машиной кот может торчать сквозь днище.
 - `main.gd` повторно применяет Toon ко всему двору (дублирование материалов).
 - Рассыпанная еда кладётся на y=0 независимо от высоты кота (на балконе уйдёт под площадку).

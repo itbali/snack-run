@@ -61,3 +61,13 @@ func test_clear_removes_file() -> void:
 	assert_true(FileAccess.file_exists(TEST_PATH))
 	SaveGame.clear()
 	assert_false(FileAccess.file_exists(TEST_PATH))
+
+func test_taken_yarn_keys_round_trip() -> void:
+	GameState.take_yarn("1.5,0.6,1.5")
+	assert_eq(GameState.yarn, 1)
+	assert_true(GameState.is_yarn_taken("1.5,0.6,1.5"))
+	SaveGame.save_now()
+	GameState.reset()
+	assert_false(GameState.is_yarn_taken("1.5,0.6,1.5"))
+	SaveGame.load_now()
+	assert_true(GameState.is_yarn_taken("1.5,0.6,1.5"), "список собранных клубочков сохраняется")
