@@ -40,10 +40,12 @@
 
 ## Что считается успехом
 
-- `make test` зелёный с чистого состояния (`rm -rf .godot && make test`): 8 Blender-тестов и 29 GUT-тестов.
-- `make assets` собирает `bin.glb`, `box.glb`, `cat.glb` (6 клипов: idle, walk, run, jump, hide, hit), `ground.glb`.
-- `make shot` даёт кадр: рыжий кот с обводкой стоит на тротуаре, рядом зелёные баки и коробки, тун-тени.
-- `make run`: WASD двигает кота относительно камеры, Shift бег, Space прыжок, Q/R поворот камеры, анимации не останавливаются.
+- `make test` зелёный с чистого состояния (`rm -rf .godot && make test`): после плана 1 — 8 Blender-тестов и 29 GUT;
+  после плана 4 — 20 Blender-тестов и 158+ GUT (точное число в конце раздела «План 4» в `02-procedure.md`).
+- `make assets` собирает все модели из `tools/blender/gen/*.py`; у `cat.glb` 6 клипов и четыре набора глаз, у `dog.glb` клипы idle/walk/sleep.
+- `make shot` даёт кадр: рыжий кот с глазами и обводкой на дворе, белые плашки HUD (Nunito), виньетка по краям.
+- `make run`: WASD двигает кота относительно камеры, мышь/Q/R крутят камеру, Shift бег, Space прыжок, Ctrl прятаться, E есть/магазин, Tab альбом, Esc пауза.
+- `make export` (после `make templates`) даёт `build/SnackRun.zip` с `SnackRun.app`.
 
 ## Принципы, которые нельзя нарушать при воспроизведении
 

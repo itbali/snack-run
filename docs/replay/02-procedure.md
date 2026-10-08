@@ -492,6 +492,110 @@ dummy-рендерера. Итог: 12 Blender + 88 GUT тестов.
 
 ---
 
+## План 4. Полировка под ролик (`docs/superpowers/plans/2026-10-08-snack-run-04-polish.md`)
+
+Ветка `plan-4-polish` от `main`. План с полным кодом лежит в приложении; ниже — что сделано на самом
+деле и где план пришлось поправить (все такие места записаны как `Ruling:` в журнале и в коде комментариями).
+Одиночный прогон GUT: `GODOT --headless --path . -s addons/gut/gut_cmdln.gd -gconfig=res://.gutconfig.json -gselect=test_theme`
+(флаг `-gselect=<подстрока имени файла>`; `-gtest=` не фильтрует).
+
+## Задача 1: тема UI, HUD, заставка
+
+1. Шрифт: `curl -sL -o assets/fonts/Nunito.ttf "https://raw.githubusercontent.com/google/fonts/main/ofl/nunito/Nunito%5Bwght%5D.ttf"`
+   и `OFL.txt` оттуда же (277 КБ, SIL OFL). Создать `assets/ui/theme.tres`, добавить в `project.godot` секцию
+   `[gui] theme/custom="res://assets/ui/theme.tres"`, `scripts/core/mouse.gd`, тест `tests/unit/test_theme.gd`.
+2. `scenes/ui/hud.tscn` переписан: плашка `Status` (сердечки, полоска сытости с подписью, клубочки), `Mouth`,
+   `GoalPanel/Goal`, `BellPanel/Bell`; узлы с `unique_name_in_owner`, в `hud.gd` ссылки `%Имя`. Тесты HUD ходят
+   через `hud.get_node("%Satiety")` и `%BellPanel`.
+3. `scenes/ui/title.tscn`: кнопка `Continue` («Продолжить», видна при наличии сохранения), `Play` → «Новая игра».
+   `title.gd`: `switch_scenes` (тесты ставят `false`), `has_save/new_game/continue_game`. В `new_game` сначала
+   `GameState.reset()`, потом `SaveGame.clear()`: рядом с `Main` сигналы `reset()` вызывают автосохранение.
+4. Контрольная точка: `make test-godot` зелёный (133), `make shot SHOT=build/shot_ui.png` — белые округлые плашки,
+   Nunito, графитовый текст. Коммит «UI: тема Nunito…».
+
+## Задача 2: глаза и выражения
+
+1. `tools/blender/palette.py`: цвет `eye_white` (#F4F1E8) — не из спека, чтобы скины (`sr_cream`) не красили глаза;
+   `tools/blender/tests/test_lib.py`: 18 цветов вместо 17.
+2. `tools/blender/cat_eyes.py` (bbox вершин головы → центры глаз → четыре набора `eyes_normal/scared/happy/dizzy`,
+   слитые в один меш каждый, скин к кости `head` весом 1, armature-модификатор); `cat.py` возвращает `[arm, mesh] + eyes`.
+   Тест `tools/blender/tests/test_cat_eyes.py` (4 теста, включая «чеврон „^“, а не „v“»). `make assets ONLY=cat` → 1607 tri.
+3. Godot: `scripts/player/cat_face.gd` (`bind/threaten/cheer/update`, приоритет оглушён > испуг > довольный),
+   в `cat.gd` поле `face`, обводка у `eyes_*` снимается (`material_overlay = null`), `face.update` первой строкой
+   `_physics_process`, `cheer()` в `try_eat`, методы `threaten/cheer`. `dog.gd` зовёт `cat.threaten()` в ALERT/CHASE,
+   только если собака ближе `VISION_RANGE` (6 м) — иначе испуг не гаснет, пока собака гонится вдали.
+4. Проверка анфас: служебный скрипт `-s` с `cat.glb` (без автозагрузок, иначе `cat.gd` не компилируется),
+   камере задавать `transform` (в `_init()` `global_position`/`look_at` не применяются). По кадру белок обычных
+   глаз уменьшен с 16 до 14 мм.
+5. Контрольная точка: `make test-blender` → `Ran 16 tests OK`; `make test-godot` зелёный (137). Коммит «Кот: четыре набора глаз…».
+
+## Задача 3: частицы
+
+`scripts/visual/effects.gd` (`Effects.burst`, `CPUParticles3D`, группа `fx`, самоудаление по `finished`);
+`Main._on_food_eaten` (цвет редкости лучшей еды), `_on_cat_hit` (золотые звёзды), `YarnPickup` (сиреневый + `cat.cheer()`).
+Тесты `tests/integration/test_effects.gd` и два в `test_main.gd`. Коммит «Частицы…».
+
+## Задача 4: звук
+
+1. Kenney: страница `https://kenney.nl/assets/<slug>` содержит ссылку на zip (`grep -oE 'https://kenney\.nl/media/pages/assets/[^"]*\.zip'`).
+   Паки `impact-sounds` и `interface-sounds`, файлы в `Audio/`: `pluck_001.ogg` → `pickup.ogg`, `drop_002.ogg` → `eat.ogg`,
+   `impactPunch_medium_000.ogg` → `hit.ogg`, `impactBell_heavy_000.ogg` → `bell.ogg`; `License.txt` → `assets/sfx/LICENSE_kenney.txt`.
+2. `tools/audio/gen_sfx.py` (stdlib: `wave`, синтез писка 900→520 Гц и лая 190→120 Гц) и цель `make sfx` → `meow.wav`, `bark.wav`.
+   `assets/sfx/README.md` с таблицей источников.
+3. `scripts/autoload/sfx.gd` (автозагрузка `Sfx` после `SaveGame`): пул из 6 `AudioStreamPlayer`, `play(name, pitch_jitter)`,
+   `has`, `counts`, `reset_counters`. Подключения по событиям: `Cat.take_hit` (hit + meow, после проверки неуязвимости),
+   `Main._on_food_eaten` (eat), звонок велосипедиста (bell), `FoodPickup`/`YarnPickup` (pickup), `Dog` при переходе в ALERT (bark).
+4. Тесты: `tests/unit/test_sfx.gd`, в `test_dog.gd` «один удар — один звук», в `test_main.gd` «eat». Headless-аудио (Dummy)
+   ошибок не даёт. Контрольная точка: 142 GUT. Коммит «Звук: шесть эффектов…».
+
+## Задача 5: камера, прозрачность, виньетка
+
+`camera_rig.gd`: `_unhandled_input` (мышь при `MOUSE_MODE_CAPTURED`), `turn_by_pixels`, `apply_arm_length` → `set_fade`
+(альфа от длины пружины: 0,15 при ≤ 0,3 м, 1 при ≥ 0,9 м), витрина ставит `fade = 1`. `cat.gd`: `fade`, `set_fade`,
+`_apply_fade` (альфа + `TRANSPARENCY_ALPHA` на всех материалах и обводке), скин после перекраски восстанавливает `fade`.
+`assets/shaders/vignette.gdshader` + `Vignette/Rect` в `main.tscn` (CanvasLayer 0, `mouse_filter = 2`). `Main`: `Mouse.capture(true)`
+в `_ready`, `false` при паузе/магазине. Тесты в `test_cat_scene.gd` (прозрачность, скин + прозрачность, мышь) и `test_main.gd` (виньетка).
+Проверка виньетки по пикселям: угол 230→189, центр не тронут. Контрольная точка: 146 GUT. Коммит «Камера…».
+
+## Задача 6: собака спит, будка
+
+1. `tools/blender/dog_sleep.py`: `reset_pose`, `apply_pose` (корпус вниз на 62 % высоты над лапами через `location` корня в
+   локальных осях кости, лапы `scale.y = 0,45`, цели IK подняты на 25 % просадки, голова на 0,75 рад — знак выбирается по
+   результату), `make_sleep_action` (кадры 1/24/48, на 24-м вдох). **Поза ставится при снятом action**, иначе
+   `view_layer.update()` перезаписывает кости уже записанными кадрами и клип статичный. `dog.py` зовёт
+   `make_sleep_action(arm)` после `clean_action`. Тест `test_dog_sleep.py` (4 теста). `make assets ONLY=dog` → клипы idle/sleep/walk.
+2. `chase_brain.gd`: `update(..., cat_safe := false)` — в CHASE при `cat_safe` сразу RETURN, в ALERT — IDLE. `dog.gd` передаёт
+   `in_safe_zone` кота. `yarn_shop.tscn`: `Walls/Floor` (2,2 × 0,03 × 2,2 на y 0,015).
+3. Тесты: `test_chase_brain.gd`, `test_dog.gd` (RETURN за 3 кадра, idle играет `sleep`), `test_dog_asset.gd` (sleep ≈ 2 с),
+   `test_yarn_shop.gd` (луч упирается в плиту на 0,03). Контрольная точка: `Ran 20 tests OK`, 152 GUT. Коммит «Собака…».
+
+## Задача 7: дыры мира
+
+`Main.KILL_Y = -5`, `_physics_process` → `fall_respawn()` (еда из зубов теряется, сердечки не трогаются, телепорт к будке);
+`_on_cat_hit` не рассыпает еду при `hearts == 0`; `reset_progress` выключает `autosave` на время `GameState.reset()`, потом
+`SaveGame.clear()`; `SpillSpawner` кладёт еду на `pos.y`; `MenuInput` закрывает магазин/альбом по `ui_cancel` (B геймпада).
+Тесты в `test_main.gd` (3), `test_hit.gd` (1), `test_menus.gd` (сброс без файла, `ui_cancel`). Контрольная точка: 157 GUT.
+
+## Задача 8: баланс
+
+`tests/unit/test_balance.gd` — жадный маршрут по точкам спавна двора (z < 10,5), 2 м/с, 0,6 с на подбор, после каждых
+трёх — к ближайшему укрытию и 2 с. Оценка: **32 с при пороге 10** (< 180 с), порог не меняется. Контрольная точка: 158 GUT.
+
+## Задача 9: экспорт mac-билда
+
+`make templates` (скачивает 1,28 ГБ `Godot_v4.7.2-stable_export_templates.tpz` в `build/`, кладёт `macos.zip` и `version.txt`
+в `~/Library/Application Support/Godot/export_templates/4.7.2.stable/`; с GitHub идёт медленно, `curl -C -` докачивает),
+`export_presets.cfg` (macOS, universal, `codesign/codesign=1` — встроенная ad-hoc подпись без сертификата, нотаризации нет),
+`make export` → `build/SnackRun.zip`. Проверка запуска: `unzip -q -o build/SnackRun.zip -d build && build/SnackRun.app/Contents/MacOS/SnackRun --quit-after 60; echo $?` → 0.
+
+## Задача 10: эта документация, `make replay` (в приложение добавлены `.cfg/.tres/.gdshader/.txt`, `tools/audio`), дорожная карта, `CLAUDE.md`.
+
+## Ревью плана 4 и исправления
+
+(заполняется после ревью; см. конец раздела)
+
+---
+
 ## Известные грабли (сводка, чтобы не искать по тексту)
 
 **Godot 4.7:** `class_name` виден после `make import`; GUT не падает на parse error (grep в Makefile);
@@ -511,6 +615,13 @@ dummy-рендерера. Итог: 12 Blender + 88 GUT тестов.
 даёт событий `_unhandled_input` — меню опрашивать `is_action_just_pressed` из узла `ALWAYS`; `Main` не
 делать `ALWAYS` (дети унаследуют и не встанут на паузу); `JSON.parse_string` печатает ERROR движка;
 `Color` из `.tres` сравнивать через `to_html()`; камера-витрина — точка на будке, не мировое смещение.
+
+**План 4:** одиночный прогон GUT — `-gselect=`; пары Area3D фиксируются по позициям в момент `add_child`
+(узлы в тестах ставить `position` **до** `add_child`, иначе кот в точке собаки ловит удар на первом кадре); в скрипте
+`-s` (SceneTree) автозагрузок нет и `global_position`/`look_at` в `_init()` не применяются — задавать `transform`;
+в Blender при записи клипа поза ставится при снятом action (иначе `view_layer.update()` возвращает записанные кадры);
+`keyframe_insert` на pose bone сам создаёт слот action (Blender 5); `GameState.reset()` рядом с `Main` тут же
+автосохраняется — файл стирать после сброса или выключать `autosave`; Dummy-аудио в headless не ругается на `play()`.
 
 **План 2 (Godot):** GUT 9.7 считает ошибки движка провалом → `failure_error_types` без `engine`;
 поля чужих узлов через `set/get/call`; `home`/`anchor` брать на первом физическом кадре, не в `_ready`;

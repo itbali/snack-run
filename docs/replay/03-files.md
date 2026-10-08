@@ -5,7 +5,7 @@
 Отступы в GDScript и Makefile — табы; в Python проекта — тоже табы, кроме
 `palette.py` и тестов Blender (пробелы). Копировать как есть.
 
-Файлов: 146
+Файлов: 164
 
 ## `CLAUDE.md`
 
@@ -28,7 +28,7 @@
 
 1. `docs/superpowers/specs/2026-10-07-snack-run-design.md` — спек: визуальная библия + игровой цикл. **Спек — источник истины**, план лишь аргумент от него.
 2. `docs/superpowers/plans/2026-10-07-snack-run-roadmap.md` — дорожная карта из 4 планов и их статус.
-3. `docs/superpowers/plans/2026-10-07-snack-run-01-foundation.md` — план 1 (выполнен, слит в main 2026-10-08). Образец формата для планов 2–4.
+3. `docs/superpowers/plans/2026-10-07-snack-run-01-foundation.md` … `2026-10-08-snack-run-04-polish.md` — планы 1–4 (все выполнены). Образец формата для следующих.
 4. `docs/superpowers/notes/2026-10-07-unimate-attempt.md` — как заработал UniMate на Mac и все найденные грабли.
 5. `reference/*.png` — три концепт-арта (ключевой кадр, карта мира, артборд ассетов).
 
@@ -58,8 +58,12 @@ make test-blender  # только Blender
 make assets        # пересобрать все glb из tools/blender/gen/*.py в assets/models/
 make assets ONLY=cat
 make shot SHOT=build/x.png   # скриншот главной сцены из CLI (ждёт 40 кадров)
-make run           # запустить игру (WASD, Shift бег, Space прыжок, Q/R камера)
+make run           # запустить игру (WASD, мышь/Q/R камера, Shift бег, Space прыжок, Ctrl прятаться, E есть/магазин, Tab альбом, Esc пауза)
+make sfx           # пересинтезировать meow.wav/bark.wav (tools/audio/gen_sfx.py)
+make templates     # один раз: шаблоны экспорта 4.7.2 (1,28 ГБ) в ~/Library/Application Support/Godot/export_templates
+make export        # build/SnackRun.zip (macOS universal, ad-hoc подпись) по export_presets.cfg
 ```
+Одиночный прогон GUT: `$GODOT --headless --path . -s addons/gut/gut_cmdln.gd -gconfig=res://.gutconfig.json -gselect=test_theme`.
 Пути инструментов: `/Applications/Godot.app/Contents/MacOS/Godot`, `/Applications/Blender.app/Contents/MacOS/Blender`.
 Просмотр glb: `blender -b --python tools/blender/tests/list_glb.py -- assets/models/cat.glb`.
 Инспекция рига: `blender -b <file.blend> --python tools/blender/rig_inspect.py`.
@@ -68,7 +72,7 @@ make run           # запустить игру (WASD, Shift бег, Space пр
 
 - `scenes/main.tscn` + `scripts/main.gd` — собирает свет, двор, кота, камеру.
 - `scripts/player/cat_motion.gd` — чистая логика (static, без узлов) → тесты в `tests/unit/`.
-- `scripts/player/cat.gd` (CharacterBody3D: idle/walk/run/jump/hide/hit, `take_hit`, `try_hide`, `try_eat`, `teleport`), `camera_rig.gd` (`crouch`), `head_scaler.gd`.
+- `scripts/player/cat.gd` (CharacterBody3D: idle/walk/run/jump/hide/hit, `take_hit`, `try_hide`, `try_eat`, `teleport`, `set_fade`, `threaten/cheer`), `cat_face.gd` (выражения глаз по мешам `eyes_*`), `camera_rig.gd` (`crouch`, `shop_view`, мышь, прозрачность кота), `head_scaler.gd`.
 - `scripts/autoload/game_state.gd` — сердечки, зубы (3), сытость, альбом, цель сессии; сигналы `cat_hit`, `cat_fainted` и др. В тестах `GameState.reset()` в `before_each`.
 - `scripts/core/` (`Layers`, `Rarity`), `scripts/food/` (`FoodDef`, `FoodCatalog`, `FoodPickup`, `FoodSpawnPoint`), `data/food/*.tres`.
 - `scripts/hideouts/hideout.gd`, `scripts/world/world_builder.gd` (двор из `data/layout/yard.json`), `scripts/world/spill_spawner.gd`.
@@ -77,9 +81,10 @@ make run           # запустить игру (WASD, Shift бег, Space пр
 - `scripts/core/shop_item.gd`, `shop_catalog.gd`, `cat_skin.gd`, `skin_catalog.gd`; данные `data/shop/*.tres`, `data/skins/*.tres`.
 - `scripts/autoload/save_game.gd` — JSON в `user://save.json`, пишет только по `save_now()` из `Main`; в тестах с `Main` путь переопределяется.
 - `scripts/world/gate.gd` (ворота по сытости), `scripts/world/yarn_shop.gd` (будка: безопасная зона, возрождение, витрина), `scripts/food/yarn_pickup.gd`.
-- `scripts/visual/toon.gd` — `Toon.apply(root, width_m)`; ширина в метрах, пересчитывается под масштаб узла.
+- `scripts/visual/toon.gd` — `Toon.apply(root, width_m)`; ширина в метрах, пересчитывается под масштаб узла. `scripts/visual/effects.gd` — `Effects.burst` (частицы).
+- `scripts/autoload/sfx.gd` — звуки (`Sfx.play(&"eat")`, один вызов на событие), файлы и лицензии в `assets/sfx/README.md`; `assets/ui/theme.tres` (Nunito, плашки), `assets/shaders/vignette.gdshader`; `scripts/core/mouse.gd` (`Mouse.capture`, в headless no-op).
 - `scripts/autoload/input_setup.gd` (InputMap в коде), `dev_tools.gd` (`++ --screenshot=path`).
-- `tools/blender/`: `palette.py`, `lib.py` (rounded_box, world_extent, tri_count, check_asset), `export.py`, `build.py`, `cat.py`, `gen/*.py` (каждый: `SPEC` + `build()`).
+- `tools/blender/`: `palette.py`, `lib.py` (rounded_box, world_extent, tri_count, check_asset), `export.py`, `build.py`, `cat.py` + `cat_eyes.py` (глаза), `dog.py` + `dog_sleep.py` (поза «спит»), `gen/*.py` (каждый: `SPEC` + `build()`); `tools/audio/gen_sfx.py`; `export_presets.cfg`.
 - `third_party/quaternius_animal_pack_v2/` (CC0 кот и собака), `third_party/unimate_clips/` (канонический риг + клипы jump/hide/hit/run + README с воспроизведением).
 - `tests/unit`, `tests/integration` (GUT 9.7.1 в `addons/gut`, вендор), `tools/blender/tests/`.
 
@@ -117,12 +122,14 @@ make run           # запустить игру (WASD, Shift бег, Space пр
 
 **План 3:** ожидания GUT стоят на паузе дерева → в тестах паузы `get_tree().create_timer(t, true)`; `Input.action_press` не создаёт событий → меню опрашивать `is_action_just_pressed` из узла с `PROCESS_MODE_ALWAYS`; `Main` оставлять `INHERIT`; `JSON.parse_string` печатает ERROR движка (использовать `JSON.new().parse()`); `Color` из `.tres` сравнивать через `to_html()`.
 
+**План 4:** одиночный прогон GUT — `-gselect=`, не `-gtest=`; пары Area3D фиксируются по позициям в момент `add_child` (в тестах `position` ставить **до** `add_child`, иначе кот в точке собаки ловит удар на первом кадре); скрипт `-s` (SceneTree) без автозагрузок — `cat.tscn` там не компилируется, рендерить `cat.glb`; в `_init()` такого скрипта `global_position`/`look_at` не применяются — задавать `transform`; в Blender при записи клипа позу ставить при снятом action (иначе `view_layer.update()` возвращает уже записанные кадры); `GameState.reset()` рядом с `Main` тут же автосохраняется — файл стирать после сброса или выключать `autosave`; эмоции — меши на кости головы (материалы не из ролей скина, обводку с глаз снимать).
+
 **UniMate на Mac** (подробно в заметке): venv Python 3.10 через `uv`, requirements без `+cu124`, `sampling.device = cpu` в `config.json` чекпоинта (MPS не умеет float64), ручная `annotation.json` (авторазметка путает спину и хвост), шим `blender` → venv-python с pip-`bpy` для `run_animate_motion.sh`. Окружение жило в scratchpad и не сохранилось; чекпоинт 1,2 ГБ качается с HF заново.
 
 ## Статус и что дальше
 
-- Планы 1–3 выполнены и слиты в `main` (2026-10-08): фундамент, игровой цикл, хаб и прогрессия (клубочки, магазин, скины, сохранение, ворота, альбом, пауза, заставка, кафе). Отложенные мелочи — в конце дорожной карты.
-- Следующий шаг: план 4 «Полировка под ролик» (эмоции глаз, пропорции лап, частицы, 6 звуков CC0, виньетка, экспорт mac-билда, плейтест баланса) по дорожной карте.
+- Планы 1–4 выполнены и слиты в `main` (2026-10-08): фундамент, игровой цикл, хаб и прогрессия, полировка под ролик (тема UI, глаза и выражения, частицы, звук, камера мышью и прозрачность, виньетка, спящая собака, kill-plane, баланс, mac-билд). Оставшиеся отложенные мелочи — в конце дорожной карты (без галочки «план 4»).
+- Следующий шаг: по дорожной карте этапы 2+ (парк, сутки, порт) — отдельные спеки через brainstorming; либо живой плейтест владельца с правками по его замечаниям.
 - Открытый вопрос владельцу: лицензия весов UniMate для сгенерированных движений (код MIT, для весов явной лицензии не найдено).
 ````
 
@@ -133,8 +140,10 @@ SHELL   := /bin/bash
 GODOT   ?= /Applications/Godot.app/Contents/MacOS/Godot
 BLENDER ?= /Applications/Blender.app/Contents/MacOS/Blender
 SHOT    ?= build/shot.png
+TEMPLATES_DIR := $(HOME)/Library/Application Support/Godot/export_templates/4.7.2.stable
+TPZ_URL := https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_export_templates.tpz
 
-.PHONY: import test test-godot test-blender assets shot run replay
+.PHONY: import test test-godot test-blender assets shot run replay sfx templates export
 
 import:
 	$(GODOT) --headless --path . --import
@@ -162,6 +171,20 @@ run: import
 
 replay:
 	python3 tools/replay/build_files_md.py
+
+sfx:
+	python3 tools/audio/gen_sfx.py
+
+templates:
+	mkdir -p "$(TEMPLATES_DIR)" build
+	[ -f build/templates.tpz ] || curl -L -C - -o build/templates.tpz "$(TPZ_URL)"
+	unzip -o -j build/templates.tpz 'templates/macos.zip' 'templates/version.txt' -d "$(TEMPLATES_DIR)"
+	ls -la "$(TEMPLATES_DIR)"
+
+export: import
+	mkdir -p build
+	$(GODOT) --headless --path . --export-release "macOS" build/SnackRun.zip
+	ls -la build/SnackRun.zip && unzip -l build/SnackRun.zip | head -5
 ```
 
 ## `project.godot`
@@ -182,6 +205,7 @@ InputSetup="*res://scripts/autoload/input_setup.gd"
 DevTools="*res://scripts/autoload/dev_tools.gd"
 GameState="*res://scripts/autoload/game_state.gd"
 SaveGame="*res://scripts/autoload/save_game.gd"
+Sfx="*res://scripts/autoload/sfx.gd"
 
 [display]
 
@@ -191,6 +215,10 @@ window/size/viewport_height=720
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/gut/plugin.cfg")
+
+[gui]
+
+theme/custom="res://assets/ui/theme.tres"
 
 [rendering]
 
@@ -393,6 +421,10 @@ script = ExtResource("1")
 [ext_resource type="PackedScene" path="res://scenes/ui/album_menu.tscn" id="6"]
 [ext_resource type="PackedScene" path="res://scenes/ui/pause_menu.tscn" id="7"]
 [ext_resource type="Script" path="res://scripts/ui/menu_input.gd" id="8"]
+[ext_resource type="Shader" path="res://assets/shaders/vignette.gdshader" id="9"]
+
+[sub_resource type="ShaderMaterial" id="vignette_mat"]
+shader = ExtResource("9")
 
 [node name="Main" type="Node3D"]
 script = ExtResource("1")
@@ -411,6 +443,19 @@ script = ExtResource("1")
 
 [node name="MenuInput" type="Node" parent="."]
 script = ExtResource("8")
+
+[node name="Vignette" type="CanvasLayer" parent="."]
+layer = 0
+
+[node name="Rect" type="ColorRect" parent="Vignette"]
+material = SubResource("vignette_mat")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(1, 1, 1, 1)
 ```
 
 ## `scenes/player/camera_rig.tscn`
@@ -510,76 +555,94 @@ text = "Закрыть (Tab)"
 [node name="Hud" type="CanvasLayer"]
 script = ExtResource("1")
 
-[node name="Hearts" type="Label" parent="."]
-offset_left = 24.0
+[node name="Status" type="PanelContainer" parent="."]
+offset_left = 20.0
 offset_top = 16.0
-offset_right = 200.0
-offset_bottom = 56.0
+offset_right = 280.0
+offset_bottom = 130.0
+
+[node name="VBox" type="VBoxContainer" parent="Status"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Hearts" type="Label" parent="Status/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
 theme_override_colors/font_color = Color(0.961, 0.455, 0.522, 1)
-theme_override_font_sizes/font_size = 32
+theme_override_font_sizes/font_size = 30
 text = "♥♥♥"
 
-[node name="Satiety" type="ProgressBar" parent="."]
-offset_left = 24.0
-offset_top = 64.0
-offset_right = 224.0
-offset_bottom = 84.0
+[node name="SatietyRow" type="HBoxContainer" parent="Status/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Satiety" type="ProgressBar" parent="Status/VBox/SatietyRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(110, 16)
+layout_mode = 2
+size_flags_vertical = 4
 max_value = 10.0
 show_percentage = false
 
+[node name="SatietyLabel" type="Label" parent="Status/VBox/SatietyRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Сытость 0/10"
+
+[node name="Yarn" type="Label" parent="Status/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "◎ 0"
+
 [node name="Mouth" type="HBoxContainer" parent="."]
+unique_name_in_owner = true
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -500.0
+offset_left = -560.0
 offset_top = 16.0
-offset_right = -24.0
-offset_bottom = 56.0
+offset_right = -20.0
+offset_bottom = 60.0
 grow_horizontal = 0
 alignment = 2
+theme_override_constants/separation = 8
 
-[node name="Goal" type="Label" parent="."]
+[node name="GoalPanel" type="PanelContainer" parent="."]
 anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
-offset_left = 24.0
-offset_top = -48.0
-offset_right = 500.0
+offset_left = 20.0
+offset_top = -64.0
+offset_right = 520.0
 offset_bottom = -16.0
 grow_vertical = 0
+
+[node name="Goal" type="Label" parent="GoalPanel"]
+unique_name_in_owner = true
+layout_mode = 2
 theme_override_font_sizes/font_size = 20
 text = "Открой новых карточек: 0/3"
 
-[node name="Bell" type="Label" parent="."]
+[node name="BellPanel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+visible = false
 anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -200.0
+offset_left = -230.0
 offset_top = 24.0
-offset_right = 200.0
-offset_bottom = 64.0
+offset_right = 230.0
+offset_bottom = 72.0
 grow_horizontal = 2
+
+[node name="Bell" type="Label" parent="BellPanel"]
+unique_name_in_owner = true
+layout_mode = 2
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 26
 text = "🔔 Велосипед!"
-visible = false
-
-[node name="Yarn" type="Label" parent="."]
-offset_left = 24.0
-offset_top = 92.0
-offset_right = 224.0
-offset_bottom = 124.0
-theme_override_colors/font_color = Color(0.706, 0.427, 0.710, 1)
-theme_override_font_sizes/font_size = 24
-text = "◎ 0"
-
-[node name="SatietyLabel" type="Label" parent="."]
-offset_left = 232.0
-offset_top = 62.0
-offset_right = 460.0
-offset_bottom = 86.0
-theme_override_font_sizes/font_size = 16
-text = "Сытость 0/10"
 ```
 
 ## `scenes/ui/pause_menu.tscn`
@@ -728,19 +791,25 @@ theme_override_constants/separation = 16
 
 [node name="Logo" type="Label" parent="VBox"]
 layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 64
 horizontal_alignment = 1
 text = "Snack Run"
 
 [node name="Tagline" type="Label" parent="VBox"]
 layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 20
 horizontal_alignment = 1
 text = "Маленький кот. Большой мир. Вкусные приключения."
 
+[node name="Continue" type="Button" parent="VBox"]
+layout_mode = 2
+text = "Продолжить"
+
 [node name="Play" type="Button" parent="VBox"]
 layout_mode = 2
-text = "Играть"
+text = "Новая игра"
 
 [node name="Quit" type="Button" parent="VBox"]
 layout_mode = 2
@@ -848,6 +917,9 @@ size = Vector3(2.2, 2.4, 0.12)
 [sub_resource type="BoxShape3D" id="side"]
 size = Vector3(0.12, 2.4, 2.2)
 
+[sub_resource type="BoxShape3D" id="floor"]
+size = Vector3(2.2, 0.03, 2.2)
+
 [node name="YarnShop" type="Node3D"]
 script = ExtResource("1")
 
@@ -868,6 +940,10 @@ shape = SubResource("side")
 [node name="Right" type="CollisionShape3D" parent="Walls"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.04, 1.2, 0)
 shape = SubResource("side")
+
+[node name="Floor" type="CollisionShape3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.015, 0)
+shape = SubResource("floor")
 
 [node name="Zone" type="Area3D" parent="."]
 
@@ -1299,6 +1375,69 @@ func clear() -> void:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 ```
 
+## `scripts/autoload/sfx.gd`
+
+```gdscript
+extends Node
+## Звуки (спек 2.7). Правило: один play() на игровое событие (сигнал), никогда из _process.
+## Пул из шести плееров: одновременные события не перебивают друг друга.
+
+const STREAMS := {
+	&"pickup": "res://assets/sfx/pickup.ogg",
+	&"eat": "res://assets/sfx/eat.ogg",
+	&"hit": "res://assets/sfx/hit.ogg",
+	&"meow": "res://assets/sfx/meow.wav",
+	&"bark": "res://assets/sfx/bark.wav",
+	&"bell": "res://assets/sfx/bell.ogg",
+}
+const POOL := 6
+const VOLUME_DB := {&"bark": -4.0, &"bell": -2.0, &"meow": -3.0}
+
+var enabled := true
+var last_played: StringName = &""
+var counts := {}
+var _streams := {}
+var _players: Array[AudioStreamPlayer] = []
+var _next := 0
+
+
+func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	for key in STREAMS:
+		if ResourceLoader.exists(STREAMS[key]):
+			_streams[key] = load(STREAMS[key])
+		else:
+			push_warning("нет звука %s: %s" % [key, STREAMS[key]])
+	for i in POOL:
+		var p := AudioStreamPlayer.new()
+		p.name = "Player%d" % i
+		add_child(p)
+		_players.append(p)
+
+
+func has(name: StringName) -> bool:
+	return _streams.has(name)
+
+
+func reset_counters() -> void:
+	counts = {}
+	last_played = &""
+
+
+func play(name: StringName, pitch_jitter := 0.06) -> AudioStreamPlayer:
+	if not enabled or not _streams.has(name):
+		return null
+	var p := _players[_next]
+	_next = (_next + 1) % POOL
+	p.stream = _streams[name]
+	p.volume_db = VOLUME_DB.get(name, 0.0)
+	p.pitch_scale = 1.0 + randf_range(-pitch_jitter, pitch_jitter)
+	p.play()
+	last_played = name
+	counts[name] = counts.get(name, 0) + 1
+	return p
+```
+
 ## `scripts/core/cat_skin.gd`
 
 ```gdscript
@@ -1350,6 +1489,20 @@ const WORLD := 1
 const CAT := 2
 const HAZARD := 4
 const AREA := 8
+```
+
+## `scripts/core/mouse.gd`
+
+```gdscript
+class_name Mouse
+extends RefCounted
+## Захват мыши для камеры. В headless (тесты, импорт) ничего не делает: там DisplayServer без мыши.
+
+
+static func capture(on: bool) -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED if on else Input.MOUSE_MODE_VISIBLE
 ```
 
 ## `scripts/core/rarity.gd`
@@ -1599,6 +1752,7 @@ func _on_body_entered(body: Node3D) -> void:
 	if grace > 0.0 or not body.is_in_group("cat"):
 		return
 	if GameState.pick_up(food):
+		Sfx.play(&"pickup")
 		picked.emit(food, self)
 		set_deferred("monitoring", false)
 		queue_free()
@@ -1684,6 +1838,10 @@ func _on_body(body: Node3D) -> void:
 	if not body.is_in_group("cat"):
 		return
 	GameState.take_yarn(key)
+	Sfx.play(&"pickup", 0.15)
+	if body.has_method("cheer"):
+		body.call("cheer")
+	Effects.burst(get_parent(), global_position + Vector3(0, 0.1, 0), Effects.YARN_COLOR, 16, 0.04)
 	set_deferred("monitoring", false)
 	queue_free()
 ```
@@ -1712,23 +1870,30 @@ func reset() -> void:
 	_hidden_t = 0.0
 
 
-func update(delta: float, sees_cat: bool, cat_hidden: bool, at_home: bool) -> int:
+func update(delta: float, sees_cat: bool, cat_hidden: bool, at_home: bool, cat_safe := false) -> int:
 	match state:
 		State.IDLE:
 			if sees_cat and not cat_hidden:
 				state = State.ALERT
 				_t = 0.0
 		State.ALERT:
-			_t += delta
-			if _t >= ALERT_TIME:
-				state = State.CHASE
+			if cat_safe:
+				state = State.IDLE   # кот уже в будке: не стоит и не лает
 				_t = 0.0
-				_hidden_t = 0.0
+			else:
+				_t += delta
+				if _t >= ALERT_TIME:
+					state = State.CHASE
+					_t = 0.0
+					_hidden_t = 0.0
 		State.CHASE:
-			_t += delta
-			_hidden_t = _hidden_t + delta if cat_hidden else 0.0
-			if _t >= CHASE_MAX or _hidden_t >= LOST_HIDDEN:
-				state = State.RETURN
+			if cat_safe:
+				state = State.RETURN   # «в будку собаки не заходят» (спек 3.5): уходит сразу, не через 2 с
+			else:
+				_t += delta
+				_hidden_t = _hidden_t + delta if cat_hidden else 0.0
+				if _t >= CHASE_MAX or _hidden_t >= LOST_HIDDEN:
+					state = State.RETURN
 		State.RETURN:
 			if at_home:
 				state = State.IDLE
@@ -1842,6 +2007,7 @@ const VISION_RANGE := 6.0
 const HOME_RADIUS := 0.4
 
 var brain := ChaseBrain.new()
+var _last_state: int = ChaseBrain.State.IDLE
 
 @onready var _model: Node3D = $Model
 @onready var _anim: AnimationPlayer = $Model.find_child("AnimationPlayer", true, false)
@@ -1873,7 +2039,13 @@ func _physics_process(delta: float) -> void:
 	var c := _find_cat()
 	var cat_hidden: bool = c != null and (bool(c.get("hidden")) or bool(c.get("in_safe_zone")))
 	var at_home := global_position.distance_to(home) < HOME_RADIUS
-	var s := brain.update(delta, sees_cat(), cat_hidden, at_home)
+	var cat_safe: bool = c != null and bool(c.get("in_safe_zone"))
+	var s := brain.update(delta, sees_cat(), cat_hidden, at_home, cat_safe)
+	if s == ChaseBrain.State.ALERT and _last_state != ChaseBrain.State.ALERT:
+		Sfx.play(&"bark")   # один лай на настороженность
+	_last_state = s
+	if c and c.has_method("threaten") and s in [ChaseBrain.State.ALERT, ChaseBrain.State.CHASE] and global_position.distance_to(c.global_position) < VISION_RANGE:
+		c.call("threaten")   # испуг, пока собака насторожилась или гонится и она ближе 6 м
 	match s:
 		ChaseBrain.State.IDLE:
 			rotation.y = lerp_angle(rotation.y, home_yaw, 6.0 * delta)   # снова сторожит в исходную сторону
@@ -2128,6 +2300,7 @@ signal faint_sequence_done
 
 const CatScene := preload("res://scenes/player/cat.tscn")
 const RigScene := preload("res://scenes/player/camera_rig.tscn")
+const KILL_Y := -5.0   # ниже этого кот считается упавшим за край мира
 
 var fade_time := 0.6
 var autosave := true
@@ -2163,10 +2336,13 @@ func _ready() -> void:
 	add_child(_spill)
 	_fade = _make_fade()
 	GameState.cat_hit.connect(_on_cat_hit)
+	GameState.food_eaten.connect(_on_food_eaten)
 	GameState.cat_fainted.connect(_on_cat_fainted)
 	for c in get_tree().get_nodes_in_group("hazards"):
 		if c.has_signal("bell"):
-			c.bell.connect(func() -> void: hud.flash_bell())
+			c.bell.connect(func() -> void:
+				hud.flash_bell()
+				Sfx.play(&"bell"))
 	shop_menu.closed.connect(close_shop)
 	album_menu.closed.connect(func() -> void: _set_paused(false))
 	pause_menu.resumed.connect(func() -> void: _set_paused(false))
@@ -2175,6 +2351,19 @@ func _ready() -> void:
 		g.opened.connect(func() -> void: hud.flash_bell("🎉 Арка в кафе открыта!", 3.0))
 	for sig in [GameState.album_changed, GameState.satiety_changed, GameState.yarn_changed, GameState.upgrade_bought, GameState.skin_changed]:
 		sig.connect(_on_progress_changed.unbind(1))
+	Mouse.capture(true)
+
+
+func _physics_process(_delta: float) -> void:
+	if _cat and _cat.global_position.y < KILL_Y:
+		fall_respawn()
+
+
+func fall_respawn() -> void:
+	## Падение за край мира: назад к будке без потери сердечка; еда из зубов теряется.
+	GameState.spill()
+	_cat.teleport(respawn_position())
+	_rig.global_position = _cat.global_position + Vector3(0, CameraRig.HEIGHT, 0)
 
 
 func _on_progress_changed() -> void:
@@ -2200,9 +2389,18 @@ func _make_fade() -> ColorRect:
 	return rect
 
 
+func _on_food_eaten(items: Array) -> void:
+	Sfx.play(&"eat")
+	var top: int = Rarity.Tier.COMMON
+	for f in items:
+		top = maxi(top, f.tier)
+	Effects.burst(self, _cat.global_position + Vector3(0, 0.25, 0), Rarity.COLORS[top])
+
+
 func _on_cat_hit(spilled: Array) -> void:
-	if spilled.is_empty():
-		return
+	Effects.burst(self, _cat.global_position + Vector3(0, 0.3, 0), Effects.HIT_COLOR, 16, 0.06, 1.5)
+	if spilled.is_empty() or GameState.hearts == 0:
+		return   # при обмороке еда потеряна (спек 3.2), рассыпать нечего
 	_spill.spill_around(_cat.global_position, spilled)
 
 
@@ -2239,6 +2437,7 @@ func on_interact_pressed() -> void:
 
 
 func open_shop() -> void:
+	Mouse.capture(false)
 	_cat.input_enabled = false
 	var shop := get_tree().get_first_node_in_group("yarn_shop")
 	if shop:
@@ -2256,6 +2455,7 @@ func close_shop() -> void:
 	_cat.input_enabled = true
 	_rig.shop_view = false
 	hud.visible = true
+	Mouse.capture(true)
 
 
 func on_back_pressed() -> void:
@@ -2274,6 +2474,7 @@ func on_album_pressed() -> void:
 
 func _set_paused(on: bool) -> void:
 	get_tree().paused = on
+	Mouse.capture(not on)
 
 
 func toggle_album() -> void:
@@ -2293,8 +2494,10 @@ func toggle_pause() -> void:
 
 
 func reset_progress() -> void:
-	SaveGame.clear()
+	autosave = false   # reset() шлёт сигналы прогресса, автосохранение тут же записало бы нули
 	GameState.reset()
+	SaveGame.clear()
+	autosave = true
 	if pause_menu.is_open:
 		pause_menu.close()
 	_set_paused(false)
@@ -2307,6 +2510,7 @@ func reset_progress() -> void:
 class_name CameraRig
 extends Node3D
 ## Третье лицо: пружина 1,8 м, взгляд с высоты 0,6 м, наклон −14°, сглаживание 8/с (спек 2.3).
+## Мышь и правый стик крутят yaw, наклон фиксирован. У стены кот становится прозрачным, не исчезает.
 
 const HEIGHT := 0.6
 const DISTANCE := 1.8
@@ -2316,6 +2520,8 @@ const YAW_SPEED := 2.2
 const PITCH_DEG := -14.0
 const SHOP_OFFSET := Vector3(1.4, 0.6, 1.4)   # витрина: камера спереди-сбоку кота
 const CROUCH_HEIGHT := 0.3
+const MOUSE_SENS := 0.004   # рад на пиксель
+const FADE_FULL := 0.3      # при такой длине пружины кот почти прозрачен (0,15)
 
 @export var target: Node3D
 var crouch := false
@@ -2339,6 +2545,7 @@ func _physics_process(delta: float) -> void:
 	rotation.y = _yaw
 	if shop_view:
 		target.visible = true   # витрина: кот виден, даже если пружина до этого прятала его у стены
+		_set_target_fade(1.0)
 		var want := shop_view_point if use_shop_point else target.global_position + SHOP_OFFSET
 		global_position = global_position.lerp(want, 1.0 - exp(-SMOOTH * delta))
 		look_at(target.global_position + Vector3(0, 0.15, 0), Vector3.UP)
@@ -2351,9 +2558,25 @@ func _physics_process(delta: float) -> void:
 	apply_arm_length(_arm.get_hit_length())
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		turn_by_pixels((event as InputEventMouseMotion).relative.x)
+
+
+func turn_by_pixels(dx: float) -> void:
+	_yaw -= dx * MOUSE_SENS
+
+
 func apply_arm_length(length: float) -> void:
-	# Review Focus 3: камера упёрлась в стену и оказалась внутри кота — прячем модель.
-	target.visible = length >= HIDE_BELOW
+	# Камера упёрлась в стену: кот не исчезает, а становится прозрачным (замечание ревью плана 1).
+	_set_target_fade(clampf((length - FADE_FULL) / (HIDE_BELOW - FADE_FULL), 0.15, 1.0))
+
+
+func _set_target_fade(alpha: float) -> void:
+	if target.has_method("set_fade"):
+		target.call("set_fade", alpha)
+	else:
+		target.visible = alpha > 0.5
 
 
 func yaw_basis() -> Basis:
@@ -2387,6 +2610,8 @@ var in_safe_zone := false   # внутри будки пряжи: удары н�
 var input_enabled := true   # false, пока открыт экран магазина
 var stunned_left := 0.0
 var invulnerable_left := 0.0
+var face := CatFace.new()   # выражения глаз, переключает меши eyes_* модели
+var fade := 1.0   # 1 = непрозрачен; значением владеет камера (set_fade), скин его не трогает
 var state: StringName = &"idle":
 	set(value):
 		if value != state:
@@ -2403,6 +2628,9 @@ func _ready() -> void:
 	collision_layer = Layers.CAT
 	collision_mask = Layers.WORLD | Layers.HAZARD
 	Toon.apply(_model, Toon.OUTLINE_CHARACTER)
+	for mi in _model.find_children("eyes_*", "MeshInstance3D", true, false):
+		(mi as MeshInstance3D).material_overlay = null   # обводка 6 мм на 3-см глазу — рамка
+	face.bind(_model)
 	_apply_skin(GameState.skin)
 	GameState.skin_changed.connect(_apply_skin)
 	for clip in LOOPING_CLIPS:
@@ -2419,6 +2647,7 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	face.update(delta, stunned_left > 0.0)
 	stunned_left = maxf(stunned_left - delta, 0.0)
 	invulnerable_left = maxf(invulnerable_left - delta, 0.0)
 	if stunned_left > 0.0:
@@ -2461,6 +2690,8 @@ func _apply_skin(id: StringName) -> void:
 	var skin := SkinCatalog.get_by_id(id)
 	if skin:
 		CatSkin.apply(_model, skin)
+		if fade < 1.0:
+			_apply_fade()   # перекраска сбрасывает альфу, прозрачность у стены должна остаться
 
 
 func try_hide() -> bool:
@@ -2488,6 +2719,7 @@ func try_eat() -> bool:
 	if not hidden or GameState.mouth.is_empty():
 		return false
 	var items := GameState.eat_all()
+	face.cheer()
 	ate.emit(items)
 	return true
 
@@ -2495,6 +2727,8 @@ func try_eat() -> bool:
 func take_hit(from: Vector3) -> void:
 	if invulnerable_left > 0.0 or stunned_left > 0.0 or hidden or in_safe_zone:
 		return
+	Sfx.play(&"hit")   # один вызов на реальный удар: повторные касания блокирует неуязвимость
+	Sfx.play(&"meow", 0.12)
 	var away := global_position - from
 	away.y = 0.0
 	if away.length() < 0.01:
@@ -2505,6 +2739,39 @@ func take_hit(from: Vector3) -> void:
 	state = &"hit"
 	hit_taken.emit(from)
 	GameState.take_hit()
+
+
+func set_fade(alpha: float) -> void:
+	if is_equal_approx(alpha, fade):
+		return
+	fade = alpha
+	_apply_fade()
+
+
+func _apply_fade() -> void:
+	for mi in _model.find_children("*", "MeshInstance3D", true, false):
+		var m3 := mi as MeshInstance3D
+		if m3.mesh == null:
+			continue
+		for i in m3.mesh.get_surface_count():
+			_fade_material(m3.get_surface_override_material(i) as StandardMaterial3D)
+		_fade_material(m3.material_overlay as StandardMaterial3D)
+
+
+func _fade_material(mat: StandardMaterial3D) -> void:
+	if mat == null:
+		return
+	mat.albedo_color.a = fade
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED if fade >= 0.999 else BaseMaterial3D.TRANSPARENCY_ALPHA
+
+
+func threaten() -> void:
+	## Собака насторожилась или гонится рядом: зовётся каждый физический кадр, пока угроза есть.
+	face.threaten()
+
+
+func cheer() -> void:
+	face.cheer()
 
 
 func teleport(pos: Vector3) -> void:
@@ -2530,6 +2797,61 @@ func play_clip(name: StringName) -> void:
 	_anim.speed_scale = speed
 	if _anim.current_animation != clip:
 		_anim.play(clip, 0.15)
+```
+
+## `scripts/player/cat_face.gd`
+
+```gdscript
+class_name CatFace
+extends RefCounted
+## Выражения глаз (спек 2.4): оглушён > испуг > довольный > обычные.
+## Переключает видимость мешей eyes_* из cat.glb; сам узлов не создаёт.
+
+const SETS: Array[StringName] = [&"normal", &"scared", &"happy", &"dizzy"]
+const HAPPY_TIME := 1.0
+const THREAT_TIME := 0.4   # собака обновляет угрозу каждый физический кадр; без обновлений испуг гаснет
+
+var expression: StringName = &"normal"
+var happy_left := 0.0
+var threat_left := 0.0
+var _meshes := {}   # StringName -> MeshInstance3D
+
+
+func bind(model: Node) -> int:
+	_meshes.clear()
+	for mi in model.find_children("eyes_*", "MeshInstance3D", true, false):
+		_meshes[StringName(String(mi.name).trim_prefix("eyes_"))] = mi
+	_show(&"normal")
+	return _meshes.size()
+
+
+func threaten() -> void:
+	threat_left = THREAT_TIME
+
+
+func cheer() -> void:
+	happy_left = HAPPY_TIME
+
+
+func update(delta: float, stunned: bool) -> StringName:
+	happy_left = maxf(happy_left - delta, 0.0)
+	threat_left = maxf(threat_left - delta, 0.0)
+	var want: StringName = &"normal"
+	if stunned:
+		want = &"dizzy"
+	elif threat_left > 0.0:
+		want = &"scared"
+	elif happy_left > 0.0:
+		want = &"happy"
+	if want != expression:
+		_show(want)
+	return expression
+
+
+func _show(which: StringName) -> void:
+	expression = which
+	for key in _meshes:
+		(_meshes[key] as MeshInstance3D).visible = key == which
 ```
 
 ## `scripts/player/cat_motion.gd`
@@ -2698,24 +3020,25 @@ func refresh() -> void:
 ```gdscript
 class_name Hud
 extends CanvasLayer
-## HUD: сердечки, сытость, слоты зубов, цель сессии, вспышка звонка (спек 2.6).
+## HUD на белых плашках темы: сердечки, сытость, слоты зубов, клубочки, цель сессии, вспышка звонка (спек 2.6).
 
 const HEART_FULL := "♥"
 const HEART_EMPTY := "♡"
 const MAX_MOUTH := 5   # максимум после улучшений магазина
 
-@onready var _hearts: Label = $Hearts
-@onready var _satiety: ProgressBar = $Satiety
-@onready var _mouth: HBoxContainer = $Mouth
-@onready var _goal: Label = $Goal
-@onready var _bell: Label = $Bell
-@onready var _yarn: Label = $Yarn
-@onready var _satiety_label: Label = $SatietyLabel
+@onready var _hearts: Label = %Hearts
+@onready var _satiety: ProgressBar = %Satiety
+@onready var _satiety_label: Label = %SatietyLabel
+@onready var _yarn: Label = %Yarn
+@onready var _mouth: HBoxContainer = %Mouth
+@onready var _goal: Label = %Goal
+@onready var _bell: Label = %Bell
+@onready var _bell_panel: PanelContainer = %BellPanel
 
 
 func _ready() -> void:
 	_satiety.max_value = GameState.SATIETY_GATE
-	_bell.visible = false
+	_bell_panel.visible = false
 	for i in MAX_MOUTH:
 		var panel := PanelContainer.new()
 		panel.custom_minimum_size = Vector2(90, 32)
@@ -2767,8 +3090,8 @@ func _on_yarn(count: int) -> void:
 
 func flash_bell(text := "🔔 Велосипед!", seconds := 2.0) -> void:
 	_bell.text = text
-	_bell.visible = true
-	get_tree().create_timer(seconds).timeout.connect(func() -> void: _bell.visible = false)
+	_bell_panel.visible = true
+	get_tree().create_timer(seconds).timeout.connect(func() -> void: _bell_panel.visible = false)
 
 
 func _on_hearts(hearts: int, max_hearts: int) -> void:
@@ -2804,7 +3127,7 @@ func _on_goal_completed(target: int) -> void:
 ```gdscript
 class_name MenuInput
 extends Node
-## Опрашивает клавиши меню (E в будке, Tab, Esc) и дёргает Main. Работает и на паузе.
+## Опрашивает клавиши меню (E в будке, Tab, Esc, B геймпада) и дёргает Main. Работает и на паузе.
 
 @onready var _main: Node = get_parent()
 
@@ -2816,10 +3139,16 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if Input.is_action_just_pressed("pause"):
 		_main.call("on_back_pressed")
+	elif Input.is_action_just_pressed("ui_cancel") and _menu_open():
+		_main.call("on_back_pressed")   # B на геймпаде закрывает магазин и альбом (Esc ловит ветка выше)
 	elif Input.is_action_just_pressed("album"):
 		_main.call("on_album_pressed")
 	elif Input.is_action_just_pressed("eat"):
 		_main.call("on_interact_pressed")
+
+
+func _menu_open() -> bool:
+	return bool(_main.get("shop_menu").is_open) or bool(_main.get("album_menu").is_open)
 ```
 
 ## `scripts/ui/pause_menu.gd`
@@ -2948,16 +3277,87 @@ func _on_buy(item: ShopItem) -> void:
 
 ```gdscript
 extends Control
-## Заставка: главная сцена проекта.
+## Заставка: главная сцена проекта. «Продолжить» видна только при наличии сохранения.
 
+var switch_scenes := true   # тесты выключают, чтобы не подменять сцену дерева GUT
+
+@onready var _continue: Button = $VBox/Continue
 @onready var _play: Button = $VBox/Play
 @onready var _quit: Button = $VBox/Quit
 
 
 func _ready() -> void:
-	_play.pressed.connect(func() -> void: get_tree().change_scene_to_file("res://scenes/main.tscn"))
+	Mouse.capture(false)
+	_continue.visible = has_save()
+	_continue.pressed.connect(continue_game)
+	_play.pressed.connect(new_game)
 	_quit.pressed.connect(func() -> void: get_tree().quit())
-	_play.grab_focus()
+	(_continue if _continue.visible else _play).grab_focus()
+
+
+func has_save() -> bool:
+	return FileAccess.file_exists(SaveGame.path)
+
+
+func continue_game() -> void:
+	_go()
+
+
+func new_game() -> void:
+	GameState.reset()   # сначала сброс: его сигналы могут вызвать автосохранение, файл стираем после
+	SaveGame.clear()
+	_go()
+
+
+func _go() -> void:
+	if switch_scenes:
+		get_tree().change_scene_to_file("res://scenes/main.tscn")
+```
+
+## `scripts/visual/effects.gd`
+
+```gdscript
+class_name Effects
+extends RefCounted
+## Одноразовые всплески частиц: съедание (цвет редкости), удар (золотые звёзды), клубочек (сиреневый).
+## CPUParticles3D, а не GPU: работает и под dummy-рендерером тестов, цвет задаётся напрямую.
+
+const YARN_COLOR := Color("#B46DB5")
+const HIT_COLOR := Color("#FABE32")
+
+
+static func burst(parent: Node, pos: Vector3, color: Color, amount := 24, size := 0.05, speed := 2.0) -> CPUParticles3D:
+	var p := CPUParticles3D.new()
+	p.name = "Burst"
+	p.add_to_group("fx")
+	p.one_shot = true
+	p.emitting = false
+	p.amount = amount
+	p.lifetime = 0.7
+	p.explosiveness = 1.0
+	p.direction = Vector3.UP
+	p.spread = 70.0
+	p.initial_velocity_min = speed * 0.6
+	p.initial_velocity_max = speed
+	p.gravity = Vector3(0, -4.0, 0)
+	p.scale_amount_min = size * 0.6
+	p.scale_amount_max = size
+	p.color = color
+	var mesh := SphereMesh.new()
+	mesh.radius = 0.5
+	mesh.height = 1.0
+	mesh.radial_segments = 6
+	mesh.rings = 3
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.vertex_color_use_as_albedo = true
+	mesh.material = mat
+	p.mesh = mesh
+	parent.add_child(p)
+	p.global_position = pos
+	p.emitting = true
+	p.finished.connect(p.queue_free)
+	return p
 ```
 
 ## `scripts/visual/toon.gd`
@@ -3102,7 +3502,7 @@ func _ready() -> void:
 ```gdscript
 class_name SpillSpawner
 extends Node3D
-## Раскладывает выбитую из зубов еду вокруг кота (спек 3.2: 1–2 м, 5 с).
+## Раскладывает выбитую из зубов еду вокруг кота на его высоте (спек 3.2: 1–2 м, 5 с; на балконе — на балконе).
 
 const PickupScene := preload("res://scenes/food/food_pickup.tscn")
 const SPILL_LIFETIME := 5.0
@@ -3121,7 +3521,7 @@ func spill_around(pos: Vector3, foods: Array) -> Array:
 		add_child(p)
 		var ang := rng.randf_range(0.0, TAU)
 		var r := rng.randf_range(MIN_R, MAX_R)
-		p.global_position = Vector3(pos.x + cos(ang) * r, 0.0, pos.z + sin(ang) * r)
+		p.global_position = Vector3(pos.x + cos(ang) * r, pos.y, pos.z + sin(ang) * r)
 		out.append(p)
 	return out
 ```
@@ -3468,7 +3868,7 @@ func _spawn() -> Node:
 func test_cat_starts_idle_with_toon_materials() -> void:
 	var cat = _spawn()
 	assert_eq(cat.state, &"idle")
-	var mesh := cat.find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D
+	var mesh := cat.find_child("cat", true, false) as MeshInstance3D   # первым ребёнком скелета может быть набор глаз без обводки
 	assert_not_null(mesh.material_overlay, "обводка должна быть установлена")
 	assert_eq((mesh.get_surface_override_material(0) as StandardMaterial3D).diffuse_mode, BaseMaterial3D.DIFFUSE_TOON)
 
@@ -3496,15 +3896,47 @@ func test_head_is_scaled() -> void:
 	await wait_process_frames(3)
 	assert_almost_eq(_captured_head_scale.x, 1.4, 0.01)
 
-func test_camera_rig_hides_target_when_too_close() -> void:
+func _body_material(cat) -> StandardMaterial3D:
+	for mi in cat.find_children("*", "MeshInstance3D", true, false):
+		for i in (mi as MeshInstance3D).mesh.get_surface_count():
+			var m := (mi as MeshInstance3D).get_surface_override_material(i) as StandardMaterial3D
+			if m and m.resource_name == "sr_cat_orange":
+				return m
+	return null
+
+func test_camera_rig_fades_target_instead_of_hiding() -> void:
+	# Отложенное замечание ревью плана 1: у стены кот исчезал целиком.
 	var cat = _spawn()
 	var rig = (load(RIG_SCENE) as PackedScene).instantiate()
 	rig.target = cat
 	add_child_autofree(rig)
-	rig.apply_arm_length(0.5)   # имитация упора в стену
-	assert_false(cat.visible)
+	rig.apply_arm_length(0.5)   # упор в стену
+	assert_true(cat.visible, "кот не исчезает")
+	assert_lt(cat.fade, 0.5)
+	var body := _body_material(cat)
+	assert_eq(body.transparency, BaseMaterial3D.TRANSPARENCY_ALPHA)
+	assert_almost_eq(body.albedo_color.a, cat.fade, 0.01)
 	rig.apply_arm_length(3.5)
-	assert_true(cat.visible)
+	assert_almost_eq(cat.fade, 1.0, 0.001, "отошли от стены — непрозрачен")
+	assert_eq(_body_material(cat).transparency, BaseMaterial3D.TRANSPARENCY_DISABLED)
+
+func test_skin_change_keeps_fade() -> void:
+	# Review Focus 4
+	GameState.reset()
+	GameState.add_yarn(12)
+	var cat = _spawn()
+	cat.set_fade(0.4)
+	GameState.buy(ShopCatalog.get_by_id(&"skin_black"))
+	await wait_process_frames(1)
+	assert_almost_eq(_body_material(cat).albedo_color.a, 0.4, 0.01, "скин не возвращает непрозрачность")
+	GameState.reset()
+
+func test_mouse_turns_camera() -> void:
+	var rig = (load(RIG_SCENE) as PackedScene).instantiate()
+	add_child_autofree(rig)
+	var before: Basis = rig.yaw_basis()
+	rig.turn_by_pixels(100.0)
+	assert_false(rig.yaw_basis().is_equal_approx(before), "100 px мыши поворачивают камеру")
 
 func test_locomotion_clips_loop() -> void:
 	# Ревью: idle/walk/run без зацикливания останавливаются через 1,7 с.
@@ -3527,6 +3959,57 @@ func test_cat_recolors_on_skin_change() -> void:
 				found = true
 				assert_eq(m.albedo_color.to_html(false), "394151", "тело перекрашено в чёрный")
 	assert_true(found, "у кота есть поверхность тела")
+	GameState.reset()
+
+func test_eye_sets_exist_and_only_normal_is_visible() -> void:
+	var cat = _spawn()
+	var names := []
+	for mi in cat.find_children("eyes_*", "MeshInstance3D", true, false):
+		names.append(String(mi.name))
+		assert_null((mi as MeshInstance3D).material_overlay, "у глаз нет обводки: 6 мм на 3-см глазу — рамка")
+	names.sort()
+	assert_eq(names, ["eyes_dizzy", "eyes_happy", "eyes_normal", "eyes_scared"])
+	assert_eq(cat.face.expression, &"normal")
+	assert_true(cat.find_child("eyes_normal", true, false).visible)
+	assert_false(cat.find_child("eyes_scared", true, false).visible)
+
+func test_expression_priority_and_timers() -> void:
+	# Review Focus 2
+	GameState.reset()
+	var cat = _spawn()
+	await wait_physics_frames(2)
+	cat.cheer()
+	await wait_physics_frames(2)
+	assert_eq(cat.face.expression, &"happy")
+	assert_true(cat.find_child("eyes_happy", true, false).visible)
+	cat.threaten()
+	await wait_physics_frames(2)
+	assert_eq(cat.face.expression, &"scared", "испуг важнее довольного")
+	cat.take_hit(cat.global_position + Vector3(1, 0, 0))
+	await wait_physics_frames(2)
+	assert_eq(cat.face.expression, &"dizzy", "оглушение важнее всего")
+	await wait_seconds(1.3)   # STUN_TIME 1,0; испуг (0,4) и довольство (1,0) к этому времени погасли
+	assert_eq(cat.face.expression, &"normal", "все выражения снимаются сами")
+	assert_true(cat.find_child("eyes_normal", true, false).visible)
+
+func test_black_skin_keeps_eye_colors() -> void:
+	# Review Focus 1
+	GameState.reset()
+	GameState.add_yarn(12)
+	var cat = _spawn()
+	GameState.buy(ShopCatalog.get_by_id(&"skin_black"))
+	await wait_process_frames(1)
+	var eyes := cat.find_child("eyes_normal", true, false) as MeshInstance3D
+	var white := false
+	var ink := false
+	for i in eyes.mesh.get_surface_count():
+		var c := (eyes.get_surface_override_material(i) as StandardMaterial3D).albedo_color
+		if c.r > 0.9 and c.g > 0.9 and c.b > 0.85:
+			white = true
+		if c.r < 0.3 and c.g < 0.3 and c.b < 0.4:
+			ink = true
+	assert_true(white, "белок остался светлым при чёрном скине")
+	assert_true(ink, "зрачок графитовый")
 	GameState.reset()
 ```
 
@@ -3635,11 +4118,14 @@ func before_each() -> void:
 	shape.position.y = -0.1
 	floor_body.add_child(shape)
 	world.add_child(floor_body)
+	# Позиции до add_child: пары Area3D берутся по позициям в момент добавления, и кот, созданный
+	# в точке собаки, ловил удар на первом кадре, куда бы его потом ни переставили.
 	cat = CatScene.instantiate()
+	cat.position = Vector3(0, 0.05, 8)   # за спиной и далеко
 	world.add_child(cat)
 	dog = DogScene.instantiate()
+	dog.position = Vector3(0, 0.05, 0)   # смотрит по -Z
 	world.add_child(dog)
-	dog.global_position = Vector3(0, 0.05, 0)   # смотрит по -Z
 
 func test_dog_sees_cat_in_front_and_chases() -> void:
 	cat.global_position = Vector3(0, 0.05, -4)
@@ -3700,13 +4186,39 @@ func test_quiet_upgrade_narrows_dog_cone() -> void:
 	assert_false(dog.sees_cat(), "с тихими шагами конус 31,5° — не видит")
 
 func test_safe_zone_cancels_chase() -> void:
-	# Review Focus 5
+	# Review Focus 5 плана 3, ужесточено планом 4: «в будку собаки не заходят» — уходит сразу.
 	cat.global_position = Vector3(0, 0.05, -4)
 	await wait_seconds(1.3)
 	assert_eq(dog.brain.state, ChaseBrain.State.CHASE)
 	cat.in_safe_zone = true
-	await wait_seconds(2.3)
-	assert_eq(dog.brain.state, ChaseBrain.State.RETURN, "в безопасной зоне собака теряет кота через 2 с")
+	await wait_physics_frames(3)
+	assert_eq(dog.brain.state, ChaseBrain.State.RETURN, "в безопасной зоне собака разворачивается сразу")
+
+func test_idle_dog_plays_sleep_clip() -> void:
+	await wait_physics_frames(3)
+	var ap := dog.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	assert_true(ap.has_animation("sleep"), "в dog.glb есть клип sleep")
+	assert_eq(ap.current_animation, "sleep")
+	assert_eq(ap.get_animation("sleep").loop_mode, Animation.LOOP_LINEAR)
+
+func test_chasing_dog_scares_cat() -> void:
+	cat.global_position = Vector3(0, 0.05, -4)
+	await wait_seconds(0.5)
+	assert_eq(dog.brain.state, ChaseBrain.State.ALERT)
+	assert_eq(cat.face.expression, &"scared", "насторожившаяся собака пугает кота")
+	cat.global_position = Vector3(0, 0.05, 12)   # дальше 6 м: собака ещё гонится, но угрозы рядом нет
+	await wait_seconds(0.8)
+	assert_eq(cat.face.expression, &"normal", "испуг гаснет без сигналов от собаки")
+
+func test_dog_contact_plays_hit_once_and_barks_on_alert() -> void:
+	# Review Focus 3
+	Sfx.reset_counters()
+	cat.global_position = Vector3(0, 0.05, -0.2)   # перед носом: собака сразу настораживается и бьёт касанием
+	await wait_physics_frames(30)   # полсекунды в зоне собаки
+	assert_eq(GameState.hearts, 2)
+	assert_eq(Sfx.counts.get(&"hit", 0), 1, "один удар — один звук, не по кадрам")
+	assert_eq(Sfx.counts.get(&"meow", 0), 1)
+	assert_eq(Sfx.counts.get(&"bark", 0), 1, "лай при входе в ALERT, один раз за настороженность")
 ```
 
 ## `tests/integration/test_dog_asset.gd`
@@ -3738,6 +4250,30 @@ func test_dog_glb_has_clips_head_and_two_materials() -> void:
 	for i in skel.get_bone_count():
 		aabb = aabb.expand(skel.global_transform * skel.get_bone_global_rest(i).origin)
 	assert_between(maxf(aabb.size.x, aabb.size.z), 0.35, 0.7, "длина собаки по скелету около 0,5 м")
+
+func test_dog_has_sleep_clip_of_two_seconds() -> void:
+	var dog := (load("res://assets/models/dog.glb") as PackedScene).instantiate()
+	add_child_autofree(dog)
+	var ap := dog.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	assert_true(ap.has_animation("sleep"))
+	assert_between(ap.get_animation("sleep").length, 1.8, 2.2)
+```
+
+## `tests/integration/test_effects.gd`
+
+```gdscript
+extends GutTest
+
+func test_burst_creates_one_shot_particles_with_color() -> void:
+	var root := Node3D.new()
+	add_child_autofree(root)
+	var p := Effects.burst(root, Vector3(1, 2, 3), Color.RED)
+	assert_true(p.one_shot)
+	assert_true(p.emitting)
+	assert_eq(p.color, Color.RED)
+	assert_eq(p.global_position, Vector3(1, 2, 3))
+	assert_true(p.is_in_group("fx"))
+	assert_gt(p.amount, 0)
 ```
 
 ## `tests/integration/test_food.gd`
@@ -4057,6 +4593,13 @@ func test_faint_respawns_at_spawn_unhidden_with_full_hearts() -> void:
 	for h in get_tree().get_nodes_in_group("hazards"):
 		if h.has_method("reset_pursuit"):
 			assert_eq(h.brain.state, ChaseBrain.State.IDLE, "опасности сброшены после возрождения")
+
+func test_spilled_food_lands_at_cat_height() -> void:
+	var spawner := SpillSpawner.new()
+	add_child_autofree(spawner)
+	var out: Array = spawner.spill_around(Vector3(-11.3, 1.0, -9.0), [FoodCatalog.get_by_id(&"cookie")])
+	assert_eq(out.size(), 1)
+	assert_almost_eq((out[0] as Node3D).global_position.y, 1.0, 0.001, "еда с балкона не уходит под площадку")
 ```
 
 ## `tests/integration/test_hud.gd`
@@ -4087,14 +4630,14 @@ func test_satiety_and_goal_labels() -> void:
 	GameState.pick_up(FoodCatalog.get_by_id(&"donut"))
 	GameState.eat_all()
 	# Полоска показывает прогресс до порога арки (10) и упирается в максимум.
-	assert_eq((hud.get_node("Satiety") as ProgressBar).value, float(GameState.SATIETY_GATE))
-	assert_eq((hud.get_node("Goal") as Label).text, "Открой новых карточек: 1/3")
+	assert_eq((hud.get_node("%Satiety") as ProgressBar).value, float(GameState.SATIETY_GATE))
+	assert_eq((hud.get_node("%Goal") as Label).text, "Открой новых карточек: 1/3")
 
 func test_bell_flash_shows_and_hides() -> void:
 	hud.flash_bell("🔔 Велосипед!", 0.1)
-	assert_true((hud.get_node("Bell") as Label).visible)
+	assert_true((hud.get_node("%BellPanel") as PanelContainer).visible)
 	await wait_seconds(0.25)
-	assert_false((hud.get_node("Bell") as Label).visible)
+	assert_false((hud.get_node("%BellPanel") as PanelContainer).visible)
 
 func test_mouth_slots_grow_with_capacity_upgrade() -> void:
 	assert_eq(hud.mouth_names().size(), 3)
@@ -4106,6 +4649,16 @@ func test_mouth_slots_grow_with_capacity_upgrade() -> void:
 	for id in ["sausage", "cookie", "pizza", "hotdog", "fish"]:
 		GameState.pick_up(FoodCatalog.get_by_id(StringName(id)))
 	assert_eq(hud.mouth_names()[4], "Рыба", "пятая еда видна в HUD")
+
+func test_hud_elements_sit_on_white_panels() -> void:
+	# Спек 2.6: сердечки, сытость и клубочки на одной плашке; цель и звонок — на своих.
+	for path in ["%Hearts", "%Satiety", "%Yarn", "%Goal", "%Bell"]:
+		var n := hud.get_node(path) as Control
+		var p := n
+		while p and not (p is PanelContainer):
+			p = p.get_parent() as Control
+		assert_not_null(p, "%s лежит на PanelContainer" % path)
+	assert_eq((hud.get_node("%Yarn") as Label).get_theme_color("font_color").to_html(false), "394151", "счётчик клубочков графитовый, читается на любом фоне")
 ```
 
 ## `tests/integration/test_main.gd`
@@ -4185,6 +4738,78 @@ func test_cat_keeps_animating_longer_than_one_clip() -> void:
 	Input.action_release("move_forward")
 	assert_true(ap.is_playing(), "анимация должна идти дольше одного клипа")
 	assert_eq(ap.current_animation, "walk")
+
+func test_eating_spawns_burst_in_rarity_color() -> void:
+	var main := _spawn_main()
+	await wait_physics_frames(2)
+	GameState.pick_up(FoodCatalog.get_by_id(&"pizza"))   # редкая, синяя
+	GameState.eat_all()
+	var fx := get_tree().get_nodes_in_group("fx")
+	assert_eq(fx.size(), 1, "один всплеск на съедание")
+	if fx.size() == 1:
+		assert_eq((fx[0] as CPUParticles3D).color, Rarity.COLORS[Rarity.Tier.RARE])
+
+func test_hit_spawns_star_burst() -> void:
+	var main := _spawn_main()
+	var cat = main.find_child("Cat", true, false)
+	await wait_physics_frames(30)
+	cat.take_hit(cat.global_position + Vector3(1, 0, 0))
+	var fx := get_tree().get_nodes_in_group("fx")
+	assert_eq(fx.size(), 1)
+	if fx.size() == 1:
+		assert_eq((fx[0] as CPUParticles3D).color, Effects.HIT_COLOR)
+
+func test_eating_plays_eat_sound() -> void:
+	var main := _spawn_main()
+	await wait_physics_frames(2)
+	Sfx.reset_counters()
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	GameState.eat_all()
+	assert_eq(Sfx.last_played, &"eat")
+
+func test_vignette_overlay_exists_and_ignores_mouse() -> void:
+	var main := _spawn_main()
+	var rect := main.get_node_or_null("Vignette/Rect") as ColorRect
+	assert_not_null(rect)
+	if rect == null:
+		return
+	assert_true(rect.material is ShaderMaterial)
+	assert_eq(rect.mouse_filter, Control.MOUSE_FILTER_IGNORE)
+	assert_lt((main.get_node("Vignette") as CanvasLayer).layer, (main.get_node("Hud") as CanvasLayer).layer + 1, "виньетка под HUD")
+
+func test_fall_below_kill_plane_returns_cat_to_shop_without_penalty() -> void:
+	var main := _spawn_main()
+	var cat = main.find_child("Cat", true, false)
+	await wait_physics_frames(5)
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	cat.global_position = Vector3(0, -6, 0)
+	await wait_physics_frames(3)
+	assert_lt(cat.global_position.distance_to(main.respawn_position()), 0.5, "кот вернулся к будке")
+	assert_eq(GameState.hearts, 3, "падение не отнимает сердечко")
+	assert_true(GameState.mouth.is_empty(), "еда из зубов потеряна")
+
+func test_kill_plane_ignores_balcony_and_tables() -> void:
+	# Review Focus 5
+	var main := _spawn_main()
+	var cat = main.find_child("Cat", true, false)
+	await wait_physics_frames(5)
+	for p in [Vector3(-11.3, 1.2, -9.0), Vector3(0, 0.95, 17)]:
+		cat.global_position = p
+		await wait_physics_frames(3)
+		assert_gt(cat.global_position.y, 0.3, "кот на возвышении остаётся на месте: %s" % p)
+		assert_gt(cat.global_position.distance_to(main.respawn_position()), 2.0)
+
+func test_faint_loses_carried_food_instead_of_spilling() -> void:
+	var main := _spawn_main()
+	var cat = main.find_child("Cat", true, false)
+	await wait_physics_frames(5)
+	GameState.take_hit()
+	GameState.take_hit()   # осталось одно сердечко
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	cat.invulnerable_left = 0.0
+	cat.take_hit(cat.global_position + Vector3(1, 0, 0))
+	assert_eq(GameState.hearts, 0)
+	assert_eq(get_tree().get_nodes_in_group("spilled_food").size(), 0, "при обмороке еда потеряна, не рассыпана (спек 3.2)")
 ```
 
 ## `tests/integration/test_menus.gd`
@@ -4266,19 +4891,38 @@ func test_reset_progress_clears_save_and_state() -> void:
 	main.toggle_pause()
 	main.reset_progress()
 	assert_eq(GameState.yarn, 0)
-	# Автосохранение после reset() может сразу записать чистое состояние — это допустимо.
-	if FileAccess.file_exists(SaveGame.path):
-		var saved = JSON.parse_string(FileAccess.get_file_as_string(SaveGame.path))
-		assert_eq(int(saved["yarn"]), 0, "в файле чистое состояние")
+	assert_false(FileAccess.file_exists(SaveGame.path), "после сброса файла сохранения нет (reset() не должен тут же писать нули)")
 	assert_false(get_tree().paused)
 
-func test_title_scene_has_play_button() -> void:
-	var title := (load("res://scenes/ui/title.tscn") as PackedScene).instantiate()
-	add_child_autofree(title)
-	var play := title.find_child("Play", true, false) as Button
-	assert_not_null(play)
-	assert_eq(play.text, "Играть")
+func test_title_offers_continue_only_with_save() -> void:
 	assert_eq(ProjectSettings.get_setting("application/run/main_scene"), "res://scenes/ui/title.tscn")
+	var title := (load("res://scenes/ui/title.tscn") as PackedScene).instantiate()
+	title.switch_scenes = false
+	add_child_autofree(title)
+	assert_false((title.get_node("VBox/Continue") as Button).visible, "без сохранения «Продолжить» скрыта")
+	assert_eq((title.get_node("VBox/Play") as Button).text, "Новая игра")
+	SaveGame.save_now()
+	var title2 := (load("res://scenes/ui/title.tscn") as PackedScene).instantiate()
+	title2.switch_scenes = false
+	add_child_autofree(title2)
+	assert_true((title2.get_node("VBox/Continue") as Button).visible, "с сохранением «Продолжить» видна")
+	title2.new_game()
+	assert_false(FileAccess.file_exists(SaveGame.path), "«Новая игра» стирает сохранение")
+
+func test_ui_cancel_closes_shop_and_album() -> void:
+	main.open_shop()
+	assert_true(main.shop_menu.is_open)
+	Input.action_press("ui_cancel")
+	await wait_process_frames(2)
+	Input.action_release("ui_cancel")
+	assert_false(main.shop_menu.is_open, "B геймпада (ui_cancel) закрывает магазин")
+	main.toggle_album()
+	assert_true(main.album_menu.is_open)
+	Input.action_press("ui_cancel")
+	await get_tree().create_timer(0.1, true).timeout
+	Input.action_release("ui_cancel")
+	assert_false(main.album_menu.is_open, "и альбом")
+	assert_false(get_tree().paused)
 ```
 
 ## `tests/integration/test_shop_menu.gd`
@@ -4775,6 +5419,98 @@ func test_shop_view_makes_cat_visible_even_if_camera_was_pinned() -> void:
 	await wait_physics_frames(2)
 	assert_true(cat.visible, "в витрине кот всегда виден")
 	rig.shop_view = false
+
+func test_floor_plate_is_solid() -> void:
+	await wait_physics_frames(2)
+	var space := world.get_world_3d().direct_space_state
+	var q := PhysicsRayQueryParameters3D.create(Vector3(0, 1, -5), Vector3(0, -1, -5), Layers.WORLD)
+	var hit := space.intersect_ray(q)
+	assert_false(hit.is_empty(), "луч вниз в будке во что-то упирается")
+	if not hit.is_empty():
+		assert_almost_eq((hit["position"] as Vector3).y, 0.03, 0.005, "упирается в плиту будки, а не в землю")
+```
+
+## `tests/unit/test_balance.gd`
+
+```gdscript
+extends GutTest
+## Плейтест баланса по спеку 3.3 числами, не ощущениями: жадный маршрут по точкам спавна двора.
+## Шаг 2 м/с (без бега — нижняя оценка), 0,6 с на подбор, после каждых трёх подборов — к ближайшему
+## укрытию и 2 с на съедание. Сытость точки — матожидание по весам редкостей.
+
+const WALK := CatMotion.WALK_SPEED
+const PICK := 0.6
+const EAT := 2.0
+const GATE_Z := 10.5   # арка; дальше кафе, до открытия недоступно
+
+
+static func expected_satiety(allowed: Array) -> float:
+	var total := 0.0
+	var acc := 0.0
+	for t in allowed:
+		total += Rarity.WEIGHTS[int(t)]
+		acc += Rarity.WEIGHTS[int(t)] * Rarity.SATIETY[int(t)]
+	return acc / total if total > 0.0 else 0.0
+
+
+static func estimate_seconds(layout: Dictionary, target: int) -> float:
+	var points := []
+	for s in layout["spawn_points"]:
+		var p: Vector3 = WorldBuilder._v3(s["pos"])
+		if p.z < GATE_Z:
+			points.append({"pos": p, "sat": expected_satiety(s.get("allowed", [0]))})
+	var hideouts := []
+	for h in layout["hideouts"]:
+		hideouts.append(WorldBuilder._v3(h["pos"]))
+	var pos := Vector3.ZERO   # стартовый маркер Spawn
+	var time := 0.0
+	var satiety := 0.0
+	var carried := 0
+	var visited := {}
+	while satiety < target and visited.size() < points.size():
+		var best := -1
+		var best_d := INF
+		for i in points.size():
+			if visited.has(i):
+				continue
+			var d: float = pos.distance_to(points[i]["pos"])
+			if d < best_d:
+				best_d = d
+				best = i
+		visited[best] = true
+		pos = points[best]["pos"]
+		time += best_d / WALK + PICK
+		carried += 1
+		satiety += points[best]["sat"]
+		if carried >= GameState.MOUTH_CAPACITY:
+			var hd := INF
+			var hp := pos
+			for h in hideouts:
+				if pos.distance_to(h) < hd:
+					hd = pos.distance_to(h)
+					hp = h
+			time += hd / WALK + EAT
+			pos = hp
+			carried = 0
+	if carried > 0:
+		time += EAT
+	return time if satiety >= target else INF
+
+
+func test_yard_has_enough_food_for_the_gate() -> void:
+	var layout := WorldBuilder.load_layout("res://data/layout/yard.json")
+	var total := 0.0
+	for s in layout["spawn_points"]:
+		if WorldBuilder._v3(s["pos"]).z < GATE_Z:
+			total += expected_satiety(s.get("allowed", [0]))
+	assert_gte(total, float(GameState.SATIETY_GATE), "за один обход двора (без респавна) сытости хватает на арку")
+
+
+func test_yard_opens_cafe_within_three_minutes() -> void:
+	var layout := WorldBuilder.load_layout("res://data/layout/yard.json")
+	var t := estimate_seconds(layout, GameState.SATIETY_GATE)
+	gut.p("оценка времени до арки: %.0f с при пороге %d" % [t, GameState.SATIETY_GATE])
+	assert_lt(t, 180.0, "спек 3.3: 2–3 минуты до арки; если дольше — порог 6")
 ```
 
 ## `tests/unit/test_cat_motion.gd`
@@ -4899,6 +5635,17 @@ func test_return_becomes_idle_at_home() -> void:
 	brain.state = ChaseBrain.State.RETURN
 	assert_eq(brain.update(0.1, false, false, false), ChaseBrain.State.RETURN)
 	assert_eq(brain.update(0.1, false, false, true), ChaseBrain.State.IDLE)
+
+func test_safe_zone_ends_chase_immediately() -> void:
+	var b := ChaseBrain.new()
+	b.update(0.1, true, false, false)
+	b.update(1.0, true, false, false)
+	assert_eq(b.state, ChaseBrain.State.CHASE)
+	assert_eq(b.update(0.1, false, true, false, true), ChaseBrain.State.RETURN, "кот в будке — собака уходит сразу")
+	var a := ChaseBrain.new()
+	a.update(0.1, true, false, false)
+	assert_eq(a.state, ChaseBrain.State.ALERT)
+	assert_eq(a.update(0.1, true, true, false, true), ChaseBrain.State.IDLE, "насторожилась, но кот уже в будке")
 ```
 
 ## `tests/unit/test_game_state.gd`
@@ -5173,6 +5920,28 @@ func test_taken_yarn_keys_round_trip() -> void:
 	assert_true(GameState.is_yarn_taken("1.5,0.6,1.5"), "список собранных клубочков сохраняется")
 ```
 
+## `tests/unit/test_sfx.gd`
+
+```gdscript
+extends GutTest
+
+func before_each() -> void:
+	Sfx.reset_counters()
+
+func test_all_six_streams_exist() -> void:
+	for key in [&"pickup", &"eat", &"hit", &"meow", &"bark", &"bell"]:
+		assert_true(Sfx.has(key), "нет звука %s" % key)
+
+func test_play_assigns_stream_and_counts() -> void:
+	var p := Sfx.play(&"eat")
+	assert_not_null(p)
+	if p:
+		assert_eq(p.stream.resource_path, "res://assets/sfx/eat.ogg")
+	assert_eq(Sfx.last_played, &"eat")
+	assert_eq(Sfx.counts.get(&"eat", 0), 1)
+	assert_null(Sfx.play(&"nope"), "неизвестный звук не падает")
+```
+
 ## `tests/unit/test_shop.gd`
 
 ```gdscript
@@ -5313,6 +6082,28 @@ func test_godot_version_is_4_7() -> void:
 	assert_eq(v.minor, 7)
 ```
 
+## `tests/unit/test_theme.gd`
+
+```gdscript
+extends GutTest
+
+func test_project_theme_uses_nunito_and_rounded_panels() -> void:
+	assert_eq(ProjectSettings.get_setting("gui/theme/custom"), "res://assets/ui/theme.tres")
+	var theme := load("res://assets/ui/theme.tres") as Theme
+	assert_not_null(theme, "нет темы")
+	if theme == null:
+		return
+	assert_not_null(theme.default_font, "шрифт по умолчанию задан")
+	assert_eq(theme.default_font.resource_path, "res://assets/fonts/Nunito.ttf")
+	var panel := theme.get_stylebox("panel", "PanelContainer") as StyleBoxFlat
+	assert_not_null(panel, "плашка PanelContainer — StyleBoxFlat")
+	if panel == null:
+		return
+	assert_gt(panel.corner_radius_top_left, 8, "округлые углы")
+	assert_gt(panel.shadow_size, 0, "мягкая тень")
+	assert_eq(theme.get_color("font_color", "Label").to_html(false), "394151", "графитовый текст")
+```
+
 ## `tests/unit/test_toon.gd`
 
 ```gdscript
@@ -5428,12 +6219,13 @@ if __name__ == "__main__":
 
 ```python
 """Готовит кота: канонический риг UniMate + клипы (idle/walk из Quaternius, остальные из UniMate),
-палитра, масштаб 0,35 м, разворот мордой по -Z Godot."""
+палитра, масштаб 0,35 м, разворот мордой по -Z Godot, плюс четыре набора глаз (cat_eyes.py)."""
 import math
 import os
 
 import bpy
 
+import cat_eyes
 import palette
 import rig_utils
 
@@ -5550,9 +6342,136 @@ def build():
 	recolor(mesh)
 	rig_utils.face_forward(arm)
 	rescale(arm, mesh)
+	eyes = cat_eyes.build_eyes(arm, mesh)
 	arm.name = "CatRig"
 	mesh.name = "cat"
-	return [arm, mesh]
+	return [arm, mesh] + eyes
+```
+
+## `tools/blender/cat_eyes.py`
+
+```python
+"""Глаза кота: четыре набора мешей (обычные, испуг, довольный, оглушён) на кости головы.
+В Godot одновременно виден один набор, переключает CatFace (спек 2.4). Координаты считаются
+от bbox вершин головы, поэтому глаза всегда на морде, как бы ни был отмасштабирован риг."""
+import math
+
+import bmesh
+import bpy
+from mathutils import Matrix, Vector
+
+import lib
+
+EYE_SETS = ("normal", "scared", "happy", "dizzy")
+HEAD_GROUP = "head"
+SPHERE = {"segments": 8, "rings": 6}   # 80 треугольников на сферу
+
+
+def head_bbox(mesh):
+	"""Мировой bbox вершин, привязанных к кости головы весом > 0,5."""
+	bpy.context.view_layer.update()
+	gi = mesh.vertex_groups[HEAD_GROUP].index
+	pts = [mesh.matrix_world @ v.co for v in mesh.data.vertices
+	       if any(g.group == gi and g.weight > 0.5 for g in v.groups)]
+	lo = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
+	hi = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
+	return lo, hi
+
+
+def eye_centers(lo, hi):
+	"""Центры левого и правого глаза: верхняя треть морды, чуть утоплены в переднюю грань (+Y)."""
+	x = (hi.x - lo.x) * 0.22
+	y = hi.y - 0.012
+	z = lo.z + (hi.z - lo.z) * 0.68
+	return Vector((-x, y, z)), Vector((x, y, z))
+
+
+def _line(name, center, angle_deg, length, radius, material):
+	"""Штрих в плоскости лица XZ: цилиндр вдоль X, повёрнутый на angle вокруг Y (оси взгляда).
+	Положительный угол опускает +X-конец штриха."""
+	c = lib.cylinder(name, radius=radius, depth=length, segments=6, material=material)
+	c.rotation_euler = (0.0, math.pi / 2 + math.radians(angle_deg), 0.0)
+	c.location = center
+	return c
+
+
+def _parts(kind, side, c):
+	p = f"eye_{kind}_{side}"
+	fwd = Vector((0.0, 1.0, 0.0))
+	if kind == "normal":
+		w = lib.sphere(p + "_w", 0.014, material="eye_white", **SPHERE)
+		w.location = c
+		k = lib.sphere(p + "_k", 0.0065, material="ink", **SPHERE)
+		k.location = c + fwd * 0.010 + Vector((0.0, 0.0, 0.001))
+		return [w, k]
+	if kind == "scared":
+		w = lib.sphere(p + "_w", 0.019, material="eye_white", **SPHERE)
+		w.location = c
+		k = lib.sphere(p + "_k", 0.004, material="ink", **SPHERE)
+		k.location = c + fwd * 0.016 + Vector((0.0, 0.0, 0.004))
+		return [w, k]
+	if kind == "happy":   # «^»: левый штрих поднимается к центру, правый — от центра вниз
+		a = _line(p + "_a", c + Vector((-0.006, 0.006, -0.002)), -35, 0.016, 0.0025, "ink")
+		b = _line(p + "_b", c + Vector((0.006, 0.006, -0.002)), 35, 0.016, 0.0025, "ink")
+		return [a, b]
+	a = _line(p + "_a", c + fwd * 0.006, 45, 0.026, 0.0025, "ink")    # dizzy: «×»
+	b = _line(p + "_b", c + fwd * 0.006, -45, 0.026, 0.0025, "ink")
+	return [a, b]
+
+
+def _join(name, objs):
+	"""Сливает объекты в один меш в мировых координатах, сохраняя материалы по граням."""
+	bpy.context.view_layer.update()
+	bm = bmesh.new()
+	mats = []
+	for o in objs:
+		tmp = o.data.copy()
+		tmp.transform(o.matrix_world)
+		mat = o.data.materials[0]
+		if mat not in mats:
+			mats.append(mat)
+		for poly in tmp.polygons:
+			poly.material_index = mats.index(mat)
+		bm.from_mesh(tmp)
+		bpy.data.meshes.remove(tmp)
+		bpy.data.objects.remove(o)
+	mesh = bpy.data.meshes.new(name)
+	bm.to_mesh(mesh)
+	bm.free()
+	for m in mats:
+		mesh.materials.append(m)
+	for poly in mesh.polygons:
+		poly.use_smooth = True
+	obj = bpy.data.objects.new(name, mesh)
+	bpy.context.scene.collection.objects.link(obj)
+	return obj
+
+
+def _attach(obj, arm):
+	"""Переводит меш в пространство арматуры и скинит его к кости головы весом 1,0."""
+	bpy.context.view_layer.update()
+	obj.data.transform(arm.matrix_world.inverted() @ obj.matrix_world)
+	obj.matrix_world = Matrix.Identity(4)
+	obj.parent = arm
+	obj.matrix_parent_inverse = Matrix.Identity(4)
+	vg = obj.vertex_groups.new(name=HEAD_GROUP)
+	vg.add([v.index for v in obj.data.vertices], 1.0, "REPLACE")
+	mod = obj.modifiers.new("Armature", "ARMATURE")
+	mod.object = arm
+	bpy.context.view_layer.update()
+
+
+def build_eyes(arm, mesh):
+	"""Четыре объекта eyes_<набор>, дети арматуры. Звать после face_forward и rescale."""
+	lo, hi = head_bbox(mesh)
+	left, right = eye_centers(lo, hi)
+	out = []
+	for kind in EYE_SETS:
+		parts = _parts(kind, "l", left) + _parts(kind, "r", right)
+		obj = _join(f"eyes_{kind}", parts)
+		_attach(obj, arm)
+		out.append(obj)
+	return out
 ```
 
 ## `tools/blender/cat_quaternius_export.py`
@@ -5644,12 +6563,13 @@ if __name__ == "__main__":
 ## `tools/blender/dog.py`
 
 ```python
-"""Собака из Quaternius Dog.blend: рыжая с белой грудкой, 0,55 м, клипы idle/walk, кость head."""
+"""Собака из Quaternius Dog.blend: рыжая с белой грудкой, 0,55 м, клипы idle/walk и процедурный sleep, кость head."""
 import os
 
 import bpy
 from mathutils import Matrix
 
+import dog_sleep
 import lib
 import rig_inspect
 import rig_utils
@@ -5681,6 +6601,7 @@ def build():
 		act = bpy.data.actions[old]
 		act.name = new
 		rig_utils.clean_action(act, arm)
+	dog_sleep.make_sleep_action(arm)
 	rig_utils.split_material_by_height(mesh, "cat_orange", "cream", 0.35)
 	arm.animation_data_create()
 	arm.animation_data.action = None
@@ -5693,6 +6614,90 @@ def build():
 	arm.name = "DogRig"
 	mesh.name = "dog"
 	return [arm, mesh]
+```
+
+## `tools/blender/dog_sleep.py`
+
+```python
+"""Поза «спит» для собаки: процедурный клип. UniMate не дал позу лёжа
+(docs/superpowers/notes/2026-10-07-unimate-attempt.md), поэтому поза задана числами:
+корпус опущен на землю, лапы укорочены и их цели IK подняты, голова опущена к лапам;
+дыхание — лёгкий подъём корпуса в середине клипа. Всё считается в пространстве арматуры (Z вверх)."""
+import bpy
+from mathutils import Quaternion, Vector
+
+ROOT_BONE = "Bone"
+HEAD_BONE = "head"
+LEG_CHAINS = (("Bone.014", "Bone.015", "Bone.016"), ("Bone.017", "Bone.018", "Bone.019"),
+              ("Bone.008", "Bone.009", "Bone.010"), ("Bone.011", "Bone.012", "Bone.013"))
+IK_TARGETS = ("IKFrontRight", "IKFrontLeft", "IKBackLeft", "IKBackRight")
+FRAMES = 48            # 2 с при 24 к/с
+DROP_FRACTION = 0.62   # какую долю высоты корпуса над лапами убрать
+LEG_SCALE = 0.45       # лапы вдоль своей оси
+HEAD_TILT = 0.75       # рад, голова к лапам
+BREATH = 0.10          # доля drop, на которую корпус приподнимается на вдохе
+
+
+def reset_pose(arm):
+	for pb in arm.pose.bones:
+		pb.location = (0.0, 0.0, 0.0)
+		pb.rotation_quaternion = (1.0, 0.0, 0.0, 0.0)
+		pb.scale = (1.0, 1.0, 1.0)
+	bpy.context.view_layer.update()
+
+
+def _local_offset(pb, armature_vec):
+	"""Вектор из пространства арматуры в локальные оси кости (location позы задаётся в них)."""
+	return pb.bone.matrix_local.to_3x3().inverted() @ armature_vec
+
+
+def apply_pose(arm, breath=0.0):
+	"""Ставит позу «лежит». breath 0..1 — доля вдоха (корпус чуть выше)."""
+	reset_pose(arm)
+	root = arm.pose.bones[ROOT_BONE]
+	feet_z = min(arm.pose.bones[chain[-1]].head.z for chain in LEG_CHAINS)
+	drop = (root.head.z - feet_z) * DROP_FRACTION * (1.0 - BREATH * breath)
+	root.location = _local_offset(root, Vector((0.0, 0.0, -drop)))
+	for chain in LEG_CHAINS:
+		for name in chain:
+			arm.pose.bones[name].scale = (1.0, LEG_SCALE, 1.0)
+	for name in IK_TARGETS:
+		if name in arm.pose.bones:
+			pb = arm.pose.bones[name]
+			pb.location = _local_offset(pb, Vector((0.0, 0.0, drop * 0.25)))   # иначе IK тянет укороченную лапу к земле
+	head = arm.pose.bones[HEAD_BONE]
+	head.rotation_mode = "QUATERNION"
+	best = None
+	for sign in (1.0, -1.0):   # знак выбираем по результату: морда должна уйти вниз
+		head.rotation_quaternion = Quaternion((1.0, 0.0, 0.0), sign * HEAD_TILT)
+		bpy.context.view_layer.update()
+		if best is None or head.tail.z < best[0]:
+			best = (head.tail.z, sign)
+	head.rotation_quaternion = Quaternion((1.0, 0.0, 0.0), best[1] * HEAD_TILT)
+	bpy.context.view_layer.update()
+
+
+def make_sleep_action(arm, name="sleep"):
+	"""Клип sleep: кадры 1 и FRAMES — поза лёжа, середина — вдох. После записи поза сбрасывается,
+	иначе незаписанные в idle/walk каналы унесут эту позу в другие клипы при экспорте."""
+	action = bpy.data.actions.new(name)
+	action.use_fake_user = True
+	arm.animation_data_create()
+	keyed = [ROOT_BONE, HEAD_BONE] + [b for chain in LEG_CHAINS for b in chain] + [t for t in IK_TARGETS if t in arm.pose.bones]
+	for frame, breath in ((1, 0.0), (FRAMES // 2, 1.0), (FRAMES, 0.0)):
+		# Поза ставится при снятом action: иначе каждый view_layer.update() внутри apply_pose
+		# перезаписывает кости значениями уже записанных кадров, и клип выходит статичным.
+		arm.animation_data.action = None
+		apply_pose(arm, breath)
+		arm.animation_data.action = action
+		for bname in keyed:   # между назначением action и вставкой ключей — никаких update()
+			pb = arm.pose.bones[bname]
+			pb.keyframe_insert("location", frame=frame)
+			pb.keyframe_insert("rotation_quaternion", frame=frame)
+			pb.keyframe_insert("scale", frame=frame)
+	arm.animation_data.action = None
+	reset_pose(arm)
+	return action
 ```
 
 ## `tools/blender/export.py`
@@ -6397,7 +7402,7 @@ SPEC = {"max_tris": 1500, "max_dim": 2.6}
 
 def build():
 	floor = lib.rounded_box("yarn_shop", (2.2, 2.2, 0.03), bevel=0.01, segments=1, material="sand")
-	floor.location.z = 0.015   # тонкая плита без коллайдера: кот и шарики стоят на полу двора
+	floor.location.z = 0.015   # плита; коллайдер в yarn_shop.tscn (Walls/Floor), кот стоит на ней
 	back = lib.rounded_box("yarn_shop_back", (2.2, 0.12, 2.2), bevel=0.02, segments=1, material="lilac")
 	back.location = (0, -1.04, 1.18)
 	parts = [floor, back]
@@ -6597,6 +7602,7 @@ PALETTE = {
     "rarity_rare": "#6491E4",
     "rarity_very_rare": "#C473D4",
     "rarity_legendary": "#FABE32",
+    "eye_white": "#F4F1E8",   # белок глаз; не из спека, чтобы скины (sr_cream) не красили глаза
 }
 
 MATERIAL_PREFIX = "sr_"
@@ -6770,6 +7776,124 @@ result = unittest.TextTestRunner(verbosity=2).run(suite)
 sys.exit(0 if result.wasSuccessful() else 1)
 ```
 
+## `tools/blender/tests/test_cat_eyes.py`
+
+```python
+import unittest
+
+import bpy
+
+import cat
+import cat_eyes
+import lib
+
+
+class TestCatEyes(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        lib.clear_scene()
+        cls.objs = cat.build()
+        cls.arm, cls.mesh = cls.objs[0], cls.objs[1]
+        cls.eyes = {o.name: o for o in cls.objs[2:]}
+
+    def _world(self, o):
+        bpy.context.view_layer.update()
+        return [o.matrix_world @ v.co for v in o.data.vertices]
+
+    def test_four_sets_skinned_to_head(self):
+        self.assertEqual(set(self.eyes), {"eyes_normal", "eyes_scared", "eyes_happy", "eyes_dizzy"})
+        for o in self.eyes.values():
+            self.assertIs(o.parent, self.arm, o.name)
+            self.assertEqual([m.type for m in o.modifiers], ["ARMATURE"], o.name)
+            vg = o.vertex_groups["head"]
+            self.assertTrue(all(any(g.group == vg.index and g.weight > 0.99 for g in v.groups) for v in o.data.vertices), o.name)
+            names = {m.name for m in o.data.materials}
+            self.assertFalse(names & {"sr_cat_orange", "sr_cream", "sr_coral"}, f"{o.name}: скин не должен перекрашивать глаза")
+
+    def test_eyes_sit_on_the_front_of_the_head(self):
+        lo, hi = cat_eyes.head_bbox(self.mesh)
+        for o in self.eyes.values():
+            pts = self._world(o)
+            cy = sum(p.y for p in pts) / len(pts)
+            cz = sum(p.z for p in pts) / len(pts)
+            self.assertGreater(cy, hi.y - 0.03, f"{o.name}: у морды (+Y), не на затылке")
+            self.assertLess(cy, hi.y + 0.03, f"{o.name}: не висят перед мордой")
+            self.assertGreater(cz, lo.z + 0.5 * (hi.z - lo.z), f"{o.name}: верхняя половина головы")
+            self.assertLess(cz, hi.z, o.name)
+            xs = [p.x for p in pts]
+            self.assertLess(min(xs), -0.005, f"{o.name}: есть левый глаз")
+            self.assertGreater(max(xs), 0.005, f"{o.name}: есть правый глаз")
+
+    def test_happy_chevrons_point_up(self):
+        pts = [p for p in self._world(self.eyes["eyes_happy"]) if p.x > 0]
+        cx = sum(p.x for p in pts) / len(pts)
+        apex = [p.z for p in pts if abs(p.x - cx) < 0.003]
+        ends = [p.z for p in pts if abs(p.x - cx) > 0.009]
+        self.assertTrue(apex and ends)
+        self.assertGreater(sum(apex) / len(apex), sum(ends) / len(ends), "довольные глаза «^», а не «v»")
+
+    def test_budget(self):
+        self.assertEqual(lib.check_asset(self.objs, max_tris=2500, max_dim=0.6), [])
+```
+
+## `tools/blender/tests/test_dog_sleep.py`
+
+```python
+import unittest
+
+import bpy
+
+import dog
+import dog_sleep
+import lib
+
+
+class TestDogSleep(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        lib.clear_scene()
+        cls.objs = dog.build()
+        cls.arm = cls.objs[0]
+
+    def _z(self, name, tail=False):
+        bpy.context.view_layer.update()
+        pb = self.arm.pose.bones[name]
+        return (self.arm.matrix_world @ (pb.tail if tail else pb.head)).z
+
+    def test_sleep_action_exists_and_lasts_two_seconds(self):
+        act = bpy.data.actions["sleep"]
+        self.assertTrue(act.use_fake_user)
+        self.assertGreaterEqual(act.frame_range[1] - act.frame_range[0], 40)
+        self.assertIsNone(self.arm.animation_data.action, "активный action экспортёр теряет")
+
+    def test_sleep_pose_lies_on_the_ground(self):
+        dog_sleep.reset_pose(self.arm)
+        up_root, up_head = self._z("Bone"), self._z("head")
+        dog_sleep.apply_pose(self.arm)
+        self.assertLess(self._z("Bone"), up_root * 0.5, "корпус опущен к земле")
+        self.assertLess(self._z("head"), up_head * 0.65, "голова опущена")
+        self.assertLess(self._z("head", tail=True), self._z("head"), "морда ниже затылка")
+        for pb in self.arm.pose.bones:
+            self.assertGreater((self.arm.matrix_world @ pb.tail).z, -0.02, f"{pb.name} под землёй")
+        dog_sleep.reset_pose(self.arm)
+
+    def test_sleep_clip_breathes(self):
+        act = bpy.data.actions["sleep"]
+        root_curves = [fc for layer in act.layers for strip in layer.strips for cb in strip.channelbags
+                       for fc in cb.fcurves if fc.data_path == 'pose.bones["Bone"].location']
+        self.assertEqual(len(root_curves), 3, "три канала location корня")
+        v1 = sum(fc.evaluate(1) ** 2 for fc in root_curves) ** 0.5
+        v24 = sum(fc.evaluate(24) ** 2 for fc in root_curves) ** 0.5
+        self.assertGreater(abs(v1 - v24), v1 * 0.05, "на вдохе корпус выше: клип не статичный")
+
+    def test_reset_pose_restores_rest(self):
+        dog_sleep.apply_pose(self.arm)
+        dog_sleep.reset_pose(self.arm)
+        for pb in self.arm.pose.bones:
+            self.assertAlmostEqual(pb.location.length, 0.0, places=5)
+            self.assertEqual(tuple(round(c, 5) for c in pb.scale), (1.0, 1.0, 1.0))
+```
+
 ## `tools/blender/tests/test_export.py`
 
 ```python
@@ -6812,8 +7936,8 @@ import palette
 
 
 class TestPalette(unittest.TestCase):
-    def test_palette_has_17_colors(self):
-        self.assertEqual(len(palette.PALETTE), 17)
+    def test_palette_has_18_colors(self):
+        self.assertEqual(len(palette.PALETTE), 18)   # 13 спека + 4 редкости + белок глаз (план 4)
 
     def test_material_is_cached_and_colored(self):
         lib.clear_scene()
@@ -6925,10 +8049,14 @@ INCLUDE = [
     "third_party/unimate_clips/annotation.json",
     "docs/superpowers/specs/*.md", "docs/superpowers/plans/*roadmap.md",
     "docs/superpowers/notes/*.md",
+    "export_presets.cfg", "tools/audio/*.py", "assets/ui/*.tres", "assets/shaders/*.gdshader",
+    "assets/sfx/README.md", "assets/fonts/OFL.txt",
 ]
-EXCLUDE_DIRS = {"addons", "build", ".godot", ".superpowers", "assets"}
+EXCLUDE_DIRS = {"addons", "build", ".godot", ".superpowers"}
+# Двоичные файлы (.ttf/.ogg/.wav/.glb) в приложение не входят: откуда их взять, описано в процедуре.
 LANG = {".py": "python", ".gd": "gdscript", ".tscn": "", ".json": "json", ".md": "markdown",
-        ".godot": "ini", "Makefile": "makefile", ".gitignore": "", ".gdignore": ""}
+        ".godot": "ini", "Makefile": "makefile", ".gitignore": "", ".gdignore": "",
+        ".cfg": "ini", ".tres": "", ".gdshader": "glsl", ".txt": ""}
 
 
 def lang_for(p: pathlib.Path) -> str:
@@ -7753,11 +8881,23 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
 - Альбом: сетка карточек по редкостям. Меню, пауза. Сохранение JSON в `user://`.
 - Кафе: пропсы (столы, зонты, вывеска, дорога), спавны редкой еды.
 
-## План 4. Полировка под ролик
+## План 4. Полировка под ролик (`2026-10-08-snack-run-04-polish.md`) — ВЫПОЛНЕН 2026-10-08
 
-- Эмоции глаз (4 материала), «чиби»-пропорции лап, частицы при съедании и
-  ударе, 6 звуков CC0, виньетка, экспорт mac-билда.
-- Плейтест балансa: время до арки 2–3 мин, иначе порог 6 (спек 3.3).
+Результат: игра выглядит как в спеке и собирается в mac-билд.
+
+- UI: тема Nunito, белые округлые плашки с тенью, графитовый текст; заставка
+  «Продолжить / Новая игра».
+- Кот: четыре набора глаз на кости головы (обычные, испуг, довольный, оглушён),
+  переключает `CatFace` по событиям; частицы при съедании (цвет редкости),
+  ударе и клубочке; шесть звуков (4 Kenney CC0 + синтез писка и лая).
+- Камера мышью/правым стиком, у стены кот прозрачный, а не скрытый; виньетка.
+- Собака: процедурный клип «спит» (UniMate позу лёжа не дал), лай при
+  настороженности, из будки уходит сразу; плита будки с коллайдером.
+- Дыры мира: kill-plane, еда при обмороке теряется, рассыпанная еда на высоте
+  кота, сброс прогресса без записи нулей, B геймпада закрывает меню.
+- Баланс: оценка времени до арки тестом — 32 с при пороге 10, порог не менялся.
+- `make templates` / `make export` → `build/SnackRun.zip` (universal, ad-hoc подпись).
+- Сознательно не сделано: «чиби»-пропорции лап (сломали бы клипы UniMate).
 - Этапы 2+ (парк, сутки, порт) — отдельные спеки.
 
 ## Отложено сознательно
@@ -7774,26 +8914,26 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
 - Переименовать `tools/blender/cat.py` → `cat_asset.py` (двусмысленность с `gen/cat.py`).
 - Имена костей `Bone`/`head` в `cat.py` вынести в константы с комментарием.
 - Баки 1,12 м недостижимы прыжком 0,84 м (спек 3.1 «прыжок на бак»): лестница на балкон есть, на баки по-прежнему не запрыгнуть.
-- Спящая собака играет idle (UniMate не дал позу лёжа): нужен другой источник клипа или поза скриптом (план 4).
+- ✓ план 4: спящая собака — процедурный клип `sleep` (`tools/blender/dog_sleep.py`).
 - Еда респавнится 30–90 с: за 3–5-минутную сессию двор может опустеть; проверить на плейтесте.
 - Оса кружит у точки спавна независимо от сладости еды (`FoodDef.sweet` не используется); орбита проходит сквозь спинку лавки.
-- Счётчик клубочков в HUD сиреневый и плохо читается на фоне будки.
+- ✓ план 4: счётчик клубочков графитовый на белой плашке.
 - Сытость сохраняется: со второго запуска ворота открыты сразу (принятое отклонение плана 3).
 - Скины — наборы из трёх цветов, «полосатого» и «сиамского» в полном смысле нет.
-- `reset_progress()` сразу пишет обнулённый файл сохранения (порядок строк), покупка пишет файл 2–3 раза.
-- Собака в погоне ещё 2 с бежит в будку через открытый перёд (урон блокирован, но «не заходят» не выполняется).
-- Плита будки без коллайдера: лапы кота на 3 см в плите.
-- Геймпад: B (`ui_cancel`) не закрывает магазин, только Start; Space покупает товар в фокусе.
-- Нет kill-plane: с края пола 60×60 можно упасть навсегда (особенно за кафе).
-- Заставка не различает «продолжить» и «новая игра».
-- Камера в укрытии под лавкой (−5,−8) сжимается до 0,34 м и прячет модель кота; под машиной кот может торчать сквозь днище.
+- ✓ план 4 (частично): `reset_progress()` больше не пишет нули; покупка по-прежнему пишет файл 2–3 раза (безвредно).
+- ✓ план 4: при коте в будке собака уходит сразу.
+- ✓ план 4: плита с коллайдером.
+- ✓ план 4 (частично): B закрывает магазин и альбом; Space покупает товар в фокусе — стандартное `ui_accept`, оставлено.
+- ✓ план 4: kill-plane на −5 м, возврат к будке без штрафа.
+- ✓ план 4: «Продолжить» (при сохранении) и «Новая игра».
+- ✓ план 4 (частично): под лавкой кот теперь полупрозрачный, не скрытый; сквозь днище машины может торчать по-прежнему.
 - `main.gd` повторно применяет Toon ко всему двору (дублирование материалов).
-- Рассыпанная еда кладётся на y=0 независимо от высоты кота (на балконе уйдёт под площадку).
-- При обмороке еда из зубов рассыпается и её можно подобрать после возрождения; спек говорит «потеряна».
+- ✓ план 4: рассыпанная еда на высоте кота.
+- ✓ план 4: при обмороке еда теряется.
 - Укрытие «коробка» — присед за коробкой, а не внутри (модель сплошная).
 - Собака не обходит препятствия (бежит в коробку/машину).
-- Кот прячется целиком при упоре камеры в стену (порог 0,9 м при дистанции 1,8 м); рассмотреть прозрачность.
-- Камера только Q/R, добавить мышь/правый стик.
+- ✓ план 4: прозрачность вместо скрытия.
+- ✓ план 4: мышь крутит камеру (правый стик был с плана 1).
 - Лицензия весов UniMate для сгенерированных движений — уточнить владельцу.
 ```
 
@@ -7836,5 +8976,328 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
 Вывод: чекпоинт `unimate_uniml3d_f60_v3` плохо воспроизводит позы лёжа/сидя для четвероногих
 с таким ригом; для анимаций «на месте» (прыжок, бег, присед кота) он работал.
 Команды и файлы в `/tmp`-папке не сохранены; процедура та же, что в шаге 5 `docs/replay/02-procedure.md`.
+```
+
+## `export_presets.cfg`
+
+```ini
+[preset.0]
+
+name="macOS"
+platform="macOS"
+runnable=true
+advanced_options=false
+dedicated_server=false
+custom_features=""
+export_filter="all_resources"
+include_filter=""
+exclude_filter="third_party/*, tools/*, docs/*, reference/*, tests/*, build/*, .superpowers/*"
+export_path="build/SnackRun.zip"
+patches=PackedStringArray()
+encryption_include_filters=""
+encryption_exclude_filters=""
+seed=0
+encrypt_pck=false
+encrypt_directory=false
+script_export_mode=2
+
+[preset.0.options]
+
+export/distribution_type=1
+binary_format/architecture="universal"
+application/bundle_identifier="ru.neiroslop.snackrun"
+application/app_category="Games"
+application/short_version="0.4.0"
+application/version="0.4.0"
+application/copyright="Нейрослоп, 2026"
+display/high_res=true
+codesign/codesign=1
+codesign/identity=""
+notarization/notarization=0
+```
+
+## `tools/audio/gen_sfx.py`
+
+```python
+#!/usr/bin/env python3
+"""Два звука, которых нет в CC0-паках Kenney: писк кота и лай. Только стандартная библиотека.
+Запуск: make sfx (пишет assets/sfx/meow.wav и bark.wav, 22 050 Гц, моно, 16 бит)."""
+import math
+import pathlib
+import random
+import struct
+import wave
+
+RATE = 22050
+OUT = pathlib.Path(__file__).resolve().parents[2] / "assets" / "sfx"
+
+
+def write(name, samples):
+	OUT.mkdir(parents=True, exist_ok=True)
+	with wave.open(str(OUT / name), "wb") as w:
+		w.setnchannels(1)
+		w.setsampwidth(2)
+		w.setframerate(RATE)
+		w.writeframes(b"".join(struct.pack("<h", int(max(-1.0, min(1.0, s)) * 32767)) for s in samples))
+
+
+def meow(duration=0.45):
+	"""Писк: тон 900→520 Гц с вибрато 6 Гц/25 Гц, вторая гармоника 0,35, атака 30 мс, спад к концу."""
+	out = []
+	phase = 0.0
+	n = int(RATE * duration)
+	for i in range(n):
+		t = i / RATE
+		u = t / duration
+		f = 900 - 380 * u + 25 * math.sin(2 * math.pi * 6 * t)
+		phase += 2 * math.pi * f / RATE
+		env = min(1.0, t / 0.03) * (1.0 - u) ** 1.5
+		out.append(env * 0.6 * (math.sin(phase) + 0.35 * math.sin(2 * phase)))
+	return out
+
+
+def bark(duration=0.16, gap=0.07):
+	"""Лай «гав-гав»: два импульса, тон 190→120 Гц с пятью гармониками плюс шум 0,25, атака 10 мс."""
+	rnd = random.Random(7)
+
+	def pulse():
+		out = []
+		phase = 0.0
+		n = int(RATE * duration)
+		for i in range(n):
+			t = i / RATE
+			u = t / duration
+			phase += 2 * math.pi * (190 - 70 * u) / RATE
+			env = min(1.0, t / 0.01) * (1.0 - u) ** 2
+			tone = sum(math.sin(k * phase) / k for k in (1, 2, 3, 4, 5))
+			out.append(env * (0.45 * tone + 0.25 * rnd.uniform(-1.0, 1.0)))
+		return out
+
+	return pulse() + [0.0] * int(RATE * gap) + pulse()
+
+
+if __name__ == "__main__":
+	write("meow.wav", meow())
+	write("bark.wav", bark())
+	print("ОК assets/sfx/meow.wav, assets/sfx/bark.wav")
+```
+
+## `assets/ui/theme.tres`
+
+```
+[gd_resource type="Theme" load_steps=8 format=3]
+
+[ext_resource type="FontFile" path="res://assets/fonts/Nunito.ttf" id="1"]
+
+[sub_resource type="StyleBoxFlat" id="panel"]
+content_margin_left = 14.0
+content_margin_top = 8.0
+content_margin_right = 14.0
+content_margin_bottom = 8.0
+bg_color = Color(1, 1, 1, 0.92)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+shadow_color = Color(0.224, 0.255, 0.318, 0.18)
+shadow_size = 6
+shadow_offset = Vector2(0, 3)
+
+[sub_resource type="StyleBoxFlat" id="button"]
+content_margin_left = 16.0
+content_margin_top = 8.0
+content_margin_right = 16.0
+content_margin_bottom = 8.0
+bg_color = Color(0.98, 0.682, 0.271, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[sub_resource type="StyleBoxFlat" id="button_hover"]
+content_margin_left = 16.0
+content_margin_top = 8.0
+content_margin_right = 16.0
+content_margin_bottom = 8.0
+bg_color = Color(0.961, 0.455, 0.522, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[sub_resource type="StyleBoxFlat" id="button_disabled"]
+content_margin_left = 16.0
+content_margin_top = 8.0
+content_margin_right = 16.0
+content_margin_bottom = 8.0
+bg_color = Color(0.85, 0.85, 0.85, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[sub_resource type="StyleBoxFlat" id="bar_bg"]
+bg_color = Color(0.88, 0.88, 0.88, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="bar_fill"]
+bg_color = Color(0.271, 0.545, 0.349, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[resource]
+default_font = ExtResource("1")
+default_font_size = 20
+Button/colors/font_color = Color(0.224, 0.255, 0.318, 1)
+Button/colors/font_disabled_color = Color(0.5, 0.5, 0.5, 1)
+Button/colors/font_focus_color = Color(1, 1, 1, 1)
+Button/colors/font_hover_color = Color(1, 1, 1, 1)
+Button/colors/font_pressed_color = Color(1, 1, 1, 1)
+Button/styles/disabled = SubResource("button_disabled")
+Button/styles/focus = SubResource("button_hover")
+Button/styles/hover = SubResource("button_hover")
+Button/styles/normal = SubResource("button")
+Button/styles/pressed = SubResource("button_hover")
+Label/colors/font_color = Color(0.224, 0.255, 0.318, 1)
+PanelContainer/styles/panel = SubResource("panel")
+ProgressBar/styles/background = SubResource("bar_bg")
+ProgressBar/styles/fill = SubResource("bar_fill")
+```
+
+## `assets/shaders/vignette.gdshader`
+
+```glsl
+shader_type canvas_item;
+// Мягкое затемнение краёв кадра (план 4). strength — плотность, radius — где начинается.
+uniform float strength : hint_range(0.0, 1.0) = 0.35;
+uniform float radius : hint_range(0.0, 1.5) = 0.72;
+
+void fragment() {
+	vec2 uv = UV - vec2(0.5);
+	float d = length(uv) * 1.4142;
+	float v = smoothstep(radius, 1.25, d);
+	COLOR = vec4(0.0, 0.0, 0.0, v * strength);
+}
+```
+
+## `assets/sfx/README.md`
+
+```markdown
+# Звуки (спек 2.7)
+
+| Файл | Событие | Источник | Лицензия |
+|---|---|---|---|
+| pickup.ogg | подбор еды, клубочка | Kenney «Interface Sounds», pluck_001 | CC0 (LICENSE_kenney.txt) |
+| eat.ogg | съедание | Kenney «Interface Sounds», drop_002 | CC0 |
+| hit.ogg | удар | Kenney «Impact Sounds», impactPunch_medium_000 | CC0 |
+| bell.ogg | звонок велосипеда | Kenney «Impact Sounds», impactBell_heavy_000 | CC0 |
+| meow.wav | писк кота | синтез `tools/audio/gen_sfx.py` (`make sfx`) | проект |
+| bark.wav | лай | синтез `tools/audio/gen_sfx.py` (`make sfx`) | проект |
+
+Паки: https://kenney.nl/assets/interface-sounds, https://kenney.nl/assets/impact-sounds.
+Правило: один `Sfx.play()` на игровое событие (сигнал), никогда из `_process`.
+```
+
+## `assets/fonts/OFL.txt`
+
+```
+Copyright 2014 The Nunito Project Authors (https://github.com/googlefonts/nunito)
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is copied below, and is also available with a FAQ at:
+http://scripts.sil.org/OFL
+
+
+-----------------------------------------------------------
+SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
+-----------------------------------------------------------
+
+PREAMBLE
+The goals of the Open Font License (OFL) are to stimulate worldwide
+development of collaborative font projects, to support the font creation
+efforts of academic and linguistic communities, and to provide a free and
+open framework in which fonts may be shared and improved in partnership
+with others.
+
+The OFL allows the licensed fonts to be used, studied, modified and
+redistributed freely as long as they are not sold by themselves. The
+fonts, including any derivative works, can be bundled, embedded, 
+redistributed and/or sold with any software provided that any reserved
+names are not used by derivative works. The fonts and derivatives,
+however, cannot be released under any other type of license. The
+requirement for fonts to remain under this license does not apply
+to any document created using the fonts or their derivatives.
+
+DEFINITIONS
+"Font Software" refers to the set of files released by the Copyright
+Holder(s) under this license and clearly marked as such. This may
+include source files, build scripts and documentation.
+
+"Reserved Font Name" refers to any names specified as such after the
+copyright statement(s).
+
+"Original Version" refers to the collection of Font Software components as
+distributed by the Copyright Holder(s).
+
+"Modified Version" refers to any derivative made by adding to, deleting,
+or substituting -- in part or in whole -- any of the components of the
+Original Version, by changing formats or by porting the Font Software to a
+new environment.
+
+"Author" refers to any designer, engineer, programmer, technical
+writer or other person who contributed to the Font Software.
+
+PERMISSION & CONDITIONS
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of the Font Software, to use, study, copy, merge, embed, modify,
+redistribute, and sell modified and unmodified copies of the Font
+Software, subject to the following conditions:
+
+1) Neither the Font Software nor any of its individual components,
+in Original or Modified Versions, may be sold by itself.
+
+2) Original or Modified Versions of the Font Software may be bundled,
+redistributed and/or sold with any software, provided that each copy
+contains the above copyright notice and this license. These can be
+included either as stand-alone text files, human-readable headers or
+in the appropriate machine-readable metadata fields within text or
+binary files as long as those fields can be easily viewed by the user.
+
+3) No Modified Version of the Font Software may use the Reserved Font
+Name(s) unless explicit written permission is granted by the corresponding
+Copyright Holder. This restriction only applies to the primary font name as
+presented to the users.
+
+4) The name(s) of the Copyright Holder(s) or the Author(s) of the Font
+Software shall not be used to promote, endorse or advertise any
+Modified Version, except to acknowledge the contribution(s) of the
+Copyright Holder(s) and the Author(s) or with their explicit written
+permission.
+
+5) The Font Software, modified or unmodified, in part or in whole,
+must be distributed entirely under this license, and must not be
+distributed under any other license. The requirement for fonts to
+remain under this license does not apply to any document created
+using the Font Software.
+
+TERMINATION
+This license becomes null and void if any of the above conditions are
+not met.
+
+DISCLAIMER
+THE FONT SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT
+OF COPYRIGHT, PATENT, TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
+DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
+OTHER DEALINGS IN THE FONT SOFTWARE.
 ```
 
