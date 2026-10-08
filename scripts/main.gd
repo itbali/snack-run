@@ -13,6 +13,7 @@ var _rig: CameraRig
 var _spill: SpillSpawner
 var _fade: ColorRect
 @onready var hud: Hud = $Hud
+@onready var shop_menu: ShopMenu = $ShopMenu
 
 
 func _ready() -> void:
@@ -38,6 +39,7 @@ func _ready() -> void:
 	for c in get_tree().get_nodes_in_group("hazards"):
 		if c.has_signal("bell"):
 			c.bell.connect(func() -> void: hud.flash_bell())
+	shop_menu.closed.connect(close_shop)
 	for g in get_tree().get_nodes_in_group("gates"):
 		g.opened.connect(func() -> void: hud.flash_bell("🎉 Арка в кафе открыта!", 3.0))
 	for sig in [GameState.album_changed, GameState.satiety_changed, GameState.yarn_changed, GameState.upgrade_bought, GameState.skin_changed]:
@@ -98,3 +100,24 @@ func respawn_cat() -> void:
 	_cat.teleport(respawn_position())
 	_rig.global_position = _cat.global_position + Vector3(0, CameraRig.HEIGHT, 0)
 	GameState.revive()
+
+
+func on_interact_pressed() -> void:
+	if _cat and _cat.in_safe_zone and not _cat.hidden and not shop_menu.is_open:
+		open_shop()
+
+
+func open_shop() -> void:
+	_cat.input_enabled = false
+	_rig.shop_view = true
+	hud.visible = false
+	shop_menu.open()
+
+
+func close_shop() -> void:
+	if shop_menu.is_open:
+		shop_menu.close()
+		return
+	_cat.input_enabled = true
+	_rig.shop_view = false
+	hud.visible = true
