@@ -74,3 +74,12 @@ func test_dog_faces_home_direction_again_after_chase() -> void:
 	cat.global_position = Vector3(0, 0.05, -4)
 	await wait_seconds(0.8)
 	assert_true(dog.sees_cat(), "после возврата снова смотрит туда же и видит кота")
+
+func test_quiet_upgrade_narrows_dog_cone() -> void:
+	cat.global_position = Vector3(3.0, 0.05, -3.4)   # ≈41° от носа собаки: внутри 45°, вне 31,5°
+	await wait_physics_frames(3)
+	assert_true(dog.sees_cat(), "без улучшения видит на 41°")
+	GameState.add_yarn(10)
+	GameState.buy(ShopCatalog.get_by_id(&"quiet"))
+	dog.rotation.y = 0.0   # за эти кадры собака уже начала поворачиваться к коту
+	assert_false(dog.sees_cat(), "с тихими шагами конус 31,5° — не видит")

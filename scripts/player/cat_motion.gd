@@ -19,8 +19,8 @@ static func world_direction(input: Vector2, cam_yaw_basis: Basis) -> Vector3:
 	return dir.normalized()
 
 
-static func step(velocity: Vector3, direction: Vector3, running: bool, on_floor: bool, jump: bool, delta: float) -> Vector3:
-	var speed := RUN_SPEED if running else WALK_SPEED
+static func step(velocity: Vector3, direction: Vector3, running: bool, on_floor: bool, jump: bool, delta: float, speed_mult := 1.0) -> Vector3:
+	var speed := (RUN_SPEED if running else WALK_SPEED) * speed_mult
 	var target := direction * speed
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
 	horizontal = horizontal.move_toward(Vector3(target.x, 0.0, target.z), ACCEL * delta)
@@ -32,12 +32,12 @@ static func step(velocity: Vector3, direction: Vector3, running: bool, on_floor:
 	return Vector3(horizontal.x, vy, horizontal.z)
 
 
-static func pick_state(velocity: Vector3, on_floor: bool, running: bool) -> StringName:
+static func pick_state(velocity: Vector3, on_floor: bool, running: bool, speed_mult := 1.0) -> StringName:
 	if not on_floor and absf(velocity.y) >= SLOPE_WOBBLE:
 		return &"jump"
 	var h := Vector2(velocity.x, velocity.z).length()
 	if h < 0.1:
 		return &"idle"
-	if running and h > WALK_SPEED + 0.1:
+	if running and h > WALK_SPEED * speed_mult + 0.1:
 		return &"run"
 	return &"walk"

@@ -57,3 +57,19 @@ func test_locomotion_clips_loop() -> void:
 	var ap := cat.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	for clip in ["idle", "walk", "run", "hide"]:
 		assert_eq(ap.get_animation(clip).loop_mode, Animation.LOOP_LINEAR, "клип %s должен зацикливаться" % clip)
+
+func test_cat_recolors_on_skin_change() -> void:
+	GameState.reset()
+	GameState.add_yarn(12)
+	var cat = _spawn()
+	GameState.buy(ShopCatalog.get_by_id(&"skin_black"))
+	await wait_process_frames(1)
+	var found := false
+	for mi in cat.find_children("*", "MeshInstance3D", true, false):
+		for i in (mi as MeshInstance3D).mesh.get_surface_count():
+			var m := (mi as MeshInstance3D).get_surface_override_material(i) as StandardMaterial3D
+			if m and m.resource_name == "sr_cat_orange":
+				found = true
+				assert_eq(m.albedo_color.to_html(false), "394151", "тело перекрашено в чёрный")
+	assert_true(found, "у кота есть поверхность тела")
+	GameState.reset()

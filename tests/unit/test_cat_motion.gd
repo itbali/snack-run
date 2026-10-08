@@ -63,3 +63,11 @@ func test_input_actions_registered() -> void:
 	InputSetupScript.register()
 	for a in ["move_left", "move_right", "move_forward", "move_back", "run", "jump", "hide", "eat", "cam_left", "cam_right"]:
 		assert_true(InputMap.has_action(a), "нет действия " + a)
+
+func test_speed_mult_scales_walk_and_state_threshold() -> void:
+	var v := Vector3.ZERO
+	for i in 120:
+		v = CatMotion.step(v, Vector3(0, 0, -1), false, true, false, D, 1.15)
+	assert_almost_eq(v.z, -CatMotion.WALK_SPEED * 1.15, 0.01)
+	assert_eq(CatMotion.pick_state(v, true, false, 1.15), &"walk", "ускоренная ходьба — всё ещё walk")
+	assert_eq(CatMotion.pick_state(Vector3(0, 0, -4.6), true, true, 1.15), &"run")

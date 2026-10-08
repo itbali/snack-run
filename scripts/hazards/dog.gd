@@ -31,7 +31,7 @@ func sees_cat() -> bool:
 	if c == null or c.get("hidden"):
 		return false
 	var forward := -global_transform.basis.z
-	return Perception.in_cone(global_position, forward, c.global_position, VISION_HALF_ANGLE, VISION_RANGE)
+	return Perception.in_cone(global_position, forward, c.global_position, VISION_HALF_ANGLE * GameState.stealth_mult, VISION_RANGE)
 
 
 func _physics_process(delta: float) -> void:

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="CatSkin" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/cat_skin.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"orange"
+display_name = "Рыжий"
+body = Color(0.980392, 0.682353, 0.270588, 1)
+belly = Color(0.988235, 0.827451, 0.631373, 1)
+accent = Color(0.960784, 0.454902, 0.521569, 1)

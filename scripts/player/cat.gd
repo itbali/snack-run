@@ -36,6 +36,8 @@ func _ready() -> void:
 	collision_layer = Layers.CAT
 	collision_mask = Layers.WORLD | Layers.HAZARD
 	Toon.apply(_model, Toon.OUTLINE_CHARACTER)
+	_apply_skin(GameState.skin)
+	GameState.skin_changed.connect(_apply_skin)
 	for clip in LOOPING_CLIPS:
 		if _anim and _anim.has_animation(clip):
 			_anim.get_animation(clip).loop_mode = Animation.LOOP_LINEAR
@@ -75,12 +77,18 @@ func _physics_process(delta: float) -> void:
 	var dir := CatMotion.world_direction(input, yaw)
 	var running := Input.is_action_pressed("run")
 	var jump := Input.is_action_just_pressed("jump")
-	velocity = CatMotion.step(velocity, dir, running, is_on_floor(), jump, delta)
+	velocity = CatMotion.step(velocity, dir, running, is_on_floor(), jump, delta, GameState.speed_mult)
 	move_and_slide()
 	if dir.length() > 0.0:
 		var target_yaw := atan2(-dir.x, -dir.z)
 		_model.rotation.y = lerp_angle(_model.rotation.y, target_yaw, TURN_SPEED * delta)
-	state = CatMotion.pick_state(velocity, is_on_floor(), running)
+	state = CatMotion.pick_state(velocity, is_on_floor(), running, GameState.speed_mult)
+
+
+func _apply_skin(id: StringName) -> void:
+	var skin := SkinCatalog.get_by_id(id)
+	if skin:
+		CatSkin.apply(_model, skin)
 
 
 func try_hide() -> bool:

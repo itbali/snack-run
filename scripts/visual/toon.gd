@@ -28,6 +28,7 @@ static func _apply_to_mesh(mi: MeshInstance3D, outline_width: float) -> int:
 		var mat: StandardMaterial3D
 		if src is StandardMaterial3D:
 			mat = (src as StandardMaterial3D).duplicate()
+			mat.resource_name = src.resource_name   # скины узнают поверхности по имени материала
 		else:
 			mat = StandardMaterial3D.new()
 		mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON

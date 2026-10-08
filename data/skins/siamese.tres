@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="CatSkin" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/cat_skin.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"siamese"
+display_name = "Сиамский"
+body = Color(0.988235, 0.827451, 0.631373, 1)
+belly = Color(0.827451, 0.670588, 0.529412, 1)
+accent = Color(0.223529, 0.254902, 0.317647, 1)
