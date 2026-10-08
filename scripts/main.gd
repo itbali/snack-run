@@ -11,6 +11,7 @@ var _cat: Cat
 var _rig: CameraRig
 var _spill: SpillSpawner
 var _fade: ColorRect
+@onready var hud: Hud = $Hud
 
 
 func _ready() -> void:
