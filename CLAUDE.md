@@ -61,7 +61,10 @@ make run           # запустить игру (WASD, Shift бег, Space пр
 - `scripts/core/` (`Layers`, `Rarity`), `scripts/food/` (`FoodDef`, `FoodCatalog`, `FoodPickup`, `FoodSpawnPoint`), `data/food/*.tres`.
 - `scripts/hideouts/hideout.gd`, `scripts/world/world_builder.gd` (двор из `data/layout/yard.json`), `scripts/world/spill_spawner.gd`.
 - `scripts/hazards/`: `perception.gd`, `chase_brain.gd` (чистые), `hazard_base.gd`, `dog.gd`, `wasp.gd`, `cyclist.gd`.
-- `scripts/ui/hud.gd` + `scenes/ui/hud.tscn`.
+- `scripts/ui/hud.gd` + `scenes/ui/hud.tscn`; экраны `shop_menu.gd`, `album_menu.gd`, `pause_menu.gd`, `title.gd` (главная сцена `scenes/ui/title.tscn`), `menu_input.gd` (опрос клавиш меню, работает на паузе).
+- `scripts/core/shop_item.gd`, `shop_catalog.gd`, `cat_skin.gd`, `skin_catalog.gd`; данные `data/shop/*.tres`, `data/skins/*.tres`.
+- `scripts/autoload/save_game.gd` — JSON в `user://save.json`, пишет только по `save_now()` из `Main`; в тестах с `Main` путь переопределяется.
+- `scripts/world/gate.gd` (ворота по сытости), `scripts/world/yarn_shop.gd` (будка: безопасная зона, возрождение, витрина), `scripts/food/yarn_pickup.gd`.
 - `scripts/visual/toon.gd` — `Toon.apply(root, width_m)`; ширина в метрах, пересчитывается под масштаб узла.
 - `scripts/autoload/input_setup.gd` (InputMap в коде), `dev_tools.gd` (`++ --screenshot=path`).
 - `tools/blender/`: `palette.py`, `lib.py` (rounded_box, world_extent, tri_count, check_asset), `export.py`, `build.py`, `cat.py`, `gen/*.py` (каждый: `SPEC` + `build()`).
@@ -100,10 +103,12 @@ make run           # запустить игру (WASD, Shift бег, Space пр
 
 **План 2:** GUT считает ошибки движка провалом (`failure_error_types` без `engine` в `.gutconfig.json`); поля чужих узлов через `set/get/call`; `home`/`anchor` опасностей на первом физическом кадре; объектные каналы в actions Blender выкидывать (`rig_utils.clean_action`); меш с поворотом относительно арматуры запекать в вершины; в тестах с котом нужен пол.
 
+**План 3:** ожидания GUT стоят на паузе дерева → в тестах паузы `get_tree().create_timer(t, true)`; `Input.action_press` не создаёт событий → меню опрашивать `is_action_just_pressed` из узла с `PROCESS_MODE_ALWAYS`; `Main` оставлять `INHERIT`; `JSON.parse_string` печатает ERROR движка (использовать `JSON.new().parse()`); `Color` из `.tres` сравнивать через `to_html()`.
+
 **UniMate на Mac** (подробно в заметке): venv Python 3.10 через `uv`, requirements без `+cu124`, `sampling.device = cpu` в `config.json` чекпоинта (MPS не умеет float64), ручная `annotation.json` (авторазметка путает спину и хвост), шим `blender` → venv-python с pip-`bpy` для `run_animate_motion.sh`. Окружение жило в scratchpad и не сохранилось; чекпоинт 1,2 ГБ качается с HF заново.
 
 ## Статус и что дальше
 
-- План 1 выполнен и слит в `main` (2026-10-08). План 2 «Игровой цикл» выполнен 2026-10-08 (ветка `plan-2-gameplay`): еда, укрытия, удар, HUD, двор из JSON, собака, оса, велосипедист, 12 пропсов. Отложенные мелочи — в конце дорожной карты.
-- Следующий шаг: план 3 «Хаб и прогрессия» (клубочки, магазин пряжи, альбом, арка в кафе по сытости 10, сохранение, кафе) по дорожной карте, опираясь на реальные `GameState`, `WorldBuilder`, `Hud`.
+- Планы 1–3 выполнены и слиты в `main` (2026-10-08): фундамент, игровой цикл, хаб и прогрессия (клубочки, магазин, скины, сохранение, ворота, альбом, пауза, заставка, кафе). Отложенные мелочи — в конце дорожной карты.
+- Следующий шаг: план 4 «Полировка под ролик» (эмоции глаз, пропорции лап, частицы, 6 звуков CC0, виньетка, экспорт mac-билда, плейтест баланса) по дорожной карте.
 - Открытый вопрос владельцу: лицензия весов UniMate для сгенерированных движений (код MIT, для весов явной лицензии не найдено).

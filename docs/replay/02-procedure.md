@@ -417,6 +417,71 @@ dummy-рендерера. Итог: 12 Blender + 88 GUT тестов.
 
 ---
 
+# План 3. Хаб и прогрессия (выполнен 2026-10-08)
+
+План: `docs/superpowers/plans/2026-10-08-snack-run-03-hub.md` (10 задач). Ветка `plan-3-hub`.
+Файлы — в приложении `03-files.md`. Ниже контрольные точки и то, что отличалось от плана.
+
+## Задачи 1–3: клубочки, товары, улучшения
+
+- `GameState`: `yarn`, `add_yarn/spend_yarn`, +3 за новую карточку; `YarnPickup` + `gen/yarn.py`
+  (`max_dim` 0,25: тор с наклоном даёт ровно 0,2); `WorldBuilder` читает `"yarn"`; HUD «◎ N». → 91 тест.
+- `ShopItem`/`ShopCatalog`, 10 `.tres` в `data/shop` (сгенерированы циклом), `GameState.can_buy/buy/owns/
+  select_skin/owned_skins`, `_apply_upgrades` пересчитывает max_hearts/mouth/speed/stealth из купленного. → 99.
+- `CatMotion.step/pick_state` с `speed_mult`; `CatSkin` + `SkinCatalog` + 4 `.tres` в `data/skins`;
+  `Toon._apply_to_mesh` копирует `resource_name` в дубликат материала (скины узнают поверхности по имени);
+  `Dog.sees_cat` умножает конус на `GameState.stealth_mult`. Цвета в тестах сравнивать через `to_html()`:
+  `Color` из `.tres` (6 знаков) не равен `Color("#hex")` побитно. → 104.
+
+## Задача 4: сохранение
+
+- `scripts/autoload/save_game.gd` (автозагрузка `SaveGame` после `GameState` в `project.godot`),
+  `GameState.to_dict/from_dict` (терпит мусор в файле), `Main`: `SaveGame.load_now()` до создания кота,
+  автосохранение по сигналам прогресса через `Callable.unbind(1)`, сохранение при закрытии окна.
+- Грабли: `JSON.parse_string` печатает `ERROR` движка на повреждённом файле, и Makefile валит прогон —
+  разбирать через `JSON.new().parse()`. Тесты с `Main` ставят `SaveGame.path = "user://test_save.json"`
+  в `before_each` и `clear()` в `after_each`. → 109.
+
+## Задача 5: ворота
+
+- `scripts/world/gate.gd` (StaticBody3D, прутья BoxMesh, `refresh(satiety)`), `WorldBuilder` читает `"gates"`,
+  в `yard.json` ворота в проёме арки (0, 0, 10.5), HUD `SatietyLabel` («Сытость N/10» / «Кафе открыто»),
+  `Main` подписывает `opened` на вспышку. Тест проёма арки теперь ждёт `gate_0`, а после сытости 10 — пусто. → 111.
+
+## Задача 6: будка пряжи
+
+- `gen/yarn_shop.py` (открытый перёд по +Y Blender = −Z Godot; плита пола 3 см без коллайдера),
+  `scenes/world/yarn_shop.tscn` (стенки-коллайдеры, `Zone`, `Respawn`, `ViewPoint`, `YarnPlay`),
+  `scripts/world/yarn_shop.gd`; `WorldBuilder` читает `"shop"`; в раскладке будка (−4.5, 0, −1.5) `rot 180`
+  входом к спавну. `Cat.in_safe_zone` (удары не проходят), `Cat.input_enabled`; `Dog` считает кота в зоне
+  спрятанным; `CameraRig.shop_view`; `Main.respawn_position()` берёт маркер будки. → 117.
+
+## Задачи 7–8: экраны
+
+- `scripts/ui/shop_menu.gd` + `.tscn`, `scripts/ui/menu_input.gd` (узел с `PROCESS_MODE_ALWAYS`, опрашивает
+  `eat`/`album`/`pause` через `Input.is_action_just_pressed`: события от `Input.action_press` в тестах не
+  приходят в `_unhandled_input`, а `Main` на паузе замирает). `Main.open_shop/close_shop`,
+  `on_interact_pressed/on_back_pressed/on_album_pressed`. Камера-витрина едет в `YarnShop.view_position()`
+  (точка у входа, поворачивается с будкой); мировое смещение упиралось в стенку. → 120.
+- `album_menu.gd` (карточка — `VBoxContainer` с прямыми детьми `Rarity/Name/Count`), `pause_menu.gd`,
+  `title.gd` + `title.tscn` — главная сцена; `Makefile` `shot` передаёт `res://scenes/main.tscn` явно;
+  действия `album` (Tab/Y) и `pause` (Esc/Start); таймеры велосипедиста и спавна — `create_timer(t, false)`.
+- Грабли паузы: ожидания GUT (`wait_seconds`) сами стоят на паузе — прогон зависает; в тесте паузы ждать
+  `get_tree().create_timer(t, true).timeout`. После `reset_progress()` автосохранение сразу пишет чистое
+  состояние — тест принимает «файла нет или yarn=0». → 124.
+
+## Задача 9: кафе
+
+- `gen/cafe_table.py`, `chair.py`, `umbrella.py`, `cafe_sign.py`; раскладка: стены z=28, вывеска, 5 столов
+  с коллайдерами столешниц, 8 стульев, 3 зонта (рядом со столами, не в центре — стойка попала бы в коллайдер
+  и под точку спавна), баки, кусты, лужа; еда на столах (y 0,75), вторая оса на высоте 1,1 над десертным
+  столом (`Wasp.configure` читает `height`); два клубочка на столах. Итог: 61 пропс, 16 точек спавна,
+  4 опасности, 12 клубочков. → 124 теста, все инварианты раскладки проходят.
+
+## Задача 10: документация, `make replay`, дорожная карта, `CLAUDE.md`.
+
+---
+
 ## Известные грабли (сводка, чтобы не искать по тексту)
 
 **Godot 4.7:** `class_name` виден после `make import`; GUT не падает на parse error (grep в Makefile);
@@ -431,6 +496,11 @@ dummy-рендерера. Итог: 12 Blender + 88 GUT тестов.
 
 **UniMate:** CPU (`sampling.device`), requirements без `+cu124`, ручная разметка суставов, шим
 `blender` для venv-`bpy`, чекпоинт докачивать с `-C -`. Позы лёжа/сидя для четвероногих не получаются.
+
+**План 3:** ожидания GUT стоят на паузе дерева (ждать `create_timer(t, true)`); `Input.action_press` не
+даёт событий `_unhandled_input` — меню опрашивать `is_action_just_pressed` из узла `ALWAYS`; `Main` не
+делать `ALWAYS` (дети унаследуют и не встанут на паузу); `JSON.parse_string` печатает ERROR движка;
+`Color` из `.tres` сравнивать через `to_html()`; камера-витрина — точка на будке, не мировое смещение.
 
 **План 2 (Godot):** GUT 9.7 считает ошибки движка провалом → `failure_error_types` без `engine`;
 поля чужих узлов через `set/get/call`; `home`/`anchor` брать на первом физическом кадре, не в `_ready`;

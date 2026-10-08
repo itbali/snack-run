@@ -5,7 +5,7 @@
 Отступы в GDScript и Makefile — табы; в Python проекта — тоже табы, кроме
 `palette.py` и тестов Blender (пробелы). Копировать как есть.
 
-Файлов: 112
+Файлов: 146
 
 ## `CLAUDE.md`
 
@@ -73,7 +73,10 @@ make run           # запустить игру (WASD, Shift бег, Space пр
 - `scripts/core/` (`Layers`, `Rarity`), `scripts/food/` (`FoodDef`, `FoodCatalog`, `FoodPickup`, `FoodSpawnPoint`), `data/food/*.tres`.
 - `scripts/hideouts/hideout.gd`, `scripts/world/world_builder.gd` (двор из `data/layout/yard.json`), `scripts/world/spill_spawner.gd`.
 - `scripts/hazards/`: `perception.gd`, `chase_brain.gd` (чистые), `hazard_base.gd`, `dog.gd`, `wasp.gd`, `cyclist.gd`.
-- `scripts/ui/hud.gd` + `scenes/ui/hud.tscn`.
+- `scripts/ui/hud.gd` + `scenes/ui/hud.tscn`; экраны `shop_menu.gd`, `album_menu.gd`, `pause_menu.gd`, `title.gd` (главная сцена `scenes/ui/title.tscn`), `menu_input.gd` (опрос клавиш меню, работает на паузе).
+- `scripts/core/shop_item.gd`, `shop_catalog.gd`, `cat_skin.gd`, `skin_catalog.gd`; данные `data/shop/*.tres`, `data/skins/*.tres`.
+- `scripts/autoload/save_game.gd` — JSON в `user://save.json`, пишет только по `save_now()` из `Main`; в тестах с `Main` путь переопределяется.
+- `scripts/world/gate.gd` (ворота по сытости), `scripts/world/yarn_shop.gd` (будка: безопасная зона, возрождение, витрина), `scripts/food/yarn_pickup.gd`.
 - `scripts/visual/toon.gd` — `Toon.apply(root, width_m)`; ширина в метрах, пересчитывается под масштаб узла.
 - `scripts/autoload/input_setup.gd` (InputMap в коде), `dev_tools.gd` (`++ --screenshot=path`).
 - `tools/blender/`: `palette.py`, `lib.py` (rounded_box, world_extent, tri_count, check_asset), `export.py`, `build.py`, `cat.py`, `gen/*.py` (каждый: `SPEC` + `build()`).
@@ -112,12 +115,14 @@ make run           # запустить игру (WASD, Shift бег, Space пр
 
 **План 2:** GUT считает ошибки движка провалом (`failure_error_types` без `engine` в `.gutconfig.json`); поля чужих узлов через `set/get/call`; `home`/`anchor` опасностей на первом физическом кадре; объектные каналы в actions Blender выкидывать (`rig_utils.clean_action`); меш с поворотом относительно арматуры запекать в вершины; в тестах с котом нужен пол.
 
+**План 3:** ожидания GUT стоят на паузе дерева → в тестах паузы `get_tree().create_timer(t, true)`; `Input.action_press` не создаёт событий → меню опрашивать `is_action_just_pressed` из узла с `PROCESS_MODE_ALWAYS`; `Main` оставлять `INHERIT`; `JSON.parse_string` печатает ERROR движка (использовать `JSON.new().parse()`); `Color` из `.tres` сравнивать через `to_html()`.
+
 **UniMate на Mac** (подробно в заметке): venv Python 3.10 через `uv`, requirements без `+cu124`, `sampling.device = cpu` в `config.json` чекпоинта (MPS не умеет float64), ручная `annotation.json` (авторазметка путает спину и хвост), шим `blender` → venv-python с pip-`bpy` для `run_animate_motion.sh`. Окружение жило в scratchpad и не сохранилось; чекпоинт 1,2 ГБ качается с HF заново.
 
 ## Статус и что дальше
 
-- План 1 выполнен и слит в `main` (2026-10-08). План 2 «Игровой цикл» выполнен 2026-10-08 (ветка `plan-2-gameplay`): еда, укрытия, удар, HUD, двор из JSON, собака, оса, велосипедист, 12 пропсов. Отложенные мелочи — в конце дорожной карты.
-- Следующий шаг: план 3 «Хаб и прогрессия» (клубочки, магазин пряжи, альбом, арка в кафе по сытости 10, сохранение, кафе) по дорожной карте, опираясь на реальные `GameState`, `WorldBuilder`, `Hud`.
+- Планы 1–3 выполнены и слиты в `main` (2026-10-08): фундамент, игровой цикл, хаб и прогрессия (клубочки, магазин, скины, сохранение, ворота, альбом, пауза, заставка, кафе). Отложенные мелочи — в конце дорожной карты.
+- Следующий шаг: план 4 «Полировка под ролик» (эмоции глаз, пропорции лап, частицы, 6 звуков CC0, виньетка, экспорт mac-билда, плейтест баланса) по дорожной карте.
 - Открытый вопрос владельцу: лицензия весов UniMate для сгенерированных движений (код MIT, для весов явной лицензии не найдено).
 ````
 
@@ -150,7 +155,7 @@ assets:
 
 shot: import
 	mkdir -p build
-	$(GODOT) --path . --resolution 1280x720 ++ --screenshot=$(SHOT)
+	$(GODOT) --path . --resolution 1280x720 res://scenes/main.tscn ++ --screenshot=$(SHOT)
 
 run: import
 	$(GODOT) --path .
@@ -168,7 +173,7 @@ config_version=5
 [application]
 
 config/name="Snack Run"
-run/main_scene="res://scenes/main.tscn"
+run/main_scene="res://scenes/ui/title.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 
 [autoload]
@@ -176,6 +181,7 @@ config/features=PackedStringArray("4.7", "Forward Plus")
 InputSetup="*res://scripts/autoload/input_setup.gd"
 DevTools="*res://scripts/autoload/dev_tools.gd"
 GameState="*res://scripts/autoload/game_state.gd"
+SaveGame="*res://scripts/autoload/save_game.gd"
 
 [display]
 
@@ -263,6 +269,26 @@ mesh = SubResource("ring")
 
 [node name="FoodSpawnPoint" type="Node3D"]
 script = ExtResource("1")
+```
+
+## `scenes/food/yarn_pickup.tscn`
+
+```
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/food/yarn_pickup.gd" id="1"]
+
+[sub_resource type="SphereShape3D" id="shape"]
+radius = 0.25
+
+[node name="YarnPickup" type="Area3D"]
+script = ExtResource("1")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 0)
+shape = SubResource("shape")
+
+[node name="Visual" type="Node3D" parent="."]
 ```
 
 ## `scenes/hazards/cyclist.tscn`
@@ -363,6 +389,10 @@ script = ExtResource("1")
 [ext_resource type="PackedScene" path="res://scenes/world/lighting.tscn" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/world/district_yard.tscn" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="4"]
+[ext_resource type="PackedScene" path="res://scenes/ui/shop_menu.tscn" id="5"]
+[ext_resource type="PackedScene" path="res://scenes/ui/album_menu.tscn" id="6"]
+[ext_resource type="PackedScene" path="res://scenes/ui/pause_menu.tscn" id="7"]
+[ext_resource type="Script" path="res://scripts/ui/menu_input.gd" id="8"]
 
 [node name="Main" type="Node3D"]
 script = ExtResource("1")
@@ -372,6 +402,15 @@ script = ExtResource("1")
 [node name="DistrictYard" parent="." instance=ExtResource("3")]
 
 [node name="Hud" parent="." instance=ExtResource("4")]
+
+[node name="ShopMenu" parent="." instance=ExtResource("5")]
+
+[node name="AlbumMenu" parent="." instance=ExtResource("6")]
+
+[node name="PauseMenu" parent="." instance=ExtResource("7")]
+
+[node name="MenuInput" type="Node" parent="."]
+script = ExtResource("8")
 ```
 
 ## `scenes/player/camera_rig.tscn`
@@ -411,6 +450,54 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.09, 0)
 shape = SubResource("shape")
 
 [node name="Model" parent="." instance=ExtResource("2")]
+```
+
+## `scenes/ui/album_menu.tscn`
+
+```
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/album_menu.gd" id="1"]
+
+[node name="AlbumMenu" type="CanvasLayer"]
+layer = 21
+script = ExtResource("1")
+
+[node name="Panel" type="PanelContainer" parent="."]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -340.0
+offset_top = -230.0
+offset_right = 340.0
+offset_bottom = 230.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Margin" type="MarginContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="VBox" type="VBoxContainer" parent="Panel/Margin"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+text = "Альбом вкусняшек"
+
+[node name="Grid" type="GridContainer" parent="Panel/Margin/VBox"]
+layout_mode = 2
+columns = 4
+
+[node name="Close" type="Button" parent="Panel/Margin/VBox"]
+layout_mode = 2
+text = "Закрыть (Tab)"
 ```
 
 ## `scenes/ui/hud.tscn`
@@ -476,6 +563,188 @@ horizontal_alignment = 1
 theme_override_font_sizes/font_size = 28
 text = "🔔 Велосипед!"
 visible = false
+
+[node name="Yarn" type="Label" parent="."]
+offset_left = 24.0
+offset_top = 92.0
+offset_right = 224.0
+offset_bottom = 124.0
+theme_override_colors/font_color = Color(0.706, 0.427, 0.710, 1)
+theme_override_font_sizes/font_size = 24
+text = "◎ 0"
+
+[node name="SatietyLabel" type="Label" parent="."]
+offset_left = 232.0
+offset_top = 62.0
+offset_right = 460.0
+offset_bottom = 86.0
+theme_override_font_sizes/font_size = 16
+text = "Сытость 0/10"
+```
+
+## `scenes/ui/pause_menu.tscn`
+
+```
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/pause_menu.gd" id="1"]
+
+[node name="PauseMenu" type="CanvasLayer"]
+layer = 22
+script = ExtResource("1")
+
+[node name="Panel" type="PanelContainer" parent="."]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -160.0
+offset_top = -110.0
+offset_right = 160.0
+offset_bottom = 110.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Margin" type="MarginContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="VBox" type="VBoxContainer" parent="Panel/Margin"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+text = "Пауза"
+
+[node name="Continue" type="Button" parent="Panel/Margin/VBox"]
+layout_mode = 2
+text = "Продолжить"
+
+[node name="ResetProgress" type="Button" parent="Panel/Margin/VBox"]
+layout_mode = 2
+text = "Сбросить прогресс"
+
+[node name="Quit" type="Button" parent="Panel/Margin/VBox"]
+layout_mode = 2
+text = "Выйти"
+```
+
+## `scenes/ui/shop_menu.tscn`
+
+```
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/shop_menu.gd" id="1"]
+
+[node name="ShopMenu" type="CanvasLayer"]
+layer = 20
+script = ExtResource("1")
+
+[node name="Panel" type="PanelContainer" parent="."]
+anchors_preset = 6
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -420.0
+offset_top = -260.0
+offset_right = -24.0
+offset_bottom = 260.0
+grow_horizontal = 0
+grow_vertical = 2
+
+[node name="Margin" type="MarginContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="VBox" type="VBoxContainer" parent="Panel/Margin"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+text = "Магазин пряжи"
+
+[node name="Yarn" type="Label" parent="Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "◎ 0"
+
+[node name="List" type="VBoxContainer" parent="Panel/Margin/VBox"]
+layout_mode = 2
+
+[node name="Close" type="Button" parent="Panel/Margin/VBox"]
+layout_mode = 2
+text = "Закрыть (Esc)"
+```
+
+## `scenes/ui/title.tscn`
+
+```
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/title.gd" id="1"]
+
+[node name="Title" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.396, 0.620, 0.812, 1)
+
+[node name="VBox" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -180.0
+offset_top = -140.0
+offset_right = 180.0
+offset_bottom = 140.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 16
+
+[node name="Logo" type="Label" parent="VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 64
+horizontal_alignment = 1
+text = "Snack Run"
+
+[node name="Tagline" type="Label" parent="VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+horizontal_alignment = 1
+text = "Маленький кот. Большой мир. Вкусные приключения."
+
+[node name="Play" type="Button" parent="VBox"]
+layout_mode = 2
+text = "Играть"
+
+[node name="Quit" type="Button" parent="VBox"]
+layout_mode = 2
+text = "Выход"
 ```
 
 ## `scenes/world/district_yard.tscn`
@@ -507,6 +776,23 @@ layout_path = "res://data/layout/yard.json"
 
 [node name="Spawn" type="Marker3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 0)
+```
+
+## `scenes/world/gate.tscn`
+
+```
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/world/gate.gd" id="1"]
+
+[node name="Gate" type="StaticBody3D"]
+collision_layer = 1
+collision_mask = 0
+script = ExtResource("1")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+
+[node name="Bars" type="Node3D" parent="."]
 ```
 
 ## `scenes/world/lighting.tscn`
@@ -543,6 +829,60 @@ shadow_enabled = true
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("env")
+```
+
+## `scenes/world/yarn_shop.tscn`
+
+```
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/world/yarn_shop.gd" id="1"]
+[ext_resource type="PackedScene" path="res://assets/models/yarn_shop.glb" id="2"]
+
+[sub_resource type="BoxShape3D" id="zone"]
+size = Vector3(2.0, 2.0, 2.0)
+
+[sub_resource type="BoxShape3D" id="back"]
+size = Vector3(2.2, 2.4, 0.12)
+
+[sub_resource type="BoxShape3D" id="side"]
+size = Vector3(0.12, 2.4, 2.2)
+
+[node name="YarnShop" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Model" parent="." instance=ExtResource("2")]
+
+[node name="Walls" type="StaticBody3D" parent="."]
+collision_layer = 1
+collision_mask = 0
+
+[node name="Back" type="CollisionShape3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 1.04)
+shape = SubResource("back")
+
+[node name="Left" type="CollisionShape3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.04, 1.2, 0)
+shape = SubResource("side")
+
+[node name="Right" type="CollisionShape3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.04, 1.2, 0)
+shape = SubResource("side")
+
+[node name="Zone" type="Area3D" parent="."]
+
+[node name="Shape" type="CollisionShape3D" parent="Zone"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0, 0)
+shape = SubResource("zone")
+
+[node name="Respawn" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 0.2)
+
+[node name="ViewPoint" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.8, 0.55, -2.0)
+
+[node name="YarnPlay" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, -0.2)
 ```
 
 ## `scripts/autoload/dev_tools.gd`
@@ -586,12 +926,19 @@ signal cat_hit(spilled: Array)
 signal cat_fainted()
 signal goal_changed(done: int, target: int)
 signal goal_completed(target: int)
+signal yarn_changed(count: int)
+signal upgrade_bought(id: StringName)
+signal skin_changed(id: StringName)
 
 const MAX_HEARTS := 3
 const MOUTH_CAPACITY := 3
 const GOAL_FIRST := 3
 const GOAL_STEP := 2
 const SATIETY_GATE := 10   # сытость, открывающая арку в кафе (план 3)
+const YARN_PER_CARD := 3
+const SPEED_BONUS := 1.15
+const STEALTH_BONUS := 0.7
+const DEFAULT_SKIN := &"orange"
 
 var max_hearts := MAX_HEARTS
 var hearts := MAX_HEARTS
@@ -601,6 +948,11 @@ var satiety := 0
 var album := {}          # id -> сколько раз съедено
 var goal_target := GOAL_FIRST
 var goal_done := 0       # новых карточек с начала текущей цели
+var yarn := 0            # клубочки, валюта магазина
+var upgrades := {}       # id товара -> true
+var skin: StringName = DEFAULT_SKIN
+var speed_mult := 1.0
+var stealth_mult := 1.0
 
 
 func reset() -> void:
@@ -612,11 +964,17 @@ func reset() -> void:
 	album = {}
 	goal_target = GOAL_FIRST
 	goal_done = 0
+	yarn = 0
+	upgrades = {}
+	skin = DEFAULT_SKIN
+	_apply_upgrades()
 	hearts_changed.emit(hearts, max_hearts)
 	mouth_changed.emit(mouth)
 	satiety_changed.emit(satiety)
 	album_changed.emit(album)
 	goal_changed.emit(goal_done, goal_target)
+	yarn_changed.emit(yarn)
+	skin_changed.emit(skin)
 
 
 func mouth_full() -> bool:
@@ -641,8 +999,10 @@ func eat_all() -> Array[FoodDef]:
 		if not album.has(f.id):
 			album[f.id] = 0
 			goal_done += 1
+			yarn += YARN_PER_CARD
 		album[f.id] += 1
 	hearts = mini(hearts + 1, max_hearts)
+	yarn_changed.emit(yarn)
 	mouth_changed.emit(mouth)
 	satiety_changed.emit(satiety)
 	album_changed.emit(album)
@@ -684,6 +1044,138 @@ func revive() -> void:
 
 func album_count() -> int:
 	return album.size()
+
+
+func add_yarn(n: int) -> void:
+	yarn += n
+	yarn_changed.emit(yarn)
+
+
+func spend_yarn(n: int) -> bool:
+	if n > yarn:
+		return false
+	yarn -= n
+	yarn_changed.emit(yarn)
+	return true
+
+
+func owns(id: StringName) -> bool:
+	return upgrades.has(id)
+
+
+func can_buy(item: ShopItem) -> bool:
+	if item == null or yarn < item.price:
+		return false
+	if item.requires != &"" and not owns(item.requires):
+		return false
+	if item.kind == "refill":
+		return hearts < max_hearts
+	return not owns(item.id)
+
+
+func buy(item: ShopItem) -> bool:
+	if not can_buy(item):
+		return false
+	spend_yarn(item.price)
+	if item.kind == "refill":
+		hearts = max_hearts
+		hearts_changed.emit(hearts, max_hearts)
+		return true
+	upgrades[item.id] = true
+	_apply_upgrades()
+	if item.kind == "max_heart":
+		hearts = max_hearts
+		hearts_changed.emit(hearts, max_hearts)
+	if item.kind == "skin":
+		select_skin(item.skin_id)
+	upgrade_bought.emit(item.id)
+	return true
+
+
+func _apply_upgrades() -> void:
+	max_hearts = MAX_HEARTS
+	mouth_capacity = MOUTH_CAPACITY
+	speed_mult = 1.0
+	stealth_mult = 1.0
+	for it in ShopCatalog.all():
+		if not owns(it.id):
+			continue
+		match it.kind:
+			"max_heart":
+				max_hearts = maxi(max_hearts, it.value)
+			"mouth":
+				mouth_capacity = maxi(mouth_capacity, it.value)
+			"speed":
+				speed_mult = SPEED_BONUS
+			"quiet":
+				stealth_mult = STEALTH_BONUS
+	hearts = mini(hearts, max_hearts)
+
+
+func owned_skins() -> Array[StringName]:
+	var out: Array[StringName] = [DEFAULT_SKIN]
+	for it in ShopCatalog.all():
+		if it.kind == "skin" and owns(it.id):
+			out.append(it.skin_id)
+	return out
+
+
+func select_skin(id: StringName) -> bool:
+	if not owned_skins().has(id):
+		return false
+	skin = id
+	skin_changed.emit(skin)
+	return true
+
+
+func to_dict() -> Dictionary:
+	var album_out := {}
+	for k in album:
+		album_out[String(k)] = album[k]
+	var upgrades_out := {}
+	for k in upgrades:
+		upgrades_out[String(k)] = true
+	return {
+		"version": 1,
+		"album": album_out,
+		"satiety": satiety,
+		"yarn": yarn,
+		"upgrades": upgrades_out,
+		"skin": String(skin),
+		"goal_target": goal_target,
+		"goal_done": goal_done,
+	}
+
+
+func from_dict(d: Dictionary) -> void:
+	reset()
+	if d.get("album") is Dictionary:
+		for k in d["album"]:
+			if d["album"][k] is float or d["album"][k] is int:
+				album[StringName(k)] = int(d["album"][k])
+	if d.get("satiety") is float or d.get("satiety") is int:
+		satiety = int(d["satiety"])
+	if d.get("yarn") is float or d.get("yarn") is int:
+		yarn = int(d["yarn"])
+	if d.get("upgrades") is Dictionary:
+		for k in d["upgrades"]:
+			if ShopCatalog.get_by_id(StringName(k)) != null:
+				upgrades[StringName(k)] = true
+	_apply_upgrades()
+	hearts = max_hearts
+	if d.get("skin") is String and owned_skins().has(StringName(d["skin"])):
+		skin = StringName(d["skin"])
+	if d.get("goal_target") is float or d.get("goal_target") is int:
+		goal_target = maxi(int(d["goal_target"]), GOAL_FIRST)
+	if d.get("goal_done") is float or d.get("goal_done") is int:
+		goal_done = maxi(int(d["goal_done"]), 0)
+	hearts_changed.emit(hearts, max_hearts)
+	mouth_changed.emit(mouth)
+	satiety_changed.emit(satiety)
+	album_changed.emit(album)
+	yarn_changed.emit(yarn)
+	skin_changed.emit(skin)
+	goal_changed.emit(goal_done, goal_target)
 ```
 
 ## `scripts/autoload/input_setup.gd`
@@ -703,11 +1195,15 @@ const ACTIONS := {
 	"eat": [KEY_E],
 	"cam_left": [KEY_Q],
 	"cam_right": [KEY_R],
+	"album": [KEY_TAB],
+	"pause": [KEY_ESCAPE],
 }
 const PAD_BUTTONS := {
 	"jump": JOY_BUTTON_A,
 	"hide": JOY_BUTTON_B,
 	"eat": JOY_BUTTON_X,
+	"album": JOY_BUTTON_Y,
+	"pause": JOY_BUTTON_START,
 }
 const PAD_AXES := {
 	"move_left": [JOY_AXIS_LEFT_X, -1.0],
@@ -742,6 +1238,87 @@ static func register() -> void:
 			m.axis = PAD_AXES[action][0]
 			m.axis_value = PAD_AXES[action][1]
 			InputMap.action_add_event(action, m)
+```
+
+## `scripts/autoload/save_game.gd`
+
+```gdscript
+extends Node
+## Сохранение прогресса в JSON. Пишет только по явному вызову save_now() (из Main).
+
+const VERSION := 1
+
+var path := "user://save.json"
+
+
+func save_now() -> bool:
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f == null:
+		push_warning("не удалось открыть %s для записи" % path)
+		return false
+	f.store_string(JSON.stringify(GameState.to_dict(), "\t"))
+	f.close()
+	return true
+
+
+func load_now() -> bool:
+	if not FileAccess.file_exists(path):
+		GameState.reset()
+		return false
+	var text := FileAccess.get_file_as_string(path)
+	var json := JSON.new()   # parse() возвращает код ошибки и не печатает ERROR в консоль, в отличие от parse_string
+	var parsed = json.data if json.parse(text) == OK else null
+	if not (parsed is Dictionary):
+		push_warning("сохранение повреждено, начинаем заново: " + path)
+		GameState.reset()
+		return false
+	GameState.from_dict(parsed)
+	return true
+
+
+func clear() -> void:
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+```
+
+## `scripts/core/cat_skin.gd`
+
+```gdscript
+class_name CatSkin
+extends Resource
+## Скин кота: три цвета для трёх материалов модели (спек 2.4).
+
+const ROLE_BY_MATERIAL := {"sr_cat_orange": "body", "sr_cream": "belly", "sr_coral": "accent"}
+
+@export var id: StringName = &"orange"
+@export var display_name := "Рыжий"
+@export var body := Color("#FAAE45")
+@export var belly := Color("#FCD3A1")
+@export var accent := Color("#F57485")
+
+
+static func apply(model: Node, skin: CatSkin) -> int:
+	var count := 0
+	var meshes: Array = model.find_children("*", "MeshInstance3D", true, false)
+	if model is MeshInstance3D:
+		meshes.append(model)
+	for mi in meshes:
+		var m3 := mi as MeshInstance3D
+		if m3.mesh == null:
+			continue
+		for i in m3.mesh.get_surface_count():
+			var mat := m3.get_surface_override_material(i) as StandardMaterial3D
+			if mat == null or not ROLE_BY_MATERIAL.has(mat.resource_name):
+				continue
+			match ROLE_BY_MATERIAL[mat.resource_name]:
+				"body":
+					mat.albedo_color = skin.body
+				"belly":
+					mat.albedo_color = skin.belly
+				"accent":
+					mat.albedo_color = skin.accent
+			count += 1
+	return count
 ```
 
 ## `scripts/core/layers.gd`
@@ -789,6 +1366,80 @@ static func pick_weighted(allowed: Array, rng: RandomNumberGenerator) -> int:
 		if roll <= 0:
 			return t
 	return allowed[-1]
+```
+
+## `scripts/core/shop_catalog.gd`
+
+```gdscript
+class_name ShopCatalog
+extends RefCounted
+## Загружает товары из data/shop.
+
+const DIR := "res://data/shop"
+static var _cache: Array[ShopItem] = []
+
+
+static func all() -> Array[ShopItem]:
+	if _cache.is_empty():
+		for n in DirAccess.get_files_at(DIR):
+			if n.ends_with(".tres"):
+				var res := load(DIR + "/" + n)
+				if res is ShopItem:
+					_cache.append(res)
+		_cache.sort_custom(func(a: ShopItem, b: ShopItem) -> bool: return a.order < b.order)
+	return _cache
+
+
+static func get_by_id(id: StringName) -> ShopItem:
+	for it in all():
+		if it.id == id:
+			return it
+	return null
+```
+
+## `scripts/core/shop_item.gd`
+
+```gdscript
+class_name ShopItem
+extends Resource
+## Товар магазина пряжи (спек 3.5). Файлы в data/shop/*.tres.
+
+@export var id: StringName = &""
+@export var display_name := ""
+@export var price := 0
+@export var kind := "refill"          # refill | max_heart | mouth | speed | quiet | skin
+@export var value := 0                # новый max_hearts / mouth_capacity
+@export var skin_id: StringName = &""
+@export var requires: StringName = &""
+@export var order := 0
+```
+
+## `scripts/core/skin_catalog.gd`
+
+```gdscript
+class_name SkinCatalog
+extends RefCounted
+
+const DIR := "res://data/skins"
+static var _cache: Array[CatSkin] = []
+
+
+static func all() -> Array[CatSkin]:
+	if _cache.is_empty():
+		for n in DirAccess.get_files_at(DIR):
+			if n.ends_with(".tres"):
+				var res := load(DIR + "/" + n)
+				if res is CatSkin:
+					_cache.append(res)
+		_cache.sort_custom(func(a: CatSkin, b: CatSkin) -> bool: return a.id < b.id)
+	return _cache
+
+
+static func get_by_id(id: StringName) -> CatSkin:
+	for s in all():
+		if s.id == id:
+			return s
+	return null
 ```
 
 ## `scripts/food/food_catalog.gd`
@@ -979,7 +1630,43 @@ func spawn_now() -> FoodPickup:
 func _on_picked(_food: FoodDef, _pickup: FoodPickup) -> void:
 	current = null
 	var delay := rng.randf_range(respawn_min, respawn_max)
-	get_tree().create_timer(delay).timeout.connect(spawn_now)
+	get_tree().create_timer(delay, false).timeout.connect(spawn_now)
+```
+
+## `scripts/food/yarn_pickup.gd`
+
+```gdscript
+class_name YarnPickup
+extends Area3D
+## Клубочек: валюта магазина. Лежит в труднодоступном месте, не респавнится (спек 3.4).
+
+@onready var _visual: Node3D = $Visual
+var _t := 0.0
+
+
+func _ready() -> void:
+	add_to_group("yarn")
+	collision_layer = Layers.AREA
+	collision_mask = Layers.CAT
+	monitorable = false
+	body_entered.connect(_on_body)
+	var model := (load("res://assets/models/yarn.glb") as PackedScene).instantiate()
+	_visual.add_child(model)
+	Toon.apply(_visual, Toon.OUTLINE_FOOD)
+
+
+func _process(delta: float) -> void:
+	_t += delta
+	_visual.rotation.y += 1.5 * delta
+	_visual.position.y = 0.03 * (0.5 + 0.5 * sin(_t * 3.0))
+
+
+func _on_body(body: Node3D) -> void:
+	if not body.is_in_group("cat"):
+		return
+	GameState.add_yarn(1)
+	set_deferred("monitoring", false)
+	queue_free()
 ```
 
 ## `scripts/hazards/chase_brain.gd`
@@ -1080,14 +1767,14 @@ func _ready() -> void:
 
 func start_cycle() -> void:
 	var wait := _rng.randf_range(interval_min, interval_max)
-	get_tree().create_timer(wait).timeout.connect(_ring)
+	get_tree().create_timer(wait, false).timeout.connect(_ring)
 
 
 func _ring() -> void:
 	if not is_inside_tree():
 		return
 	bell.emit()
-	get_tree().create_timer(bell_lead).timeout.connect(_depart)
+	get_tree().create_timer(bell_lead, false).timeout.connect(_depart)
 
 
 func _depart() -> void:
@@ -1156,16 +1843,16 @@ func reset_pursuit() -> void:
 
 func sees_cat() -> bool:
 	var c := _find_cat()
-	if c == null or c.get("hidden"):
+	if c == null or c.get("hidden") or c.get("in_safe_zone"):
 		return false
 	var forward := -global_transform.basis.z
-	return Perception.in_cone(global_position, forward, c.global_position, VISION_HALF_ANGLE, VISION_RANGE)
+	return Perception.in_cone(global_position, forward, c.global_position, VISION_HALF_ANGLE * GameState.stealth_mult, VISION_RANGE)
 
 
 func _physics_process(delta: float) -> void:
 	_ensure_home()
 	var c := _find_cat()
-	var cat_hidden: bool = c != null and bool(c.get("hidden"))
+	var cat_hidden: bool = c != null and (bool(c.get("hidden")) or bool(c.get("in_safe_zone")))
 	var at_home := global_position.distance_to(home) < HOME_RADIUS
 	var s := brain.update(delta, sees_cat(), cat_hidden, at_home)
 	match s:
@@ -1331,6 +2018,7 @@ var _t := 0.0
 
 func configure(hz: Dictionary, _builder: Node3D) -> void:
 	radius = float(hz.get("radius", radius))
+	height = float(hz.get("height", height))
 
 
 func _ready() -> void:
@@ -1423,14 +2111,19 @@ const CatScene := preload("res://scenes/player/cat.tscn")
 const RigScene := preload("res://scenes/player/camera_rig.tscn")
 
 var fade_time := 0.6
+var autosave := true
 var _cat: Cat
 var _rig: CameraRig
 var _spill: SpillSpawner
 var _fade: ColorRect
 @onready var hud: Hud = $Hud
+@onready var shop_menu: ShopMenu = $ShopMenu
+@onready var album_menu: AlbumMenu = $AlbumMenu
+@onready var pause_menu: PauseMenu = $PauseMenu
 
 
 func _ready() -> void:
+	SaveGame.load_now()
 	Toon.apply($DistrictYard, Toon.OUTLINE_NONE)
 	_rig = RigScene.instantiate()
 	_rig.name = "CameraRig"
@@ -1452,6 +2145,24 @@ func _ready() -> void:
 	for c in get_tree().get_nodes_in_group("hazards"):
 		if c.has_signal("bell"):
 			c.bell.connect(func() -> void: hud.flash_bell())
+	shop_menu.closed.connect(close_shop)
+	album_menu.closed.connect(func() -> void: _set_paused(false))
+	pause_menu.resumed.connect(func() -> void: _set_paused(false))
+	pause_menu.reset_requested.connect(reset_progress)
+	for g in get_tree().get_nodes_in_group("gates"):
+		g.opened.connect(func() -> void: hud.flash_bell("🎉 Арка в кафе открыта!", 3.0))
+	for sig in [GameState.album_changed, GameState.satiety_changed, GameState.yarn_changed, GameState.upgrade_bought, GameState.skin_changed]:
+		sig.connect(_on_progress_changed.unbind(1))
+
+
+func _on_progress_changed() -> void:
+	if autosave:
+		SaveGame.save_now()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST and autosave:
+		SaveGame.save_now()
 
 
 func _make_fade() -> ColorRect:
@@ -1484,13 +2195,88 @@ func _on_cat_fainted() -> void:
 	faint_sequence_done.emit()
 
 
+func respawn_position() -> Vector3:
+	var shop := get_tree().get_first_node_in_group("yarn_shop")
+	if shop:
+		return shop.respawn_position()
+	return $DistrictYard/Spawn.global_position
+
+
 func respawn_cat() -> void:
 	for h in get_tree().get_nodes_in_group("hazards"):
 		if h.has_method("reset_pursuit"):
 			h.call("reset_pursuit")
-	_cat.teleport($DistrictYard/Spawn.global_position)
+	_cat.teleport(respawn_position())
 	_rig.global_position = _cat.global_position + Vector3(0, CameraRig.HEIGHT, 0)
 	GameState.revive()
+
+
+func on_interact_pressed() -> void:
+	if _cat and _cat.in_safe_zone and not _cat.hidden and not shop_menu.is_open:
+		open_shop()
+
+
+func open_shop() -> void:
+	_cat.input_enabled = false
+	var shop := get_tree().get_first_node_in_group("yarn_shop")
+	if shop:
+		_rig.shop_view_point = shop.view_position()
+		_rig.use_shop_point = true
+	_rig.shop_view = true
+	hud.visible = false
+	shop_menu.open()
+
+
+func close_shop() -> void:
+	if shop_menu.is_open:
+		shop_menu.close()
+		return
+	_cat.input_enabled = true
+	_rig.shop_view = false
+	hud.visible = true
+
+
+func on_back_pressed() -> void:
+	if shop_menu.is_open:
+		close_shop()
+	elif album_menu.is_open:
+		toggle_album()
+	else:
+		toggle_pause()
+
+
+func on_album_pressed() -> void:
+	if not shop_menu.is_open and not pause_menu.is_open:
+		toggle_album()
+
+
+func _set_paused(on: bool) -> void:
+	get_tree().paused = on
+
+
+func toggle_album() -> void:
+	if album_menu.is_open:
+		album_menu.close()
+	else:
+		_set_paused(true)
+		album_menu.open()
+
+
+func toggle_pause() -> void:
+	if pause_menu.is_open:
+		pause_menu.close()
+	else:
+		_set_paused(true)
+		pause_menu.open()
+
+
+func reset_progress() -> void:
+	SaveGame.clear()
+	GameState.reset()
+	if pause_menu.is_open:
+		pause_menu.close()
+	_set_paused(false)
+	respawn_cat()
 ```
 
 ## `scripts/player/camera_rig.gd`
@@ -1506,10 +2292,14 @@ const SMOOTH := 8.0
 const HIDE_BELOW := 0.9
 const YAW_SPEED := 2.2
 const PITCH_DEG := -14.0
+const SHOP_OFFSET := Vector3(1.4, 0.6, 1.4)   # витрина: камера спереди-сбоку кота
 const CROUCH_HEIGHT := 0.3
 
 @export var target: Node3D
 var crouch := false
+var shop_view := false
+var shop_view_point := Vector3.ZERO   # если use_shop_point, камера едет сюда, иначе target + SHOP_OFFSET
+var use_shop_point := false
 var _yaw := 0.0
 @onready var _arm: SpringArm3D = $SpringArm3D
 
@@ -1525,6 +2315,14 @@ func _physics_process(delta: float) -> void:
 	var axis := Input.get_axis("cam_left", "cam_right")
 	_yaw -= axis * YAW_SPEED * delta
 	rotation.y = _yaw
+	if shop_view:
+		var want := shop_view_point if use_shop_point else target.global_position + SHOP_OFFSET
+		global_position = global_position.lerp(want, 1.0 - exp(-SMOOTH * delta))
+		look_at(target.global_position + Vector3(0, 0.15, 0), Vector3.UP)
+		_arm.spring_length = 0.0
+		return
+	_arm.spring_length = DISTANCE
+	rotation = Vector3(0, _yaw, 0)
 	var goal := target.global_position + Vector3(0, CROUCH_HEIGHT if crouch else HEIGHT, 0)
 	global_position = global_position.lerp(goal, 1.0 - exp(-SMOOTH * delta))
 	apply_arm_length(_arm.get_hit_length())
@@ -1562,6 +2360,8 @@ const INVULNERABLE_TIME := 2.0
 var camera_rig: CameraRig
 var current_hideout: Area3D
 var hidden := false
+var in_safe_zone := false   # внутри будки пряжи: удары не проходят, собака не видит
+var input_enabled := true   # false, пока открыт экран магазина
 var stunned_left := 0.0
 var invulnerable_left := 0.0
 var state: StringName = &"idle":
@@ -1580,6 +2380,8 @@ func _ready() -> void:
 	collision_layer = Layers.CAT
 	collision_mask = Layers.WORLD | Layers.HAZARD
 	Toon.apply(_model, Toon.OUTLINE_CHARACTER)
+	_apply_skin(GameState.skin)
+	GameState.skin_changed.connect(_apply_skin)
 	for clip in LOOPING_CLIPS:
 		if _anim and _anim.has_animation(clip):
 			_anim.get_animation(clip).loop_mode = Animation.LOOP_LINEAR
@@ -1600,6 +2402,11 @@ func _physics_process(delta: float) -> void:
 		velocity = CatMotion.step(velocity, Vector3.ZERO, false, is_on_floor(), false, delta)
 		move_and_slide()
 		return
+	if not input_enabled:
+		velocity = CatMotion.step(velocity, Vector3.ZERO, false, is_on_floor(), false, delta)
+		move_and_slide()
+		state = CatMotion.pick_state(velocity, is_on_floor(), false)
+		return
 	if Input.is_action_just_pressed("hide"):
 		if hidden:
 			unhide()
@@ -1619,12 +2426,18 @@ func _physics_process(delta: float) -> void:
 	var dir := CatMotion.world_direction(input, yaw)
 	var running := Input.is_action_pressed("run")
 	var jump := Input.is_action_just_pressed("jump")
-	velocity = CatMotion.step(velocity, dir, running, is_on_floor(), jump, delta)
+	velocity = CatMotion.step(velocity, dir, running, is_on_floor(), jump, delta, GameState.speed_mult)
 	move_and_slide()
 	if dir.length() > 0.0:
 		var target_yaw := atan2(-dir.x, -dir.z)
 		_model.rotation.y = lerp_angle(_model.rotation.y, target_yaw, TURN_SPEED * delta)
-	state = CatMotion.pick_state(velocity, is_on_floor(), running)
+	state = CatMotion.pick_state(velocity, is_on_floor(), running, GameState.speed_mult)
+
+
+func _apply_skin(id: StringName) -> void:
+	var skin := SkinCatalog.get_by_id(id)
+	if skin:
+		CatSkin.apply(_model, skin)
 
 
 func try_hide() -> bool:
@@ -1657,7 +2470,7 @@ func try_eat() -> bool:
 
 
 func take_hit(from: Vector3) -> void:
-	if invulnerable_left > 0.0 or stunned_left > 0.0 or hidden:
+	if invulnerable_left > 0.0 or stunned_left > 0.0 or hidden or in_safe_zone:
 		return
 	var away := global_position - from
 	away.y = 0.0
@@ -1720,8 +2533,8 @@ static func world_direction(input: Vector2, cam_yaw_basis: Basis) -> Vector3:
 	return dir.normalized()
 
 
-static func step(velocity: Vector3, direction: Vector3, running: bool, on_floor: bool, jump: bool, delta: float) -> Vector3:
-	var speed := RUN_SPEED if running else WALK_SPEED
+static func step(velocity: Vector3, direction: Vector3, running: bool, on_floor: bool, jump: bool, delta: float, speed_mult := 1.0) -> Vector3:
+	var speed := (RUN_SPEED if running else WALK_SPEED) * speed_mult
 	var target := direction * speed
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
 	horizontal = horizontal.move_toward(Vector3(target.x, 0.0, target.z), ACCEL * delta)
@@ -1733,13 +2546,13 @@ static func step(velocity: Vector3, direction: Vector3, running: bool, on_floor:
 	return Vector3(horizontal.x, vy, horizontal.z)
 
 
-static func pick_state(velocity: Vector3, on_floor: bool, running: bool) -> StringName:
+static func pick_state(velocity: Vector3, on_floor: bool, running: bool, speed_mult := 1.0) -> StringName:
 	if not on_floor and absf(velocity.y) >= SLOPE_WOBBLE:
 		return &"jump"
 	var h := Vector2(velocity.x, velocity.z).length()
 	if h < 0.1:
 		return &"idle"
-	if running and h > WALK_SPEED + 0.1:
+	if running and h > WALK_SPEED * speed_mult + 0.1:
 		return &"run"
 	return &"walk"
 ```
@@ -1779,6 +2592,84 @@ func _ready() -> void:
 	look_at(target_point, Vector3.UP)
 ```
 
+## `scripts/ui/album_menu.gd`
+
+```gdscript
+class_name AlbumMenu
+extends CanvasLayer
+## Альбом вкусняшек: сетка карточек по редкостям (спек 2.6, 3.4).
+
+signal closed
+
+const LOCKED_ALPHA := 0.4
+
+var is_open := false
+var _cards: Array[Control] = []
+
+@onready var _grid: GridContainer = $Panel/Margin/VBox/Grid
+@onready var _close: Button = $Panel/Margin/VBox/Close
+
+
+func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	visible = false
+	var foods := FoodCatalog.all().duplicate()
+	foods.sort_custom(func(a: FoodDef, b: FoodDef) -> bool: return a.tier < b.tier or (a.tier == b.tier and a.id < b.id))
+	for f in foods:
+		_grid.add_child(_make_card(f))
+	_close.pressed.connect(close)
+
+
+func _make_card(f: FoodDef) -> Control:
+	var card := VBoxContainer.new()   # карточка — сам контейнер: Rarity/Name/Count его прямые дети
+	card.name = String(f.id)
+	card.custom_minimum_size = Vector2(150, 90)
+	var strip := ColorRect.new()
+	strip.name = "Rarity"
+	strip.color = Rarity.COLORS[f.tier]
+	strip.custom_minimum_size = Vector2(0, 8)
+	card.add_child(strip)
+	var name_label := Label.new()
+	name_label.name = "Name"
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	card.add_child(name_label)
+	var count := Label.new()
+	count.name = "Count"
+	count.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	card.add_child(count)
+	card.set_meta("food", f)
+	_cards.append(card)
+	return card
+
+
+func open() -> void:
+	is_open = true
+	visible = true
+	refresh()
+	_close.grab_focus()
+
+
+func close() -> void:
+	if not is_open:
+		return
+	is_open = false
+	visible = false
+	closed.emit()
+
+
+func cards() -> Array[Control]:
+	return _cards
+
+
+func refresh() -> void:
+	for card in _cards:
+		var f: FoodDef = card.get_meta("food")
+		var n: int = GameState.album.get(f.id, 0)
+		(card.get_node("Name") as Label).text = f.display_name if n > 0 else "???"
+		(card.get_node("Count") as Label).text = "×%d" % n
+		card.modulate.a = 1.0 if n > 0 else LOCKED_ALPHA
+```
+
 ## `scripts/ui/hud.gd`
 
 ```gdscript
@@ -1794,6 +2685,8 @@ const HEART_EMPTY := "♡"
 @onready var _mouth: HBoxContainer = $Mouth
 @onready var _goal: Label = $Goal
 @onready var _bell: Label = $Bell
+@onready var _yarn: Label = $Yarn
+@onready var _satiety_label: Label = $SatietyLabel
 
 
 func _ready() -> void:
@@ -1812,6 +2705,8 @@ func _ready() -> void:
 	GameState.satiety_changed.connect(_on_satiety)
 	GameState.goal_changed.connect(_on_goal)
 	GameState.goal_completed.connect(_on_goal_completed)
+	GameState.yarn_changed.connect(_on_yarn)
+	_on_yarn(GameState.yarn)
 	_on_hearts(GameState.hearts, GameState.max_hearts)
 	_on_mouth(GameState.mouth)
 	_on_satiety(GameState.satiety)
@@ -1827,6 +2722,14 @@ func mouth_names() -> Array[String]:
 	for panel in _mouth.get_children():
 		out.append((panel.get_node("Name") as Label).text)
 	return out
+
+
+func yarn_text() -> String:
+	return _yarn.text
+
+
+func _on_yarn(count: int) -> void:
+	_yarn.text = "◎ %d" % count
 
 
 func flash_bell(text := "🔔 Велосипед!", seconds := 2.0) -> void:
@@ -1846,8 +2749,13 @@ func _on_mouth(items: Array) -> void:
 		label.text = items[i].display_name if i < items.size() else ""
 
 
+func satiety_label_text() -> String:
+	return _satiety_label.text
+
+
 func _on_satiety(value: int) -> void:
 	_satiety.value = value
+	_satiety_label.text = "Кафе открыто" if value >= GameState.SATIETY_GATE else "Сытость %d/%d" % [value, GameState.SATIETY_GATE]
 
 
 func _on_goal(done: int, target: int) -> void:
@@ -1856,6 +2764,156 @@ func _on_goal(done: int, target: int) -> void:
 
 func _on_goal_completed(target: int) -> void:
 	flash_bell("🎉 Цель выполнена: %d карточек!" % target, 3.0)
+```
+
+## `scripts/ui/menu_input.gd`
+
+```gdscript
+class_name MenuInput
+extends Node
+## Опрашивает клавиши меню (E в будке, Tab, Esc) и дёргает Main. Работает и на паузе.
+
+@onready var _main: Node = get_parent()
+
+
+func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+
+
+func _process(_delta: float) -> void:
+	if Input.is_action_just_pressed("pause"):
+		_main.call("on_back_pressed")
+	elif Input.is_action_just_pressed("album"):
+		_main.call("on_album_pressed")
+	elif Input.is_action_just_pressed("eat"):
+		_main.call("on_interact_pressed")
+```
+
+## `scripts/ui/pause_menu.gd`
+
+```gdscript
+class_name PauseMenu
+extends CanvasLayer
+## Пауза: продолжить, сбросить прогресс, выйти.
+
+signal resumed
+signal reset_requested
+
+var is_open := false
+
+@onready var _continue: Button = $Panel/Margin/VBox/Continue
+@onready var _reset: Button = $Panel/Margin/VBox/ResetProgress
+@onready var _quit: Button = $Panel/Margin/VBox/Quit
+
+
+func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	visible = false
+	_continue.pressed.connect(close)
+	_reset.pressed.connect(func() -> void: reset_requested.emit())
+	_quit.pressed.connect(func() -> void: get_tree().quit())
+
+
+func open() -> void:
+	is_open = true
+	visible = true
+	_continue.grab_focus()
+
+
+func close() -> void:
+	if not is_open:
+		return
+	is_open = false
+	visible = false
+	resumed.emit()
+```
+
+## `scripts/ui/shop_menu.gd`
+
+```gdscript
+class_name ShopMenu
+extends CanvasLayer
+## Экран магазина пряжи: список товаров, баланс, покупка (спек 3.5).
+
+signal closed
+
+var is_open := false
+var _buttons: Array[Button] = []
+
+@onready var _list: VBoxContainer = $Panel/Margin/VBox/List
+@onready var _yarn: Label = $Panel/Margin/VBox/Yarn
+@onready var _close: Button = $Panel/Margin/VBox/Close
+
+
+func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	visible = false
+	for item in ShopCatalog.all():
+		var b := Button.new()
+		b.name = String(item.id)
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.pressed.connect(_on_buy.bind(item))
+		_list.add_child(b)
+		_buttons.append(b)
+	_close.pressed.connect(close)
+	GameState.yarn_changed.connect(func(_c: int) -> void: refresh())
+	GameState.hearts_changed.connect(func(_h: int, _m: int) -> void: refresh())
+	refresh()
+
+
+func open() -> void:
+	is_open = true
+	visible = true
+	refresh()
+	if not _buttons.is_empty():
+		_buttons[0].grab_focus()
+
+
+func close() -> void:
+	if not is_open:
+		return
+	is_open = false
+	visible = false
+	closed.emit()
+
+
+func item_buttons() -> Array[Button]:
+	return _buttons
+
+
+func yarn_text() -> String:
+	return _yarn.text
+
+
+func refresh() -> void:
+	_yarn.text = "◎ %d" % GameState.yarn
+	var items := ShopCatalog.all()
+	for i in _buttons.size():
+		var item := items[i]
+		var owned := item.kind != "refill" and GameState.owns(item.id)
+		_buttons[i].text = "%s — %d ◎%s" % [item.display_name, item.price, " ✓" if owned else ""]
+		_buttons[i].disabled = owned or not GameState.can_buy(item)
+
+
+func _on_buy(item: ShopItem) -> void:
+	if GameState.buy(item):
+		refresh()
+```
+
+## `scripts/ui/title.gd`
+
+```gdscript
+extends Control
+## Заставка: главная сцена проекта.
+
+@onready var _play: Button = $VBox/Play
+@onready var _quit: Button = $VBox/Quit
+
+
+func _ready() -> void:
+	_play.pressed.connect(func() -> void: get_tree().change_scene_to_file("res://scenes/main.tscn"))
+	_quit.pressed.connect(func() -> void: get_tree().quit())
+	_play.grab_focus()
 ```
 
 ## `scripts/visual/toon.gd`
@@ -1891,6 +2949,7 @@ static func _apply_to_mesh(mi: MeshInstance3D, outline_width: float) -> int:
 		var mat: StandardMaterial3D
 		if src is StandardMaterial3D:
 			mat = (src as StandardMaterial3D).duplicate()
+			mat.resource_name = src.resource_name   # скины узнают поверхности по имени материала
 		else:
 			mat = StandardMaterial3D.new()
 		mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
@@ -1917,6 +2976,71 @@ static func _make_outline(width: float) -> StandardMaterial3D:
 	m.grow = true
 	m.grow_amount = width
 	return m
+```
+
+## `scripts/world/gate.gd`
+
+```gdscript
+class_name Gate
+extends StaticBody3D
+## Ворота района: закрыты, пока сытость меньше порога (спек 3.4).
+
+signal opened
+
+const BAR_COLOR := Color("#394151")
+const BARS := 5
+
+@export var satiety_required := GameState.SATIETY_GATE
+@export var size := Vector3(2.4, 2.6, 0.3)
+var open := false
+
+@onready var _shape: CollisionShape3D = $Collision
+@onready var _bars: Node3D = $Bars
+
+
+func _ready() -> void:
+	add_to_group("gates")
+	collision_mask = 0
+	var box := BoxShape3D.new()
+	box.size = size
+	_shape.shape = box
+	_shape.position.y = size.y / 2.0
+	_build_bars()
+	GameState.satiety_changed.connect(refresh)
+	refresh(GameState.satiety)
+
+
+func _build_bars() -> void:
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = BAR_COLOR
+	for i in BARS:
+		var mi := MeshInstance3D.new()
+		var bar := BoxMesh.new()
+		bar.size = Vector3(0.06, size.y, 0.06)
+		bar.material = mat
+		mi.mesh = bar
+		mi.position = Vector3(-size.x / 2.0 + size.x * (i + 0.5) / BARS, size.y / 2.0, 0.0)
+		_bars.add_child(mi)
+	var rail := MeshInstance3D.new()
+	var rail_mesh := BoxMesh.new()
+	rail_mesh.size = Vector3(size.x, 0.06, 0.06)
+	rail_mesh.material = mat
+	rail.mesh = rail_mesh
+	rail.position = Vector3(0.0, size.y * 0.5, 0.0)
+	_bars.add_child(rail)
+
+
+func refresh(satiety: int) -> void:
+	var now_open := satiety >= satiety_required
+	if now_open == open:
+		collision_layer = 0 if open else Layers.WORLD
+		return
+	open = now_open
+	collision_layer = 0 if open else Layers.WORLD
+	_bars.visible = not open
+	if open:
+		opened.emit()
 ```
 
 ## `scripts/world/lighting.gd`
@@ -1973,12 +3097,18 @@ const HAZARD_SCENES := {
 }
 const HideoutScene := preload("res://scenes/hideouts/hideout.tscn")
 const SpawnScene := preload("res://scenes/food/food_spawn_point.tscn")
+const YarnScene := preload("res://scenes/food/yarn_pickup.tscn")
+const GateScene := preload("res://scenes/world/gate.tscn")
+const YarnShopScene := preload("res://scenes/world/yarn_shop.tscn")
 
 @export var layout_path := ""
 var props_built := 0
 var hideouts_built := 0
 var spawns_built := 0
 var hazards_built := 0
+var yarn_built := 0
+var gates_built := 0
+var shop_built := 0
 
 
 func _ready() -> void:
@@ -2013,7 +3143,13 @@ func build(data: Dictionary) -> void:
 		_build_hideout(h)
 	for s in data.get("spawn_points", []):
 		_build_spawn(s)
+	for y in data.get("yarn", []):
+		_build_yarn(y)
 	_build_road(data.get("road", {}))
+	for g in data.get("gates", []):
+		_build_gate(g)
+	if data.has("shop"):
+		_build_shop(data["shop"])
 	for hz in data.get("hazards", []):
 		_build_hazard(hz)
 
@@ -2117,6 +3253,101 @@ func _build_hazard(hz: Dictionary) -> void:
 	node.global_position = _v3(hz["pos"])
 	node.rotation_degrees.y = float(hz.get("rot", 0))
 	hazards_built += 1
+
+
+func _build_yarn(y: Dictionary) -> void:
+	var node := YarnScene.instantiate() as YarnPickup
+	_container("Yarn").add_child(node)
+	node.global_position = _v3(y["pos"])
+	yarn_built += 1
+
+
+func _build_gate(g: Dictionary) -> void:
+	var node := GateScene.instantiate() as Gate
+	node.name = "gate_%d" % gates_built
+	node.satiety_required = int(g.get("satiety", GameState.SATIETY_GATE))
+	node.size = _v3(g.get("size", [2.4, 2.6, 0.3]))
+	_container("Gates").add_child(node)
+	node.global_position = _v3(g["pos"])
+	node.rotation_degrees.y = float(g.get("rot", 0))
+	gates_built += 1
+
+
+func _build_shop(s: Dictionary) -> void:
+	var node := YarnShopScene.instantiate() as YarnShop
+	node.name = "YarnShop"
+	add_child(node)
+	node.global_position = _v3(s["pos"])
+	node.rotation_degrees.y = float(s.get("rot", 0))
+	shop_built += 1
+```
+
+## `scripts/world/yarn_shop.gd`
+
+```gdscript
+class_name YarnShop
+extends Node3D
+## Будка пряжи: безопасная зона, точка возрождения, вход в магазин (спек 3.5).
+
+signal cat_entered
+signal cat_exited
+
+const BALL_RADIUS := 0.5
+const BALL_SPEED := 1.0
+
+var cat_inside := false
+var _t := 0.0
+
+@onready var zone: Area3D = $Zone
+@onready var _model: Node3D = $Model
+@onready var _play: Node3D = $YarnPlay
+
+
+func _ready() -> void:
+	add_to_group("yarn_shop")
+	zone.collision_layer = Layers.AREA
+	zone.collision_mask = Layers.CAT
+	zone.monitorable = false
+	zone.body_entered.connect(_on_enter)
+	zone.body_exited.connect(_on_exit)
+	Toon.apply(_model, Toon.OUTLINE_NONE)
+	var ball_scene := load("res://assets/models/yarn.glb") as PackedScene
+	for i in 3:
+		var ball := ball_scene.instantiate() as Node3D
+		_play.add_child(ball)
+	Toon.apply(_play, Toon.OUTLINE_FOOD)
+
+
+func _process(delta: float) -> void:
+	_t += delta
+	for i in _play.get_child_count():
+		var ball := _play.get_child(i) as Node3D
+		var a := _t * BALL_SPEED + i * TAU / 3.0
+		ball.position = Vector3(cos(a) * BALL_RADIUS, 0.0, sin(a) * BALL_RADIUS * 0.6)
+		ball.rotation.x += delta * 4.0
+
+
+func respawn_position() -> Vector3:
+	return ($Respawn as Node3D).global_position
+
+
+func view_position() -> Vector3:
+	## Точка камеры-витрины: снаружи у открытого входа, поворачивается вместе с будкой.
+	return ($ViewPoint as Node3D).global_position
+
+
+func _on_enter(body: Node3D) -> void:
+	if body.is_in_group("cat"):
+		cat_inside = true
+		body.set("in_safe_zone", true)
+		cat_entered.emit()
+
+
+func _on_exit(body: Node3D) -> void:
+	if body.is_in_group("cat"):
+		cat_inside = false
+		body.set("in_safe_zone", false)
+		cat_exited.emit()
 ```
 
 ## `tests/integration/test_cat_asset.gd`
@@ -2235,6 +3466,22 @@ func test_locomotion_clips_loop() -> void:
 	var ap := cat.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	for clip in ["idle", "walk", "run", "hide"]:
 		assert_eq(ap.get_animation(clip).loop_mode, Animation.LOOP_LINEAR, "клип %s должен зацикливаться" % clip)
+
+func test_cat_recolors_on_skin_change() -> void:
+	GameState.reset()
+	GameState.add_yarn(12)
+	var cat = _spawn()
+	GameState.buy(ShopCatalog.get_by_id(&"skin_black"))
+	await wait_process_frames(1)
+	var found := false
+	for mi in cat.find_children("*", "MeshInstance3D", true, false):
+		for i in (mi as MeshInstance3D).mesh.get_surface_count():
+			var m := (mi as MeshInstance3D).get_surface_override_material(i) as StandardMaterial3D
+			if m and m.resource_name == "sr_cat_orange":
+				found = true
+				assert_eq(m.albedo_color.to_html(false), "394151", "тело перекрашено в чёрный")
+	assert_true(found, "у кота есть поверхность тела")
+	GameState.reset()
 ```
 
 ## `tests/integration/test_cyclist.gd`
@@ -2396,6 +3643,24 @@ func test_dog_faces_home_direction_again_after_chase() -> void:
 	cat.global_position = Vector3(0, 0.05, -4)
 	await wait_seconds(0.8)
 	assert_true(dog.sees_cat(), "после возврата снова смотрит туда же и видит кота")
+
+func test_quiet_upgrade_narrows_dog_cone() -> void:
+	cat.global_position = Vector3(3.0, 0.05, -3.4)   # ≈41° от носа собаки: внутри 45°, вне 31,5°
+	await wait_physics_frames(3)
+	assert_true(dog.sees_cat(), "без улучшения видит на 41°")
+	GameState.add_yarn(10)
+	GameState.buy(ShopCatalog.get_by_id(&"quiet"))
+	dog.rotation.y = 0.0   # за эти кадры собака уже начала поворачиваться к коту
+	assert_false(dog.sees_cat(), "с тихими шагами конус 31,5° — не видит")
+
+func test_safe_zone_cancels_chase() -> void:
+	# Review Focus 5
+	cat.global_position = Vector3(0, 0.05, -4)
+	await wait_seconds(1.3)
+	assert_eq(dog.brain.state, ChaseBrain.State.CHASE)
+	cat.in_safe_zone = true
+	await wait_seconds(2.3)
+	assert_eq(dog.brain.state, ChaseBrain.State.RETURN, "в безопасной зоне собака теряет кота через 2 с")
 ```
 
 ## `tests/integration/test_dog_asset.gd`
@@ -2532,6 +3797,64 @@ func test_spawn_point_picks_allowed_and_respawns() -> void:
 	assert_true(is_instance_valid(sp.current) and sp.current != first, "появилась новая еда")
 ```
 
+## `tests/integration/test_gate.gd`
+
+```gdscript
+extends GutTest
+
+const GateScene := preload("res://scenes/world/gate.tscn")
+const CatScene := preload("res://scenes/player/cat.tscn")
+
+var world: Node3D
+
+func before_each() -> void:
+	GameState.reset()
+	world = Node3D.new()
+	add_child_autofree(world)
+	var floor_body := StaticBody3D.new()
+	floor_body.collision_layer = Layers.WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(20, 0.2, 20)
+	shape.shape = box
+	shape.position.y = -0.1
+	floor_body.add_child(shape)
+	world.add_child(floor_body)
+
+func test_gate_blocks_until_satiety_then_opens() -> void:
+	var gate = GateScene.instantiate()
+	world.add_child(gate)
+	gate.global_position = Vector3(0, 0, -2)
+	await wait_physics_frames(2)
+	assert_false(gate.open)
+	assert_eq(gate.collision_layer, Layers.WORLD)
+	var cat = CatScene.instantiate()
+	world.add_child(cat)
+	cat.global_position = Vector3(0, 0.05, 0)
+	Input.action_press("move_forward")
+	await wait_seconds(2.0)
+	Input.action_release("move_forward")
+	assert_gt(cat.global_position.z, -1.9, "закрытые ворота не пускают")
+	watch_signals(gate)
+	GameState.satiety = 10
+	GameState.satiety_changed.emit(10)
+	await wait_physics_frames(2)
+	assert_true(gate.open)
+	assert_signal_emitted(gate, "opened")
+	assert_eq(gate.collision_layer, 0)
+	Input.action_press("move_forward")
+	await wait_seconds(1.5)
+	Input.action_release("move_forward")
+	assert_lt(cat.global_position.z, -2.1, "открытые ворота пропускают")
+
+func test_gate_starts_open_if_satiety_already_enough() -> void:
+	GameState.satiety = 12
+	var gate = GateScene.instantiate()
+	world.add_child(gate)
+	await wait_physics_frames(1)
+	assert_true(gate.open, "со второго запуска ворота уже открыты")
+```
+
 ## `tests/integration/test_hideout.gd`
 
 ```gdscript
@@ -2626,10 +3949,21 @@ var cat
 
 func before_each() -> void:
 	GameState.reset()
+	SaveGame.path = "user://test_save.json"
+	SaveGame.clear()
 	main = MainScene.instantiate()
 	add_child_autofree(main)
 	await wait_physics_frames(30)
 	cat = main.find_child("Cat", true, false)
+
+func after_each() -> void:
+	SaveGame.clear()
+
+func test_main_autosaves_on_progress() -> void:
+	GameState.pick_up(FoodCatalog.get_by_id(&"sausage"))
+	GameState.eat_all()
+	await wait_process_frames(1)
+	assert_true(FileAccess.file_exists(SaveGame.path), "после съедания прогресс сохранён")
 
 func test_hit_spills_food_knocks_back_and_stuns() -> void:
 	GameState.pick_up(FoodCatalog.get_by_id(&"sausage"))
@@ -2670,8 +4004,9 @@ func test_faint_respawns_at_spawn_unhidden_with_full_hearts() -> void:
 	assert_eq(GameState.hearts, 3)
 	assert_false(cat.hidden)
 	assert_false(cat.camera_rig.crouch)
-	var spawn: Vector3 = main.get_node("DistrictYard/Spawn").global_position
+	var spawn: Vector3 = main.respawn_position()
 	assert_lt(cat.global_position.distance_to(spawn), 0.5)
+	assert_true(cat.in_safe_zone or main.find_child("YarnShop", true, false) == null, "возрождение в будке")
 	assert_gt(cat.invulnerable_left, 1.5, "после возрождения кот неуязвим ~2 с")
 	for h in get_tree().get_nodes_in_group("hazards"):
 		if h.has_method("reset_pursuit"):
@@ -2722,6 +4057,13 @@ func test_bell_flash_shows_and_hides() -> void:
 extends GutTest
 
 const MAIN_SCENE := "res://scenes/main.tscn"
+
+func before_each() -> void:
+	SaveGame.path = "user://test_save.json"
+	SaveGame.clear()
+
+func after_each() -> void:
+	SaveGame.clear()
 
 func _spawn_main() -> Node:
 	var main := (load(MAIN_SCENE) as PackedScene).instantiate()
@@ -2786,6 +4128,163 @@ func test_cat_keeps_animating_longer_than_one_clip() -> void:
 	Input.action_release("move_forward")
 	assert_true(ap.is_playing(), "анимация должна идти дольше одного клипа")
 	assert_eq(ap.current_animation, "walk")
+```
+
+## `tests/integration/test_menus.gd`
+
+```gdscript
+extends GutTest
+
+const MainScene := preload("res://scenes/main.tscn")
+const CyclistScene := preload("res://scenes/hazards/cyclist.tscn")
+
+var main
+var cat
+
+func before_each() -> void:
+	GameState.reset()
+	SaveGame.path = "user://test_save.json"
+	SaveGame.clear()
+	main = MainScene.instantiate()
+	add_child_autofree(main)
+	await wait_physics_frames(20)
+	cat = main.find_child("Cat", true, false)
+
+func after_each() -> void:
+	get_tree().paused = false
+	SaveGame.clear()
+
+func test_album_shows_cards_locked_and_unlocked() -> void:
+	GameState.pick_up(FoodCatalog.get_by_id(&"pizza"))
+	GameState.eat_all()
+	main.toggle_album()
+	assert_true(main.album_menu.is_open)
+	assert_true(get_tree().paused)
+	var cards: Array = main.album_menu.cards()
+	assert_eq(cards.size(), 8)
+	var pizza: Control = null
+	var donut: Control = null
+	for c in cards:
+		if c.name == "pizza":
+			pizza = c
+		if c.name == "donut":
+			donut = c
+	assert_eq((pizza.get_node("Name") as Label).text, "Пицца")
+	assert_eq((pizza.get_node("Count") as Label).text, "×1")
+	assert_eq((donut.get_node("Name") as Label).text, "???")
+	assert_almost_eq(donut.modulate.a, 0.4, 0.01)
+	assert_eq((donut.get_node("Rarity") as ColorRect).color, Rarity.COLORS[Rarity.Tier.LEGENDARY])
+	main.toggle_album()
+	assert_false(main.album_menu.is_open)
+	assert_false(get_tree().paused, "после закрытия альбома игра не заморожена")
+
+func test_pause_stops_cyclist_and_resume_unfreezes() -> void:
+	# Review Focus 4
+	var c = CyclistScene.instantiate()
+	c.interval_min = 0.2
+	c.interval_max = 0.2
+	c.bell_lead = 0.1
+	main.add_child(c)
+	c.set_path(main.find_child("Road", true, false))
+	watch_signals(c)
+	main.toggle_pause()
+	assert_true(main.pause_menu.is_open)
+	assert_true(get_tree().paused)
+	# Ожидания GUT сами стоят на паузе, поэтому ждём таймером с process_always = true.
+	await get_tree().create_timer(0.6, true).timeout
+	assert_signal_not_emitted(c, "bell", "во время паузы велосипедист не звонит")
+	var p0: Vector3 = cat.global_position
+	Input.action_press("move_forward")
+	await get_tree().create_timer(0.3, true).timeout
+	Input.action_release("move_forward")
+	assert_lt(cat.global_position.distance_to(p0), 0.05, "кот стоит на паузе")
+	main.toggle_pause()
+	assert_false(get_tree().paused)
+	await wait_seconds(0.6)
+	assert_signal_emitted(c, "bell", "после паузы цикл продолжился")
+
+func test_reset_progress_clears_save_and_state() -> void:
+	GameState.add_yarn(7)
+	SaveGame.save_now()
+	main.toggle_pause()
+	main.reset_progress()
+	assert_eq(GameState.yarn, 0)
+	# Автосохранение после reset() может сразу записать чистое состояние — это допустимо.
+	if FileAccess.file_exists(SaveGame.path):
+		var saved = JSON.parse_string(FileAccess.get_file_as_string(SaveGame.path))
+		assert_eq(int(saved["yarn"]), 0, "в файле чистое состояние")
+	assert_false(get_tree().paused)
+
+func test_title_scene_has_play_button() -> void:
+	var title := (load("res://scenes/ui/title.tscn") as PackedScene).instantiate()
+	add_child_autofree(title)
+	var play := title.find_child("Play", true, false) as Button
+	assert_not_null(play)
+	assert_eq(play.text, "Играть")
+	assert_eq(ProjectSettings.get_setting("application/run/main_scene"), "res://scenes/ui/title.tscn")
+```
+
+## `tests/integration/test_shop_menu.gd`
+
+```gdscript
+extends GutTest
+
+const MainScene := preload("res://scenes/main.tscn")
+
+var main
+var cat
+
+func before_each() -> void:
+	GameState.reset()
+	SaveGame.path = "user://test_save.json"
+	SaveGame.clear()
+	main = MainScene.instantiate()
+	add_child_autofree(main)
+	await wait_physics_frames(20)
+	cat = main.find_child("Cat", true, false)
+
+func after_each() -> void:
+	SaveGame.clear()
+
+func test_open_and_close_toggle_cat_input_and_camera() -> void:
+	main.open_shop()
+	assert_true(main.shop_menu.is_open)
+	assert_false(cat.input_enabled)
+	assert_true(cat.camera_rig.shop_view)
+	assert_false(main.hud.visible)
+	main.close_shop()
+	assert_false(main.shop_menu.is_open)
+	assert_true(cat.input_enabled)
+	assert_false(cat.camera_rig.shop_view)
+	assert_true(main.hud.visible)
+
+func test_buttons_reflect_affordability_and_buy_works() -> void:
+	GameState.add_yarn(10)
+	main.open_shop()
+	var buttons: Array = main.shop_menu.item_buttons()
+	assert_eq(buttons.size(), 10)
+	var speed_btn: Button = buttons[5]
+	assert_true(speed_btn.text.begins_with("Бег быстрее"))
+	assert_false(speed_btn.disabled)
+	var skin_btn: Button = buttons[7]
+	assert_true(skin_btn.disabled, "12 клубочков нет")
+	speed_btn.pressed.emit()
+	assert_true(GameState.owns(&"speed"))
+	assert_eq(GameState.yarn, 0)
+	assert_eq(main.shop_menu.yarn_text(), "◎ 0")
+	assert_true(speed_btn.text.ends_with("✓"))
+	assert_true(speed_btn.disabled, "куплено")
+	main.close_shop()
+
+func test_eat_key_in_safe_zone_opens_shop() -> void:
+	cat.global_position = main.respawn_position()
+	await wait_physics_frames(3)
+	assert_true(cat.in_safe_zone)
+	Input.action_press("eat")
+	await wait_physics_frames(2)
+	Input.action_release("eat")
+	assert_true(main.shop_menu.is_open)
+	main.close_shop()
 ```
 
 ## `tests/integration/test_wasp.gd`
@@ -2893,8 +4392,14 @@ func test_build_from_dictionary_counts_nodes() -> void:
 		"spawn_points": [{"pos": [2, 0, 2], "allowed": [0, 1]}],
 		"hazards": [{"type": "unknown", "pos": [0, 0, 0]}],
 		"road": {"points": [[-5, 0, 5], [5, 0, 5]]},
+		"yarn": [{"pos": [3, 0, 3]}],
+		"gates": [{"pos": [0, 0, 5], "satiety": 10}],
+		"shop": {"pos": [4, 0, 4], "rot": 0},
 	})
 	assert_eq(b.props_built, 2)
+	assert_eq(b.yarn_built, 1)
+	assert_eq(b.gates_built, 1)
+	assert_eq(b.shop_built, 1)
 	assert_eq(b.hideouts_built, 1)
 	assert_eq(b.spawns_built, 1)
 	assert_eq(b.hazards_built, 0, "неизвестный тип пропущен")
@@ -2921,6 +4426,20 @@ func test_real_yard_layout_loads() -> void:
 		models[p["model"]] = true
 	for m in ["bench", "lamp", "car", "wall", "fence", "bag", "stairs", "bush", "tree", "puddle", "arch", "door"]:
 		assert_true(models.has(m), "в раскладке есть " + m)
+	for m in ["cafe_table", "chair", "umbrella", "cafe_sign"]:
+		assert_true(models.has(m), "в раскладке есть " + m)
+	var tables := 0
+	var elevated_spawns := 0
+	for p in data["props"]:
+		if p["model"] == "cafe_table":
+			tables += 1
+			assert_true(p.has("colliders"), "у стола явный коллайдер столешницы")
+	for sp in data["spawn_points"]:
+		if sp["pos"][1] > 0.5:
+			elevated_spawns += 1
+	assert_gte(tables, 4)
+	assert_gte(elevated_spawns, 3, "еда на столах и балконе")
+	assert_eq(data["hazards"].size(), 4, "две осы, собака, велосипедист")
 	var b = _builder()
 	b.build(data)
 	assert_eq(b.props_built, data["props"].size(), "все модели существуют")
@@ -2984,8 +4503,143 @@ func test_spawn_points_and_hideouts_are_not_inside_props() -> void:
 func test_arch_opening_and_tree_sides_are_passable() -> void:
 	var world := _yard_with_floor()
 	await wait_physics_frames(3)
-	assert_eq(_prop_at(world, Vector3(0, 0.5, 10.5)), "", "проём арки должен быть проходим")
+	assert_eq(_prop_at(world, Vector3(0, 0.5, 10.5)), "gate_0", "в проёме арки стоят закрытые ворота")
+	GameState.satiety = GameState.SATIETY_GATE
+	GameState.satiety_changed.emit(GameState.satiety)
+	await wait_physics_frames(2)
+	assert_eq(_prop_at(world, Vector3(0, 0.5, 10.5)), "", "после открытия проём свободен")
 	assert_eq(_prop_at(world, Vector3(9.7, 0.5, -6)), "", "рядом со стволом дерева должно быть проходимо")
+
+func test_yarn_balls_in_layout_stand_on_something() -> void:
+	var world := _yard_with_floor()
+	await wait_physics_frames(3)
+	var data := BuilderScript.load_layout("res://data/layout/yard.json")
+	assert_between(data["yarn"].size(), 10, 15, "10–15 клубочков на район (спек 3.4)")
+	var space := world.get_world_3d().direct_space_state
+	for y in world.find_children("*", "YarnPickup", true, false):
+		var pos: Vector3 = (y as Node3D).global_position
+		var ray := PhysicsRayQueryParameters3D.create(pos + Vector3(0, 0.1, 0), pos + Vector3(0, -3, 0), Layers.WORLD)
+		var hit := space.intersect_ray(ray)
+		assert_false(hit.is_empty(), "под клубочком %s пусто" % pos)
+		if not hit.is_empty():
+			assert_lt(pos.y - hit["position"].y, 0.3, "клубочек %s висит в воздухе" % pos)
+		assert_eq(_prop_at(world, pos + Vector3(0, 0.1, 0)), "", "клубочек %s внутри пропса" % pos)
+```
+
+## `tests/integration/test_yarn.gd`
+
+```gdscript
+extends GutTest
+
+const YarnScene := preload("res://scenes/food/yarn_pickup.tscn")
+const CatScene := preload("res://scenes/player/cat.tscn")
+
+var world: Node3D
+
+func before_each() -> void:
+	GameState.reset()
+	world = Node3D.new()
+	add_child_autofree(world)
+	var floor_body := StaticBody3D.new()
+	floor_body.collision_layer = Layers.WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(20, 0.2, 20)
+	shape.shape = box
+	shape.position.y = -0.1
+	floor_body.add_child(shape)
+	world.add_child(floor_body)
+
+func test_cat_collects_yarn_on_contact() -> void:
+	var y = YarnScene.instantiate()
+	world.add_child(y)
+	y.global_position = Vector3(0, 0.05, 0)
+	var cat = CatScene.instantiate()
+	world.add_child(cat)
+	cat.global_position = Vector3(0, 0.05, 0)
+	await wait_physics_frames(5)
+	assert_eq(GameState.yarn, 1)
+	assert_true(not is_instance_valid(y) or y.is_queued_for_deletion())
+	assert_eq(get_tree().get_nodes_in_group("yarn").size(), 0, "клубочек не респавнится")
+```
+
+## `tests/integration/test_yarn_shop.gd`
+
+```gdscript
+extends GutTest
+
+const ShopScene := preload("res://scenes/world/yarn_shop.tscn")
+const CatScene := preload("res://scenes/player/cat.tscn")
+const RigScene := preload("res://scenes/player/camera_rig.tscn")
+
+var world: Node3D
+var cat
+var rig
+var shop
+
+func before_each() -> void:
+	GameState.reset()
+	world = Node3D.new()
+	add_child_autofree(world)
+	var floor_body := StaticBody3D.new()
+	floor_body.collision_layer = Layers.WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(20, 0.2, 20)
+	shape.shape = box
+	shape.position.y = -0.1
+	floor_body.add_child(shape)
+	world.add_child(floor_body)
+	shop = ShopScene.instantiate()
+	world.add_child(shop)
+	shop.global_position = Vector3(0, 0, -5)
+	rig = RigScene.instantiate()
+	cat = CatScene.instantiate()
+	cat.camera_rig = rig
+	rig.target = cat
+	world.add_child(rig)
+	world.add_child(cat)
+
+func test_zone_flags_cat_and_blocks_hits() -> void:
+	cat.global_position = Vector3(0, 0.05, -5)
+	await wait_physics_frames(3)
+	assert_true(shop.cat_inside)
+	assert_true(cat.in_safe_zone)
+	cat.take_hit(Vector3(1, 0, -5))
+	assert_eq(GameState.hearts, 3, "в будке не бьют")
+	cat.global_position = Vector3(0, 0.05, 0)
+	await wait_physics_frames(3)
+	assert_false(cat.in_safe_zone)
+
+func test_respawn_position_is_inside_zone() -> void:
+	var p: Vector3 = shop.respawn_position()
+	assert_lt(p.distance_to(Vector3(0, 0, -5)), 1.0)
+
+func test_input_disabled_keeps_cat_still() -> void:
+	cat.global_position = Vector3(0, 0.05, 0)
+	await wait_physics_frames(3)
+	cat.input_enabled = false
+	Input.action_press("move_forward")
+	await wait_physics_frames(30)
+	Input.action_release("move_forward")
+	assert_lt(cat.global_position.distance_to(Vector3(0, 0.05, 0)), 0.1)
+	assert_eq(cat.state, &"idle")
+
+func test_shop_view_moves_camera_near_cat() -> void:
+	cat.global_position = Vector3(0, 0.05, -5)
+	rig.global_position = Vector3(0, 0.6, -3)
+	rig.shop_view = true
+	await wait_seconds(0.8)
+	var expected: Vector3 = cat.global_position + CameraRig.SHOP_OFFSET
+	assert_lt(rig.global_position.distance_to(expected), 0.3)
+	rig.shop_view = false
+
+func test_yarn_play_balls_move() -> void:
+	var play := shop.get_node("YarnPlay") as Node3D
+	assert_eq(play.get_child_count(), 3)
+	var p0: Vector3 = (play.get_child(0) as Node3D).position
+	await wait_seconds(0.3)
+	assert_gt((play.get_child(0) as Node3D).position.distance_to(p0), 0.05, "клубочки катаются")
 ```
 
 ## `tests/unit/test_cat_motion.gd`
@@ -3054,8 +4708,16 @@ func test_small_vertical_wobble_on_slope_is_not_jump() -> void:
 func test_input_actions_registered() -> void:
 	var InputSetupScript := load("res://scripts/autoload/input_setup.gd")
 	InputSetupScript.register()
-	for a in ["move_left", "move_right", "move_forward", "move_back", "run", "jump", "hide", "eat", "cam_left", "cam_right"]:
+	for a in ["move_left", "move_right", "move_forward", "move_back", "run", "jump", "hide", "eat", "cam_left", "cam_right", "album", "pause"]:
 		assert_true(InputMap.has_action(a), "нет действия " + a)
+
+func test_speed_mult_scales_walk_and_state_threshold() -> void:
+	var v := Vector3.ZERO
+	for i in 120:
+		v = CatMotion.step(v, Vector3(0, 0, -1), false, true, false, D, 1.15)
+	assert_almost_eq(v.z, -CatMotion.WALK_SPEED * 1.15, 0.01)
+	assert_eq(CatMotion.pick_state(v, true, false, 1.15), &"walk", "ускоренная ходьба — всё ещё walk")
+	assert_eq(CatMotion.pick_state(Vector3(0, 0, -4.6), true, true, 1.15), &"run")
 ```
 
 ## `tests/unit/test_chase_brain.gd`
@@ -3212,6 +4874,22 @@ func test_reset_clears_everything() -> void:
 	assert_eq(gs.satiety, 0)
 	assert_eq(gs.album.size(), 0)
 	assert_eq(gs.goal_target, 3)
+
+func test_yarn_add_spend_and_card_bonus() -> void:
+	watch_signals(gs)
+	gs.add_yarn(2)
+	assert_eq(gs.yarn, 2)
+	assert_false(gs.spend_yarn(5), "нельзя уйти в минус")
+	assert_eq(gs.yarn, 2)
+	assert_true(gs.spend_yarn(2))
+	assert_eq(gs.yarn, 0)
+	gs.pick_up(sausage)
+	gs.eat_all()
+	assert_eq(gs.yarn, 3, "+3 за новую карточку")
+	gs.pick_up(sausage)
+	gs.eat_all()
+	assert_eq(gs.yarn, 3, "повтор карточки клубочков не даёт")
+	assert_signal_emitted(gs, "yarn_changed")
 ```
 
 ## `tests/unit/test_perception.gd`
@@ -3280,6 +4958,203 @@ func test_catalog_has_eight_foods_two_per_tier() -> void:
 	assert_true(donut.sweet)
 	assert_eq(donut.satiety(), 15)
 	assert_eq(donut.display_name, "Пончик")
+```
+
+## `tests/unit/test_save.gd`
+
+```gdscript
+extends GutTest
+
+const TEST_PATH := "user://test_save_unit.json"
+
+func before_each() -> void:
+	GameState.reset()
+	SaveGame.path = TEST_PATH
+	SaveGame.clear()
+
+func after_each() -> void:
+	SaveGame.clear()
+	GameState.reset()
+
+func test_round_trip_keeps_progress_but_not_hearts_or_mouth() -> void:
+	GameState.add_yarn(30)
+	GameState.buy(ShopCatalog.get_by_id(&"speed"))
+	GameState.buy(ShopCatalog.get_by_id(&"skin_black"))
+	GameState.pick_up(FoodCatalog.get_by_id(&"donut"))
+	GameState.eat_all()
+	GameState.take_hit()
+	GameState.pick_up(FoodCatalog.get_by_id(&"fish"))
+	assert_true(SaveGame.save_now())
+	GameState.reset()
+	assert_true(SaveGame.load_now())
+	assert_eq(GameState.album[&"donut"], 1)
+	assert_eq(GameState.satiety, 15)
+	assert_eq(GameState.yarn, 30 - 10 - 12 + 3)
+	assert_true(GameState.owns(&"speed"))
+	assert_almost_eq(GameState.speed_mult, 1.15, 0.001)
+	assert_eq(GameState.skin, &"black")
+	assert_eq(GameState.goal_done, 1)
+	assert_eq(GameState.hearts, GameState.max_hearts, "сердечки не сохраняются, старт с полными")
+	assert_eq(GameState.mouth.size(), 0, "еда в зубах не сохраняется")
+
+func test_load_without_file_returns_false_and_keeps_clean_state() -> void:
+	assert_false(SaveGame.load_now())
+	assert_eq(GameState.yarn, 0)
+
+func test_corrupted_file_gives_clean_state() -> void:
+	# Review Focus 3
+	var f := FileAccess.open(TEST_PATH, FileAccess.WRITE)
+	f.store_string("{ это не json")
+	f.close()
+	assert_false(SaveGame.load_now())
+	assert_eq(GameState.yarn, 0)
+	assert_eq(GameState.album.size(), 0)
+	var g := FileAccess.open(TEST_PATH, FileAccess.WRITE)
+	g.store_string("[1, 2, 3]")
+	g.close()
+	assert_false(SaveGame.load_now())
+	var h := FileAccess.open(TEST_PATH, FileAccess.WRITE)
+	h.store_string('{"version": 1, "yarn": "много", "album": 5, "upgrades": {"speed": true}}')
+	h.close()
+	assert_true(SaveGame.load_now(), "частично валидный файл принимается")
+	assert_eq(GameState.yarn, 0, "строка вместо числа игнорируется")
+	assert_eq(GameState.album.size(), 0, "число вместо словаря игнорируется")
+	assert_true(GameState.owns(&"speed"))
+
+func test_clear_removes_file() -> void:
+	SaveGame.save_now()
+	assert_true(FileAccess.file_exists(TEST_PATH))
+	SaveGame.clear()
+	assert_false(FileAccess.file_exists(TEST_PATH))
+```
+
+## `tests/unit/test_shop.gd`
+
+```gdscript
+extends GutTest
+
+const GameStateScript := preload("res://scripts/autoload/game_state.gd")
+
+var gs: Node
+
+func before_each() -> void:
+	gs = GameStateScript.new()
+	add_child_autofree(gs)
+
+func _item(id: String) -> ShopItem:
+	return ShopCatalog.get_by_id(StringName(id))
+
+func test_catalog_matches_spec_prices() -> void:
+	assert_eq(ShopCatalog.all().size(), 10)
+	assert_eq(_item("refill_hearts").price, 2)
+	assert_eq(_item("max_heart_4").price, 8)
+	assert_eq(_item("max_heart_5").price, 15)
+	assert_eq(_item("mouth_4").price, 6)
+	assert_eq(_item("mouth_5").price, 12)
+	assert_eq(_item("speed").price, 10)
+	assert_eq(_item("quiet").price, 10)
+	assert_eq(_item("skin_black").price, 12)
+	assert_eq(_item("max_heart_5").requires, &"max_heart_4")
+
+func test_cannot_buy_without_yarn() -> void:
+	# Review Focus 1
+	gs.add_yarn(5)
+	assert_false(gs.can_buy(_item("speed")))
+	assert_false(gs.buy(_item("speed")))
+	assert_eq(gs.yarn, 5)
+	assert_false(gs.owns(&"speed"))
+
+func test_buy_speed_once_only() -> void:
+	# Review Focus 2
+	gs.add_yarn(25)
+	watch_signals(gs)
+	assert_true(gs.buy(_item("speed")))
+	assert_eq(gs.yarn, 15)
+	assert_almost_eq(gs.speed_mult, 1.15, 0.001)
+	assert_signal_emitted(gs, "upgrade_bought")
+	assert_false(gs.can_buy(_item("speed")), "повторно не продаётся")
+	assert_eq(gs.yarn, 15)
+
+func test_quiet_reduces_dog_cone() -> void:
+	gs.add_yarn(10)
+	gs.buy(_item("quiet"))
+	assert_almost_eq(gs.stealth_mult, 0.7, 0.001)
+
+func test_max_hearts_chain_and_refill() -> void:
+	gs.add_yarn(30)
+	assert_false(gs.can_buy(_item("max_heart_5")), "сначала четвёртое сердечко")
+	assert_true(gs.buy(_item("max_heart_4")))
+	assert_eq(gs.max_hearts, 4)
+	assert_eq(gs.hearts, 4, "новое сердечко сразу полное")
+	assert_true(gs.buy(_item("max_heart_5")))
+	assert_eq(gs.max_hearts, 5)
+	assert_false(gs.can_buy(_item("refill_hearts")), "сердечки полные — нечего восстанавливать")
+	gs.take_hit()
+	assert_true(gs.can_buy(_item("refill_hearts")))
+	assert_true(gs.buy(_item("refill_hearts")))
+	assert_eq(gs.hearts, 5)
+	assert_false(gs.can_buy(_item("refill_hearts")))
+
+func test_mouth_capacity_chain() -> void:
+	gs.add_yarn(20)
+	assert_false(gs.can_buy(_item("mouth_5")))
+	gs.buy(_item("mouth_4"))
+	assert_eq(gs.mouth_capacity, 4)
+	gs.buy(_item("mouth_5"))
+	assert_eq(gs.mouth_capacity, 5)
+
+func test_skins_buy_and_select() -> void:
+	gs.add_yarn(12)
+	watch_signals(gs)
+	assert_false(gs.select_skin(&"black"), "не куплен")
+	assert_true(gs.buy(_item("skin_black")))
+	assert_eq(gs.skin, &"black", "купленный скин сразу надевается")
+	assert_signal_emitted(gs, "skin_changed")
+	assert_true(gs.select_skin(&"orange"))
+	assert_eq(gs.owned_skins(), [&"orange", &"black"])
+	assert_false(gs.can_buy(_item("skin_black")), "скин одноразовый")
+
+func test_reset_clears_shop_state() -> void:
+	gs.add_yarn(30)
+	gs.buy(_item("speed"))
+	gs.buy(_item("skin_black"))
+	gs.reset()
+	assert_eq(gs.yarn, 0)
+	assert_eq(gs.upgrades.size(), 0)
+	assert_eq(gs.skin, &"orange")
+	assert_almost_eq(gs.speed_mult, 1.0, 0.001)
+```
+
+## `tests/unit/test_skins.gd`
+
+```gdscript
+extends GutTest
+
+func test_catalog_has_four_skins() -> void:
+	assert_eq(SkinCatalog.all().size(), 4)
+	var black := SkinCatalog.get_by_id(&"black")
+	assert_not_null(black)
+	assert_eq(black.body.to_html(false), "394151")
+	assert_eq(black.belly.to_html(false), "fcd3a1")
+
+func test_apply_recolors_named_surfaces() -> void:
+	var mi := MeshInstance3D.new()
+	var mesh := ArrayMesh.new()
+	var box := BoxMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, box.get_mesh_arrays())
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, box.get_mesh_arrays())
+	mi.mesh = mesh
+	var body := StandardMaterial3D.new()
+	body.resource_name = "sr_cat_orange"
+	var other := StandardMaterial3D.new()
+	other.resource_name = "sr_ink"
+	mi.set_surface_override_material(0, body)
+	mi.set_surface_override_material(1, other)
+	add_child_autofree(mi)
+	var n := CatSkin.apply(mi, SkinCatalog.get_by_id(&"black"))
+	assert_eq(n, 1)
+	assert_eq((mi.get_surface_override_material(0) as StandardMaterial3D).albedo_color.to_html(false), "394151")
+	assert_eq((mi.get_surface_override_material(1) as StandardMaterial3D).albedo_color, Color.WHITE, "чужой материал не тронут")
 ```
 
 ## `tests/unit/test_smoke.gd`
@@ -3831,6 +5706,47 @@ def build():
 	return lib.group([a, b, c])
 ```
 
+## `tools/blender/gen/cafe_sign.py`
+
+```python
+"""Вывеска кафе: две стойки и коралловая доска с кремовой рамкой."""
+import lib
+
+SPEC = {"max_tris": 800, "max_dim": 3.0}
+
+
+def build():
+	board = lib.rounded_box("cafe_sign", (2.6, 0.12, 0.8), bevel=0.03, segments=1, material="coral")
+	board.location.z = 2.2
+	frame = lib.rounded_box("cafe_sign_frame", (2.8, 0.08, 1.0), bevel=0.03, segments=1, material="cream")
+	frame.location = (0, 0.04, 2.2)
+	parts = [board, frame]
+	for i, x in enumerate((-1.2, 1.2)):
+		post = lib.cylinder(f"cafe_sign_post{i}", radius=0.05, depth=1.8, material="ink", segments=8)
+		post.location = (x, 0, 0.9)
+		parts.append(post)
+	return lib.group(parts)
+```
+
+## `tools/blender/gen/cafe_table.py`
+
+```python
+"""Круглый стол кафе: столешница r 0,45 на высоте 0,75, ножка, основание."""
+import lib
+
+SPEC = {"max_tris": 800, "max_dim": 1.0}
+
+
+def build():
+	top = lib.cylinder("cafe_table", radius=0.45, depth=0.04, material="cream", segments=18)
+	top.location.z = 0.73
+	pole = lib.cylinder("cafe_table_pole", radius=0.04, depth=0.7, material="ink", segments=8)
+	pole.location.z = 0.36
+	base = lib.cylinder("cafe_table_base", radius=0.25, depth=0.03, material="ink", segments=12)
+	base.location.z = 0.015
+	return lib.group([top, pole, base])
+```
+
 ## `tools/blender/gen/car.py`
 
 ```python
@@ -3867,6 +5783,28 @@ SPEC = {"max_tris": 2500, "max_dim": 0.6, "animations": True}
 
 def build():
 	return cat.build()
+```
+
+## `tools/blender/gen/chair.py`
+
+```python
+"""Стул кафе: сиденье 0,45 м, спинка, четыре ножки."""
+import lib
+
+SPEC = {"max_tris": 800, "max_dim": 0.9}
+
+
+def build():
+	seat = lib.rounded_box("chair", (0.42, 0.42, 0.04), bevel=0.01, segments=1, material="sky")
+	seat.location.z = 0.45
+	back = lib.rounded_box("chair_back", (0.42, 0.04, 0.4), bevel=0.01, segments=1, material="sky")
+	back.location = (0, -0.19, 0.67)
+	parts = [seat, back]
+	for i, (x, y) in enumerate(((-0.18, -0.18), (0.18, -0.18), (-0.18, 0.18), (0.18, 0.18))):
+		leg = lib.cylinder(f"chair_leg{i}", radius=0.02, depth=0.45, material="ink", segments=6)
+		leg.location = (x, y, 0.225)
+		parts.append(leg)
+	return lib.group(parts)
 ```
 
 ## `tools/blender/gen/cyclist.py`
@@ -4211,6 +6149,23 @@ def build():
 	return lib.group([trunk, crown, crown2])
 ```
 
+## `tools/blender/gen/umbrella.py`
+
+```python
+"""Зонт кафе: стойка и конус купола r 1,2 на высоте 2,2 м."""
+import lib
+
+SPEC = {"max_tris": 800, "max_dim": 2.6}
+
+
+def build():
+	pole = lib.cylinder("umbrella", radius=0.03, depth=2.2, material="ink", segments=8)
+	pole.location.z = 1.1
+	canopy = lib.cone("umbrella_canopy", radius=1.2, depth=0.45, material="coral", segments=12)
+	canopy.location.z = 2.35
+	return lib.group([pole, canopy])
+```
+
 ## `tools/blender/gen/wall.py`
 
 ```python
@@ -4261,6 +6216,60 @@ def build():
 		wing.location = (x, 0.0, 0.045)
 		wing.rotation_euler = (0, 0.25 if x > 0 else -0.25, 0)
 		parts.append(wing)
+	return lib.group(parts)
+```
+
+## `tools/blender/gen/yarn.py`
+
+```python
+"""Клубочек пряжи 0,16 м: сфера с двумя лентами-торами."""
+import lib
+
+SPEC = {"max_tris": 800, "max_dim": 0.25}
+
+
+def build():
+	ball = lib.sphere("yarn", radius=0.08, material="lilac")
+	ball.location.z = 0.08
+	band = lib.torus("yarn_band", major=0.075, minor=0.012, material="coral")
+	band.location.z = 0.08
+	band.rotation_euler = (0.6, 0.3, 0)
+	band2 = lib.torus("yarn_band2", major=0.075, minor=0.012, material="coral")
+	band2.location.z = 0.08
+	band2.rotation_euler = (-0.5, 0.9, 0)
+	return lib.group([ball, band, band2])
+```
+
+## `tools/blender/gen/yarn_shop.py`
+
+```python
+"""Будка «Пряжа»: пол, задняя и две боковые стенки, навес, полка с клубочками.
+Открытый перёд по +Y Blender (= -Z Godot), задняя стенка на -Y Blender (= +Z Godot)."""
+import lib
+
+SPEC = {"max_tris": 1500, "max_dim": 2.6}
+
+
+def build():
+	floor = lib.rounded_box("yarn_shop", (2.2, 2.2, 0.03), bevel=0.01, segments=1, material="sand")
+	floor.location.z = 0.015   # тонкая плита без коллайдера: кот и шарики стоят на полу двора
+	back = lib.rounded_box("yarn_shop_back", (2.2, 0.12, 2.2), bevel=0.02, segments=1, material="lilac")
+	back.location = (0, -1.04, 1.18)
+	parts = [floor, back]
+	for name, x in (("yarn_shop_side_l", -1.04), ("yarn_shop_side_r", 1.04)):
+		side = lib.rounded_box(name, (0.12, 2.2, 2.2), bevel=0.02, segments=1, material="lilac")
+		side.location = (x, 0, 1.18)
+		parts.append(side)
+	roof = lib.rounded_box("yarn_shop_roof", (2.6, 2.6, 0.12), bevel=0.03, segments=1, material="coral")
+	roof.location.z = 2.34
+	parts.append(roof)
+	shelf = lib.rounded_box("yarn_shop_shelf", (1.9, 0.3, 0.06), bevel=0.01, segments=1, material="cream")
+	shelf.location = (0, -0.85, 1.3)
+	parts.append(shelf)
+	for i, (x, mat) in enumerate(((-0.6, "coral"), (-0.2, "sky"), (0.2, "rarity_legendary"), (0.6, "leaf"))):
+		ball = lib.sphere(f"yarn_shop_ball{i}", radius=0.1, material=mat, segments=10, rings=6)
+		ball.location = (x, -0.85, 1.43)
+		parts.append(ball)
 	return lib.group(parts)
 ```
 
@@ -5589,7 +7598,7 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
 - HUD: сердечки, сытость, слот зубов. Цель сессии «открой N карточек».
 - Раскладка двора из `data/layout/yard.json`, пропсы двора (≈12) скриптами.
 
-## План 3. Хаб и прогрессия
+## План 3. Хаб и прогрессия (`2026-10-08-snack-run-03-hub.md`) — ВЫПОЛНЕН 2026-10-08
 
 Результат: магазин пряжи, альбом, клубочки, ворота в кафе, сохранение.
 
@@ -5623,6 +7632,9 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
 - Спящая собака играет idle (UniMate не дал позу лёжа): нужен другой источник клипа или поза скриптом (план 4).
 - Еда респавнится 30–90 с: за 3–5-минутную сессию двор может опустеть; проверить на плейтесте.
 - Оса кружит у точки спавна независимо от сладости еды (`FoodDef.sweet` не используется); орбита проходит сквозь спинку лавки.
+- Счётчик клубочков в HUD сиреневый и плохо читается на фоне будки.
+- Сытость сохраняется: со второго запуска ворота открыты сразу (принятое отклонение плана 3).
+- Скины — наборы из трёх цветов, «полосатого» и «сиамского» в полном смысле нет.
 - Камера в укрытии под лавкой (−5,−8) сжимается до 0,34 м и прячет модель кота; под машиной кот может торчать сквозь днище.
 - `main.gd` повторно применяет Toon ко всему двору (дублирование материалов).
 - Рассыпанная еда кладётся на y=0 независимо от высоты кота (на балконе уйдёт под площадку).
