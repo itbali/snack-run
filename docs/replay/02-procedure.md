@@ -496,6 +496,7 @@ dummy-рендерера. Итог: 12 Blender + 88 GUT тестов.
 
 Ветка `plan-4-polish` от `main`. План с полным кодом лежит в приложении; ниже — что сделано на самом
 деле и где план пришлось поправить (все такие места записаны как `Ruling:` в журнале и в коде комментариями).
+Числа тестов в контрольных точках — `func test_` в `tests/` на коммите задачи (`git grep -h '^func test_' <коммит> -- tests | wc -l`).
 Одиночный прогон GUT: `GODOT --headless --path . -s addons/gut/gut_cmdln.gd -gconfig=res://.gutconfig.json -gselect=test_theme`
 (флаг `-gselect=<подстрока имени файла>`; `-gtest=` не фильтрует).
 
@@ -533,7 +534,7 @@ dummy-рендерера. Итог: 12 Blender + 88 GUT тестов.
 
 `scripts/visual/effects.gd` (`Effects.burst`, `CPUParticles3D`, группа `fx`, самоудаление по `finished`);
 `Main._on_food_eaten` (цвет редкости лучшей еды), `_on_cat_hit` (золотые звёзды), `YarnPickup` (сиреневый + `cat.cheer()`).
-Тесты `tests/integration/test_effects.gd` и два в `test_main.gd`. Коммит «Частицы…».
+Тесты `tests/integration/test_effects.gd` и два в `test_main.gd`. Контрольная точка: 140 GUT. Коммит «Частицы…».
 
 ## Задача 4: звук
 
@@ -546,7 +547,7 @@ dummy-рендерера. Итог: 12 Blender + 88 GUT тестов.
    `has`, `counts`, `reset_counters`. Подключения по событиям: `Cat.take_hit` (hit + meow, после проверки неуязвимости),
    `Main._on_food_eaten` (eat), звонок велосипедиста (bell), `FoodPickup`/`YarnPickup` (pickup), `Dog` при переходе в ALERT (bark).
 4. Тесты: `tests/unit/test_sfx.gd`, в `test_dog.gd` «один удар — один звук», в `test_main.gd` «eat». Headless-аудио (Dummy)
-   ошибок не даёт. Контрольная точка: 142 GUT. Коммит «Звук: шесть эффектов…».
+   ошибок не даёт. Контрольная точка: 144 GUT. Коммит «Звук: шесть эффектов…».
 
 ## Задача 5: камера, прозрачность, виньетка
 
@@ -555,7 +556,7 @@ dummy-рендерера. Итог: 12 Blender + 88 GUT тестов.
 `_apply_fade` (альфа + `TRANSPARENCY_ALPHA` на всех материалах и обводке), скин после перекраски восстанавливает `fade`.
 `assets/shaders/vignette.gdshader` + `Vignette/Rect` в `main.tscn` (CanvasLayer 0, `mouse_filter = 2`). `Main`: `Mouse.capture(true)`
 в `_ready`, `false` при паузе/магазине. Тесты в `test_cat_scene.gd` (прозрачность, скин + прозрачность, мышь) и `test_main.gd` (виньетка).
-Проверка виньетки по пикселям: угол 230→189, центр не тронут. Контрольная точка: 146 GUT. Коммит «Камера…».
+Проверка виньетки по пикселям: угол 230→189, центр не тронут. Контрольная точка: 147 GUT. Коммит «Камера…».
 
 ## Задача 6: собака спит, будка
 
@@ -567,14 +568,14 @@ dummy-рендерера. Итог: 12 Blender + 88 GUT тестов.
 2. `chase_brain.gd`: `update(..., cat_safe := false)` — в CHASE при `cat_safe` сразу RETURN, в ALERT — IDLE. `dog.gd` передаёт
    `in_safe_zone` кота. `yarn_shop.tscn`: `Walls/Floor` (2,2 × 0,03 × 2,2 на y 0,015).
 3. Тесты: `test_chase_brain.gd`, `test_dog.gd` (RETURN за 3 кадра, idle играет `sleep`), `test_dog_asset.gd` (sleep ≈ 2 с),
-   `test_yarn_shop.gd` (луч упирается в плиту на 0,03). Контрольная точка: `Ran 20 tests OK`, 152 GUT. Коммит «Собака…».
+   `test_yarn_shop.gd` (луч упирается в плиту на 0,03). Контрольная точка: `Ran 20 tests OK`, 151 GUT. Коммит «Собака…».
 
 ## Задача 7: дыры мира
 
 `Main.KILL_Y = -5`, `_physics_process` → `fall_respawn()` (еда из зубов теряется, сердечки не трогаются, телепорт к будке);
 `_on_cat_hit` не рассыпает еду при `hearts == 0`; `reset_progress` выключает `autosave` на время `GameState.reset()`, потом
 `SaveGame.clear()`; `SpillSpawner` кладёт еду на `pos.y`; `MenuInput` закрывает магазин/альбом по `ui_cancel` (B геймпада).
-Тесты в `test_main.gd` (3), `test_hit.gd` (1), `test_menus.gd` (сброс без файла, `ui_cancel`). Контрольная точка: 157 GUT.
+Тесты в `test_main.gd` (3), `test_hit.gd` (1), `test_menus.gd` (сброс без файла, `ui_cancel`). Контрольная точка: 156 GUT.
 
 ## Задача 8: баланс
 
