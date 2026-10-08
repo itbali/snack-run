@@ -3,7 +3,7 @@ GODOT   ?= /Applications/Godot.app/Contents/MacOS/Godot
 BLENDER ?= /Applications/Blender.app/Contents/MacOS/Blender
 SHOT    ?= build/shot.png
 
-.PHONY: import test test-godot test-blender assets shot run
+.PHONY: import test test-godot test-blender assets shot run replay
 
 import:
 	$(GODOT) --headless --path . --import
@@ -27,3 +27,6 @@ shot: import
 
 run: import
 	$(GODOT) --path .
+
+replay:
+	python3 tools/replay/build_files_md.py
