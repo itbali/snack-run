@@ -21,7 +21,8 @@ func load_now() -> bool:
 		GameState.reset()
 		return false
 	var text := FileAccess.get_file_as_string(path)
-	var parsed = JSON.parse_string(text)
+	var json := JSON.new()   # parse() возвращает код ошибки и не печатает ERROR в консоль, в отличие от parse_string
+	var parsed = json.data if json.parse(text) == OK else null
 	if not (parsed is Dictionary):
 		push_warning("сохранение повреждено, начинаем заново: " + path)
 		GameState.reset()

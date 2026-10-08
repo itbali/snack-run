@@ -19,9 +19,11 @@ func test_build_from_dictionary_counts_nodes() -> void:
 		"hazards": [{"type": "unknown", "pos": [0, 0, 0]}],
 		"road": {"points": [[-5, 0, 5], [5, 0, 5]]},
 		"yarn": [{"pos": [3, 0, 3]}],
+		"gates": [{"pos": [0, 0, 5], "satiety": 10}],
 	})
 	assert_eq(b.props_built, 2)
 	assert_eq(b.yarn_built, 1)
+	assert_eq(b.gates_built, 1)
 	assert_eq(b.hideouts_built, 1)
 	assert_eq(b.spawns_built, 1)
 	assert_eq(b.hazards_built, 0, "неизвестный тип пропущен")
@@ -111,7 +113,11 @@ func test_spawn_points_and_hideouts_are_not_inside_props() -> void:
 func test_arch_opening_and_tree_sides_are_passable() -> void:
 	var world := _yard_with_floor()
 	await wait_physics_frames(3)
-	assert_eq(_prop_at(world, Vector3(0, 0.5, 10.5)), "", "проём арки должен быть проходим")
+	assert_eq(_prop_at(world, Vector3(0, 0.5, 10.5)), "gate_0", "в проёме арки стоят закрытые ворота")
+	GameState.satiety = GameState.SATIETY_GATE
+	GameState.satiety_changed.emit(GameState.satiety)
+	await wait_physics_frames(2)
+	assert_eq(_prop_at(world, Vector3(0, 0.5, 10.5)), "", "после открытия проём свободен")
 	assert_eq(_prop_at(world, Vector3(9.7, 0.5, -6)), "", "рядом со стволом дерева должно быть проходимо")
 
 func test_yarn_balls_in_layout_stand_on_something() -> void:

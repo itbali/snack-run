@@ -11,6 +11,7 @@ const HAZARD_SCENES := {
 const HideoutScene := preload("res://scenes/hideouts/hideout.tscn")
 const SpawnScene := preload("res://scenes/food/food_spawn_point.tscn")
 const YarnScene := preload("res://scenes/food/yarn_pickup.tscn")
+const GateScene := preload("res://scenes/world/gate.tscn")
 
 @export var layout_path := ""
 var props_built := 0
@@ -18,6 +19,7 @@ var hideouts_built := 0
 var spawns_built := 0
 var hazards_built := 0
 var yarn_built := 0
+var gates_built := 0
 
 
 func _ready() -> void:
@@ -55,6 +57,8 @@ func build(data: Dictionary) -> void:
 	for y in data.get("yarn", []):
 		_build_yarn(y)
 	_build_road(data.get("road", {}))
+	for g in data.get("gates", []):
+		_build_gate(g)
 	for hz in data.get("hazards", []):
 		_build_hazard(hz)
 
@@ -165,3 +169,14 @@ func _build_yarn(y: Dictionary) -> void:
 	_container("Yarn").add_child(node)
 	node.global_position = _v3(y["pos"])
 	yarn_built += 1
+
+
+func _build_gate(g: Dictionary) -> void:
+	var node := GateScene.instantiate() as Gate
+	node.name = "gate_%d" % gates_built
+	node.satiety_required = int(g.get("satiety", GameState.SATIETY_GATE))
+	node.size = _v3(g.get("size", [2.4, 2.6, 0.3]))
+	_container("Gates").add_child(node)
+	node.global_position = _v3(g["pos"])
+	node.rotation_degrees.y = float(g.get("rot", 0))
+	gates_built += 1

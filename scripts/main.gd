@@ -38,6 +38,8 @@ func _ready() -> void:
 	for c in get_tree().get_nodes_in_group("hazards"):
 		if c.has_signal("bell"):
 			c.bell.connect(func() -> void: hud.flash_bell())
+	for g in get_tree().get_nodes_in_group("gates"):
+		g.opened.connect(func() -> void: hud.flash_bell("🎉 Арка в кафе открыта!", 3.0))
 	for sig in [GameState.album_changed, GameState.satiety_changed, GameState.yarn_changed, GameState.upgrade_bought, GameState.skin_changed]:
 		sig.connect(_on_progress_changed.unbind(1))
 

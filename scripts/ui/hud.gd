@@ -11,6 +11,7 @@ const HEART_EMPTY := "♡"
 @onready var _goal: Label = $Goal
 @onready var _bell: Label = $Bell
 @onready var _yarn: Label = $Yarn
+@onready var _satiety_label: Label = $SatietyLabel
 
 
 func _ready() -> void:
@@ -73,8 +74,13 @@ func _on_mouth(items: Array) -> void:
 		label.text = items[i].display_name if i < items.size() else ""
 
 
+func satiety_label_text() -> String:
+	return _satiety_label.text
+
+
 func _on_satiety(value: int) -> void:
 	_satiety.value = value
+	_satiety_label.text = "Кафе открыто" if value >= GameState.SATIETY_GATE else "Сытость %d/%d" % [value, GameState.SATIETY_GATE]
 
 
 func _on_goal(done: int, target: int) -> void:
