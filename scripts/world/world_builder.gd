@@ -12,6 +12,7 @@ const HideoutScene := preload("res://scenes/hideouts/hideout.tscn")
 const SpawnScene := preload("res://scenes/food/food_spawn_point.tscn")
 const YarnScene := preload("res://scenes/food/yarn_pickup.tscn")
 const GateScene := preload("res://scenes/world/gate.tscn")
+const YarnShopScene := preload("res://scenes/world/yarn_shop.tscn")
 
 @export var layout_path := ""
 var props_built := 0
@@ -20,6 +21,7 @@ var spawns_built := 0
 var hazards_built := 0
 var yarn_built := 0
 var gates_built := 0
+var shop_built := 0
 
 
 func _ready() -> void:
@@ -59,6 +61,8 @@ func build(data: Dictionary) -> void:
 	_build_road(data.get("road", {}))
 	for g in data.get("gates", []):
 		_build_gate(g)
+	if data.has("shop"):
+		_build_shop(data["shop"])
 	for hz in data.get("hazards", []):
 		_build_hazard(hz)
 
@@ -180,3 +184,12 @@ func _build_gate(g: Dictionary) -> void:
 	node.global_position = _v3(g["pos"])
 	node.rotation_degrees.y = float(g.get("rot", 0))
 	gates_built += 1
+
+
+func _build_shop(s: Dictionary) -> void:
+	var node := YarnShopScene.instantiate() as YarnShop
+	node.name = "YarnShop"
+	add_child(node)
+	node.global_position = _v3(s["pos"])
+	node.rotation_degrees.y = float(s.get("rot", 0))
+	shop_built += 1

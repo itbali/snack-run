@@ -18,6 +18,8 @@ const INVULNERABLE_TIME := 2.0
 var camera_rig: CameraRig
 var current_hideout: Area3D
 var hidden := false
+var in_safe_zone := false   # внутри будки пряжи: удары не проходят, собака не видит
+var input_enabled := true   # false, пока открыт экран магазина
 var stunned_left := 0.0
 var invulnerable_left := 0.0
 var state: StringName = &"idle":
@@ -57,6 +59,11 @@ func _physics_process(delta: float) -> void:
 	if stunned_left > 0.0:
 		velocity = CatMotion.step(velocity, Vector3.ZERO, false, is_on_floor(), false, delta)
 		move_and_slide()
+		return
+	if not input_enabled:
+		velocity = CatMotion.step(velocity, Vector3.ZERO, false, is_on_floor(), false, delta)
+		move_and_slide()
+		state = CatMotion.pick_state(velocity, is_on_floor(), false)
 		return
 	if Input.is_action_just_pressed("hide"):
 		if hidden:
@@ -121,7 +128,7 @@ func try_eat() -> bool:
 
 
 func take_hit(from: Vector3) -> void:
-	if invulnerable_left > 0.0 or stunned_left > 0.0 or hidden:
+	if invulnerable_left > 0.0 or stunned_left > 0.0 or hidden or in_safe_zone:
 		return
 	var away := global_position - from
 	away.y = 0.0

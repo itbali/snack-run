@@ -28,7 +28,7 @@ func reset_pursuit() -> void:
 
 func sees_cat() -> bool:
 	var c := _find_cat()
-	if c == null or c.get("hidden"):
+	if c == null or c.get("hidden") or c.get("in_safe_zone"):
 		return false
 	var forward := -global_transform.basis.z
 	return Perception.in_cone(global_position, forward, c.global_position, VISION_HALF_ANGLE * GameState.stealth_mult, VISION_RANGE)
@@ -37,7 +37,7 @@ func sees_cat() -> bool:
 func _physics_process(delta: float) -> void:
 	_ensure_home()
 	var c := _find_cat()
-	var cat_hidden: bool = c != null and bool(c.get("hidden"))
+	var cat_hidden: bool = c != null and (bool(c.get("hidden")) or bool(c.get("in_safe_zone")))
 	var at_home := global_position.distance_to(home) < HOME_RADIUS
 	var s := brain.update(delta, sees_cat(), cat_hidden, at_home)
 	match s:

@@ -84,10 +84,17 @@ func _on_cat_fainted() -> void:
 	faint_sequence_done.emit()
 
 
+func respawn_position() -> Vector3:
+	var shop := get_tree().get_first_node_in_group("yarn_shop")
+	if shop:
+		return shop.respawn_position()
+	return $DistrictYard/Spawn.global_position
+
+
 func respawn_cat() -> void:
 	for h in get_tree().get_nodes_in_group("hazards"):
 		if h.has_method("reset_pursuit"):
 			h.call("reset_pursuit")
-	_cat.teleport($DistrictYard/Spawn.global_position)
+	_cat.teleport(respawn_position())
 	_rig.global_position = _cat.global_position + Vector3(0, CameraRig.HEIGHT, 0)
 	GameState.revive()

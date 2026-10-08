@@ -20,10 +20,12 @@ func test_build_from_dictionary_counts_nodes() -> void:
 		"road": {"points": [[-5, 0, 5], [5, 0, 5]]},
 		"yarn": [{"pos": [3, 0, 3]}],
 		"gates": [{"pos": [0, 0, 5], "satiety": 10}],
+		"shop": {"pos": [4, 0, 4], "rot": 0},
 	})
 	assert_eq(b.props_built, 2)
 	assert_eq(b.yarn_built, 1)
 	assert_eq(b.gates_built, 1)
+	assert_eq(b.shop_built, 1)
 	assert_eq(b.hideouts_built, 1)
 	assert_eq(b.spawns_built, 1)
 	assert_eq(b.hazards_built, 0, "неизвестный тип пропущен")

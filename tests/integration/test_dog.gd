@@ -83,3 +83,12 @@ func test_quiet_upgrade_narrows_dog_cone() -> void:
 	GameState.buy(ShopCatalog.get_by_id(&"quiet"))
 	dog.rotation.y = 0.0   # за эти кадры собака уже начала поворачиваться к коту
 	assert_false(dog.sees_cat(), "с тихими шагами конус 31,5° — не видит")
+
+func test_safe_zone_cancels_chase() -> void:
+	# Review Focus 5
+	cat.global_position = Vector3(0, 0.05, -4)
+	await wait_seconds(1.3)
+	assert_eq(dog.brain.state, ChaseBrain.State.CHASE)
+	cat.in_safe_zone = true
+	await wait_seconds(2.3)
+	assert_eq(dog.brain.state, ChaseBrain.State.RETURN, "в безопасной зоне собака теряет кота через 2 с")
