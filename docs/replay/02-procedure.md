@@ -313,6 +313,93 @@ rm -rf .godot && make shot            # импорт выполняется са
 
 ---
 
+# План 2. Игровой цикл (выполнен 2026-10-08)
+
+План: `docs/superpowers/plans/2026-10-08-snack-run-02-gameplay.md` (15 задач, код каждого шага внутри).
+Ветка `plan-2-gameplay` от `main`, тот же порядок: RED-тест → код → GREEN → коммит → `task-done`.
+Все файлы — в приложении `03-files.md`. Ниже только то, что отличалось от плана, и контрольные точки.
+
+## Задачи 1–3: данные и состояние
+
+- `scripts/core/layers.gd`, `scripts/core/rarity.gd`, `scripts/food/food_def.gd`, `scripts/food/food_catalog.gd`,
+  8 ресурсов `data/food/*.tres` (сгенерированы одним Python-циклом из таблицы id/название/редкость/сладкое).
+- `make import && make test-godot` → 34 теста. В тестах на экземпляре `GameState` (тип `Node`) писать
+  `var eaten: Array = gs.eat_all()`: вывод типа из динамического вызова невозможен.
+- `scripts/autoload/game_state.gd` + строка `GameState="*res://scripts/autoload/game_state.gd"` в
+  `[autoload]` `project.godot` → 43 теста.
+
+## Задача 2: примитивы и еда
+
+- В `tools/blender/lib.py` добавлены `_finish`, `cylinder`, `cone`, `sphere`, `torus`, `wedge`, `group`;
+  тесты `TestPrimitives` → `Ran 12 tests OK`.
+- 8 генераторов `tools/blender/gen/food_*.py`. Лимиты: печенье — точки-сферы `segments=6, rings=4`,
+  круассан — скосы `segments=2`, пончик — `max_tris` 600 (два тора по 256). `make assets` → 8 `ОК food_*`.
+- Контрольная точка: лист кадров всех восьми (Blender, камера `(1.22, -1.9, 1.3)`, lens 24).
+
+## Задача 4: еда на земле
+
+- `scripts/food/food_pickup.gd` + `scenes/food/food_pickup.tscn`, `scripts/food/food_spawn_point.gd` + `.tscn`;
+  в `cat.gd` `_ready` добавлены группа `cat` и слои. → 48 тестов.
+- Грабли: GUT 9.7 считает ошибки движка провалом теста; dummy-рендерер пишет «Parameter material is null»,
+  когда узлы с материалами освобождаются внутри физического кадра (после `wait_physics_frames`). Решение:
+  в `.gutconfig.json` `"failure_error_types": ["gut", "push_error"]` (без `engine`). Ошибки скриптов
+  по-прежнему валят прогон через grep `SCRIPT ERROR` в Makefile.
+
+## Задачи 5–7: укрытия, удар, HUD
+
+- `scripts/hideouts/hideout.gd` (+`.tscn`), полная новая версия `scripts/player/cat.gd`, `camera_rig.gd` с
+  `crouch`. Доступ к полям кота из `Hideout`/опасностей только через `set/get/call` — у типизированного
+  `Node3D` GDScript не даёт обратиться к несуществующему свойству. → 52 теста.
+- `scripts/world/spill_spawner.gd`, новая версия `scripts/main.gd` (затемнение, возрождение) → 56.
+- `scripts/ui/hud.gd` + `scenes/ui/hud.tscn`, инстанс `Hud` в `main.tscn`, `@onready var hud` в `main.gd`.
+  Полоска сытости клампится на `SATIETY_GATE` (10), тест ждёт 10, а не 15. → 60.
+
+## Задача 8: двор из JSON
+
+- `scripts/world/world_builder.gd`, `data/layout/yard.json`, новая версия `scenes/world/district_yard.tscn`
+  (только Ground/Floor/WorldBuilder/Spawn). → 62 теста. Предупреждения «опасность пропущена: dog/wasp/cyclist»
+  до задач 10–12 нормальны.
+- Тротуар поднят на +5 мм (`gen/ground.py`, `z=-0.055`): заподлицо с асфальтом был z-fighting.
+
+## Задачи 9–10: мозг и собака
+
+- `scripts/hazards/perception.gd`, `chase_brain.gd` → 71 тест.
+- `tools/blender/rig_utils.py`, `tools/blender/dog.py`, `gen/dog.py`; `cat.py` теперь зовёт
+  `rig_utils.face_forward`. `make assets ONLY=dog && make assets ONLY=cat`.
+- **Две грабли Dog.blend:** (1) меш повёрнут относительно арматуры и имеет `matrix_parent_inverse`,
+  а арматура — масштаб 1,215 и смещение: без запекания трансформации меша в вершины и сброса
+  `arm.matrix_world` в единичную экспортёр терял масштаб; (2) action `Idle` содержит каналы самого
+  объекта (location/rotation/scale=1,215), Godot применял их к узлу `DogRig` и собака становилась в
+  13 раз больше. `rig_utils.clean_action` теперь выкидывает все не-костные каналы.
+  Проверка: скриншот отдельной сцены с `dog.tscn` у начала координат, камера в 1,6 м.
+- `scripts/hazards/hazard_base.gd` (`_ensure_home` на первом физическом кадре: WorldBuilder ставит
+  позицию после `add_child`), `dog.gd`, `scenes/hazards/dog.tscn` → 76 тестов.
+
+## Задачи 11–13: оса, велосипедист, пропсы
+
+- `gen/wasp.py`, `scripts/hazards/wasp.gd` (якорь берётся на первом физическом кадре), `wasp.tscn` → 78.
+  В тестах `var first: Vector3 = w.global_position` (тот же вывод типа).
+- `gen/cyclist.py` (лимит 1800: два тора колёс), `cyclist.gd`, `cyclist.tscn`, в `main.gd` подписка
+  сигнала `bell` всех опасностей на `hud.flash_bell()`. В тесте велосипедиста нужен пол, иначе кот
+  проваливается под дорогу раньше проезда. → 80.
+- 12 генераторов пропсов; забор и лестница — скосы `segments=1`, столбики без скоса (иначе > 800).
+  Итоговый `data/layout/yard.json` (38 пропсов, 8 укрытий, 10 точек спавна, 3 опасности, дорога).
+  Контрольные точки: `make shot` (дома, лавка, лужа, лестница, собака нормального размера) и общий план
+  сверху (камера `(2, 14, 22)` → `(0, 0, -3)`).
+
+## Задача 14: UniMate для собаки — отказ
+
+Процедура как в шаге 5 плана 1 (окружение `uv`, чекпоинт, `rig_preprocess` с разметкой кота, где
+`asset` → `dog`). Четыре промпта × 2 варианта не дали позы «лежит» (корень ≥72% от стойки, лапы под
+полом), `alert` = стойка. Собака спит в idle. Подробности в
+`docs/superpowers/notes/2026-10-07-unimate-attempt.md`.
+
+## Задача 15: эта документация, `make replay`, дорожная карта, `CLAUDE.md`.
+
+Итог плана 2: `rm -rf .godot && make test` → 12 Blender-тестов и 80 GUT-тестов зелёные.
+
+---
+
 ## Известные грабли (сводка, чтобы не искать по тексту)
 
 **Godot 4.7:** `class_name` виден после `make import`; GUT не падает на parse error (grep в Makefile);
@@ -326,4 +413,11 @@ rm -rf .godot && make shot            # импорт выполняется са
 масштаба родителя; `--python-exit-code 1`; Principled по `type`; масштаб арматуры не применять.
 
 **UniMate:** CPU (`sampling.device`), requirements без `+cu124`, ручная разметка суставов, шим
-`blender` для venv-`bpy`, чекпоинт докачивать с `-C -`.
+`blender` для venv-`bpy`, чекпоинт докачивать с `-C -`. Позы лёжа/сидя для четвероногих не получаются.
+
+**План 2 (Godot):** GUT 9.7 считает ошибки движка провалом → `failure_error_types` без `engine`;
+поля чужих узлов через `set/get/call`; `home`/`anchor` брать на первом физическом кадре, не в `_ready`;
+`ProgressBar` клампит значение; в тестах с падающим котом нужен пол.
+**План 2 (Blender):** объектные каналы в actions (`Dog.blend` Idle) выкидывать; меш с поворотом
+относительно арматуры запекать в вершины и сбрасывать `arm.matrix_world`; лимиты треугольников:
+сфера 12×8 = 176, тор 16×8 = 256, скруглённый бокс с 3 сегментами = 188.

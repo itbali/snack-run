@@ -56,7 +56,12 @@ make run           # запустить игру (WASD, Shift бег, Space пр
 
 - `scenes/main.tscn` + `scripts/main.gd` — собирает свет, двор, кота, камеру.
 - `scripts/player/cat_motion.gd` — чистая логика (static, без узлов) → тесты в `tests/unit/`.
-- `scripts/player/cat.gd` (CharacterBody3D, состояния idle/walk/run/jump; hide/hit — план 2), `camera_rig.gd`, `head_scaler.gd`.
+- `scripts/player/cat.gd` (CharacterBody3D: idle/walk/run/jump/hide/hit, `take_hit`, `try_hide`, `try_eat`, `teleport`), `camera_rig.gd` (`crouch`), `head_scaler.gd`.
+- `scripts/autoload/game_state.gd` — сердечки, зубы (3), сытость, альбом, цель сессии; сигналы `cat_hit`, `cat_fainted` и др. В тестах `GameState.reset()` в `before_each`.
+- `scripts/core/` (`Layers`, `Rarity`), `scripts/food/` (`FoodDef`, `FoodCatalog`, `FoodPickup`, `FoodSpawnPoint`), `data/food/*.tres`.
+- `scripts/hideouts/hideout.gd`, `scripts/world/world_builder.gd` (двор из `data/layout/yard.json`), `scripts/world/spill_spawner.gd`.
+- `scripts/hazards/`: `perception.gd`, `chase_brain.gd` (чистые), `hazard_base.gd`, `dog.gd`, `wasp.gd`, `cyclist.gd`.
+- `scripts/ui/hud.gd` + `scenes/ui/hud.tscn`.
 - `scripts/visual/toon.gd` — `Toon.apply(root, width_m)`; ширина в метрах, пересчитывается под масштаб узла.
 - `scripts/autoload/input_setup.gd` (InputMap в коде), `dev_tools.gd` (`++ --screenshot=path`).
 - `tools/blender/`: `palette.py`, `lib.py` (rounded_box, world_extent, tri_count, check_asset), `export.py`, `build.py`, `cat.py`, `gen/*.py` (каждый: `SPEC` + `build()`).
@@ -93,10 +98,12 @@ make run           # запустить игру (WASD, Shift бег, Space пр
 - Кости без имён: `Bone` таз, `Bone.001` спина, `Bone.002` шея, `Bone.003` голова (→ `head`), `Bone.004–007` хвост, `Bone.014–016` правая передняя, `Bone.017–019` левая передняя, `Bone.008–010` левая задняя, `Bone.011–013` правая задняя, `IK*` контроллеры (в каноническом риге удалены).
 - Модель смотрит по +X Blender; в `cat.py` разворот считается по вектору таз→голова (`face_forward`), результат печатается при сборке.
 
+**План 2:** GUT считает ошибки движка провалом (`failure_error_types` без `engine` в `.gutconfig.json`); поля чужих узлов через `set/get/call`; `home`/`anchor` опасностей на первом физическом кадре; объектные каналы в actions Blender выкидывать (`rig_utils.clean_action`); меш с поворотом относительно арматуры запекать в вершины; в тестах с котом нужен пол.
+
 **UniMate на Mac** (подробно в заметке): venv Python 3.10 через `uv`, requirements без `+cu124`, `sampling.device = cpu` в `config.json` чекпоинта (MPS не умеет float64), ручная `annotation.json` (авторазметка путает спину и хвост), шим `blender` → venv-python с pip-`bpy` для `run_animate_motion.sh`. Окружение жило в scratchpad и не сохранилось; чекпоинт 1,2 ГБ качается с HF заново.
 
 ## Статус и что дальше
 
-- План 1 выполнен и слит в `main` (2026-10-08). Отложенные мелочи из ревью перечислены в конце дорожной карты.
-- Следующий шаг: написать план 2 «Игровой цикл» по дорожной карте, опираясь на реальные интерфейсы `Cat`, `CameraRig`, `Toon`, `build.py`. Учесть: Box3 висит в воздухе, коробку сделать читаемой, высота прыжка 0,84 м против баков 1,1 м, состояние fall, мышь для камеры, прозрачность кота у стены вместо скрытия.
+- План 1 выполнен и слит в `main` (2026-10-08). План 2 «Игровой цикл» выполнен 2026-10-08 (ветка `plan-2-gameplay`): еда, укрытия, удар, HUD, двор из JSON, собака, оса, велосипедист, 12 пропсов. Отложенные мелочи — в конце дорожной карты.
+- Следующий шаг: план 3 «Хаб и прогрессия» (клубочки, магазин пряжи, альбом, арка в кафе по сытости 10, сохранение, кафе) по дорожной карте, опираясь на реальные `GameState`, `WorldBuilder`, `Hud`.
 - Открытый вопрос владельцу: лицензия весов UniMate для сгенерированных движений (код MIT, для весов явной лицензии не найдено).
