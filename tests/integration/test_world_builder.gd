@@ -18,8 +18,10 @@ func test_build_from_dictionary_counts_nodes() -> void:
 		"spawn_points": [{"pos": [2, 0, 2], "allowed": [0, 1]}],
 		"hazards": [{"type": "unknown", "pos": [0, 0, 0]}],
 		"road": {"points": [[-5, 0, 5], [5, 0, 5]]},
+		"yarn": [{"pos": [3, 0, 3]}],
 	})
 	assert_eq(b.props_built, 2)
+	assert_eq(b.yarn_built, 1)
 	assert_eq(b.hideouts_built, 1)
 	assert_eq(b.spawns_built, 1)
 	assert_eq(b.hazards_built, 0, "неизвестный тип пропущен")
@@ -111,3 +113,18 @@ func test_arch_opening_and_tree_sides_are_passable() -> void:
 	await wait_physics_frames(3)
 	assert_eq(_prop_at(world, Vector3(0, 0.5, 10.5)), "", "проём арки должен быть проходим")
 	assert_eq(_prop_at(world, Vector3(9.7, 0.5, -6)), "", "рядом со стволом дерева должно быть проходимо")
+
+func test_yarn_balls_in_layout_stand_on_something() -> void:
+	var world := _yard_with_floor()
+	await wait_physics_frames(3)
+	var data := BuilderScript.load_layout("res://data/layout/yard.json")
+	assert_between(data["yarn"].size(), 10, 15, "10–15 клубочков на район (спек 3.4)")
+	var space := world.get_world_3d().direct_space_state
+	for y in world.find_children("*", "YarnPickup", true, false):
+		var pos: Vector3 = (y as Node3D).global_position
+		var ray := PhysicsRayQueryParameters3D.create(pos + Vector3(0, 0.1, 0), pos + Vector3(0, -3, 0), Layers.WORLD)
+		var hit := space.intersect_ray(ray)
+		assert_false(hit.is_empty(), "под клубочком %s пусто" % pos)
+		if not hit.is_empty():
+			assert_lt(pos.y - hit["position"].y, 0.3, "клубочек %s висит в воздухе" % pos)
+		assert_eq(_prop_at(world, pos + Vector3(0, 0.1, 0)), "", "клубочек %s внутри пропса" % pos)

@@ -10,6 +10,7 @@ const HEART_EMPTY := "♡"
 @onready var _mouth: HBoxContainer = $Mouth
 @onready var _goal: Label = $Goal
 @onready var _bell: Label = $Bell
+@onready var _yarn: Label = $Yarn
 
 
 func _ready() -> void:
@@ -28,6 +29,8 @@ func _ready() -> void:
 	GameState.satiety_changed.connect(_on_satiety)
 	GameState.goal_changed.connect(_on_goal)
 	GameState.goal_completed.connect(_on_goal_completed)
+	GameState.yarn_changed.connect(_on_yarn)
+	_on_yarn(GameState.yarn)
 	_on_hearts(GameState.hearts, GameState.max_hearts)
 	_on_mouth(GameState.mouth)
 	_on_satiety(GameState.satiety)
@@ -43,6 +46,14 @@ func mouth_names() -> Array[String]:
 	for panel in _mouth.get_children():
 		out.append((panel.get_node("Name") as Label).text)
 	return out
+
+
+func yarn_text() -> String:
+	return _yarn.text
+
+
+func _on_yarn(count: int) -> void:
+	_yarn.text = "◎ %d" % count
 
 
 func flash_bell(text := "🔔 Велосипед!", seconds := 2.0) -> void:
