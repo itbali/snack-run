@@ -25,6 +25,9 @@ def build():
 	mesh.data.transform(mesh.matrix_parent_inverse @ mesh.matrix_basis)
 	mesh.matrix_parent_inverse = Matrix.Identity(4)
 	mesh.matrix_basis = Matrix.Identity(4)
+	# Арматура в Dog.blend имеет масштаб 1,215 и смещение; сбрасываем её трансформацию в единичную
+	# (кости и меш остаются согласованы в пространстве арматуры), как у Cat.blend.
+	arm.matrix_world = Matrix.Identity(4)
 	bpy.context.view_layer.update()
 	head = rig_inspect.find_head_bone(arm, mesh)
 	arm.data.bones[head].name = "head"

@@ -24,6 +24,11 @@ def clean_action(action, arm, rename=None):
 	names = {b.name for b in arm.data.bones}
 	for cb, fc in action_fcurves(action):
 		bone = bone_of(fc)
+		if bone is None:
+			# Каналы самого объекта (location/rotation/scale арматуры): в Dog.blend Idle хранит
+			# масштаб 1,215, и Godot применял его к узлу рига — собака становилась гигантской.
+			cb.fcurves.remove(fc)
+			continue
 		if bone and rename and bone in rename:
 			fc.data_path = fc.data_path.replace(f'pose.bones["{bone}"]', f'pose.bones["{rename[bone]}"]')
 			bone = rename[bone]
