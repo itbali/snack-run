@@ -5,7 +5,7 @@
 Отступы в GDScript и Makefile — табы; в Python проекта — тоже табы, кроме
 `palette.py` и тестов Blender (пробелы). Копировать как есть.
 
-Файлов: 250
+Файлов: 256
 
 ## `CLAUDE.md`
 
@@ -54,6 +54,7 @@
 ```
 make test          # test-tools (Python) + Blender-тесты + GUT; делает import сам
 make terrain       # data/terrain_src/*.json → data/terrain/*.json (tools/terrain/terrain_gen.py)
+make layout        # data/layout_src/*.json → data/layout/*.json + рельеф (tools/layout/layout_gen.py), затем terrain
 make test-godot    # только GUT (сначала import); падает и на SCRIPT ERROR
 make test-blender  # только Blender
 make assets        # пересобрать все glb из tools/blender/gen/*.py в assets/models/
@@ -88,6 +89,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 - `scripts/autoload/input_setup.gd` (InputMap в коде), `dev_tools.gd` (`++ --screenshot=path`).
 - `tools/blender/`: `palette.py`, `lib.py` (rounded_box, world_extent, tri_count, check_asset), `export.py`, `build.py`, `cat.py` (сварка + subdivision) + `cat_eyes.py` (глаза) + `cat_fluff.py` (пучки, усы, ошейник), `dog.py` + `dog_sleep.py` (поза «спит»), `gen/*.py` (каждый: `SPEC` + `build()`); `tools/audio/gen_sfx.py`; `tools/images/gen.py` + `manifest.json`; `export_presets.cfg`.
 - `scripts/world/terrain.gd` (`Terrain`: меш тайлами, `HeightMapShape3D` «Floor», шейдер `terrain.gdshader` со сплатом, `height_at`); `WorldBuilder.terrain_path` — раскладка привязывается к высоте (`"snap": false` — абсолютно); набор террас `tools/blender/terrace_kit.py`; демо `scenes/dev/terrain_demo.tscn`.
+- `tools/layout/layout_gen.py` — генератор раскладки: описание района `data/layout_src/<район>.json` (ядро `*_core.json` + зоны) → `data/layout/<район>.json` и `data/terrain_src/<район>.json`; двор правится только через описание.
 - `scripts/visual/surface_textures.gd` — текстуры крупных поверхностей по имени меша (`wall` и др.; пол — каналы рельефа), трипланар по мировым координатам (спек 2.9).
 - `scripts/world/day_cycle.gd` (чистая логика суток) + `day_night.gd` (узел в `lighting.tscn`, группа `day_night`; `DayNight.is_night(tree)`, без узла — день); группы `night_lights`, `night_windows`.
 - `scenes/world/lighting.tscn` — солнце, заполняющий свет, окружение (SSAO, SSR, glow, облака `sky_cover`), листья; `WorldBuilder` читает `solid`, `water`, `decals` из `yard.json`.
@@ -140,9 +142,11 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 
 **План 10:** тела раскладки ставить в позицию до `add_child` (`WorldBuilder._add_at`), иначе на первом кадре они в начале координат и выталкивают кота сквозь heightmap; пол районов — `Terrain`, в тестах с парком/двором без `Main` рельеф создавать самому.
 
+**План 11:** ящик 0,3 м (стопки через 0,3); россыпь генератора идёт после структуры всех зон; в описании покрытие — ключ `surface` (ключ `type` у операции); точкам еды всегда давать `foods` района, иначе выпадает еда парка.
+
 ## Статус и что дальше
 
-- План 10 «Рельеф» выполнен 2026-10-09 (спек `2026-10-09-snack-run-scale-terrain-design.md`: районы ×3 и рельеф). Дальше план 11 (генератор раскладки + двор ×3), план 12 (парк ×3), затем порт — планы 13–15.
+- Планы 10 «Рельеф» и 11 «Генератор раскладки и двор ×3» выполнены 2026-10-09 (спек `2026-10-09-snack-run-scale-terrain-design.md`). Дальше план 12 (парк ×3), затем порт — планы 13–15.
 - Планы 1–9 выполнены и слиты в `main`: фундамент, игровой цикл, хаб и прогрессия, полировка, визуальная полировка, текстуры крупных поверхностей, этап 2 (сутки, парк, опасности парка). Отложенные мелочи — в дорожной карте.
 - Отложено по просьбе владельца: текстуры пропсов («потом вернёмся к текстурам»).
 - Открытый вопрос владельцу: лицензия весов UniMate для сгенерированных движений (код MIT, для весов явной лицензии не найдено).
@@ -159,7 +163,7 @@ PHASE   ?=
 AT      ?=
 TEMPLATES_DIR := $(HOME)/Library/Application Support/Godot/export_templates/4.7.2.stable
 
-.PHONY: import test test-godot test-blender test-tools terrain assets shot run replay sfx templates export images
+.PHONY: import test test-godot test-blender test-tools terrain layout assets shot run replay sfx templates export images
 
 import:
 	$(GODOT) --headless --path . --import
@@ -168,6 +172,11 @@ test: test-tools test-blender test-godot
 
 test-tools:
 	set -o pipefail; python3 -m unittest discover -s tools/terrain/tests -p "test_*.py" 2>&1 | tail -3
+	set -o pipefail; python3 -m unittest discover -s tools/layout/tests -p "test_*.py" 2>&1 | tail -3
+
+layout:
+	for f in data/layout_src/*.json; do case $$f in *_core.json) ;; *) python3 tools/layout/layout_gen.py $$f || exit 1;; esac; done
+	$(MAKE) terrain
 
 terrain:
 	python3 tools/terrain/terrain_gen.py
@@ -1154,7 +1163,7 @@ light_angular_distance = 1.5
 shadow_enabled = true
 shadow_blur = 1.5
 directional_shadow_mode = 2
-directional_shadow_max_distance = 30.0
+directional_shadow_max_distance = 40.0
 
 [node name="Fill" type="DirectionalLight3D" parent="."]
 light_color = Color(0.624, 0.769, 0.910, 1)
@@ -3137,6 +3146,7 @@ extends Node3D
 @export var angular_speed := 0.8
 @export var height := 0.5
 var anchor: Vector3
+var ground := 0.0   # высота рельефа под якорем: оса летает на height над землёй (план 11)
 var _anchored := false
 var _angle := 0.0
 var _t := 0.0
@@ -3165,6 +3175,7 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if not _anchored:
 		anchor = global_position   # позиция задаётся после add_child, поэтому якорь берём здесь
+		ground = Terrain.surface_height(get_tree(), anchor.x, anchor.z, 0.0)
 		_anchored = true
 	_t += delta
 	_angle += angular_speed * delta
@@ -3178,10 +3189,10 @@ func _physics_process(delta: float) -> void:
 func _place() -> void:
 	var bob := sin(_t * 4.0) * 0.08
 	if radius > 0.0:
-		global_position = Vector3(anchor.x + cos(_angle) * radius, height + bob, anchor.z + sin(_angle) * radius)
+		global_position = Vector3(anchor.x + cos(_angle) * radius, ground + height + bob, anchor.z + sin(_angle) * radius)
 		rotation.y = PI - _angle   # головой (−Z модели) по касательной движения
 	else:
-		global_position = Vector3(anchor.x, height + bob, anchor.z)
+		global_position = Vector3(anchor.x, ground + height + bob, anchor.z)
 
 
 func _on_body(body: Node3D) -> void:
@@ -5244,6 +5255,9 @@ var material: ShaderMaterial
 func ensure_loaded() -> void:
 	if loaded or data_path == "":
 		return
+	if not FileAccess.file_exists(data_path):
+		push_warning("нет рельефа " + data_path)
+		return
 	var json := JSON.new()
 	if json.parse(FileAccess.get_file_as_string(data_path)) != OK:
 		push_error("не разобрать рельеф " + data_path)
@@ -5288,6 +5302,8 @@ func contains(x: float, z: float) -> bool:
 func height_at(x: float, z: float) -> float:
 	## Высота поверхности по треугольникам сетки — так же, как в меше и HeightMapShape3D.
 	ensure_loaded()
+	if not loaded:
+		return 0.0
 	var fx := (x - x0) / cell
 	var fz := (z - z0) / cell
 	var i := clampi(int(floor(fx)), 0, nx - 2)
@@ -5339,6 +5355,22 @@ func _normal(i: int, j: int) -> Vector3:
 	return Vector3(h(i - 1, j) - h(i + 1, j), 2.0 * cell, h(i, j - 1) - h(i, j + 1)).normalized()
 
 
+var _tris := 0
+
+
+func triangle_count() -> int:
+	return _tris
+
+
+func _tile_flat(ti: int, tj: int, i1: int, j1: int) -> bool:
+	var h0 := h(ti, tj)
+	for j in range(tj, j1 + 1):
+		for i in range(ti, i1 + 1):
+			if absf(h(i, j) - h0) > 0.0001:
+				return false
+	return true
+
+
 func _build_tiles() -> void:
 	var t := 0
 	for tj in range(0, nz - 1, TILE):
@@ -5347,11 +5379,18 @@ func _build_tiles() -> void:
 			st.begin(Mesh.PRIMITIVE_TRIANGLES)
 			var i1 := mini(ti + TILE, nx - 1)
 			var j1 := mini(tj + TILE, nz - 1)
-			for j in range(tj, j1):
-				for i in range(ti, i1):
-					for q in [[i, j], [i + 1, j], [i, j + 1], [i + 1, j], [i + 1, j + 1], [i, j + 1]]:
-						st.set_normal(_normal(q[0], q[1]))
-						st.add_vertex(Vector3(x0 + q[0] * cell, h(q[0], q[1]), z0 + q[1] * cell))
+			if _tile_flat(ti, tj, i1, j1):   # плоский тайл — один квад (спек: ≤ 40 000 треугольников на район)
+				for q in [[ti, tj], [i1, tj], [ti, j1], [i1, tj], [i1, j1], [ti, j1]]:
+					st.set_normal(Vector3.UP)
+					st.add_vertex(Vector3(x0 + q[0] * cell, h(q[0], q[1]), z0 + q[1] * cell))
+				_tris += 2
+			else:
+				for j in range(tj, j1):
+					for i in range(ti, i1):
+						for q in [[i, j], [i + 1, j], [i, j + 1], [i + 1, j], [i + 1, j + 1], [i, j + 1]]:
+							st.set_normal(_normal(q[0], q[1]))
+							st.add_vertex(Vector3(x0 + q[0] * cell, h(q[0], q[1]), z0 + q[1] * cell))
+				_tris += (i1 - ti) * (j1 - tj) * 2
 			var mi := MeshInstance3D.new()
 			mi.name = "Tile%d" % t
 			mi.mesh = st.commit()
@@ -5436,6 +5475,9 @@ const KIT_STEP_RISE := 0.2
 const KIT_STEP_TREAD := 0.3
 const KIT_RAMP_DEG := 25.0
 const KIT_WIDTH := 1.6
+## Мелкие пропсы гаснут дальше SMALL_RANGE (спек «Масштаб ×3», раздел 5).
+const SMALL_PROPS := ["grass", "bush", "box", "bag", "chair", "bin", "puddle", "flowerbed", "ivy"]
+const SMALL_RANGE := 40.0
 
 
 static func kit_colliders(model: String) -> Array:
@@ -5542,6 +5584,11 @@ func _build_prop(p: Dictionary) -> void:
 	body.transform = props.global_transform.affine_inverse() * Transform3D(Basis(Vector3.UP, deg_to_rad(float(p.get("rot", 0)))), _place(p))
 	props.add_child(body)
 	Toon.apply(model, Toon.OUTLINE_FOOD if p.get("outline", false) else Toon.OUTLINE_NONE)
+	if String(p["model"]) in SMALL_PROPS:
+		for mi in model.find_children("*", "MeshInstance3D", true, false):
+			(mi as MeshInstance3D).visibility_range_end = SMALL_RANGE
+			(mi as MeshInstance3D).visibility_range_end_margin = 4.0
+			(mi as MeshInstance3D).visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	if p["model"] == "lamp":
 		body.add_child(_night_light())
 	for mi in model.find_children("wall_glass*", "MeshInstance3D", true, false):
@@ -5574,6 +5621,9 @@ func _night_light() -> SpotLight3D:
 	l.light_color = Color("#FFD9A0")
 	l.light_energy = 4.0
 	l.shadow_enabled = false
+	l.distance_fade_enabled = true   # на большом дворе дальние фонари гаснут (спек «Масштаб», раздел 5)
+	l.distance_fade_begin = 35.0
+	l.distance_fade_length = 5.0
 	l.visible = false
 	return l
 
@@ -7096,7 +7146,7 @@ func test_sun_is_high_warm_and_soft() -> void:
 	assert_almost_eq(sun.light_angular_distance, 1.5, 0.01, "мягкая полутень")
 	assert_almost_eq(sun.shadow_blur, 1.5, 0.01)
 	assert_eq(sun.directional_shadow_mode, DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS)
-	assert_almost_eq(sun.directional_shadow_max_distance, 30.0, 0.1)
+	assert_almost_eq(sun.directional_shadow_max_distance, 40.0, 0.1, "каскады на 40 м (спек «Масштаб», раздел 5)")
 
 func test_fill_light_from_the_sky_without_shadows() -> void:
 	var fill := light.get_node_or_null("Fill") as DirectionalLight3D
@@ -8245,6 +8295,21 @@ func test_cat_cannot_walk_up_a_one_metre_terrace() -> void:
 	await _walk(cat, "move_left", 180)
 	assert_lt(cat.global_position.y, 0.5, "кот остался внизу у террасы 1 м")
 	assert_almost_eq(rad_to_deg(cat.floor_max_angle), 40.0, 0.1)
+
+func test_flat_tiles_are_two_triangles() -> void:
+	# План 11: плоский тайл 30×30 — 2 треугольника вместо 1800 (спек: ≤ 40 000 на район).
+	var flat := Terrain.new()
+	flat.data_path = "res://data/terrain/park.json"   # плоский район
+	add_child_autofree(flat)
+	await wait_physics_frames(1)
+	var tiles := flat.find_children("Tile*", "MeshInstance3D", false, false)
+	assert_eq(flat.triangle_count(), tiles.size() * 2, "плоский парк — по 2 треугольника на тайл")
+
+func test_terrain_without_data_answers_zero() -> void:
+	var bad := Terrain.new()
+	bad.data_path = "res://data/terrain/none.json"
+	add_child_autofree(bad)
+	assert_eq(bad.height_at(3, 3), 0.0)
 ```
 
 ## `tests/integration/test_wasp.gd`
@@ -8355,6 +8420,18 @@ func test_wasp_has_a_trail() -> void:
 	var w = WaspScene.instantiate()
 	world.add_child(w)
 	assert_not_null(w.find_child("Trail", false, false), "за осой серый шлейф")
+
+func test_wasp_flies_above_terrace() -> void:
+	# План 11: оса над террасой летает на height над землёй, а не над нулём.
+	var t := Terrain.new()
+	t.data_path = "res://data/terrain/demo.json"   # терраса 2 м: x −18…−6, z −18…−8
+	world.add_child(t)
+	var w = WaspScene.instantiate()
+	w.radius = 0.0
+	w.position = Vector3(-12, 2.5, -13)
+	world.add_child(w)
+	await wait_physics_frames(4)
+	assert_almost_eq(w.global_position.y, 2.5, 0.15, "оса над террасой на высоте 0,5 над землёй")
 ```
 
 ## `tests/integration/test_world_builder.gd`
@@ -8427,7 +8504,7 @@ func test_real_yard_layout_loads() -> void:
 			elevated_spawns += 1
 	assert_gte(tables, 4)
 	assert_gte(elevated_spawns, 3, "еда на столах и балконе")
-	assert_eq(data["hazards"].size(), 4, "две осы, собака, велосипедист")
+	assert_eq(data["hazards"].size(), 9, "двор ×3: 3 собаки, 4 осы, 2 велосипедиста")
 	var b = _builder()
 	b.build(data)
 	assert_eq(b.props_built, data["props"].size(), "все модели существуют")
@@ -8437,17 +8514,11 @@ func test_real_yard_layout_loads() -> void:
 func _yard_with_floor() -> Node3D:
 	var world := Node3D.new()
 	add_child_autofree(world)
-	var floor_body := StaticBody3D.new()
-	floor_body.name = "Floor"
-	floor_body.collision_layer = Layers.WORLD
-	var shape := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = Vector3(60, 0.2, 60)
-	shape.shape = box
-	shape.position.y = -0.1
-	floor_body.add_child(shape)
-	world.add_child(floor_body)
+	var t := Terrain.new()
+	t.data_path = "res://data/terrain/yard.json"   # пол двора — рельеф (планы 10–11)
+	world.add_child(t)
 	var b: Node3D = BuilderScript.new()
+	b.terrain = t
 	world.add_child(b)
 	b.build(BuilderScript.load_layout("res://data/layout/yard.json"))
 	return world
@@ -8467,9 +8538,10 @@ func test_elevated_spawn_points_stand_on_props_not_air() -> void:
 	var world := _yard_with_floor()
 	await wait_physics_frames(3)
 	var space := world.get_world_3d().direct_space_state
+	var t := world.find_children("*", "Terrain", true, false)[0] as Terrain
 	for sp in world.find_children("*", "FoodSpawnPoint", true, false):
 		var pos: Vector3 = (sp as Node3D).global_position
-		if pos.y < 0.5:
+		if pos.y - t.height_at(pos.x, pos.z) < 0.5:   # приподнятая — над рельефом, а не над нулём (террасы, холм)
 			continue
 		var ray := PhysicsRayQueryParameters3D.create(pos + Vector3(0, 0.1, 0), pos + Vector3(0, -3, 0), Layers.WORLD)
 		var hit := space.intersect_ray(ray)
@@ -8502,7 +8574,7 @@ func test_yarn_balls_in_layout_stand_on_something() -> void:
 	var world := _yard_with_floor()
 	await wait_physics_frames(3)
 	var data := BuilderScript.load_layout("res://data/layout/yard.json")
-	assert_between(data["yarn"].size(), 10, 15, "10–15 клубочков на район (спек 3.4)")
+	assert_gte(data["yarn"].size(), 40, "двор ×3: не меньше 40 клубочков (спек «Масштаб», раздел 2)")
 	var space := world.get_world_3d().direct_space_state
 	for y in world.find_children("*", "YarnPickup", true, false):
 		var pos: Vector3 = (y as Node3D).global_position
@@ -8591,6 +8663,129 @@ func test_wall_decals_and_ivy_hang_on_real_walls() -> void:
 			if along <= 3.0 and across <= 0.5 and w["rot"] == it["rot"]:
 				backed = true
 		assert_true(backed, "%s в %s висит на стене" % [it["name"], it["pos"]])
+
+func test_garage_roof_is_walkable_at_2_28() -> void:
+	# План 11: крыши гаражей — площадки для паркура.
+	var b = _builder()
+	b.build({"props": [{"model": "garage", "pos": [0, 0, 0]}]})
+	await wait_physics_frames(1)
+	var space: PhysicsDirectSpaceState3D = b.get_world_3d().direct_space_state
+	var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(0, 5, 0), Vector3(0, -1, 0), Layers.WORLD))
+	assert_false(hit.is_empty(), "крыша гаража твёрдая")
+	if not hit.is_empty():
+		assert_almost_eq((hit["position"] as Vector3).y, 2.28, 0.05)
+
+func test_small_props_fade_out_beyond_40m() -> void:
+	# План 11: на большом дворе мелочь не рисуется дальше 40 м.
+	var b = _builder()
+	b.build({"props": [{"model": "bush", "pos": [0, 0, 0]}, {"model": "garage", "pos": [10, 0, 0]}]})
+	var bush_mi := b.get_node("Props").get_child(0).find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D
+	assert_almost_eq(bush_mi.visibility_range_end, 40.0, 0.01)
+	var garage_mi := b.get_node("Props").get_child(1).find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D
+	assert_eq(garage_mi.visibility_range_end, 0.0, "крупное видно всегда")
+
+func test_lamp_light_fades_at_35m() -> void:
+	var b = _builder()
+	b.build({"props": [{"model": "lamp", "pos": [0, 0, 0]}]})
+	var l := b.find_child("NightLight", true, false) as SpotLight3D
+	assert_true(l.distance_fade_enabled)
+	assert_almost_eq(l.distance_fade_begin, 35.0, 0.01)
+	assert_false(l.shadow_enabled)
+```
+
+## `tests/integration/test_yard_x3.gd`
+
+```gdscript
+extends GutTest
+## План 11: двор ×3 (спек «Масштаб ×3 и рельеф», разделы 1–3).
+
+const LAYOUT := "res://data/layout/yard.json"
+var world: Node3D
+var b: WorldBuilder
+var t: Terrain
+
+func before_all() -> void:
+	world = Node3D.new()
+	add_child(world)
+	t = Terrain.new()
+	t.data_path = "res://data/terrain/yard.json"
+	world.add_child(t)
+	b = WorldBuilder.new()
+	b.terrain = t
+	world.add_child(b)
+	b.build(WorldBuilder.load_layout(LAYOUT))
+	await wait_physics_frames(2)
+
+func after_all() -> void:
+	world.free()
+
+func _ray_down(x: float, z: float) -> Dictionary:
+	var space := world.get_world_3d().direct_space_state
+	return space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(x, 20, z), Vector3(x, -10, z), Layers.WORLD))
+
+func test_yard_is_180_by_180_with_counts() -> void:
+	assert_almost_eq(t.width, 180.0, 0.01)
+	assert_almost_eq(t.depth, 180.0, 0.01)
+	var d := WorldBuilder.load_layout(LAYOUT)
+	assert_gte(d["spawn_points"].size(), 60)
+	assert_gte(d["yarn"].size(), 40)
+	assert_gte(d["hideouts"].size(), 25)
+	var n := {}
+	for h in d["hazards"]:
+		n[h["type"]] = n.get(h["type"], 0) + 1
+	assert_eq(n, {"dog": 3, "wasp": 4, "cyclist": 2})
+	assert_lte(t.triangle_count(), 40000, "рельеф ≤ 40 000 треугольников")
+
+func test_terraces_are_raised() -> void:
+	assert_almost_eq(t.height_at(37, -27), 2.0, 0.01, "площадка на террасе")
+	assert_almost_eq(t.height_at(0, -95), 2.0, 0.01, "верхний двор")
+	assert_almost_eq(t.height_at(-20, 20), 1.0, 0.01, "веранда кафе")
+
+func test_generated_items_stand_on_surface() -> void:
+	# Review Focus 3: еда и клубочки стоят на рельефе или на пропсе, не висят и не утоплены.
+	for s in b.get_node("Spawns").get_children() + b.get_node("Yarn").get_children():
+		var p: Vector3 = s.global_position
+		var hit := world.get_world_3d().direct_space_state.intersect_ray(
+			PhysicsRayQueryParameters3D.create(p + Vector3.UP * 0.3, p + Vector3.DOWN * 0.6, Layers.WORLD))
+		assert_false(hit.is_empty(), "%s в %s на опоре" % [s.name, p])
+		if not hit.is_empty():
+			assert_lt(p.y - (hit["position"] as Vector3).y, 0.35, "%s в %s не висит" % [s.name, p])
+
+func test_garage_chain_steps_by_physics() -> void:
+	# Review Focus 5: реальные верхи коллайдеров вдоль цепочки у первого гаража каждого ряда растут ≤ 0,8 м.
+	# Первый гараж ряда rot 0 стоит в (−58, −30); цепочка на z −28,2: ящик x −61,58, бак −60,81, бак с ящиком −59,97, крыша −57.
+	var tops: Array = []
+	for x in [-61.58, -60.81, -59.97, -57.0]:
+		var hit := _ray_down(x, -28.2)
+		tops.append((hit["position"] as Vector3).y if not hit.is_empty() else -1.0)
+	var prev := 0.0
+	for top in tops:
+		assert_lte(top - prev, 0.8, "шаг цепочки %s" % [tops])
+		prev = top
+	assert_almost_eq(tops[-1], 2.28, 0.05, "цепочка ведёт на крышу")
+
+func test_district_edge_is_closed() -> void:
+	# Review Focus 2: горизонтальный луч наружу на высоте кота упирается в стену по всему периметру, кроме прохода в парк.
+	var space := world.get_world_3d().direct_space_state
+	var checks := []
+	for x in range(-84, 85, 12):
+		checks.append([Vector3(x, 0.3, -147), Vector3(x, 0.3, -153)])
+		if absf(x) > 18:
+			checks.append([Vector3(x, 0.3, 27), Vector3(x, 0.3, 33)])
+	for z in range(-144, 25, 12):
+		checks.append([Vector3(-87, 0.3, z), Vector3(-93, 0.3, z)])
+		checks.append([Vector3(87, 0.3, z), Vector3(93, 0.3, z)])
+	for c in checks:
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(c[0], c[1], Layers.WORLD))
+		assert_false(hit.is_empty(), "стена на краю у %s" % [c[0]])
+
+func test_zones_reachable_through_gaps() -> void:
+	# Review Focus 1: лестницы и пандусы террас стоят в проходах подпорных стен (луч вдоль подъёма не упирается в стену).
+	var space := world.get_world_3d().direct_space_state
+	for path in [[Vector3(30, 0.4, -6), Vector3(30, 2.4, -16)], [Vector3(14, 0.4, -27), Vector3(24, 2.4, -27)],
+			[Vector3(-12, 0.4, -64), Vector3(-12, 2.4, -74)], [Vector3(-8, 0.4, 20), Vector3(-15, 1.4, 20)]]:
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(path[0] + Vector3.UP * 0.5, path[1] + Vector3.UP * 0.5, Layers.WORLD))
+		assert_true(hit.is_empty() or not String(hit["collider"].name).begins_with("retaining_wall"), "проход %s свободен" % [path[0]])
 ```
 
 ## `tests/integration/test_yarn.gd`
@@ -8636,7 +8831,10 @@ func test_collected_yarn_does_not_return_after_relaunch() -> void:
 	add_child_autofree(main)
 	await wait_physics_frames(5)
 	var before := get_tree().get_nodes_in_group("yarn").size()
-	assert_eq(before, 24, "12 клубочков двора и 12 парка")
+	var expected := 0
+	for path in ["res://data/layout/yard.json", "res://data/layout/park.json"]:
+		expected += (WorldBuilder.load_layout(path)["yarn"] as Array).size()
+	assert_eq(before, expected, "все клубочки двора и парка")
 	var first = get_tree().get_nodes_in_group("yarn")[0]
 	var key: String = first.key
 	GameState.take_yarn(key)
@@ -8647,7 +8845,7 @@ func test_collected_yarn_does_not_return_after_relaunch() -> void:
 	var main2 := (load("res://scenes/main.tscn") as PackedScene).instantiate()
 	add_child_autofree(main2)
 	await wait_physics_frames(5)
-	assert_eq(get_tree().get_nodes_in_group("yarn").size(), 23, "собранный клубочек не вернулся")
+	assert_eq(get_tree().get_nodes_in_group("yarn").size(), before - 1, "собранный клубочек не вернулся")
 	assert_eq(GameState.yarn, 1)
 	SaveGame.clear()
 ```
@@ -11045,6 +11243,25 @@ def build():
 	return lib.group([basin, water, column, bowl, top_water, knob])
 ```
 
+## `tools/blender/gen/garage.py`
+
+```python
+"""Гараж 3×5,5 м с плоской крышей 2,2 м: короб, ворота, бортик (крыша — площадка для паркура, спек «Масштаб» 3)."""
+import lib
+
+SPEC = {"max_tris": 1500, "max_dim": 5.7}
+
+
+def build():
+	body = lib.rounded_box("garage", (3.0, 5.5, 2.2), bevel=0.03, material="olive")
+	body.location.z = 1.1
+	door = lib.rounded_box("garage_door", (2.4, 0.06, 1.8), bevel=0.01, material="sky")
+	door.location = (0, -2.76, 0.9)   # −Y Blender = +Z Godot: ворота смотрят «вперёд»
+	rim = lib.rounded_box("garage_rim", (3.1, 5.6, 0.08), bevel=0.01, material="cream")
+	rim.location.z = 2.24
+	return lib.group([body, door, rim])
+```
+
 ## `tools/blender/gen/gardener.py`
 
 ```python
@@ -12227,7 +12444,7 @@ STEP_TREAD = 0.3
 RAMP_DEG = 25.0
 WIDTH = 1.6
 WALL_LEN = 4.0
-WALL_THICK = 0.4
+WALL_THICK = 1.0   # стена закрывает всю ячейку обрыва 1 м (ревью плана 10)
 
 
 def stairs_run(h):
@@ -12722,6 +12939,7 @@ INCLUDE = [
     "export_presets.cfg", "tools/audio/*.py", "tools/release/*.sh", "tools/images/*.py", "tools/images/manifest.json", "assets/ui/*.tres", "assets/shaders/*.gdshader",
     "assets/sfx/README.md", "assets/fonts/OFL.txt",
     "tools/terrain/**/*.py", "data/terrain_src/*.json", "data/layout/*.json",
+    "tools/layout/**/*.py", "data/layout_src/*.json",
 ]
 EXCLUDE_DIRS = {"addons", "build", ".godot", ".superpowers"}
 # Двоичные файлы (.ttf/.ogg/.wav/.glb/.png) в приложение не входят: откуда их взять (или как сгенерировать), описано в процедуре.
@@ -14045,7 +14263,9 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
   меш рельефа неиндексированный и для 180×180 даст 64 800 треугольников (спек ≤ 40 000) — индексы или прореживание;
   2 неосвобождённых узла в `test_terrain`; константы набора террас дублируются в Blender и `WorldBuilder`; абсолютные высоты у
   ос, голубей, маркера возрождения и декалей; дорога (Path3D) не повторяет рельеф.
-- План 11. Генератор раскладки и двор ×3 (180×180, зоны, гаражи и крыши, террасы) — следующий.
+- План 11. Генератор раскладки и двор ×3 (`2026-10-09-snack-run-11-yard-x3.md`) — ВЫПОЛНЕН 2026-10-09: `tools/layout/`,
+  двор 180×180 с гаражами и крышами, площадкой и верхним двором на террасах, сквером с холмом, верандой; плоские тайлы рельефа,
+  оса над рельефом, отсечение мелочи 40 м.
 - План 12. Парк ×3 (90×96: холм с беседкой, пруд, роща, аллея на склоне).
 - Планы 13–15. Этап 3: порт 120×102 (район и вода, опасности, рыбалка) по спеку `2026-10-09-snack-run-stage3-port-design.md`.
 ```
@@ -15258,14 +15478,13 @@ if __name__ == "__main__":
 
 ```json
 {
-  "note": "Двор с кафе 60×60 (до масштаба ×3): плоский, асфальт и плитка тротуара как прежний ground.glb.",
   "size": [
-    60,
-    60
+    180,
+    180
   ],
   "origin": [
-    -30,
-    -30
+    -90,
+    -150
   ],
   "cell": 1.0,
   "base": 0.0,
@@ -15275,9 +15494,78 @@ if __name__ == "__main__":
     "grass",
     "gravel"
   ],
-  "default": "asphalt",
-  "features": [],
+  "default": "grass",
+  "features": [
+    {
+      "type": "terrace",
+      "rect": [
+        22,
+        -40,
+        52,
+        -14
+      ],
+      "height": 2.0
+    },
+    {
+      "type": "hill",
+      "center": [
+        0,
+        -45
+      ],
+      "radius": 12,
+      "height": 3
+    },
+    {
+      "type": "terrace",
+      "rect": [
+        -40,
+        -118,
+        40,
+        -72
+      ],
+      "height": 2.0
+    },
+    {
+      "type": "terrace",
+      "rect": [
+        -27,
+        15,
+        -13,
+        26
+      ],
+      "height": 1.0
+    }
+  ],
   "paint": [
+    {
+      "rect": [
+        -30,
+        -16,
+        30,
+        30
+      ],
+      "type": "asphalt",
+      "soft": 2
+    },
+    {
+      "rect": [
+        -90,
+        7,
+        90,
+        17
+      ],
+      "type": "asphalt"
+    },
+    {
+      "rect": [
+        -64,
+        -44,
+        -20,
+        -4
+      ],
+      "type": "asphalt",
+      "soft": 2
+    },
     {
       "rect": [
         -25,
@@ -15286,6 +15574,82 @@ if __name__ == "__main__":
         5
       ],
       "type": "paving"
+    },
+    {
+      "rect": [
+        22,
+        -40,
+        52,
+        -14
+      ],
+      "type": "gravel"
+    },
+    {
+      "circle": [
+        0,
+        -45,
+        16
+      ],
+      "soft": 3,
+      "type": "grass"
+    },
+    {
+      "rect": [
+        -40,
+        -118,
+        40,
+        -72
+      ],
+      "type": "paving"
+    },
+    {
+      "rect": [
+        -27,
+        15,
+        -13,
+        26
+      ],
+      "type": "paving"
+    },
+    {
+      "rect": [
+        -88,
+        -146,
+        -66,
+        -46
+      ],
+      "soft": 2,
+      "type": "grass"
+    },
+    {
+      "rect": [
+        56,
+        -146,
+        88,
+        -46
+      ],
+      "soft": 2,
+      "type": "grass"
+    },
+    {
+      "rect": [
+        -60,
+        -146,
+        52,
+        -124
+      ],
+      "soft": 2,
+      "type": "grass"
+    },
+    {
+      "rect": [
+        56,
+        -40,
+        88,
+        4
+      ],
+      "soft": 2,
+      "type": "grass"
     }
   ]
 }
@@ -17972,7 +18336,7 @@ if __name__ == "__main__":
     {
       "model": "retaining_wall2",
       "pos": [
-        -5.8,
+        -5.5,
         0,
         -17.6
       ],
@@ -17984,7 +18348,7 @@ if __name__ == "__main__":
       "pos": [
         -12,
         0,
-        -7.8
+        -7.5
       ],
       "rot": 0,
       "snap": false
@@ -17994,7 +18358,7 @@ if __name__ == "__main__":
       "pos": [
         -16,
         0,
-        -7.8
+        -7.5
       ],
       "rot": 0,
       "snap": false
@@ -18020,6 +18384,2882 @@ if __name__ == "__main__":
 ```
 
 ## `data/layout/yard.json`
+
+```json
+{
+  "props": [
+    {"model": "wall", "pos": [0, 0, -14], "rot": 0},
+    {"model": "wall", "pos": [6, 0, -14], "rot": 0},
+    {"model": "wall", "pos": [-6, 0, -14], "rot": 0},
+    {"model": "wall", "pos": [-12, 0, -8], "rot": 90},
+    {"model": "wall", "pos": [-12, 0, -2], "rot": 90},
+    {"model": "door", "pos": [3, 0, -13.75], "rot": 0},
+    {"model": "door", "pos": [-9, 0, -13.75], "rot": 0},
+    {"model": "stairs", "pos": [-11.3, 0, -11.5], "rot": 0, "colliders": [{"size": [1.2, 0.25, 0.5], "offset": [0, 0.125, 0]}, {"size": [1.2, 0.5, 0.5], "offset": [0, 0.25, 0.5]}, {"size": [1.2, 0.75, 0.5], "offset": [0, 0.375, 1.0]}, {"size": [1.2, 1.0, 0.5], "offset": [0, 0.5, 1.5]}, {"size": [1.2, 0.12, 1.2], "offset": [0, 0.94, 2.55]}]},
+    {"model": "bin", "pos": [3, 0, -11], "rot": 0, "colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}]},
+    {"model": "bin", "pos": [4, 0, -11], "rot": 0, "colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}]},
+    {"model": "bin", "pos": [-6, 0, 2], "rot": 90, "colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}]},
+    {"model": "bin", "pos": [-6, 0, 3], "rot": 90, "colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}]},
+    {"model": "bag", "pos": [2.2, 0, -11.2], "rot": 30},
+    {"model": "bag", "pos": [-6.6, 0, 1.2], "rot": 0},
+    {"model": "box", "pos": [1.5, 0, 1.5], "rot": 0, "outline": true},
+    {"model": "box", "pos": [1.5, 0.3, 1.5], "rot": 20, "outline": true},
+    {"model": "box", "pos": [-2, 0, -1], "rot": 45, "outline": true},
+    {"model": "box", "pos": [-3.5, 0, 4], "rot": 0, "outline": true},
+    {"model": "box", "pos": [6, 0, -1], "rot": 0, "outline": true},
+    {"model": "box", "pos": [2.6, 0, -10.4], "rot": 10, "outline": true},
+    {"model": "car", "pos": [8, 0, 4], "rot": 0, "outline": true, "colliders": [{"size": [1.7, 1.2, 3.6], "offset": [0, 0.9, 0]}]},
+    {"model": "car", "pos": [-8, 0, 7], "rot": 15, "outline": true, "colliders": [{"size": [1.7, 1.2, 3.6], "offset": [0, 0.9, 0]}]},
+    {"model": "bench", "pos": [0, 0, 7], "rot": 180, "outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}]},
+    {"model": "bench", "pos": [-5, 0, -8], "rot": 90, "outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}]},
+    {"model": "lamp", "pos": [5, 0, 8], "rot": 0},
+    {"model": "lamp", "pos": [-9, 0, -3], "rot": 0},
+    {"model": "tree", "pos": [9, 0, -6], "rot": 0, "colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}]},
+    {"model": "tree", "pos": [-9, 0, 10], "rot": 0, "colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}]},
+    {"model": "bush", "pos": [7, 0, -10], "rot": 0},
+    {"model": "bush", "pos": [-3, 0, 10], "rot": 40},
+    {"model": "bush", "pos": [10, 0, 0], "rot": 0},
+    {"model": "fence", "pos": [10, 0, 7], "rot": 90},
+    {"model": "fence", "pos": [10, 0, 9], "rot": 90},
+    {"model": "puddle", "water": true, "pos": [3, 0, 3], "rot": 0},
+    {"model": "puddle", "water": true, "pos": [-5, 0, -5], "rot": 60},
+    {"model": "arch", "pos": [0, 0, 10.5], "rot": 0, "colliders": [{"size": [0.5, 2.6, 0.6], "offset": [-1.45, 1.3, 0]}, {"size": [0.5, 2.6, 0.6], "offset": [1.45, 1.3, 0]}]},
+    {"model": "wall", "pos": [0, 0, 28], "rot": 180},
+    {"model": "wall", "pos": [6, 0, 28], "rot": 180},
+    {"model": "wall", "pos": [-6, 0, 28], "rot": 180},
+    {"model": "cafe_sign", "pos": [0, 0, 26.5], "rot": 180},
+    {"model": "cafe_table", "pos": [-4, 0, 17], "colliders": [{"size": [0.9, 0.06, 0.9], "offset": [0, 0.72, 0]}, {"size": [0.5, 0.72, 0.5], "offset": [0, 0.36, 0]}]},
+    {"model": "cafe_table", "pos": [0, 0, 17], "colliders": [{"size": [0.9, 0.06, 0.9], "offset": [0, 0.72, 0]}, {"size": [0.5, 0.72, 0.5], "offset": [0, 0.36, 0]}]},
+    {"model": "cafe_table", "pos": [4, 0, 17], "colliders": [{"size": [0.9, 0.06, 0.9], "offset": [0, 0.72, 0]}, {"size": [0.5, 0.72, 0.5], "offset": [0, 0.36, 0]}]},
+    {"model": "cafe_table", "pos": [-2, 0, 21], "colliders": [{"size": [0.9, 0.06, 0.9], "offset": [0, 0.72, 0]}, {"size": [0.5, 0.72, 0.5], "offset": [0, 0.36, 0]}]},
+    {"model": "cafe_table", "pos": [2, 0, 21], "colliders": [{"size": [0.9, 0.06, 0.9], "offset": [0, 0.72, 0]}, {"size": [0.5, 0.72, 0.5], "offset": [0, 0.36, 0]}]},
+    {"model": "chair", "pos": [-4, 0, 16.2], "rot": 180, "outline": true, "colliders": [{"size": [0.42, 0.45, 0.42], "offset": [0, 0.24, 0]}]},
+    {"model": "chair", "pos": [-4, 0, 17.8], "rot": 0, "outline": true, "colliders": [{"size": [0.42, 0.45, 0.42], "offset": [0, 0.24, 0]}]},
+    {"model": "chair", "pos": [0, 0, 16.2], "rot": 180, "outline": true, "colliders": [{"size": [0.42, 0.45, 0.42], "offset": [0, 0.24, 0]}]},
+    {"model": "chair", "pos": [0, 0, 17.8], "rot": 0, "outline": true, "colliders": [{"size": [0.42, 0.45, 0.42], "offset": [0, 0.24, 0]}]},
+    {"model": "chair", "pos": [4, 0, 16.2], "rot": 180, "outline": true, "colliders": [{"size": [0.42, 0.45, 0.42], "offset": [0, 0.24, 0]}]},
+    {"model": "chair", "pos": [4, 0, 17.8], "rot": 0, "outline": true, "colliders": [{"size": [0.42, 0.45, 0.42], "offset": [0, 0.24, 0]}]},
+    {"model": "chair", "pos": [-2, 0, 21.8], "rot": 0, "outline": true, "colliders": [{"size": [0.42, 0.45, 0.42], "offset": [0, 0.24, 0]}]},
+    {"model": "chair", "pos": [2, 0, 21.8], "rot": 0, "outline": true, "colliders": [{"size": [0.42, 0.45, 0.42], "offset": [0, 0.24, 0]}]},
+    {"model": "umbrella", "pos": [-3.3, 0, 17.7], "colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}]},
+    {"model": "umbrella", "pos": [4.7, 0, 17.7], "colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}]},
+    {"model": "umbrella", "pos": [2.7, 0, 21.7], "colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}]},
+    {"model": "bin", "pos": [8, 0, 24], "rot": 0, "colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}]},
+    {"model": "bin", "pos": [9, 0, 24], "rot": 0, "colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}]},
+    {"model": "bush", "pos": [-8, 0, 24], "rot": 0},
+    {"model": "bush", "pos": [8, 0, 14.5], "rot": 20},
+    {"model": "puddle", "water": true, "pos": [-6, 0, 19], "rot": 30},
+    {"model": "bush", "pos": [-7.5, 0, -13.0], "rot": 294},
+    {"model": "bush", "pos": [-2.5, 0, -13.0], "rot": 193},
+    {"model": "bush", "pos": [0.0, 0, -13.0], "rot": 0},
+    {"model": "bush", "pos": [8.8, 0, -13.0], "rot": 277},
+    {"model": "bush", "pos": [4.6, 0, -13.0], "rot": 28},
+    {"model": "bush", "pos": [-11.0, 0, -5.0], "rot": 90},
+    {"model": "bush", "pos": [-11.0, 0, 0.5], "rot": 90},
+    {"model": "grass", "pos": [-12.5, 0, -12.5], "rot": 205, "solid": false},
+    {"model": "grass", "pos": [12.5, 0, -12.5], "rot": 90, "solid": false},
+    {"model": "grass", "pos": [-12.5, 0, 9], "rot": 210, "solid": false},
+    {"model": "grass", "pos": [12.5, 0, 9], "rot": 95, "solid": false},
+    {"model": "grass", "pos": [-6, 0, -12.8], "rot": 184, "solid": false},
+    {"model": "grass", "pos": [6, 0, -12.8], "rot": 100, "solid": false},
+    {"model": "grass", "pos": [-12.8, 0, -3], "rot": 350, "solid": false},
+    {"model": "grass", "pos": [12.8, 0, -3], "rot": 267, "solid": false},
+    {"model": "grass", "pos": [3.5, 0, 4.2], "rot": 256, "solid": false},
+    {"model": "grass", "pos": [-3, 0, 1.5], "rot": 226, "solid": false},
+    {"model": "grass", "pos": [8.5, 0, -5], "rot": 5, "solid": false},
+    {"model": "grass", "pos": [-8.5, 0, 9.5], "rot": 71, "solid": false},
+    {"model": "ivy", "pos": [-6.0, 2.2, -13.78], "rot": 0, "solid": false},
+    {"model": "ivy", "pos": [0.0, 2.2, -13.78], "rot": 0, "solid": false},
+    {"model": "ivy", "pos": [8.0, 2.2, -13.78], "rot": 0, "solid": false},
+    {"model": "wall", "pos": [-87.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [-81.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [-75.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [-69.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [-63.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [-57.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [-51.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [-45.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [-39.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [-33.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [-27.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [-21.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [-15.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [-9.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [-3.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [3.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [9.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [15.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [21.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [27.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [33.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [39.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [45.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [51.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [57.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [63.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [69.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [75.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [81.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [87.0, 0, -150.0], "rot": 0},
+    {"model": "wall", "pos": [-90.0, 0, -147.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, -141.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, -135.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, -129.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, -123.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, -117.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, -111.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, -105.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, -99.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, -93.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, -87.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, -81.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, -75.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, -69.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, -63.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, -57.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, -51.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, -45.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, -39.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, -33.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, -27.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, -21.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, -15.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, -9.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, -3.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, 3.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, 9.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, 15.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, 21.0], "rot": 90},
+    {"model": "wall", "pos": [-90.0, 0, 27.0], "rot": 90},
+    {"model": "wall", "pos": [90.0, 0, -147.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, -141.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, -135.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, -129.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, -123.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, -117.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, -111.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, -105.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, -99.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, -93.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, -87.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, -81.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, -75.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, -69.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, -63.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, -57.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, -51.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, -45.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, -39.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, -33.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, -27.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, -21.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, -15.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, -9.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, -3.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, 3.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, 9.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, 15.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, 21.0], "rot": -90},
+    {"model": "wall", "pos": [90.0, 0, 27.0], "rot": -90},
+    {"model": "wall", "pos": [-87.0, 0, 30.0], "rot": 180},
+    {"model": "wall", "pos": [-81.0, 0, 30.0], "rot": 180},
+    {"model": "wall", "pos": [-75.0, 0, 30.0], "rot": 180},
+    {"model": "wall", "pos": [-69.0, 0, 30.0], "rot": 180},
+    {"model": "wall", "pos": [-63.0, 0, 30.0], "rot": 180},
+    {"model": "wall", "pos": [-57.0, 0, 30.0], "rot": 180},
+    {"model": "wall", "pos": [-51.0, 0, 30.0], "rot": 180},
+    {"model": "wall", "pos": [-45.0, 0, 30.0], "rot": 180},
+    {"model": "wall", "pos": [-39.0, 0, 30.0], "rot": 180},
+    {"model": "wall", "pos": [-33.0, 0, 30.0], "rot": 180},
+    {"model": "wall", "pos": [-27.0, 0, 30.0], "rot": 180},
+    {"model": "wall", "pos": [-21.0, 0, 30.0], "rot": 180},
+    {"model": "wall", "pos": [-18.0, 0, 29.95], "rot": 180},
+    {"model": "wall", "pos": [18.0, 0, 30.0], "rot": 180},
+    {"model": "wall", "pos": [24.0, 0, 30.0], "rot": 180},
+    {"model": "wall", "pos": [30.0, 0, 30.0], "rot": 180},
+    {"model": "wall", "pos": [36.0, 0, 30.0], "rot": 180},
+    {"model": "wall", "pos": [42.0, 0, 30.0], "rot": 180},
+    {"model": "wall", "pos": [48.0, 0, 30.0], "rot": 180},
+    {"model": "wall", "pos": [54.0, 0, 30.0], "rot": 180},
+    {"model": "wall", "pos": [60.0, 0, 30.0], "rot": 180},
+    {"model": "wall", "pos": [66.0, 0, 30.0], "rot": 180},
+    {"model": "wall", "pos": [72.0, 0, 30.0], "rot": 180},
+    {"model": "wall", "pos": [78.0, 0, 30.0], "rot": 180},
+    {"model": "wall", "pos": [84.0, 0, 30.0], "rot": 180},
+    {"model": "wall", "pos": [87.0, 0, 29.95], "rot": 180},
+    {"outline": true, "colliders": [{"size": [1.7, 1.2, 3.6], "offset": [0, 0.9, 0]}], "model": "car", "pos": [-30, 0, 8.5], "rot": 90},
+    {"outline": true, "colliders": [{"size": [1.7, 1.2, 3.6], "offset": [0, 0.9, 0]}], "model": "car", "pos": [-48, 0, 8.5], "rot": 90},
+    {"outline": true, "colliders": [{"size": [1.7, 1.2, 3.6], "offset": [0, 0.9, 0]}], "model": "car", "pos": [32, 0, 8.5], "rot": 90},
+    {"outline": true, "colliders": [{"size": [1.7, 1.2, 3.6], "offset": [0, 0.9, 0]}], "model": "car", "pos": [56, 0, 15.5], "rot": 90},
+    {"outline": true, "colliders": [{"size": [1.7, 1.2, 3.6], "offset": [0, 0.9, 0]}], "model": "car", "pos": [-66, 0, 15.5], "rot": 90},
+    {"colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}], "model": "bin", "pos": [-36, 0, 8], "rot": 0},
+    {"colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}], "model": "bin", "pos": [-35, 0, 8], "rot": 0},
+    {"colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}], "model": "bin", "pos": [44, 0, 8], "rot": 0},
+    {"model": "lamp", "pos": [-40, 0, 9], "rot": 0},
+    {"model": "lamp", "pos": [40, 0, 9], "rot": 0},
+    {"model": "lamp", "pos": [70, 0, 15], "rot": 0},
+    {"model": "lamp", "pos": [-75, 0, 15], "rot": 0},
+    {"model": "garage", "pos": [-58.0, 0, -30.0], "rot": 0},
+    {"model": "garage", "pos": [-54.8, 0, -30.0], "rot": 0},
+    {"model": "garage", "pos": [-51.6, 0, -30.0], "rot": 0},
+    {"model": "garage", "pos": [-48.4, 0, -30.0], "rot": 0},
+    {"model": "garage", "pos": [-45.2, 0, -30.0], "rot": 0},
+    {"model": "garage", "pos": [-42.0, 0, -30.0], "rot": 0},
+    {"model": "garage", "pos": [-38.8, 0, -30.0], "rot": 0},
+    {"model": "garage", "pos": [-35.6, 0, -30.0], "rot": 0},
+    {"colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}], "model": "bin", "pos": [-59.97, 0, -28.2], "rot": 0},
+    {"outline": true, "model": "box", "pos": [-59.97, 1.12, -28.2], "rot": 0},
+    {"outline": true, "model": "box", "pos": [-59.97, 1.42, -28.2], "rot": 0},
+    {"colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}], "model": "bin", "pos": [-60.81, 0, -28.2], "rot": 0},
+    {"outline": true, "model": "box", "pos": [-61.58, 0, -28.2], "rot": 0},
+    {"outline": true, "model": "box", "pos": [-61.58, 0.3, -28.2], "rot": 0},
+    {"model": "garage", "pos": [-35.6, 0, -36.0], "rot": 180},
+    {"model": "garage", "pos": [-38.8, 0, -36.0], "rot": 180},
+    {"model": "garage", "pos": [-42.0, 0, -36.0], "rot": 180},
+    {"model": "garage", "pos": [-45.2, 0, -36.0], "rot": 180},
+    {"model": "garage", "pos": [-48.4, 0, -36.0], "rot": 180},
+    {"model": "garage", "pos": [-51.6, 0, -36.0], "rot": 180},
+    {"model": "garage", "pos": [-54.8, 0, -36.0], "rot": 180},
+    {"model": "garage", "pos": [-58.0, 0, -36.0], "rot": 180},
+    {"colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}], "model": "bin", "pos": [-33.63, 0, -37.8], "rot": 180},
+    {"outline": true, "model": "box", "pos": [-33.63, 1.12, -37.8], "rot": 180},
+    {"outline": true, "model": "box", "pos": [-33.63, 1.42, -37.8], "rot": 180},
+    {"colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}], "model": "bin", "pos": [-32.79, 0, -37.8], "rot": 180},
+    {"outline": true, "model": "box", "pos": [-32.02, 0, -37.8], "rot": 180},
+    {"outline": true, "model": "box", "pos": [-32.02, 0.3, -37.8], "rot": 180},
+    {"model": "lamp", "pos": [-46, 0, -24], "rot": 0},
+    {"model": "retaining_wall2", "pos": [23.5, 0, -40.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [27.5, 0, -40.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [31.5, 0, -40.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [35.5, 0, -40.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [39.5, 0, -40.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [43.5, 0, -40.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [47.5, 0, -40.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [50.5, 0, -40.45], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [23.5, 0, -13.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [35.5, 0, -13.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [39.5, 0, -13.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [43.5, 0, -13.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [47.5, 0, -13.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [50.5, 0, -13.55], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [21.5, 0, -38.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [21.5, 0, -34.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [21.5, 0, -30.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [21.5, 0, -22.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [21.5, 0, -18.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [21.55, 0, -15.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [52.5, 0, -38.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [52.5, 0, -34.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [52.5, 0, -30.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [52.5, 0, -26.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [52.5, 0, -22.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [52.5, 0, -18.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [52.45, 0, -15.5], "rot": 90, "snap": false},
+    {"model": "terrace_stairs2", "pos": [30, 0, -11.0], "rot": 0},
+    {"model": "ramp2", "pos": [17.711, 0, -27], "rot": -90},
+    {"model": "sandbox", "pos": [32, 0, -31], "rot": 0},
+    {"model": "swings", "pos": [42, 0, -22], "rot": 0},
+    {"model": "slide", "pos": [45, 0, -33], "rot": 90},
+    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [27, 0, -22], "rot": 90},
+    {"model": "lamp", "pos": [36, 0, -17], "rot": 0},
+    {"model": "lamp", "pos": [49, 0, -37], "rot": 0},
+    {"model": "retaining_wall2", "pos": [-38.5, 0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-34.5, 0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-30.5, 0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-26.5, 0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-22.5, 0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-18.5, 0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-14.5, 0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-10.5, 0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-6.5, 0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-2.5, 0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [1.5, 0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [5.5, 0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [9.5, 0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [13.5, 0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [17.5, 0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [21.5, 0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [25.5, 0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [29.5, 0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [33.5, 0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [37.5, 0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [38.5, 0, -118.45], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-38.5, 0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-34.5, 0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-30.5, 0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-26.5, 0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-22.5, 0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-18.5, 0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-6.5, 0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-2.5, 0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [1.5, 0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [5.5, 0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [9.5, 0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [13.5, 0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [21.5, 0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [25.5, 0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [29.5, 0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [33.5, 0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [37.5, 0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [38.5, 0, -71.55], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-40.5, 0, -116.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [-40.5, 0, -112.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [-40.5, 0, -108.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [-40.5, 0, -104.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [-40.5, 0, -100.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [-40.5, 0, -96.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [-40.5, 0, -92.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [-40.5, 0, -88.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [-40.5, 0, -84.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [-40.5, 0, -80.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [-40.5, 0, -76.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [-40.45, 0, -73.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [40.5, 0, -116.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [40.5, 0, -112.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [40.5, 0, -108.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [40.5, 0, -104.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [40.5, 0, -100.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [40.5, 0, -88.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [40.5, 0, -84.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [40.5, 0, -80.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [40.5, 0, -76.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [40.45, 0, -73.5], "rot": 90, "snap": false},
+    {"model": "terrace_stairs2", "pos": [-12, 0, -69.0], "rot": 0},
+    {"model": "terrace_stairs2", "pos": [18, 0, -69.0], "rot": 0},
+    {"model": "ramp2", "pos": [44.289, 0, -95], "rot": 90},
+    {"model": "wall", "pos": [-35.0, 0, -116.0], "rot": 0},
+    {"model": "wall", "pos": [-29.0, 0, -116.0], "rot": 0},
+    {"model": "wall", "pos": [-23.0, 0, -116.0], "rot": 0},
+    {"model": "wall", "pos": [-17.0, 0, -116.0], "rot": 0},
+    {"model": "wall", "pos": [-11.0, 0, -116.0], "rot": 0},
+    {"model": "wall", "pos": [-5.0, 0, -116.0], "rot": 0},
+    {"model": "wall", "pos": [1.0, 0, -116.0], "rot": 0},
+    {"model": "wall", "pos": [7.0, 0, -116.0], "rot": 0},
+    {"model": "wall", "pos": [13.0, 0, -116.0], "rot": 0},
+    {"model": "wall", "pos": [19.0, 0, -116.0], "rot": 0},
+    {"model": "wall", "pos": [25.0, 0, -116.0], "rot": 0},
+    {"model": "wall", "pos": [31.0, 0, -116.0], "rot": 0},
+    {"model": "wall", "pos": [35.0, 0, -115.95], "rot": 0},
+    {"colliders": [{"size": [1.2, 0.25, 0.5], "offset": [0, 0.125, 0]}, {"size": [1.2, 0.5, 0.5], "offset": [0, 0.25, 0.5]}, {"size": [1.2, 0.75, 0.5], "offset": [0, 0.375, 1.0]}, {"size": [1.2, 1.0, 0.5], "offset": [0, 0.5, 1.5]}, {"size": [1.2, 0.12, 1.2], "offset": [0, 0.94, 2.55]}], "model": "stairs", "pos": [-25, 0, -113.5], "rot": 0},
+    {"colliders": [{"size": [1.2, 0.25, 0.5], "offset": [0, 0.125, 0]}, {"size": [1.2, 0.5, 0.5], "offset": [0, 0.25, 0.5]}, {"size": [1.2, 0.75, 0.5], "offset": [0, 0.375, 1.0]}, {"size": [1.2, 1.0, 0.5], "offset": [0, 0.5, 1.5]}, {"size": [1.2, 0.12, 1.2], "offset": [0, 0.94, 2.55]}], "model": "stairs", "pos": [0, 0, -113.5], "rot": 0},
+    {"colliders": [{"size": [1.2, 0.25, 0.5], "offset": [0, 0.125, 0]}, {"size": [1.2, 0.5, 0.5], "offset": [0, 0.25, 0.5]}, {"size": [1.2, 0.75, 0.5], "offset": [0, 0.375, 1.0]}, {"size": [1.2, 1.0, 0.5], "offset": [0, 0.5, 1.5]}, {"size": [1.2, 0.12, 1.2], "offset": [0, 0.94, 2.55]}], "model": "stairs", "pos": [25, 0, -113.5], "rot": 0},
+    {"model": "flowerbed", "pos": [-22, 0, -100], "rot": 0},
+    {"model": "flowerbed", "pos": [-18, 0, -100], "rot": 0},
+    {"model": "lamp", "pos": [-10, 0, -85], "rot": 0},
+    {"model": "lamp", "pos": [20, 0, -85], "rot": 0},
+    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [5, 0, -100], "rot": 0},
+    {"model": "retaining_wall1", "pos": [-25.5, 0, 14.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall1", "pos": [-21.5, 0, 14.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall1", "pos": [-17.5, 0, 14.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall1", "pos": [-14.5, 0, 14.55], "rot": 0, "snap": false},
+    {"model": "retaining_wall1", "pos": [-25.5, 0, 26.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall1", "pos": [-21.5, 0, 26.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall1", "pos": [-17.5, 0, 26.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall1", "pos": [-14.5, 0, 26.45], "rot": 0, "snap": false},
+    {"model": "retaining_wall1", "pos": [-27.5, 0, 16.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall1", "pos": [-27.5, 0, 20.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall1", "pos": [-27.5, 0, 24.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall1", "pos": [-12.5, 0, 16.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall1", "pos": [-12.5, 0, 24.5], "rot": 90, "snap": false},
+    {"model": "terrace_stairs1", "pos": [-11.5, 0, 20], "rot": 90},
+    {"colliders": [{"size": [0.9, 0.06, 0.9], "offset": [0, 0.72, 0]}, {"size": [0.5, 0.72, 0.5], "offset": [0, 0.36, 0]}], "model": "cafe_table", "pos": [-23, 0, 18]},
+    {"colliders": [{"size": [0.9, 0.06, 0.9], "offset": [0, 0.72, 0]}, {"size": [0.5, 0.72, 0.5], "offset": [0, 0.36, 0]}], "model": "cafe_table", "pos": [-19, 0, 22]},
+    {"colliders": [{"size": [0.9, 0.06, 0.9], "offset": [0, 0.72, 0]}, {"size": [0.5, 0.72, 0.5], "offset": [0, 0.36, 0]}], "model": "cafe_table", "pos": [-23, 0, 23]},
+    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [-22.3, 0, 18.7]},
+    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [-18.3, 0, 22.7]},
+    {"outline": true, "colliders": [{"size": [0.42, 0.45, 0.42], "offset": [0, 0.24, 0]}], "model": "chair", "pos": [-23, 0, 17.2], "rot": 180},
+    {"outline": true, "colliders": [{"size": [0.42, 0.45, 0.42], "offset": [0, 0.24, 0]}], "model": "chair", "pos": [-19, 0, 21.2], "rot": 180},
+    {"outline": true, "colliders": [{"size": [0.42, 0.45, 0.42], "offset": [0, 0.24, 0]}], "model": "chair", "pos": [-23, 0, 22.2], "rot": 180},
+    {"model": "lamp", "pos": [-26, 0, 25], "rot": 0},
+    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-50.7, 0, 24.5], "rot": 0},
+    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [60.2, 0, 25.7], "rot": 0},
+    {"colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}], "model": "bin", "pos": [-38.2, 0, -18.9], "rot": 240},
+    {"colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}], "model": "bin", "pos": [-43.9, 0, -12.7], "rot": 30},
+    {"colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}], "model": "bin", "pos": [-36.0, 0, -14.8], "rot": 15},
+    {"outline": true, "model": "box", "pos": [-60.6, 0, -10.2], "rot": 90},
+    {"outline": true, "model": "box", "pos": [-38.0, 0, -12.0], "rot": 240},
+    {"outline": true, "model": "box", "pos": [-48.9, 0, -15.4], "rot": 105},
+    {"outline": true, "model": "box", "pos": [-51.2, 0, -24.4], "rot": 210},
+    {"outline": true, "model": "box", "pos": [-31.7, 0, -23.9], "rot": 240},
+    {"outline": true, "model": "box", "pos": [-54.9, 0, -15.9], "rot": 90},
+    {"model": "bush", "pos": [49.6, 0, -21.1], "rot": 270},
+    {"model": "bush", "pos": [34.9, 0, -29.6], "rot": 135},
+    {"model": "bush", "pos": [34.3, 0, -16.2], "rot": 0},
+    {"model": "bush", "pos": [24.0, 0, -19.0], "rot": 90},
+    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [37.3, 0, -32.4], "rot": 270},
+    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [43.2, 0, -29.4], "rot": 270},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-8.3, 0, -60.9], "rot": 15},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [8.8, 0, -66.4], "rot": 15},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-10.9, 0, -40.9], "rot": 75},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [14.1, 0, -38.1], "rot": 135},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-8.8, 0, -22.3], "rot": 165},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-9.2, 0, -46.8], "rot": 240},
+    {"model": "bush", "pos": [2.9, 0, -63.2], "rot": 330},
+    {"model": "bush", "pos": [-5.5, 0, -23.7], "rot": 135},
+    {"model": "bush", "pos": [19.2, 0, -35.8], "rot": 15},
+    {"model": "bush", "pos": [7.6, 0, -39.6], "rot": 0},
+    {"model": "bush", "pos": [-14.4, 0, -68.2], "rot": 285},
+    {"model": "bush", "pos": [-19.3, 0, -22.7], "rot": 300},
+    {"solid": false, "model": "grass", "pos": [-17.0, 0, -66.5], "rot": 0},
+    {"solid": false, "model": "grass", "pos": [-7.6, 0, -62.9], "rot": 285},
+    {"solid": false, "model": "grass", "pos": [-17.1, 0, -46.4], "rot": 315},
+    {"solid": false, "model": "grass", "pos": [-5.3, 0, -67.7], "rot": 180},
+    {"solid": false, "model": "grass", "pos": [17.4, 0, -31.7], "rot": 180},
+    {"solid": false, "model": "grass", "pos": [-14.8, 0, -19.9], "rot": 270},
+    {"solid": false, "model": "grass", "pos": [-6.3, 0, -65.6], "rot": 0},
+    {"solid": false, "model": "grass", "pos": [-1.1, 0, -66.0], "rot": 285},
+    {"solid": false, "model": "grass", "pos": [14.3, 0, -20.9], "rot": 30},
+    {"solid": false, "model": "grass", "pos": [-18.8, 0, -44.0], "rot": 30},
+    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-11.4, 0, -58.6], "rot": 90},
+    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [16.8, 0, -59.1], "rot": 270},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-10.7, 0, -79.5], "rot": 90},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-33.1, 0, -107.8], "rot": 195},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [34.6, 0, -82.1], "rot": 180},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-27.9, 0, -94.0], "rot": 300},
+    {"model": "bush", "pos": [1.4, 0, -87.1], "rot": 300},
+    {"model": "bush", "pos": [15.6, 0, -81.4], "rot": 270},
+    {"model": "bush", "pos": [9.0, 0, -99.1], "rot": 0},
+    {"model": "bush", "pos": [23.7, 0, -100.5], "rot": 300},
+    {"model": "bush", "pos": [7.7, 0, -86.9], "rot": 60},
+    {"model": "bush", "pos": [-15.8, 0, -98.0], "rot": 180},
+    {"outline": true, "model": "box", "pos": [32.0, 0, -94.2], "rot": 150},
+    {"outline": true, "model": "box", "pos": [-20.6, 0, -79.4], "rot": 120},
+    {"outline": true, "model": "box", "pos": [34.6, 0, -76.8], "rot": 330},
+    {"outline": true, "model": "box", "pos": [2.7, 0, -83.1], "rot": 0},
+    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-10.9, 0, -107.2], "rot": 180},
+    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-4.3, 0, -91.3], "rot": 270},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-67.8, 0, -124.2], "rot": 345},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-68.9, 0, -103.1], "rot": 240},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-87.2, 0, -92.7], "rot": 315},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-72.9, 0, -54.4], "rot": 330},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-77.6, 0, -46.0], "rot": 210},
+    {"model": "bush", "pos": [-67.2, 0, -96.7], "rot": 135},
+    {"model": "bush", "pos": [-67.1, 0, -137.4], "rot": 315},
+    {"model": "bush", "pos": [-83.1, 0, -93.3], "rot": 180},
+    {"model": "bush", "pos": [-81.6, 0, -73.1], "rot": 285},
+    {"model": "bush", "pos": [-73.9, 0, -93.7], "rot": 90},
+    {"model": "bush", "pos": [-69.4, 0, -90.0], "rot": 135},
+    {"solid": false, "model": "grass", "pos": [-69.3, 0, -49.2], "rot": 225},
+    {"solid": false, "model": "grass", "pos": [-76.5, 0, -88.7], "rot": 225},
+    {"solid": false, "model": "grass", "pos": [-76.9, 0, -85.5], "rot": 60},
+    {"solid": false, "model": "grass", "pos": [-87.4, 0, -49.1], "rot": 150},
+    {"solid": false, "model": "grass", "pos": [-76.6, 0, -105.9], "rot": 195},
+    {"solid": false, "model": "grass", "pos": [-77.2, 0, -76.9], "rot": 225},
+    {"solid": false, "model": "grass", "pos": [-78.9, 0, -50.3], "rot": 240},
+    {"solid": false, "model": "grass", "pos": [-67.7, 0, -119.1], "rot": 150},
+    {"outline": true, "model": "box", "pos": [-87.2, 0, -130.4], "rot": 0},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [78.0, 0, -113.8], "rot": 240},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [67.4, 0, -84.0], "rot": 195},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [59.4, 0, -72.9], "rot": 0},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [59.9, 0, -95.0], "rot": 180},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [64.0, 0, -126.2], "rot": 300},
+    {"model": "bush", "pos": [69.2, 0, -93.1], "rot": 90},
+    {"model": "bush", "pos": [76.2, 0, -82.2], "rot": 90},
+    {"model": "bush", "pos": [72.9, 0, -60.9], "rot": 90},
+    {"model": "bush", "pos": [63.4, 0, -71.9], "rot": 45},
+    {"model": "bush", "pos": [81.9, 0, -55.7], "rot": 60},
+    {"model": "bush", "pos": [66.1, 0, -114.5], "rot": 105},
+    {"solid": false, "model": "grass", "pos": [60.2, 0, -137.2], "rot": 300},
+    {"solid": false, "model": "grass", "pos": [68.4, 0, -102.5], "rot": 150},
+    {"solid": false, "model": "grass", "pos": [86.1, 0, -91.7], "rot": 240},
+    {"solid": false, "model": "grass", "pos": [78.6, 0, -125.9], "rot": 315},
+    {"solid": false, "model": "grass", "pos": [76.1, 0, -66.1], "rot": 90},
+    {"solid": false, "model": "grass", "pos": [59.1, 0, -89.0], "rot": 30},
+    {"solid": false, "model": "grass", "pos": [67.4, 0, -63.9], "rot": 225},
+    {"solid": false, "model": "grass", "pos": [67.6, 0, -75.5], "rot": 45},
+    {"outline": true, "model": "box", "pos": [61.1, 0, -117.7], "rot": 315},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-49.3, 0, -144.6], "rot": 90},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [46.6, 0, -135.8], "rot": 75},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [25.6, 0, -138.8], "rot": 195},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-7.7, 0, -134.7], "rot": 210},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-58.5, 0, -130.6], "rot": 165},
+    {"model": "bush", "pos": [22.8, 0, -137.1], "rot": 285},
+    {"model": "bush", "pos": [-38.1, 0, -142.4], "rot": 90},
+    {"model": "bush", "pos": [-2.6, 0, -145.7], "rot": 240},
+    {"model": "bush", "pos": [40.0, 0, -128.4], "rot": 270},
+    {"model": "bush", "pos": [18.9, 0, -127.1], "rot": 150},
+    {"model": "bush", "pos": [10.5, 0, -137.1], "rot": 120},
+    {"solid": false, "model": "grass", "pos": [-28.7, 0, -143.4], "rot": 285},
+    {"solid": false, "model": "grass", "pos": [23.2, 0, -142.5], "rot": 15},
+    {"solid": false, "model": "grass", "pos": [44.6, 0, -143.1], "rot": 105},
+    {"solid": false, "model": "grass", "pos": [-23.1, 0, -134.1], "rot": 120},
+    {"solid": false, "model": "grass", "pos": [-18.6, 0, -136.5], "rot": 315},
+    {"solid": false, "model": "grass", "pos": [-39.3, 0, -128.5], "rot": 135},
+    {"solid": false, "model": "grass", "pos": [-26.2, 0, -143.8], "rot": 150},
+    {"solid": false, "model": "grass", "pos": [39.5, 0, -124.2], "rot": 90},
+    {"outline": true, "model": "box", "pos": [8.9, 0, -129.7], "rot": 120},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [70.2, 0, -17.8], "rot": 45},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [80.4, 0, -11.5], "rot": 300},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [56.3, 0, -28.6], "rot": 210},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [64.8, 0, -25.0], "rot": 300},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [72.7, 0, -2.8], "rot": 30},
+    {"model": "bush", "pos": [73.6, 0, -10.6], "rot": 135},
+    {"model": "bush", "pos": [86.6, 0, -23.0], "rot": 315},
+    {"model": "bush", "pos": [87.0, 0, -2.4], "rot": 330},
+    {"model": "bush", "pos": [73.3, 0, -13.8], "rot": 345},
+    {"model": "bush", "pos": [66.0, 0, -16.7], "rot": 135},
+    {"model": "bush", "pos": [71.5, 0, -28.1], "rot": 0},
+    {"solid": false, "model": "grass", "pos": [57.4, 0, -33.1], "rot": 345},
+    {"solid": false, "model": "grass", "pos": [80.1, 0, -22.8], "rot": 210},
+    {"solid": false, "model": "grass", "pos": [84.7, 0, -7.1], "rot": 60},
+    {"solid": false, "model": "grass", "pos": [57.6, 0, 3.5], "rot": 105},
+    {"solid": false, "model": "grass", "pos": [86.2, 0, -36.8], "rot": 285},
+    {"solid": false, "model": "grass", "pos": [85.0, 0, -21.1], "rot": 330},
+    {"solid": false, "model": "grass", "pos": [71.3, 0, 2.8], "rot": 45},
+    {"solid": false, "model": "grass", "pos": [63.8, 0, -17.0], "rot": 15},
+    {"outline": true, "model": "box", "pos": [70.2, 0, -10.6], "rot": 210}
+  ],
+  "hideouts": [
+    {"kind": "box", "pos": [-2, 0.2, -0.35], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [-3.5, 0.2, 4.65], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [6, 0.2, -0.35], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [2.6, 0.2, -9.75], "size": [0.6, 0.4, 0.6]},
+    {"kind": "car", "pos": [8, 0.15, 4], "size": [1.4, 0.3, 3.2]},
+    {"kind": "car", "pos": [-8, 0.15, 7], "rot": 15, "size": [1.4, 0.3, 3.2]},
+    {"kind": "bench", "pos": [0, 0.2, 7], "size": [1.3, 0.4, 0.4]},
+    {"kind": "bench", "pos": [-5, 0.2, -8], "rot": 90, "size": [1.3, 0.4, 0.4]},
+    {"kind": "bench", "pos": [-50.7, 0.2, 24.5], "rot": 0, "size": [1.3, 0.4, 0.4]},
+    {"kind": "bench", "pos": [60.2, 0.2, 25.7], "rot": 0, "size": [1.3, 0.4, 0.4]},
+    {"kind": "box", "pos": [-51.2, 0.2, -23.75], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [-31.7, 0.2, -23.25], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [-54.9, 0.2, -15.25], "size": [0.6, 0.4, 0.6]},
+    {"kind": "bench", "pos": [37.3, 0.2, -32.4], "rot": 270, "size": [1.3, 0.4, 0.4]},
+    {"kind": "bench", "pos": [43.2, 0.2, -29.4], "rot": 270, "size": [1.3, 0.4, 0.4]},
+    {"kind": "bench", "pos": [-11.4, 0.2, -58.6], "rot": 90, "size": [1.3, 0.4, 0.4]},
+    {"kind": "bench", "pos": [16.8, 0.2, -59.1], "rot": 270, "size": [1.3, 0.4, 0.4]},
+    {"kind": "box", "pos": [32.0, 0.2, -93.55], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [-20.6, 0.2, -78.75], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [34.6, 0.2, -76.15], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [2.7, 0.2, -82.45], "size": [0.6, 0.4, 0.6]},
+    {"kind": "bench", "pos": [-10.9, 0.2, -107.2], "rot": 180, "size": [1.3, 0.4, 0.4]},
+    {"kind": "bench", "pos": [-4.3, 0.2, -91.3], "rot": 270, "size": [1.3, 0.4, 0.4]},
+    {"kind": "box", "pos": [-87.2, 0.2, -129.75], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [61.1, 0.2, -117.05], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [8.9, 0.2, -129.05], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [70.2, 0.2, -9.95], "size": [0.6, 0.4, 0.6]}
+  ],
+  "spawn_points": [
+    {"pos": [3.5, 0, -10], "allowed": [0], "foods": ["sausage", "cookie"]},
+    {"pos": [-5, 0, 2.5], "allowed": [0], "foods": ["sausage", "cookie"]},
+    {"pos": [0, 0, -4], "allowed": [0], "foods": ["sausage", "cookie"]},
+    {"pos": [-4, 0, -4], "allowed": [0], "foods": ["sausage", "cookie"]},
+    {"pos": [1, 0, 6.3], "allowed": [0], "foods": ["sausage", "cookie"]},
+    {"pos": [-5.8, 0, -7], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [4, 0, 4], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [-11.3, 1.0, -9.0], "allowed": [1], "foods": ["pizza", "hotdog"]},
+    {"pos": [2, 0, 6], "allowed": [1, 3], "foods": ["pizza", "hotdog", "donut", "ice_cream"]},
+    {"pos": [7.5, 0, -8], "allowed": [2, 3], "foods": ["croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [-4, 0, 15.3], "allowed": [1], "foods": ["pizza", "hotdog"]},
+    {"pos": [4, 0, 15.3], "allowed": [1], "foods": ["pizza", "hotdog"]},
+    {"pos": [0, 0.75, 17], "allowed": [2], "foods": ["croissant", "fish"]},
+    {"pos": [-2, 0.75, 21], "allowed": [2], "foods": ["croissant", "fish"]},
+    {"pos": [2, 0.75, 21], "allowed": [3], "foods": ["donut", "ice_cream"]},
+    {"pos": [7, 0, 20], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [-58.0, 2.28, -28.4], "allowed": [2, 3], "foods": ["croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [-35.6, 2.28, -28.4], "allowed": [2, 3], "foods": ["croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [-35.6, 2.28, -37.6], "allowed": [2, 3], "foods": ["croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [-58.0, 2.28, -37.6], "allowed": [2, 3], "foods": ["croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [-25, 1.0, -110.95], "allowed": [1, 2], "foods": ["pizza", "hotdog", "croissant", "fish"]},
+    {"pos": [0, 1.0, -110.95], "allowed": [1, 2], "foods": ["pizza", "hotdog", "croissant", "fish"]},
+    {"pos": [25, 1.0, -110.95], "allowed": [1, 2], "foods": ["pizza", "hotdog", "croissant", "fish"]},
+    {"pos": [-23, 0.75, 18], "allowed": [2], "foods": ["croissant", "fish"]},
+    {"pos": [-19, 0.75, 22], "allowed": [3], "foods": ["donut", "ice_cream"]},
+    {"pos": [-23, 0.75, 23], "allowed": [1], "foods": ["pizza", "hotdog"]},
+    {"pos": [-54.3, 0, 6.8], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [-21.3, 0, 6.3], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [51.5, 0, 6.9], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [28.9, 0, 6.6], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [-50.9, 0, -8.0], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [-22.2, 0, -10.9], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [-33.7, 0, -20.3], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [-52.8, 0, -20.8], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [-46.5, 0, -8.8], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [-28.1, 0, -26.0], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [28.9, 0, -16.1], "allowed": [0, 1, 2], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish"]},
+    {"pos": [39.7, 0, -25.3], "allowed": [0, 1, 2], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish"]},
+    {"pos": [25.1, 0, -34.8], "allowed": [0, 1, 2], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish"]},
+    {"pos": [35.5, 0, -37.8], "allowed": [0, 1, 2], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish"]},
+    {"pos": [39.9, 0, -19.7], "allowed": [0, 1, 2], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish"]},
+    {"pos": [29.4, 0, -24.0], "allowed": [0, 1, 2], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish"]},
+    {"pos": [7.8, 0, -46.2], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [-1.5, 0, -41.9], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [-15.5, 0, -29.4], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [15.9, 0, -50.9], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [-14.3, 0, -38.2], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [0.7, 0, -30.8], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [-3.3, 0, -109.2], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [-25.9, 0, -108.4], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [9.3, 0, -94.8], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [22.1, 0, -77.4], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [13.3, 0, -103.2], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [-1.8, 0, -103.9], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [-35.2, 0, -93.9], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [14.2, 0, -92.3], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [-85.6, 0, -104.0], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [-87.4, 0, -120.0], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [75.6, 0, -55.5], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [71.4, 0, -127.0], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [-0.3, 0, -137.4], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [52.0, 0, -131.9], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [76.0, 0, -19.9], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [62.5, 0, -37.7], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]}
+  ],
+  "yarn": [
+    {"pos": [-11.3, 1.0, -9.3]},
+    {"pos": [-10.9, 0.5, -11.0]},
+    {"pos": [1.5, 0.6, 1.5]},
+    {"pos": [0.4, 0.5, 7.0]},
+    {"pos": [8.0, 0.0, 5.3]},
+    {"pos": [-8.3, 0.0, 8.3]},
+    {"pos": [-11.2, 0.0, -13.2]},
+    {"pos": [11.5, 0.0, -13.0]},
+    {"pos": [1.9, 0.0, 10.5]},
+    {"pos": [-5.6, 0.0, -9.0]},
+    {"pos": [-4, 0.75, 17]},
+    {"pos": [4, 0.75, 17]},
+    {"pos": [-58.0, 2.28, -30.0]},
+    {"pos": [-54.8, 2.28, -30.0]},
+    {"pos": [-51.6, 2.28, -30.0]},
+    {"pos": [-48.4, 2.28, -30.0]},
+    {"pos": [-45.2, 2.28, -30.0]},
+    {"pos": [-42.0, 2.28, -30.0]},
+    {"pos": [-38.8, 2.28, -30.0]},
+    {"pos": [-35.6, 2.28, -30.0]},
+    {"pos": [-35.6, 2.28, -36.0]},
+    {"pos": [-38.8, 2.28, -36.0]},
+    {"pos": [-42.0, 2.28, -36.0]},
+    {"pos": [-45.2, 2.28, -36.0]},
+    {"pos": [-48.4, 2.28, -36.0]},
+    {"pos": [-51.6, 2.28, -36.0]},
+    {"pos": [-54.8, 2.28, -36.0]},
+    {"pos": [-58.0, 2.28, -36.0]},
+    {"pos": [-24.6, 0.5, -113.0]},
+    {"pos": [0.4, 0.5, -113.0]},
+    {"pos": [25.4, 0.5, -113.0]},
+    {"pos": [-53.6, 0, -9.6]},
+    {"pos": [-43.2, 0, -8.4]},
+    {"pos": [-46.1, 0, -24.7]},
+    {"pos": [24.4, 0, -29.9]},
+    {"pos": [40.2, 0, -35.2]},
+    {"pos": [27.5, 0, -29.5]},
+    {"pos": [40.3, 0, -31.2]},
+    {"pos": [-0.1, 0, -57.4]},
+    {"pos": [-3.8, 0, -57.0]},
+    {"pos": [5.4, 0, -28.2]},
+    {"pos": [10.2, 0, -59.6]},
+    {"pos": [-7.7, 0, -83.1]},
+    {"pos": [29.2, 0, -107.0]},
+    {"pos": [31.1, 0, -85.4]},
+    {"pos": [9.0, 0, -79.1]},
+    {"pos": [-8.9, 0, -90.7]},
+    {"pos": [27.3, 0, -82.9]},
+    {"pos": [-72.6, 0, -48.3]},
+    {"pos": [59.7, 0, -128.8]},
+    {"pos": [49.8, 0, -145.5]},
+    {"pos": [72.9, 0, -34.5]}
+  ],
+  "hazards": [
+    {"type": "dog", "pos": [7, 0, -7], "rot": 90},
+    {"type": "wasp", "pos": [2, 0.5, 6], "radius": 2.5},
+    {"type": "cyclist", "pos": [0, 0, 12]},
+    {"type": "wasp", "pos": [2, 1.1, 21], "radius": 0.8, "height": 1.0},
+    {"type": "cyclist", "pos": [-40, 0, 12]},
+    {"type": "dog", "pos": [-40, 0, -22], "rot": 90},
+    {"type": "wasp", "pos": [45, 0.5, -33], "radius": 2.0},
+    {"type": "dog", "pos": [10, 0, -90], "rot": 0},
+    {"type": "wasp", "pos": [-20, 0.5, -100], "radius": 2.0}
+  ],
+  "decals": [
+    {"texture": "assets/images/world/decal_manhole.png", "pos": [3, 0, -2], "size": [1.0, 1.0]},
+    {"texture": "assets/images/world/decal_cracks.png", "pos": [-6, 0, 4], "size": [2.0, 2.0], "rot": 20},
+    {"texture": "assets/images/world/decal_cracks.png", "pos": [8, 0, -9], "size": [1.5, 1.5], "rot": 110},
+    {"texture": "assets/images/world/decal_leaves.png", "pos": [-2, 0, -6], "size": [2.0, 2.0]},
+    {"texture": "assets/images/world/decal_leaves.png", "pos": [6, 0, 6], "size": [2.0, 2.0], "rot": 70},
+    {"texture": "assets/images/world/poster_cafe.png", "pos": [-5.0, 0.8, -13.78], "size": [0.9, 0.9], "wall": true},
+    {"texture": "assets/images/world/poster_cat.png", "pos": [6.5, 0.8, -13.78], "size": [0.8, 0.8], "wall": true},
+    {"texture": "assets/images/world/poster_paws.png", "pos": [-11.78, 0.8, -6.5], "size": [0.7, 0.7], "wall": true, "rot": 90}
+  ],
+  "gates": [
+    {"pos": [0, 0, 10.5], "rot": 0, "size": [2.4, 2.6, 0.3], "satiety": 10}
+  ],
+  "shop": {"pos": [-4.5, 0, -1.5], "rot": 180},
+  "road": {"points": [[-88, 0, 12], [88, 0, 12]]}
+}
+```
+
+## `tools/layout/layout_gen.py`
+
+```python
+#!/usr/bin/env python3
+"""Генератор раскладки района (спек «Масштаб ×3 и рельеф», раздел 4).
+
+Описание data/layout_src/<район>.json → data/layout/<район>.json (для WorldBuilder)
+и data/terrain_src/<район>.json (для tools/terrain/terrain_gen.py). Детерминирован (seed);
+перед записью проверяет инварианты (check) и падает с перечнем нарушений.
+"""
+import json
+import math
+import random
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+
+KIT_RISE, KIT_TREAD, KIT_RAMP_DEG, KIT_WIDTH = 0.2, 0.3, 25.0, 1.6   # = WorldBuilder.KIT_* (тест сверяет)
+WALL_THICK = 1.0   # подпорная стена закрывает ячейку обрыва 1 м (terrace_kit.WALL_THICK)
+
+# Пятна моделей при rot 0: ширина по X, глубина по Z, высота верха над землёй.
+FOOTPRINTS = {
+	"wall": (6.0, 0.4, 3.2), "garage": (3.1, 5.6, 2.28), "bin": (0.74, 0.84, 1.12), "box": (0.6, 0.6, 0.3),
+	"car": (1.7, 3.6, 1.5), "bench": (1.5, 0.45, 0.5), "fence": (2.0, 0.12, 1.0), "kiosk": (2.4, 2.0, 2.6),
+	"shed": (2.0, 2.0, 2.3), "cafe_table": (0.9, 0.9, 0.75), "sandbox": (2.0, 2.0, 0.3), "slide": (1.0, 3.0, 1.6),
+	"swings": (2.5, 1.2, 2.2), "tree": (0.3, 0.3, 1.6), "lamp": (0.3, 0.3, 3.0), "fountain": (3.0, 3.0, 1.0),
+	"retaining_wall1": (4.0, WALL_THICK, 1.0), "retaining_wall2": (4.0, WALL_THICK, 2.0), "retaining_wall3": (4.0, WALL_THICK, 3.0),
+	"stairs": (1.2, 3.2, 1.0), "arch": (3.4, 0.6, 2.6), "chair": (0.5, 0.5, 0.9), "umbrella": (0.2, 0.2, 2.2),
+	"bush": (1.0, 1.0, 0.8), "flowerbed": (2.0, 1.0, 0.4), "door": (1.0, 0.2, 2.0),
+}
+
+
+def kit_run(kind, h):
+	return round(h / KIT_RISE) * KIT_TREAD if kind == "stairs" else h / math.tan(math.radians(KIT_RAMP_DEG))
+
+
+def footprint(p):
+	"""(x0, z0, x1, z1, top) пропса; None — неизвестная или несплошная модель. Повороты не по 90° — описанный квадрат."""
+	fp = FOOTPRINTS.get(p["model"])
+	if fp is None or p.get("solid", True) is False:
+		return None
+	sx, sz, top = fp
+	rot = float(p.get("rot", 0)) % 180
+	if abs(rot - 90) < 1:
+		sx, sz = sz, sx
+	elif rot > 1:
+		sx = sz = max(sx, sz)
+	x, y, z = p["pos"]
+	base = y if p.get("snap", True) else 0.0   # у стен со snap false y — абсолютная высота подножия
+	return (x - sx / 2, z - sz / 2, x + sx / 2, z + sz / 2, base + top)
+
+
+def footprints(p):
+	"""Пятна пропса: по явным коллайдерам (как их строит WorldBuilder), иначе по таблице; несплошной — []."""
+	if p.get("solid", True) is False:
+		return []
+	if "colliders" not in p:
+		f = footprint(p)
+		return [f] if f else []
+	x, y, z = p["pos"]
+	base = y if p.get("snap", True) else 0.0
+	rot = float(p.get("rot", 0)) % 360
+	out = []
+	for c in p["colliders"]:
+		sx, sy, sz = c["size"]
+		ox, oy, oz = c.get("offset", [0, 0, 0])
+		cx, cz = _local((x, z), rot, ox, oz)
+		if abs(rot % 180 - 90) < 1:
+			sx, sz = sz, sx
+		elif rot % 180 > 1:
+			sx = sz = max(sx, sz)
+		out.append((cx - sx / 2, cz - sz / 2, cx + sx / 2, cz + sz / 2, base + oy + sy / 2))
+	return out
+
+
+def _local(origin, rot, dx, dz):
+	"""Смещение (dx, dz) в осях объекта с поворотом rot (как Basis(UP, rot) в Godot) → мировые x, z."""
+	a = math.radians(rot)
+	return (round(origin[0] + dx * math.cos(a) + dz * math.sin(a), 3), round(origin[1] - dx * math.sin(a) + dz * math.cos(a), 3))
+
+
+SIDES = {"n": 0, "s": 180, "w": 90, "e": -90}   # стена дома лицом внутрь прямоугольника
+
+
+def perimeter(rect, model="wall", length=6.0, sides="nswe", gaps=()):
+	"""Модули стен по сторонам rect; gaps — [(сторона, центр вдоль стороны, ширина)] — проходы без стен."""
+	x0, z0, x1, z1 = rect
+	out = []
+	for side in sides:
+		horiz = side in "ns"
+		a, b = (x0, x1) if horiz else (z0, z1)
+		span = b - a
+		whole = abs(span / length - round(span / length)) < 1e-6
+		n = max(1, round(span / length)) if whole else math.ceil(span / length)
+		step = length if not whole else span / n
+		inward = {"n": 1, "s": -1, "w": 1, "e": -1}[side] * 0.05
+		for k in range(n):
+			c = round(a + step * (k + 0.5), 3)
+			shift = 0.0
+			if not whole and k == n - 1:   # сторона не кратна модулю: последний прижат к концу, чуть внутрь (без мерцания)
+				c, shift = round(b - length / 2, 3), inward
+			if any(g[0] == side and abs(c - g[1]) < (g[2] + step) / 2 for g in gaps):
+				continue
+			line = (z0 if side == "n" else z1) if horiz else (x0 if side == "w" else x1)
+			line = round(line + shift, 3)
+			pos = [c, 0, line] if horiz else [line, 0, c]
+			out.append({"model": model, "pos": pos, "rot": SIDES[side]})
+	return out
+
+
+def terrace(rect, height, access=()):
+	"""Терраса: элемент рельефа, подпорные стены на ячейке обрыва (снаружи rect), лестницы и пандусы.
+	access — [(сторона, центр вдоль стороны, "stairs" | "ramp")]. Возвращает (feature, props, blocked)."""
+	h = int(height)
+	assert h in (1, 2, 3) and all(float(v).is_integer() for v in rect), "терраса: высота 1–3 м, углы в целых метрах"
+	x0, z0, x1, z1 = rect
+	feature = {"type": "terrace", "rect": list(rect), "height": float(h)}
+	gaps = [(s, c, KIT_WIDTH + 0.8) for s, c, _ in access]
+	props = []
+	half = WALL_THICK / 2
+	for w in perimeter([x0 - half, z0 - half, x1 + half, z1 + half], f"retaining_wall{h}", 4.0, "nswe", gaps):
+		w["rot"] = 0 if w["rot"] in (0, 180) else 90   # подпорная стена симметрична
+		w["snap"] = False
+		props.append(w)
+	for side, c, kind in access:
+		run = kit_run(kind, h)   # верх подъёма — на кромке плато; ход проходит над ячейкой обрыва в проёме стены
+		model = f"terrace_stairs{h}" if kind == "stairs" else f"ramp{h}"
+		if side == "s":
+			pos, rot = [c, 0, z1 + run], 0
+		elif side == "n":
+			pos, rot = [c, 0, z0 - run], 180
+		elif side == "e":
+			pos, rot = [x1 + run, 0, c], 90
+		else:
+			pos, rot = [x0 - run, 0, c], -90
+		props.append({"model": model, "pos": [round(v, 3) for v in pos], "rot": rot})
+	b = 1.0   # полоса обрыва ±1 м от края — без россыпи
+	blocked = [(x0 - b, z0 - b, x1 + b, z0 + b, h), (x0 - b, z1 - b, x1 + b, z1 + b, h),
+		(x0 - b, z0 - b, x0 + b, z1 + b, h), (x1 - b, z0 - b, x1 + b, z1 + b, h)]
+	for p in props:
+		if p["model"].startswith(("terrace_stairs", "ramp")):
+			run = kit_run("stairs" if "stairs" in p["model"] else "ramp", h)
+			x, _, z = p["pos"]
+			ex, ez = _local((x, z), p["rot"], 0, -run)
+			ax, az = _local((x, z), p["rot"], 0, 3.0)   # свободный подход 3 м к подножию
+			blocked.append((min(ax, ex) - 1.2, min(az, ez) - 1.2, max(ax, ex) + 1.2, max(az, ez) + 1.2, h))
+	return feature, props, blocked
+
+
+def garage_row(origin, count, rot=0, step=3.2, foods=None):
+	"""Ряд гаражей вдоль локальной X; у первого — цепочка прыжков на крышу:
+	стопка ящиков 0,6 → бак 1,12 → бак с двумя ящиками 1,72 → крыша 2,28. На каждой крыше клубочек, на крайних — редкая еда."""
+	props, yarn, spawns = [], [], []
+	for k in range(count):
+		gx, gz = _local(origin, rot, k * step, 0)
+		props.append({"model": "garage", "pos": [gx, 0, gz], "rot": rot})
+		yarn.append({"pos": [gx, 2.28, round(gz, 3)]})
+		if k in (0, count - 1):
+			sx, sz = _local(origin, rot, k * step, 1.6)
+			sp = {"pos": [sx, 2.28, sz], "allowed": [2, 3]}
+			if foods:
+				sp["foods"] = foods   # без списка точка берёт еду любого района (парк во дворе)
+			spawns.append(sp)
+	edge = -1.55 - 0.05
+	b2 = edge - 0.37
+	b1 = b2 - 0.74 - 0.1
+	bx = b1 - 0.37 - 0.3 - 0.1
+	# ящик 0,3 м: стопка из двух — 0,6; бак 1,12; бак с двумя ящиками — 1,72; крыша 2,28 (шаги ≤ 0,6 м)
+	for dx, model, y in ((b2, "bin", 0), (b2, "box", 1.12), (b2, "box", 1.42), (b1, "bin", 0), (bx, "box", 0), (bx, "box", 0.3)):
+		x, z = _local(origin, rot, dx, 1.8)
+		props.append({"model": model, "pos": [x, y, z], "rot": rot})
+	return {"props": props, "yarn": yarn, "spawn_points": spawns}
+
+
+def scatter(rng, rect, count, blocked, min_dist=2.0, margin=0.4, taken=None, tries=6000):
+	"""count точек в rect не ближе min_dist друг к другу и к taken, вне blocked (+margin)."""
+	pts = []
+	taken = list(taken or [])
+	x0, z0, x1, z1 = rect
+	for _ in range(tries):
+		if len(pts) >= count:
+			break
+		x, z = round(rng.uniform(x0, x1), 1), round(rng.uniform(z0, z1), 1)
+		if any(f[0] - margin < x < f[2] + margin and f[1] - margin < z < f[3] + margin for f in blocked):
+			continue
+		if any((x - a) ** 2 + (z - b) ** 2 < min_dist ** 2 for a, b in taken + pts):
+			continue
+		pts.append((x, z))
+	if len(pts) < count:
+		raise ValueError(f"scatter: в {rect} поместилось {len(pts)} из {count}")
+	return pts
+
+
+def reachable(fps, jump=0.8, gap=1.0):
+	"""Индексы пятен, на которые кот забирается с земли цепочкой прыжков (вверх ≤ jump, зазор ≤ gap)."""
+	def near(a, b):
+		dx = max(a[0] - b[2], b[0] - a[2], 0.0)
+		dz = max(a[1] - b[3], b[1] - a[3], 0.0)
+		return math.hypot(dx, dz) <= gap
+	seen = {i for i, f in enumerate(fps) if f[4] <= jump}
+	queue = list(seen)
+	while queue:
+		i = queue.pop()
+		for j, f in enumerate(fps):
+			if j not in seen and f[4] - fps[i][4] <= jump and near(fps[i], f):
+				seen.add(j)
+				queue.append(j)
+	return seen
+
+
+def model_defaults(props):
+	"""Флаги модели (colliders, solid, outline, water) — из первого пропса ядра с той же моделью."""
+	d = {}
+	for p in props:
+		d.setdefault(p["model"], {k: v for k, v in p.items() if k not in ("model", "pos", "rot")})
+	return d
+
+
+LISTS = ("props", "hideouts", "spawn_points", "yarn", "hazards", "decals", "gates")
+
+
+def generate(desc):
+	rng = random.Random(desc.get("seed", 1))
+	core = json.loads((ROOT / desc["core"]).read_text()) if "core" in desc else {}
+	out = {k: [dict(it) for it in core.get(k, [])] for k in LISTS}
+	if "shop" in core:
+		out["shop"] = core["shop"]
+	if desc.get("road") or core.get("road"):
+		out["road"] = desc.get("road") or core["road"]
+	terrain = json.loads(json.dumps(desc["terrain"]))
+	terrain.setdefault("features", [])
+	terrain.setdefault("paint", [])
+	defaults = model_defaults(core.get("props", []))
+	gen = {k: [] for k in LISTS}
+	blocked = [f for p in out["props"] for f in footprints(p)]
+
+	def add(kind, items):
+		for it in items:
+			if kind == "props":
+				it = {**defaults.get(it["model"], {}), **it}
+				blocked.extend(footprints(it))
+			out[kind].append(it)
+			gen[kind].append(it)
+
+	taken = [(s["pos"][0], s["pos"][2]) for k in ("spawn_points", "yarn", "hideouts") for s in out[k]]
+	# Два прохода: сначала структура всех зон (стены, террасы, гаражи, ручные места), потом россыпь —
+	# иначе россыпь ранней зоны не знает о лестницах и стенах поздней.
+	ops = [op for z in desc.get("zones", []) for op in z["ops"]]
+	for op in [o for o in ops if o["type"] != "scatter"] + [o for o in ops if o["type"] == "scatter"]:
+		t = op["type"]
+		if t == "perimeter":
+			add("props", perimeter(op["rect"], op.get("model", "wall"), op.get("length", 6.0), op.get("sides", "nswe"), [tuple(g) for g in op.get("gaps", [])]))
+		elif t == "terrace":
+			feature, props, bl = terrace(op["rect"], op["height"], [tuple(a) for a in op.get("access", [])])
+			terrain["features"].append(feature)
+			add("props", props)
+			blocked.extend(bl)
+		elif t == "garage_row":
+			row = garage_row(tuple(op["origin"]), op["count"], op.get("rot", 0), op.get("step", 3.2), op.get("foods"))
+			for k, v in row.items():
+				add(k, v)
+		elif t == "hill":
+			terrain["features"].append({"type": "hill", "center": op["center"], "radius": op["radius"], "height": op["height"]})
+		elif t == "paint":
+			pt = {k: v for k, v in op.items() if k not in ("type", "surface")}
+			pt["type"] = op["surface"]   # ключ type занят самой операцией
+			terrain["paint"].append(pt)
+		elif t == "place":
+			for k in LISTS:
+				add(k, [dict(it) for it in op.get(k, [])])
+		elif t == "scatter":
+			pts = scatter(rng, op["rect"], op["count"], blocked, op.get("min_dist", 2.0), op.get("margin", 0.4), taken)
+			taken.extend(pts)
+			for x, z in pts:
+				w = op["what"]
+				if w == "spawn":
+					s = {"pos": [x, 0, z], "allowed": op.get("allowed", [0])}
+					if "foods" in op:
+						s["foods"] = op["foods"]
+					add("spawn_points", [s])
+				elif w == "yarn":
+					add("yarn", [{"pos": [x, 0, z]}])
+				elif w == "hideout" and op.get("kind", "box") == "box":
+					add("props", [{"model": "box", "pos": [x, 0, z], "rot": rng.randrange(0, 360, 15), "outline": True}])
+					add("hideouts", [{"kind": "box", "pos": [x, 0.2, round(z + 0.65, 2)], "size": [0.6, 0.4, 0.6]}])
+				elif w == "hideout":
+					r = rng.choice((0, 90, 180, 270))
+					add("props", [{"model": "bench", "pos": [x, 0, z], "rot": r}])
+					add("hideouts", [{"kind": "bench", "pos": [x, 0.2, z], "rot": r, "size": [1.3, 0.4, 0.4]}])
+				elif w == "prop":
+					rot = rng.randrange(0, 360, 15) if op.get("rot") == "random" else op.get("rot", 0)
+					add("props", [{"model": op["model"], "pos": [x, 0, z], "rot": rot}])
+		else:
+			raise ValueError(f"неизвестная операция {t}")
+	for k, n in desc.get("counts", {}).items():
+		if len(out[k]) < n:
+			raise ValueError(f"{k}: {len(out[k])} < {n}")
+	errs = check(out, gen, terrain)
+	if errs:
+		raise ValueError("инварианты раскладки:\n" + "\n".join(errs))
+	return out, terrain
+
+
+def check(layout, generated, terrain=None):
+	"""Нарушения для созданных генератором точек: еда и клубочки не внутри пропсов, приподнятые — на достижимой опоре."""
+	fps = [f for p in layout["props"] for f in footprints(p)]
+	reach = reachable(fps)
+	errs = []
+	for kind in ("spawn_points", "yarn"):
+		for it in generated.get(kind, []):
+			x, y, z = it["pos"]
+			under = [(i, f) for i, f in enumerate(fps) if f[0] < x < f[2] and f[1] < z < f[3]]
+			if terrain:
+				ox, oz = terrain["origin"]
+				sx, sz = terrain["size"]
+				if not (ox + 1 <= x <= ox + sx - 1 and oz + 1 <= z <= oz + sz - 1):
+					errs.append(f"{kind} {it['pos']}: за краем района")
+			if y < 0.3:
+				if any(f[4] > y + 0.1 for _, f in under):
+					errs.append(f"{kind} {it['pos']}: внутри пропса")
+			elif not any(abs(f[4] - y) <= 0.15 and i in reach for i, f in under):
+				errs.append(f"{kind} {it['pos']}: нет достижимой опоры на высоте {y}")
+	keys = [tuple(y["pos"]) for y in layout["yarn"]]
+	if len(keys) != len(set(keys)):
+		errs.append("клубочки с одинаковыми позициями (ключи сохранений)")
+	return errs
+
+
+def dump_layout(d):
+	"""JSON по элементу в строке: дифф раскладки читается."""
+	lines = ["{"]
+	keys = list(d)
+	for n, k in enumerate(keys):
+		comma = "," if n < len(keys) - 1 else ""
+		v = d[k]
+		if isinstance(v, list):
+			lines.append(f'  "{k}": [')
+			lines += ["    " + json.dumps(it, ensure_ascii=False) + ("," if i < len(v) - 1 else "") for i, it in enumerate(v)]
+			lines.append("  ]" + comma)
+		else:
+			lines.append(f'  "{k}": ' + json.dumps(v, ensure_ascii=False) + comma)
+	lines.append("}")
+	return "\n".join(lines) + "\n"
+
+
+def main(argv):
+	src = Path(argv[1])
+	desc = json.loads(src.read_text())
+	layout, terrain = generate(desc)
+	name = desc.get("name", src.stem)
+	(ROOT / f"data/layout/{name}.json").write_text(dump_layout(layout))
+	(ROOT / f"data/terrain_src/{name}.json").write_text(json.dumps(terrain, ensure_ascii=False, indent=2) + "\n")
+	print(f"{name}: пропсов {len(layout['props'])}, еды {len(layout['spawn_points'])}, клубочков {len(layout['yarn'])}, укрытий {len(layout['hideouts'])}")
+
+
+if __name__ == "__main__":
+	main(sys.argv)
+```
+
+## `tools/layout/tests/test_layout_gen.py`
+
+```python
+import json, math, random, re, sys, unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / "tools" / "layout"))
+import layout_gen as lg
+
+
+class Primitives(unittest.TestCase):
+	def test_perimeter_walls_face_inside_and_skip_gaps(self):
+		walls = lg.perimeter([0, 0, 24, 12], gaps=[("s", 9.0, 2.0)])
+		rots = {(w["pos"][0], w["pos"][2]): w["rot"] for w in walls}
+		self.assertEqual(rots[(3.0, 0)], 0, "северная стена лицом на юг (+Z), как ядро при z −14")
+		self.assertEqual(rots[(0, 3.0)], 90, "западная — как ядро при x −12")
+		self.assertNotIn((9.0, 12), rots, "проход на юге")
+		self.assertIn((15.0, 12), rots)
+
+	def test_perimeter_side_not_multiple_of_module_has_no_slits(self):
+		# Сторона 75 м: 12 модулей по 6 м встык и последний, прижатый к концу (сдвиг 5 см внутрь от мерцания).
+		walls = lg.perimeter([-90, 0, -15, 30], sides="s")
+		xs = sorted(w["pos"][0] for w in walls)
+		self.assertEqual(len(xs), 13)
+		self.assertAlmostEqual(xs[0], -87.0)
+		self.assertAlmostEqual(xs[-1], -18.0)
+		for a, b in zip(xs, xs[1:]):
+			self.assertLessEqual(b - a, 6.0 + 1e-6, "без щелей")
+		self.assertAlmostEqual(next(w for w in walls if w["pos"][0] == -18.0)["pos"][2], 29.95)
+
+	def test_footprints_follow_explicit_colliders(self):
+		# Балкон ядра: площадка на смещении z 2,55 на высоте 1,0 — пятно по коллайдерам, а не по таблице.
+		core = json.loads((ROOT / "data/layout_src/yard_core.json").read_text())
+		stairs = next(p for p in core["props"] if p["model"] == "stairs")
+		fps = lg.footprints(stairs)
+		self.assertEqual(len(fps), len(stairs["colliders"]))
+		x, _, z = stairs["pos"]
+		self.assertTrue(any(f[0] < x < f[2] and f[1] < z + 2.55 < f[3] and abs(f[4] - 1.0) < 0.01 for f in fps))
+		bench = {"model": "bench", "pos": [0, 0, 0], "rot": 90, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}]}
+		f = lg.footprints(bench)[0]
+		self.assertAlmostEqual(f[3] - f[1], 1.5, 3, "rot 90 меняет оси")
+		self.assertEqual(lg.footprints({"model": "grass", "pos": [0, 0, 0], "solid": False}), [])
+
+	def test_terrace_stairs_land_on_edge_and_walls_cover_cliff(self):
+		feature, props, blocked = lg.terrace([10, -20, 30, -10], 2, access=[("s", 20.0, "stairs"), ("w", -15.0, "ramp")])
+		self.assertEqual(feature, {"type": "terrace", "rect": [10, -20, 30, -10], "height": 2.0})
+		stairs = next(p for p in props if p["model"] == "terrace_stairs2")
+		self.assertAlmostEqual(stairs["pos"][2] - lg.kit_run("stairs", 2), -10, 3, "верх лестницы на кромке плато (над ячейкой обрыва)")
+		ramp = next(p for p in props if p["model"] == "ramp2")
+		self.assertEqual(ramp["rot"], -90)
+		walls = [p for p in props if p["model"] == "retaining_wall2"]
+		self.assertTrue(all(w["snap"] is False for w in walls))
+		self.assertIn([11.5, -9.5], [[w["pos"][0], w["pos"][2]] for w in walls], "стена на ячейке обрыва: кромка + 0,5")
+		self.assertFalse(any(abs(w["pos"][0] - 20.0) < 1.5 and w["pos"][2] > -10 for w in walls), "проход под лестницу")
+		self.assertTrue(blocked, "полосы обрыва закрыты для россыпи")
+
+	def test_garage_row_chain_reaches_roof(self):
+		row = lg.garage_row((0, 0), 3)
+		fps = [lg.footprint(p) for p in row["props"]]
+		reach = lg.reachable([f for f in fps if f])
+		garages = [i for i, p in enumerate(row["props"]) if p["model"] == "garage"]
+		self.assertTrue(all(i in reach for i in garages))
+		self.assertEqual(len(row["yarn"]), 3)
+		self.assertTrue(all(abs(y["pos"][1] - 2.28) < 0.01 for y in row["yarn"]))
+		fed = lg.garage_row((0, 0), 2, foods=["donut"])
+		self.assertTrue(all(s["foods"] == ["donut"] for s in fed["spawn_points"]), "список еды района доходит до крыш")
+
+	def test_scatter_avoids_props_and_keeps_distance(self):
+		blocked = [(4, 4, 6, 6, 1.0)]
+		pts = lg.scatter(random.Random(3), [0, 0, 10, 10], 12, blocked, min_dist=1.5)
+		self.assertEqual(len(pts), 12)
+		for x, z in pts:
+			self.assertFalse(3.6 < x < 6.4 and 3.6 < z < 6.4)
+		for a in pts:
+			for b in pts:
+				if a is not b:
+					self.assertGreaterEqual(math.dist(a, b), 1.5)
+
+	def test_scatter_avoids_cliff_bands(self):
+		_, _, blocked = lg.terrace([10, -20, 30, -10], 2)
+		pts = lg.scatter(random.Random(1), [5, -25, 35, -5], 40, blocked, min_dist=1.0)
+		for x, z in pts:
+			near_edge = (9 <= x <= 11 or 29 <= x <= 31) and -21 <= z <= -9 or (-21 <= z <= -19 or -11 <= z <= -9) and 9 <= x <= 31
+			self.assertFalse(near_edge, f"{x},{z} у обрыва")
+
+	def test_scatter_keeps_approach_to_stairs_free(self):
+		# Кадр плана 11: дерево из россыпи встало прямо у подножия лестницы верхнего двора.
+		_, props, blocked = lg.terrace([10, -20, 30, -10], 2, access=[("s", 20.0, "stairs")])
+		start = next(p for p in props if p["model"] == "terrace_stairs2")["pos"]
+		pts = lg.scatter(random.Random(2), [10, -10, 30, 0], 60, blocked, min_dist=0.8)
+		for x, z in pts:
+			self.assertFalse(abs(x - 20.0) < 1.5 and start[2] <= z <= start[2] + 3.0, f"{x},{z} перед лестницей")
+
+	def test_kit_constants_match_world_builder(self):
+		src = (ROOT / "scripts/world/world_builder.gd").read_text()
+		for name, val in (("KIT_STEP_RISE", lg.KIT_RISE), ("KIT_STEP_TREAD", lg.KIT_TREAD), ("KIT_RAMP_DEG", lg.KIT_RAMP_DEG), ("KIT_WIDTH", lg.KIT_WIDTH)):
+			m = re.search(rf"const {name} := ([0-9.]+)", src)
+			self.assertAlmostEqual(float(m.group(1)), val, 6, name)
+
+
+DESC = {
+	"name": "t", "seed": 5,
+	"terrain": {"size": [40, 40], "origin": [-20, -20], "cell": 1.0, "base": 0.0,
+		"channels": ["asphalt", "paving", "grass", "gravel"], "default": "asphalt", "features": [], "paint": []},
+	"counts": {"spawn_points": 6, "yarn": 3, "hideouts": 2},
+	"zones": [{"name": "z", "ops": [
+		{"type": "garage_row", "origin": [-10, -10], "count": 2, "rot": 0},
+		{"type": "scatter", "what": "spawn", "rect": [-18, 0, 18, 18], "count": 4, "allowed": [0]},
+		{"type": "scatter", "what": "hideout", "kind": "box", "rect": [-18, 0, 18, 18], "count": 2},
+		{"type": "scatter", "what": "yarn", "rect": [-18, 0, 18, 18], "count": 1},
+	]}],
+}
+
+
+class Generate(unittest.TestCase):
+	def test_generate_is_deterministic_and_clean(self):
+		a, ta = lg.generate(DESC)
+		b, tb = lg.generate(DESC)
+		self.assertEqual(lg.dump_layout(a), lg.dump_layout(b))
+		self.assertEqual(len(a["spawn_points"]), 6)
+		self.assertEqual(len(a["hideouts"]), 2)
+		self.assertEqual(sum(1 for p in a["props"] if p["model"] == "box"), 2 + 4, "ящик у каждого укрытия + четыре в цепочке ряда")
+		self.assertEqual(ta["size"], [40, 40])
+
+	def test_check_reports_floating_and_buried_items(self):
+		layout, _ = lg.generate(DESC)
+		layout["yarn"].append({"pos": [15.0, 1.5, 15.0]})                # висит в воздухе
+		layout["spawn_points"].append({"pos": [-10.0, 0, -10.0], "allowed": [0]})   # внутри гаража
+		errs = lg.check(layout, {"yarn": [layout["yarn"][-1]], "spawn_points": [layout["spawn_points"][-1]]})
+		self.assertEqual(len(errs), 2, errs)
+
+	def test_scatter_respects_structure_of_later_zones(self):
+		# Россыпь ранней зоны не должна вставать перед лестницей террасы из более поздней зоны.
+		import copy
+		d = copy.deepcopy(DESC)
+		d["counts"] = {}
+		d["zones"] = [
+			{"name": "a", "ops": [{"type": "scatter", "what": "prop", "model": "tree", "rect": [-8, -4, 8, 0], "count": 40, "min_dist": 0.6}]},
+			{"name": "b", "ops": [{"type": "terrace", "rect": [-10, -15, 10, -5], "height": 1, "access": [["s", 0, "stairs"]]}]},
+		]
+		layout, _ = lg.generate(d)
+		trees = [p["pos"] for p in layout["props"] if p["model"] == "tree"]
+		self.assertTrue(trees)
+		self.assertFalse(any(abs(x) < 1.5 and z > -5 for x, _, z in trees), "подход к лестнице свободен")
+
+	def test_counts_are_enforced(self):
+		import copy
+		d = copy.deepcopy(DESC)
+		d["counts"]["yarn"] = 99
+		with self.assertRaises(ValueError):
+			lg.generate(d)
+
+	def test_core_yarn_keys_preserved(self):
+		core = json.loads((ROOT / "data/layout_src/yard_core.json").read_text())
+		layout, _ = lg.generate(json.loads((ROOT / "data/layout_src/yard.json").read_text()))
+		keys = {tuple(y["pos"]) for y in layout["yarn"]}
+		self.assertTrue(all(tuple(y["pos"]) in keys for y in core["yarn"]), "клубочки ядра на прежних местах")
+```
+
+## `data/layout_src/yard.json`
+
+```json
+{
+ "name": "yard",
+ "seed": 11,
+ "core": "data/layout_src/yard_core.json",
+ "note": "Двор ×3 (спек «Масштаб ×3 и рельеф»): ядро — прежний двор с улицей и кафе; зоны — гаражи, площадка на террасе, сквер с холмом, верхний двор, веранда, окраины.",
+ "terrain": {
+  "size": [
+   180,
+   180
+  ],
+  "origin": [
+   -90,
+   -150
+  ],
+  "cell": 1.0,
+  "base": 0.0,
+  "channels": [
+   "asphalt",
+   "paving",
+   "grass",
+   "gravel"
+  ],
+  "default": "grass",
+  "features": [],
+  "paint": [
+   {
+    "rect": [
+     -30,
+     -16,
+     30,
+     30
+    ],
+    "type": "asphalt",
+    "soft": 2
+   },
+   {
+    "rect": [
+     -90,
+     7,
+     90,
+     17
+    ],
+    "type": "asphalt"
+   },
+   {
+    "rect": [
+     -64,
+     -44,
+     -20,
+     -4
+    ],
+    "type": "asphalt",
+    "soft": 2
+   },
+   {
+    "rect": [
+     -25,
+     -25,
+     5,
+     5
+    ],
+    "type": "paving"
+   }
+  ]
+ },
+ "road": {
+  "points": [
+   [
+    -88,
+    0,
+    12
+   ],
+   [
+    88,
+    0,
+    12
+   ]
+  ]
+ },
+ "counts": {
+  "spawn_points": 60,
+  "yarn": 40,
+  "hideouts": 25
+ },
+ "zones": [
+  {
+   "name": "край района",
+   "ops": [
+    {
+     "type": "perimeter",
+     "rect": [
+      -90,
+      -150,
+      90,
+      30
+     ],
+     "sides": "nwe"
+    },
+    {
+     "type": "perimeter",
+     "rect": [
+      -90,
+      0,
+      -15,
+      30
+     ],
+     "sides": "s"
+    },
+    {
+     "type": "perimeter",
+     "rect": [
+      15,
+      0,
+      90,
+      30
+     ],
+     "sides": "s"
+    }
+   ]
+  },
+  {
+   "name": "улица",
+   "ops": [
+    {
+     "type": "place",
+     "props": [
+      {
+       "model": "car",
+       "pos": [
+        -30,
+        0,
+        8.5
+       ],
+       "rot": 90
+      },
+      {
+       "model": "car",
+       "pos": [
+        -48,
+        0,
+        8.5
+       ],
+       "rot": 90
+      },
+      {
+       "model": "car",
+       "pos": [
+        32,
+        0,
+        8.5
+       ],
+       "rot": 90
+      },
+      {
+       "model": "car",
+       "pos": [
+        56,
+        0,
+        15.5
+       ],
+       "rot": 90
+      },
+      {
+       "model": "car",
+       "pos": [
+        -66,
+        0,
+        15.5
+       ],
+       "rot": 90
+      },
+      {
+       "model": "bin",
+       "pos": [
+        -36,
+        0,
+        8
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bin",
+       "pos": [
+        -35,
+        0,
+        8
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bin",
+       "pos": [
+        44,
+        0,
+        8
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        -40,
+        0,
+        9
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        40,
+        0,
+        9
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        70,
+        0,
+        15
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        -75,
+        0,
+        15
+       ],
+       "rot": 0
+      }
+     ],
+     "hazards": [
+      {
+       "type": "cyclist",
+       "pos": [
+        -40,
+        0,
+        12
+       ]
+      }
+     ]
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      -86,
+      4,
+      -16,
+      9
+     ],
+     "count": 2,
+     "allowed": [
+      0,
+      1
+     ],
+     "foods": [
+      "sausage",
+      "cookie",
+      "pizza",
+      "hotdog"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      16,
+      4,
+      86,
+      9
+     ],
+     "count": 2,
+     "allowed": [
+      0,
+      1
+     ],
+     "foods": [
+      "sausage",
+      "cookie",
+      "pizza",
+      "hotdog"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "bench",
+     "rect": [
+      -86,
+      15,
+      -30,
+      27
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "bench",
+     "rect": [
+      30,
+      15,
+      86,
+      27
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "гаражи",
+   "ops": [
+    {
+     "type": "garage_row",
+     "origin": [
+      -58,
+      -30
+     ],
+     "count": 8,
+     "rot": 0,
+     "foods": [
+      "croissant",
+      "fish",
+      "donut",
+      "ice_cream"
+     ]
+    },
+    {
+     "type": "garage_row",
+     "origin": [
+      -35.6,
+      -36
+     ],
+     "count": 8,
+     "rot": 180,
+     "foods": [
+      "croissant",
+      "fish",
+      "donut",
+      "ice_cream"
+     ]
+    },
+    {
+     "type": "place",
+     "hazards": [
+      {
+       "type": "dog",
+       "pos": [
+        -40,
+        0,
+        -22
+       ],
+       "rot": 90
+      }
+     ],
+     "props": [
+      {
+       "model": "lamp",
+       "pos": [
+        -46,
+        0,
+        -24
+       ],
+       "rot": 0
+      }
+     ]
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bin",
+     "rect": [
+      -62,
+      -26,
+      -22,
+      -8
+     ],
+     "count": 3,
+     "rot": "random",
+     "min_dist": 2.5
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "box",
+     "rect": [
+      -62,
+      -26,
+      -22,
+      -8
+     ],
+     "count": 3,
+     "rot": "random",
+     "min_dist": 2.5
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      -62,
+      -26,
+      -22,
+      -8
+     ],
+     "count": 6,
+     "allowed": [
+      0,
+      1
+     ],
+     "foods": [
+      "sausage",
+      "cookie",
+      "pizza",
+      "hotdog"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      -62,
+      -26,
+      -22,
+      -8
+     ],
+     "count": 3,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "box",
+     "rect": [
+      -62,
+      -26,
+      -22,
+      -8
+     ],
+     "count": 3,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "площадка",
+   "ops": [
+    {
+     "type": "terrace",
+     "rect": [
+      22,
+      -40,
+      52,
+      -14
+     ],
+     "height": 2,
+     "access": [
+      [
+       "s",
+       30,
+       "stairs"
+      ],
+      [
+       "w",
+       -27,
+       "ramp"
+      ]
+     ]
+    },
+    {
+     "type": "paint",
+     "rect": [
+      22,
+      -40,
+      52,
+      -14
+     ],
+     "surface": "gravel"
+    },
+    {
+     "type": "place",
+     "props": [
+      {
+       "model": "sandbox",
+       "pos": [
+        32,
+        0,
+        -31
+       ],
+       "rot": 0
+      },
+      {
+       "model": "swings",
+       "pos": [
+        42,
+        0,
+        -22
+       ],
+       "rot": 0
+      },
+      {
+       "model": "slide",
+       "pos": [
+        45,
+        0,
+        -33
+       ],
+       "rot": 90
+      },
+      {
+       "model": "bench",
+       "pos": [
+        27,
+        0,
+        -22
+       ],
+       "rot": 90
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        36,
+        0,
+        -17
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        49,
+        0,
+        -37
+       ],
+       "rot": 0
+      }
+     ],
+     "hazards": [
+      {
+       "type": "wasp",
+       "pos": [
+        45,
+        0.5,
+        -33
+       ],
+       "radius": 2.0
+      }
+     ]
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush",
+     "rect": [
+      24,
+      -38,
+      50,
+      -16
+     ],
+     "count": 4,
+     "rot": "random",
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      24,
+      -38,
+      50,
+      -16
+     ],
+     "count": 6,
+     "allowed": [
+      0,
+      1,
+      2
+     ],
+     "foods": [
+      "sausage",
+      "cookie",
+      "pizza",
+      "hotdog",
+      "croissant",
+      "fish"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      24,
+      -38,
+      50,
+      -16
+     ],
+     "count": 4,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "bench",
+     "rect": [
+      24,
+      -38,
+      50,
+      -16
+     ],
+     "count": 2,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "сквер",
+   "ops": [
+    {
+     "type": "hill",
+     "center": [
+      0,
+      -45
+     ],
+     "radius": 12,
+     "height": 3
+    },
+    {
+     "type": "paint",
+     "circle": [
+      0,
+      -45,
+      16
+     ],
+     "surface": "grass",
+     "soft": 3
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree",
+     "rect": [
+      -20,
+      -70,
+      20,
+      -18
+     ],
+     "count": 6,
+     "rot": "random",
+     "min_dist": 4.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush",
+     "rect": [
+      -20,
+      -70,
+      20,
+      -18
+     ],
+     "count": 6,
+     "rot": "random",
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "grass",
+     "rect": [
+      -20,
+      -70,
+      20,
+      -18
+     ],
+     "count": 10,
+     "rot": "random",
+     "min_dist": 2.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      -20,
+      -70,
+      20,
+      -18
+     ],
+     "count": 6,
+     "allowed": [
+      0,
+      1
+     ],
+     "foods": [
+      "sausage",
+      "cookie",
+      "pizza",
+      "hotdog"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      -20,
+      -70,
+      20,
+      -18
+     ],
+     "count": 4,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "bench",
+     "rect": [
+      -20,
+      -70,
+      20,
+      -18
+     ],
+     "count": 2,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "верхний двор",
+   "ops": [
+    {
+     "type": "terrace",
+     "rect": [
+      -40,
+      -118,
+      40,
+      -72
+     ],
+     "height": 2,
+     "access": [
+      [
+       "s",
+       -12,
+       "stairs"
+      ],
+      [
+       "s",
+       18,
+       "stairs"
+      ],
+      [
+       "e",
+       -95,
+       "ramp"
+      ]
+     ]
+    },
+    {
+     "type": "paint",
+     "rect": [
+      -40,
+      -118,
+      40,
+      -72
+     ],
+     "surface": "paving"
+    },
+    {
+     "type": "perimeter",
+     "rect": [
+      -38,
+      -116,
+      38,
+      -72
+     ],
+     "sides": "n"
+    },
+    {
+     "type": "place",
+     "props": [
+      {
+       "model": "stairs",
+       "pos": [
+        -25,
+        0,
+        -113.5
+       ],
+       "rot": 0
+      },
+      {
+       "model": "stairs",
+       "pos": [
+        0,
+        0,
+        -113.5
+       ],
+       "rot": 0
+      },
+      {
+       "model": "stairs",
+       "pos": [
+        25,
+        0,
+        -113.5
+       ],
+       "rot": 0
+      },
+      {
+       "model": "flowerbed",
+       "pos": [
+        -22,
+        0,
+        -100
+       ],
+       "rot": 0
+      },
+      {
+       "model": "flowerbed",
+       "pos": [
+        -18,
+        0,
+        -100
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        -10,
+        0,
+        -85
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        20,
+        0,
+        -85
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bench",
+       "pos": [
+        5,
+        0,
+        -100
+       ],
+       "rot": 0
+      }
+     ],
+     "spawn_points": [
+      {
+       "pos": [
+        -25,
+        1.0,
+        -110.95
+       ],
+       "allowed": [
+        1,
+        2
+       ],
+       "foods": [
+        "pizza",
+        "hotdog",
+        "croissant",
+        "fish"
+       ]
+      },
+      {
+       "pos": [
+        0,
+        1.0,
+        -110.95
+       ],
+       "allowed": [
+        1,
+        2
+       ],
+       "foods": [
+        "pizza",
+        "hotdog",
+        "croissant",
+        "fish"
+       ]
+      },
+      {
+       "pos": [
+        25,
+        1.0,
+        -110.95
+       ],
+       "allowed": [
+        1,
+        2
+       ],
+       "foods": [
+        "pizza",
+        "hotdog",
+        "croissant",
+        "fish"
+       ]
+      }
+     ],
+     "yarn": [
+      {
+       "pos": [
+        -24.6,
+        0.5,
+        -113.0
+       ]
+      },
+      {
+       "pos": [
+        0.4,
+        0.5,
+        -113.0
+       ]
+      },
+      {
+       "pos": [
+        25.4,
+        0.5,
+        -113.0
+       ]
+      }
+     ],
+     "hazards": [
+      {
+       "type": "dog",
+       "pos": [
+        10,
+        0,
+        -90
+       ],
+       "rot": 0
+      },
+      {
+       "type": "wasp",
+       "pos": [
+        -20,
+        0.5,
+        -100
+       ],
+       "radius": 2.0
+      }
+     ]
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree",
+     "rect": [
+      -36,
+      -110,
+      36,
+      -76
+     ],
+     "count": 4,
+     "rot": "random",
+     "min_dist": 5.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush",
+     "rect": [
+      -36,
+      -110,
+      36,
+      -76
+     ],
+     "count": 6,
+     "rot": "random",
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      -36,
+      -110,
+      36,
+      -76
+     ],
+     "count": 8,
+     "allowed": [
+      0,
+      1,
+      2,
+      3
+     ],
+     "foods": [
+      "sausage",
+      "cookie",
+      "pizza",
+      "hotdog",
+      "croissant",
+      "fish",
+      "donut",
+      "ice_cream"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      -36,
+      -110,
+      36,
+      -76
+     ],
+     "count": 6,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "box",
+     "rect": [
+      -36,
+      -110,
+      36,
+      -76
+     ],
+     "count": 4,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "bench",
+     "rect": [
+      -36,
+      -110,
+      36,
+      -76
+     ],
+     "count": 2,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "веранда кафе",
+   "ops": [
+    {
+     "type": "terrace",
+     "rect": [
+      -27,
+      15,
+      -13,
+      26
+     ],
+     "height": 1,
+     "access": [
+      [
+       "e",
+       20,
+       "stairs"
+      ]
+     ]
+    },
+    {
+     "type": "paint",
+     "rect": [
+      -27,
+      15,
+      -13,
+      26
+     ],
+     "surface": "paving"
+    },
+    {
+     "type": "place",
+     "props": [
+      {
+       "model": "cafe_table",
+       "pos": [
+        -23,
+        0,
+        18
+       ]
+      },
+      {
+       "model": "cafe_table",
+       "pos": [
+        -19,
+        0,
+        22
+       ]
+      },
+      {
+       "model": "cafe_table",
+       "pos": [
+        -23,
+        0,
+        23
+       ]
+      },
+      {
+       "model": "umbrella",
+       "pos": [
+        -22.3,
+        0,
+        18.7
+       ]
+      },
+      {
+       "model": "umbrella",
+       "pos": [
+        -18.3,
+        0,
+        22.7
+       ]
+      },
+      {
+       "model": "chair",
+       "pos": [
+        -23,
+        0,
+        17.2
+       ],
+       "rot": 180
+      },
+      {
+       "model": "chair",
+       "pos": [
+        -19,
+        0,
+        21.2
+       ],
+       "rot": 180
+      },
+      {
+       "model": "chair",
+       "pos": [
+        -23,
+        0,
+        22.2
+       ],
+       "rot": 180
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        -26,
+        0,
+        25
+       ],
+       "rot": 0
+      }
+     ],
+     "spawn_points": [
+      {
+       "pos": [
+        -23,
+        0.75,
+        18
+       ],
+       "allowed": [
+        2
+       ],
+       "foods": [
+        "croissant",
+        "fish"
+       ]
+      },
+      {
+       "pos": [
+        -19,
+        0.75,
+        22
+       ],
+       "allowed": [
+        3
+       ],
+       "foods": [
+        "donut",
+        "ice_cream"
+       ]
+      },
+      {
+       "pos": [
+        -23,
+        0.75,
+        23
+       ],
+       "allowed": [
+        1
+       ],
+       "foods": [
+        "pizza",
+        "hotdog"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "окраина запад",
+   "ops": [
+    {
+     "type": "paint",
+     "rect": [
+      -88,
+      -146,
+      -66,
+      -46
+     ],
+     "surface": "grass",
+     "soft": 2
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree",
+     "rect": [
+      -88,
+      -146,
+      -66,
+      -46
+     ],
+     "count": 5,
+     "rot": "random",
+     "min_dist": 5.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush",
+     "rect": [
+      -88,
+      -146,
+      -66,
+      -46
+     ],
+     "count": 6,
+     "rot": "random",
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "grass",
+     "rect": [
+      -88,
+      -146,
+      -66,
+      -46
+     ],
+     "count": 8,
+     "rot": "random",
+     "min_dist": 2.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      -88,
+      -146,
+      -66,
+      -46
+     ],
+     "count": 2,
+     "allowed": [
+      1,
+      2,
+      3
+     ],
+     "foods": [
+      "pizza",
+      "hotdog",
+      "croissant",
+      "fish",
+      "donut",
+      "ice_cream"
+     ],
+     "min_dist": 5.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      -88,
+      -146,
+      -66,
+      -46
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "box",
+     "rect": [
+      -88,
+      -146,
+      -66,
+      -46
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "окраина восток",
+   "ops": [
+    {
+     "type": "paint",
+     "rect": [
+      56,
+      -146,
+      88,
+      -46
+     ],
+     "surface": "grass",
+     "soft": 2
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree",
+     "rect": [
+      56,
+      -146,
+      88,
+      -46
+     ],
+     "count": 5,
+     "rot": "random",
+     "min_dist": 5.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush",
+     "rect": [
+      56,
+      -146,
+      88,
+      -46
+     ],
+     "count": 6,
+     "rot": "random",
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "grass",
+     "rect": [
+      56,
+      -146,
+      88,
+      -46
+     ],
+     "count": 8,
+     "rot": "random",
+     "min_dist": 2.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      56,
+      -146,
+      88,
+      -46
+     ],
+     "count": 2,
+     "allowed": [
+      1,
+      2,
+      3
+     ],
+     "foods": [
+      "pizza",
+      "hotdog",
+      "croissant",
+      "fish",
+      "donut",
+      "ice_cream"
+     ],
+     "min_dist": 5.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      56,
+      -146,
+      88,
+      -46
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "box",
+     "rect": [
+      56,
+      -146,
+      88,
+      -46
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "окраина север",
+   "ops": [
+    {
+     "type": "paint",
+     "rect": [
+      -60,
+      -146,
+      52,
+      -124
+     ],
+     "surface": "grass",
+     "soft": 2
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree",
+     "rect": [
+      -60,
+      -146,
+      52,
+      -124
+     ],
+     "count": 5,
+     "rot": "random",
+     "min_dist": 5.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush",
+     "rect": [
+      -60,
+      -146,
+      52,
+      -124
+     ],
+     "count": 6,
+     "rot": "random",
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "grass",
+     "rect": [
+      -60,
+      -146,
+      52,
+      -124
+     ],
+     "count": 8,
+     "rot": "random",
+     "min_dist": 2.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      -60,
+      -146,
+      52,
+      -124
+     ],
+     "count": 2,
+     "allowed": [
+      1,
+      2,
+      3
+     ],
+     "foods": [
+      "pizza",
+      "hotdog",
+      "croissant",
+      "fish",
+      "donut",
+      "ice_cream"
+     ],
+     "min_dist": 5.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      -60,
+      -146,
+      52,
+      -124
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "box",
+     "rect": [
+      -60,
+      -146,
+      52,
+      -124
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "окраина юго-восток",
+   "ops": [
+    {
+     "type": "paint",
+     "rect": [
+      56,
+      -40,
+      88,
+      4
+     ],
+     "surface": "grass",
+     "soft": 2
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree",
+     "rect": [
+      56,
+      -40,
+      88,
+      4
+     ],
+     "count": 5,
+     "rot": "random",
+     "min_dist": 5.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush",
+     "rect": [
+      56,
+      -40,
+      88,
+      4
+     ],
+     "count": 6,
+     "rot": "random",
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "grass",
+     "rect": [
+      56,
+      -40,
+      88,
+      4
+     ],
+     "count": 8,
+     "rot": "random",
+     "min_dist": 2.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      56,
+      -40,
+      88,
+      4
+     ],
+     "count": 2,
+     "allowed": [
+      1,
+      2,
+      3
+     ],
+     "foods": [
+      "pizza",
+      "hotdog",
+      "croissant",
+      "fish",
+      "donut",
+      "ice_cream"
+     ],
+     "min_dist": 5.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      56,
+      -40,
+      88,
+      4
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "box",
+     "rect": [
+      56,
+      -40,
+      88,
+      4
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    }
+   ]
+  }
+ ]
+}
+```
+
+## `data/layout_src/yard_core.json`
 
 ```json
 {

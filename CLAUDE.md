@@ -42,6 +42,7 @@
 ```
 make test          # test-tools (Python) + Blender-тесты + GUT; делает import сам
 make terrain       # data/terrain_src/*.json → data/terrain/*.json (tools/terrain/terrain_gen.py)
+make layout        # data/layout_src/*.json → data/layout/*.json + рельеф (tools/layout/layout_gen.py), затем terrain
 make test-godot    # только GUT (сначала import); падает и на SCRIPT ERROR
 make test-blender  # только Blender
 make assets        # пересобрать все glb из tools/blender/gen/*.py в assets/models/
@@ -76,6 +77,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 - `scripts/autoload/input_setup.gd` (InputMap в коде), `dev_tools.gd` (`++ --screenshot=path`).
 - `tools/blender/`: `palette.py`, `lib.py` (rounded_box, world_extent, tri_count, check_asset), `export.py`, `build.py`, `cat.py` (сварка + subdivision) + `cat_eyes.py` (глаза) + `cat_fluff.py` (пучки, усы, ошейник), `dog.py` + `dog_sleep.py` (поза «спит»), `gen/*.py` (каждый: `SPEC` + `build()`); `tools/audio/gen_sfx.py`; `tools/images/gen.py` + `manifest.json`; `export_presets.cfg`.
 - `scripts/world/terrain.gd` (`Terrain`: меш тайлами, `HeightMapShape3D` «Floor», шейдер `terrain.gdshader` со сплатом, `height_at`); `WorldBuilder.terrain_path` — раскладка привязывается к высоте (`"snap": false` — абсолютно); набор террас `tools/blender/terrace_kit.py`; демо `scenes/dev/terrain_demo.tscn`.
+- `tools/layout/layout_gen.py` — генератор раскладки: описание района `data/layout_src/<район>.json` (ядро `*_core.json` + зоны) → `data/layout/<район>.json` и `data/terrain_src/<район>.json`; двор правится только через описание.
 - `scripts/visual/surface_textures.gd` — текстуры крупных поверхностей по имени меша (`wall` и др.; пол — каналы рельефа), трипланар по мировым координатам (спек 2.9).
 - `scripts/world/day_cycle.gd` (чистая логика суток) + `day_night.gd` (узел в `lighting.tscn`, группа `day_night`; `DayNight.is_night(tree)`, без узла — день); группы `night_lights`, `night_windows`.
 - `scenes/world/lighting.tscn` — солнце, заполняющий свет, окружение (SSAO, SSR, glow, облака `sky_cover`), листья; `WorldBuilder` читает `solid`, `water`, `decals` из `yard.json`.
@@ -128,9 +130,11 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 
 **План 10:** тела раскладки ставить в позицию до `add_child` (`WorldBuilder._add_at`), иначе на первом кадре они в начале координат и выталкивают кота сквозь heightmap; пол районов — `Terrain`, в тестах с парком/двором без `Main` рельеф создавать самому.
 
+**План 11:** ящик 0,3 м (стопки через 0,3); россыпь генератора идёт после структуры всех зон; в описании покрытие — ключ `surface` (ключ `type` у операции); точкам еды всегда давать `foods` района, иначе выпадает еда парка.
+
 ## Статус и что дальше
 
-- План 10 «Рельеф» выполнен 2026-10-09 (спек `2026-10-09-snack-run-scale-terrain-design.md`: районы ×3 и рельеф). Дальше план 11 (генератор раскладки + двор ×3), план 12 (парк ×3), затем порт — планы 13–15.
+- Планы 10 «Рельеф» и 11 «Генератор раскладки и двор ×3» выполнены 2026-10-09 (спек `2026-10-09-snack-run-scale-terrain-design.md`). Дальше план 12 (парк ×3), затем порт — планы 13–15.
 - Планы 1–9 выполнены и слиты в `main`: фундамент, игровой цикл, хаб и прогрессия, полировка, визуальная полировка, текстуры крупных поверхностей, этап 2 (сутки, парк, опасности парка). Отложенные мелочи — в дорожной карте.
 - Отложено по просьбе владельца: текстуры пропсов («потом вернёмся к текстурам»).
 - Открытый вопрос владельцу: лицензия весов UniMate для сгенерированных движений (код MIT, для весов явной лицензии не найдено).
