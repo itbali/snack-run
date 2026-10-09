@@ -14,7 +14,7 @@
 
 - Godot 4.7.2, GDScript, Forward+; `GODOT=/Applications/Godot.app/Contents/MacOS/Godot`, `BLENDER=/Applications/Blender.app/Contents/MacOS/Blender`.
 - 3D-ассеты только скриптами Blender; 2D-картинки — только `tools/images/gen.py` по `manifest.json`, ключ только из `OPENAI_API_KEY` (в репозиторий и логи не попадает). Готовые PNG коммитятся вместе с `*.import`.
-- Бюджеты: кот ≤ 6000 треугольников (спек 2.8), собака ≤ 2500, пропс ≤ 800; палитра `tools/blender/palette.py` (+ `eye_green #6FA04A`).
+- Бюджеты: кот ≤ 8000 треугольников (отклонение от 6000 спека 2.8, см. ниже), собака ≤ 2500, пропс ≤ 800; палитра `tools/blender/palette.py` (+ `eye_green #6FA04A`).
 - Клипы кота и собаки не меняются; всё новое движение — модификаторы скелета и твины поверх клипов.
 - Обводка персонажей 0,006 м, еды 0,004 м (в метрах, пересчёт под масштаб узла сохраняется); у глаз обводки нет.
 - Тесты: GUT (`make test-godot`, падает на `SCRIPT ERROR` и `^ERROR:` кроме известного шума), Blender (`make test-blender`); одиночный прогон `-gselect=<имя>`; в тестах с котом нужен пол; позиции узлов ставить до `add_child`; `Input.mouse_mode` только через `Mouse.capture`.
@@ -23,6 +23,7 @@
 
 ## Отклонения от спека, принятые заранее
 
+- Бюджет кота 8000 треугольников вместо 6000: канонический меш триангулирован, Catmull-Clark даёт ×6 (807 × 6 ≈ 4840 за тело), плюс глаза и пучки. Сферы глаз и пучков 8×6 (80 треугольников).
 - Hit-stop (замедление времени при ударе) не делаем: `Engine.time_scale` ломает таймеры тестов и паузы; вспышка + тряска камеры достаточно.
 - Внутренняя сторона ушей у модели Quaternius уже коралловая (`sr_coral`), отдельные меши не нужны.
 - Сердечки при съедании — спрайты сгенерированной иконки на `QuadMesh` в `CPUParticles3D` (единственное место, где 2D-картинка попадает в 3D помимо неба и декалей).
@@ -293,7 +294,7 @@ texture = ExtResource("2")
 expand_mode = 1
 stretch_mode = 6
 ```
-(ext_resource к остальным вверху). Кнопки — внутри `PanelContainer` поверх: обернуть `VBox` в `PanelContainer "Panel"` с теми же якорями (центр, 360×300), чтобы текст читался на арте.
+(ext_resource к остальным вверху). Чтобы текст читался на арте, перед `VBox` добавить соседний узел `Panel` (`PanelContainer`, якоря центра, offset −200/−160/200/160, без детей): он рисуется под `VBox`, пути `$VBox/Continue` и тесты не меняются.
 
 Тесты: в `test_hud.gd` добавить
 ```gdscript
@@ -333,7 +334,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 **Files:**
 - Create: `tools/blender/cat_fluff.py`, `tools/blender/tests/test_cat_fluff.py`
-- Modify: `tools/blender/cat.py`, `tools/blender/cat_eyes.py` (общие помощники), `tools/blender/gen/cat.py` (`max_tris 6000`), `tools/blender/tests/test_cat_eyes.py` (бюджет 6000), `scripts/player/cat.gd` (обводка не на усах), `assets/models/cat.glb`
+- Modify: `tools/blender/cat.py`, `tools/blender/cat_eyes.py` (общие помощники), `tools/blender/gen/cat.py` (`max_tris 8000`), `tools/blender/tests/test_cat_eyes.py` (бюджет 8000), `scripts/player/cat.gd` (обводка не на усах), `assets/models/cat.glb`
 
 **Interfaces:**
 - Consumes: `cat_eyes._join(name, objs)`, `cat_eyes._attach(obj, arm, bone)` (параметр кости появляется здесь), `cat_eyes.group_bbox(mesh, bone) -> (lo, hi)` (обобщение `head_bbox`).
@@ -398,9 +399,9 @@ class TestCatFluff(unittest.TestCase):
         self.assertEqual(mats, {"sr_coral", "sr_rarity_legendary"}, "коралловый ремешок и золотой жетон")
 
     def test_budget(self):
-        self.assertEqual(lib.check_asset(self.objs, max_tris=6000, max_dim=0.6), [])
+        self.assertEqual(lib.check_asset(self.objs, max_tris=8000, max_dim=0.6), [])
 ```
-В `tools/blender/tests/test_cat_eyes.py` в `test_budget` заменить `max_tris=2500` на `6000`.
+В `tools/blender/tests/test_cat_eyes.py` в `test_budget` заменить `max_tris=2500` на `8000`.
 
 - [ ] **Step 2: Запустить, убедиться, что падает**
 
@@ -415,8 +416,15 @@ def group_bbox(mesh, bone):
 	"""Мировой bbox вершин, привязанных к кости bone весом > 0,5."""
 	bpy.context.view_layer.update()
 	gi = mesh.vertex_groups[bone].index
-	pts = [mesh.matrix_world @ v.co for v in mesh.data.vertices
-	       if any(g.group == gi and g.weight > 0.5 for g in v.groups)]
+	pts = []
+	for threshold in (0.5, 0.25):   # у кончика хвоста и шеи вершин с весом 0,5 может не быть
+		pts = [mesh.matrix_world @ v.co for v in mesh.data.vertices
+		       if any(g.group == gi and g.weight > threshold for g in v.groups)]
+		if pts:
+			break
+	if not pts:
+		b = mesh.parent.data.bones[bone]
+		pts = [mesh.parent.matrix_world @ b.head_local, mesh.parent.matrix_world @ b.tail_local]
 	lo = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
 	hi = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
 	return lo, hi
@@ -550,19 +558,19 @@ def smooth_body(mesh):
 	mesh.name = "cat"
 	return [arm, mesh] + eyes + fluff
 ```
-`tools/blender/gen/cat.py`: `SPEC = {"max_tris": 6000, "max_dim": 0.6, "animations": True}`.
+`tools/blender/gen/cat.py`: `SPEC = {"max_tris": 8000, "max_dim": 0.6, "animations": True}`.
 
 `scripts/player/cat.gd`, в `_ready()`: цикл снятия обводки расширить на усы:
 ```gdscript
 	for mi in _model.find_children("*", "MeshInstance3D", true, false):
-		if String(mi.name).begins_with("eyes_") or mi.name == "whiskers":
-			(mi as MeshInstance3D).material_overlay = null   # обводка на глазах — рамка, на усах — клякса
+		if String(mi.name).begins_with("eyes_") or mi.name == "whiskers" or mi.name == "eyelids":
+			(mi as MeshInstance3D).material_overlay = null   # обводка на глазах — рамка, на усах и веках — клякса
 ```
 
 - [ ] **Step 4: Blender-тесты зелёные, пересборка, кадр**
 
 Run: `make test-blender 2>&1 | grep -E "^(Ran|OK|FAILED|FAIL|AssertionError)"` → `Ran 25 tests ... OK`. Если `test_collar_sits_on_the_neck` падает по высоте — напечатать `lo.z, hi.z, head.z` кости `Bone.002` и поправить `ring.location` (кость шеи может начинаться у плеч).
-Run: `make assets ONLY=cat 2>&1 | grep -E "ОК|ОШИБКА"` → ≤ 6000 tri. `make import`.
+Run: `make assets ONLY=cat 2>&1 | grep -E "ОК|ОШИБКА"` → ≈ 5500 tri, ≤ 8000. `make import`.
 Run: служебный рендер анфас и 3/4 (`-s` скрипт из плана 4, `build/front_normal.png`): кот круглый, щёки с кисточками, усы, грудка, ошейник с жетоном. По кадру допускается подвинуть числа в `_cheeks/_whiskers/_collar` (записать Ruling).
 Run: `make test-godot 2>&1 | tail -3` → зелёные (старые тесты кота не ломаются; `test_cat_asset` проверяет `assert_has` материалов).
 
@@ -583,11 +591,11 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - Modify: `tools/blender/palette.py` (+`eye_green`), `tools/blender/cat_eyes.py` (`_parts` v2, набор `blink`), `tools/blender/tests/test_lib.py` (19 цветов), `tools/blender/tests/test_cat_eyes.py`, `scripts/player/cat_face.gd`, `tests/integration/test_cat_scene.gd`, `assets/models/cat.glb`
 
 **Interfaces:**
-- Produces: `EYE_SETS = ("normal", "scared", "happy", "dizzy", "blink")`; материалы глаз `sr_eye_white`, `sr_eye_green`, `sr_ink`, `sr_cat_orange` (веко — красится скином как тело); `CatFace.BLINK_TIME = 0.12`, `CatFace.blink_in: float` (секунд до следующего моргания), `CatFace.blink_left: float`; выражение `&"blink"` показывается только поверх `&"normal"`.
+- Produces: `EYE_SETS = ("normal", "scared", "happy", "dizzy", "blink")`; материалы глаз `sr_eye_white`, `sr_eye_green`, `sr_ink`; отдельный всегда видимый меш `eyelids` (скин к `head`, материал `sr_cat_orange` — красится скином как тело; `CatFace` его не трогает, обводки на нём нет); `CatFace.BLINK_TIME = 0.12`, `CatFace.blink_in: float` (секунд до следующего моргания), `CatFace.blink_left: float`; выражение `&"blink"` показывается только поверх `&"normal"`.
 
 - [ ] **Step 1: Падающие тесты**
 
-`tools/blender/tests/test_cat_eyes.py` добавить:
+`tools/blender/tests/test_cat_eyes.py`: в `setUpClass` словарь `cls.eyes` строить только из объектов с именем на `eyes_` (`eyelids` и пучки — не наборы). Добавить:
 ```python
     def test_eyes_are_sunk_into_the_head(self):
         lo, hi = cat_eyes.head_bbox(self.mesh)
@@ -595,9 +603,12 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
         self.assertLess(max(ys), hi.y + 0.004, "белок выступает из морды не больше чем на 4 мм")
         self.assertGreater(max(ys), hi.y - 0.004, "но не утоплен целиком")
 
-    def test_normal_eyes_have_green_iris_and_lid(self):
+    def test_normal_eyes_have_green_iris_and_separate_lids(self):
         mats = {m.name for m in self.eyes["eyes_normal"].data.materials}
-        self.assertTrue({"sr_eye_white", "sr_eye_green", "sr_ink", "sr_cat_orange"} <= mats, mats)
+        self.assertTrue({"sr_eye_white", "sr_eye_green", "sr_ink"} <= mats, mats)
+        lids = next(o for o in self.objs if o.name == "eyelids")
+        self.assertEqual({m.name for m in lids.data.materials}, {"sr_cat_orange"}, "веки цвета тела, красятся скином")
+        self.assertIs(lids.parent, self.arm)
 
     def test_blink_set_exists(self):
         self.assertIn("eyes_blink", self.eyes)
@@ -649,10 +660,15 @@ def _eyeball(p, c, white_r, iris_r, pupil_r, pop):
 	pupil.location = iris.location + fwd * 0.0015
 	glint = lib.sphere(p + "_g", pupil_r * 0.45, material="eye_white", segments=6, rings=4)
 	glint.location = pupil.location + fwd * 0.0015 + Vector((-pupil_r * 0.4, 0.0, pupil_r * 0.45))
+	return [w, iris, pupil, glint]
+
+
+def _lid(p, c, white_r=0.014):
+	"""Веко-козырёк цвета тела над глазницей: отдельный всегда видимый меш, не часть наборов."""
 	lid = lib.rounded_box(p + "_lid", (white_r * 2.2, 0.006, 0.006), bevel=0.0, material="cat_orange")
-	lid.rotation_euler = (math.radians(20.0), 0.0, 0.0)   # козырёк чуть наклонён вперёд
-	lid.location = c + up * (white_r * 0.85) + fwd * 0.003
-	return [w, iris, pupil, glint, lid]
+	lid.rotation_euler = (math.radians(20.0), 0.0, 0.0)   # чуть наклонён вперёд
+	lid.location = c + Vector((0.0, 0.003, white_r * 0.85))
+	return lid
 
 
 def _parts(kind, side, c):
@@ -672,7 +688,12 @@ def _parts(kind, side, c):
 	b = _line(p + "_b", c + fwd * 0.006, -45, 0.026, 0.0025, "ink")
 	return [a, b]
 ```
-`lib.rounded_box` с `bevel=0.0` даёт простой параллелепипед (без модификатора); у него нет smooth — ок для козырька. Центр `c` остаётся `eye_centers` (y = hi.y − 0.012): белок радиуса 14 мм, утопленный на 40 %, выступает на 14·0,55·(1−0,4) ≈ 4,6 мм от c, то есть ≤ hi.y − 0.012 + 0.0046 → внутри 4 мм от морды.
+`lib.rounded_box` с `bevel=0.0` даёт простой параллелепипед (без модификатора); у него нет smooth — ок для козырька. В `build_eyes` после цикла по `EYE_SETS` добавить:
+```python
+	lids = _join("eyelids", [_lid("eye_l", left), _lid("eye_r", right)])
+	_attach(lids, arm)
+	out.append(lids)
+``` Центр `c` остаётся `eye_centers` (y = hi.y − 0.012): белок радиуса 14 мм, утопленный на 40 %, выступает на 14·0,55·(1−0,4) ≈ 4,6 мм от c, то есть ≤ hi.y − 0.012 + 0.0046 → внутри 4 мм от морды.
 
 `scripts/player/cat_face.gd`: константы и поля
 ```gdscript
@@ -748,16 +769,24 @@ func test_short_legs_keep_feet_on_the_ground() -> void:
 	assert_almost_eq(_foot_y["short"], _foot_y["plain"], 0.15, "стопа на той же высоте (единицы скелета ≈ 3 см)")
 	assert_lt(_hip_y["short"], _hip_y["plain"] - ls.drop * 0.8, "таз опустился примерно на drop")
 
-var _tail_rot := []
+var _tail_basis := {}
 
-func test_tail_wiggles_over_time() -> void:
-	var cat = _spawn()
-	var skel := cat.find_child("Skeleton3D", true, false) as Skeleton3D
-	var idx := skel.find_bone("Bone.006")
-	skel.skeleton_updated.connect(func() -> void: _tail_rot.append(skel.get_bone_pose_rotation(idx)))
-	await wait_seconds(0.25)
-	assert_gt(_tail_rot.size(), 5)
-	assert_false((_tail_rot[0] as Quaternion).is_equal_approx(_tail_rot[-1]), "поза хвоста меняется (помимо клипа idle — в нём хвост почти статичен)")
+func test_tail_wiggle_adds_motion_on_top_of_the_clip() -> void:
+	# Два экземпляра на одном кадре idle: с TailWiggle и без; итог модификатора виден только в skeleton_updated.
+	var plain := (load("res://assets/models/cat.glb") as PackedScene).instantiate()
+	var wig := (load("res://assets/models/cat.glb") as PackedScene).instantiate()
+	add_child_autofree(plain)
+	add_child_autofree(wig)
+	wig.find_child("Skeleton3D", true, false).add_child(TailWiggle.new())
+	var pair := {"plain": plain, "wig": wig}
+	for key in pair:
+		var n: Node = pair[key]
+		(n.find_child("AnimationPlayer", true, false) as AnimationPlayer).play("idle")
+		var skel := n.find_child("Skeleton3D", true, false) as Skeleton3D
+		var idx := skel.find_bone("Bone.006")
+		skel.skeleton_updated.connect(func() -> void: _tail_basis[key] = skel.get_bone_global_pose(idx).basis)
+	await wait_seconds(0.15)
+	assert_false((_tail_basis["wig"] as Basis).is_equal_approx(_tail_basis["plain"]), "хвост с модификатором отличается от клипа на том же кадре")
 ```
 
 - [ ] **Step 2: Запустить, убедиться, что падают**
@@ -784,15 +813,20 @@ func _ready() -> void:
 	var skel := get_skeleton()
 	if skel == null:
 		return
-	var hip := skel.find_bone(root_bone)
-	var hip_y := skel.get_bone_global_rest(hip).origin.y
+	var hip_y := 0.0   # среднее начало верхних костей лап: таз (Bone) выше суставов, его брать нельзя
+	var n := 0
+	for b in upper_bones:
+		var i := skel.find_bone(b)
+		if i >= 0:
+			hip_y += skel.get_bone_global_rest(i).origin.y
+			n += 1
 	var foot_y := INF
 	for b in foot_bones:
 		var i := skel.find_bone(b)
 		if i >= 0:
 			foot_y = minf(foot_y, skel.get_bone_global_rest(i).origin.y)
-	if foot_y < INF and hip >= 0:
-		drop = (hip_y - foot_y) * (1.0 - leg_scale)
+	if foot_y < INF and n > 0:
+		drop = (hip_y / n - foot_y) * (1.0 - leg_scale)
 
 
 func _process_modification() -> void:
@@ -1136,7 +1170,7 @@ sky_material = SubResource("sky")
 [sub_resource type="Environment" id="env"]
 background_mode = 2
 sky = SubResource("skyres")
-ambient_light_source = 1
+ambient_light_source = 3
 ambient_light_sky_contribution = 1.0
 ambient_light_energy = 0.6
 tonemap_mode = 0
@@ -1172,7 +1206,7 @@ shadow_enabled = false
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("env")
 ```
-`ambient_light_source = 1` — это `AMBIENT_SOURCE_SKY`; `directional_shadow_mode = 2` — `SHADOW_PARALLEL_4_SPLITS`. `scripts/world/lighting.gd`:
+`ambient_light_source = 3` — это `AMBIENT_SOURCE_SKY` (1 — DISABLED, 2 — COLOR); `directional_shadow_mode = 2` — `SHADOW_PARALLEL_4_SPLITS`. `scripts/world/lighting.gd`:
 ```gdscript
 extends Node3D
 ## Яркий день по референсу (спек 2.8): солнце 65° с юго-востока, заполняющий свет неба с обратной стороны.
@@ -1280,7 +1314,10 @@ func test_landing_squashes_and_puffs_dust() -> void:
 	await wait_physics_frames(2)
 	assert_false(cat.is_on_floor())
 	var n0 := get_tree().get_nodes_in_group("fx").size()
-	await wait_physics_frames(60)
+	var frames := 0
+	while not cat.is_on_floor() and frames < 90:   # ждём сам момент приземления: твин сквоша живёт 0,24 с
+		await wait_physics_frames(1)
+		frames += 1
 	assert_true(cat.is_on_floor(), "приземлился")
 	assert_gt(get_tree().get_nodes_in_group("fx").size(), n0, "пыль при приземлении")
 	var model := cat.get_node("Model") as Node3D
@@ -1700,7 +1737,7 @@ import bpy
 import lib
 import palette
 
-SPEC = {"max_tris": 60, "max_dim": 2.1}
+SPEC = {"max_tris": 60, "max_dim": 2.5}
 
 
 def build():
