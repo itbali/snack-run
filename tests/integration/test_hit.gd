@@ -73,6 +73,7 @@ func test_faint_respawns_at_spawn_unhidden_with_full_hearts() -> void:
 func test_spilled_food_lands_on_surface_below() -> void:
 	# Ревью плана 4: еда на pos.y висела в воздухе вокруг стола кафе и балкона (радиус разлёта 1–2 м больше столешницы).
 	var spawner: SpillSpawner = main.find_child("SpillSpawner", true, false)
+	spawner.rng.seed = 7   # детерминированный разлёт
 	cat.global_position = Vector3(0, 0.95, 17)   # стол кафе, верх 0,75
 	await wait_physics_frames(10)
 	assert_almost_eq(cat.global_position.y, 0.75, 0.05, "кот стоит на столе")
@@ -80,10 +81,14 @@ func test_spilled_food_lands_on_surface_below() -> void:
 	for i in 6:
 		foods.append(FoodCatalog.get_by_id(&"cookie"))
 	var out: Array = spawner.spill_around(cat.global_position, foods)
+	var space: PhysicsDirectSpaceState3D = main.get_world_3d().direct_space_state
 	var on_ground := 0
 	for p in out:
-		var y: float = (p as Node3D).global_position.y
-		assert_true(y < 0.1 or absf(y - 0.75) < 0.05, "еда лежит на земле или на столе, не в воздухе: y=%.2f" % y)
-		if y < 0.1:
+		var pos: Vector3 = (p as Node3D).global_position
+		assert_lt(pos.y, 0.76, "не выше стола")
+		# Под едой сразу есть поверхность (земля, стол, стул): луч 5 см вниз во что-то упирается.
+		var hit: Dictionary = space.intersect_ray(PhysicsRayQueryParameters3D.create(pos + Vector3(0, 0.04, 0), pos + Vector3(0, -0.05, 0), Layers.WORLD))
+		assert_false(hit.is_empty(), "еда касается поверхности под собой, не висит: y=%.2f" % pos.y)
+		if pos.y < 0.1:
 			on_ground += 1
-	assert_gt(on_ground, 0, "в 1–2 м от стола еда падает на землю")
+	assert_gt(on_ground, 0, "в 1–2 м от стола часть еды падает на землю")
