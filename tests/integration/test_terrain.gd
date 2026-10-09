@@ -151,3 +151,25 @@ func test_props_are_in_place_on_the_very_first_physics_frame() -> void:
 	q.collision_mask = Layers.WORLD
 	var names := space.intersect_point(q, 4).map(func(h): return String(h["collider"].name))
 	assert_false(names.any(func(n): return n.begins_with("box")), "в начале координат нет призрака коробки: %s" % [names])
+
+func test_stairs_collider_meets_every_tread_top() -> void:
+	# Ревью плана 10: плита шла через внутренние углы ступеней, кот тонул в ступенях до 20 см.
+	var b := _builder()
+	b.build({"props": [{"model": "terrace_stairs2", "pos": [15, 0, -12]}]})
+	await wait_physics_frames(2)
+	var space: PhysicsDirectSpaceState3D = t.get_world_3d().direct_space_state
+	for k in 10:
+		var d := WorldBuilder.KIT_STEP_TREAD * (k + 0.5)
+		var from := Vector3(15, 5, -12 - d)
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * 10, Layers.WORLD))
+		assert_false(hit.is_empty())
+		if not hit.is_empty():
+			assert_almost_eq((hit["position"] as Vector3).y, WorldBuilder.KIT_STEP_RISE * (k + 1), 0.06, "середина ступени %d" % k)
+
+func test_cat_cannot_walk_up_a_one_metre_terrace() -> void:
+	# Спек, раздел 3: floor_max_angle 40°; обрыв террасы 1 м (45° в карте высот) пешком не проходится.
+	var cat = _cat_at(Vector3(-10, 0.1, 0))
+	await wait_physics_frames(10)
+	await _walk(cat, "move_left", 180)
+	assert_lt(cat.global_position.y, 0.5, "кот остался внизу у террасы 1 м")
+	assert_almost_eq(rad_to_deg(cat.floor_max_angle), 40.0, 0.1)

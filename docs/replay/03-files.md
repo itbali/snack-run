@@ -671,6 +671,7 @@ radius = 0.09
 
 [node name="Cat" type="CharacterBody3D"]
 script = ExtResource("1")
+floor_max_angle = 0.6981317
 
 [node name="Collision" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.09, 0)
@@ -5451,10 +5452,12 @@ static func kit_colliders(model: String) -> Array:
 		return []
 	var ang := rad_to_deg(atan2(h, run))
 	var length := sqrt(h * h + run * run)
-	# Тонкая плита по линии подъёма; верх плиты совпадает с носками ступеней / поверхностью пандуса.
+	# Тонкая плита по линии подъёма; верх плиты — поверхность пандуса, у лестницы — линия через середины
+	# проступей (сдвиг на полступени к началу): кот не тонет в ступенях и не висит над ними больше чем на полподступенка.
 	var th := 0.1
+	var shift := KIT_STEP_TREAD / 2.0 if model.begins_with("terrace_stairs") else 0.0
 	var n := Vector3(0, cos(deg_to_rad(ang)), sin(deg_to_rad(ang)))
-	var center := Vector3(0, h / 2.0, -run / 2.0) - n * (th / 2.0)
+	var center := Vector3(0, h / 2.0, -run / 2.0 + shift) - n * (th / 2.0)
 	return [{"size": [KIT_WIDTH, th, length], "offset": [center.x, center.y, center.z], "rot": [ang, 0, 0]}]
 
 
@@ -8220,6 +8223,28 @@ func test_props_are_in_place_on_the_very_first_physics_frame() -> void:
 	q.collision_mask = Layers.WORLD
 	var names := space.intersect_point(q, 4).map(func(h): return String(h["collider"].name))
 	assert_false(names.any(func(n): return n.begins_with("box")), "в начале координат нет призрака коробки: %s" % [names])
+
+func test_stairs_collider_meets_every_tread_top() -> void:
+	# Ревью плана 10: плита шла через внутренние углы ступеней, кот тонул в ступенях до 20 см.
+	var b := _builder()
+	b.build({"props": [{"model": "terrace_stairs2", "pos": [15, 0, -12]}]})
+	await wait_physics_frames(2)
+	var space: PhysicsDirectSpaceState3D = t.get_world_3d().direct_space_state
+	for k in 10:
+		var d := WorldBuilder.KIT_STEP_TREAD * (k + 0.5)
+		var from := Vector3(15, 5, -12 - d)
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * 10, Layers.WORLD))
+		assert_false(hit.is_empty())
+		if not hit.is_empty():
+			assert_almost_eq((hit["position"] as Vector3).y, WorldBuilder.KIT_STEP_RISE * (k + 1), 0.06, "середина ступени %d" % k)
+
+func test_cat_cannot_walk_up_a_one_metre_terrace() -> void:
+	# Спек, раздел 3: floor_max_angle 40°; обрыв террасы 1 м (45° в карте высот) пешком не проходится.
+	var cat = _cat_at(Vector3(-10, 0.1, 0))
+	await wait_physics_frames(10)
+	await _walk(cat, "move_left", 180)
+	assert_lt(cat.global_position.y, 0.5, "кот остался внизу у террасы 1 м")
+	assert_almost_eq(rad_to_deg(cat.floor_max_angle), 40.0, 0.1)
 ```
 
 ## `tests/integration/test_wasp.gd`
@@ -14013,6 +14038,13 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
 
 - План 10. Рельеф (`2026-10-09-snack-run-10-terrain.md`) — ВЫПОЛНЕН 2026-10-09: генератор карт высот, узел `Terrain`
   (меш, коллизия, шейдер со сплатом), привязка раскладки к высоте, набор террас (стены, лестницы, пандусы), двор и парк на рельефе.
+- Отложено из ревью плана 10 (взять в план 11): ячейка обрыва торчит «откосом» перед подпорной стеной 0,4 м; визуальная плита
+  пандуса на 5 см выше коллайдера; Python `height_at` билинейный, а не по треугольникам; `max_slope_deg` не видит диагональный
+  уклон; тест луча пропускает ячейки обрыва; битый `data_path` рельефа даёт каскад ошибок; нет проверки, что `Terrain` в начале
+  координат; мёртвые `ground`/`park_ground` (glb, генераторы, записи текстур); `Toon.apply` создаёт лишние материалы на тайлах;
+  меш рельефа неиндексированный и для 180×180 даст 64 800 треугольников (спек ≤ 40 000) — индексы или прореживание;
+  2 неосвобождённых узла в `test_terrain`; константы набора террас дублируются в Blender и `WorldBuilder`; абсолютные высоты у
+  ос, голубей, маркера возрождения и декалей; дорога (Path3D) не повторяет рельеф.
 - План 11. Генератор раскладки и двор ×3 (180×180, зоны, гаражи и крыши, террасы) — следующий.
 - План 12. Парк ×3 (90×96: холм с беседкой, пруд, роща, аллея на склоне).
 - Планы 13–15. Этап 3: порт 120×102 (район и вода, опасности, рыбалка) по спеку `2026-10-09-snack-run-stage3-port-design.md`.
@@ -15050,18 +15082,101 @@ if __name__ == "__main__":
 ```json
 {
   "note": "Демо-рельеф для тестов и кадров: холм, низина, терраса 2 м, гравийная дорожка, газон на холме.",
-  "size": [40, 40], "origin": [-20, -20], "cell": 1.0, "base": 0.0,
-  "channels": ["asphalt", "paving", "grass", "gravel"], "default": "paving",
+  "size": [
+    40,
+    40
+  ],
+  "origin": [
+    -20,
+    -20
+  ],
+  "cell": 1.0,
+  "base": 0.0,
+  "channels": [
+    "asphalt",
+    "paving",
+    "grass",
+    "gravel"
+  ],
+  "default": "paving",
   "features": [
-    {"type": "hill", "center": [8, 8], "radius": 10, "height": 3},
-    {"type": "basin", "center": [-10, 10], "radius": 6, "depth": 1},
-    {"type": "terrace", "rect": [-18, -18, -6, -8], "height": 2}
+    {
+      "type": "hill",
+      "center": [
+        8,
+        8
+      ],
+      "radius": 10,
+      "height": 3
+    },
+    {
+      "type": "basin",
+      "center": [
+        -10,
+        10
+      ],
+      "radius": 6,
+      "depth": 1
+    },
+    {
+      "type": "terrace",
+      "rect": [
+        -18,
+        -18,
+        -6,
+        -8
+      ],
+      "height": 2
+    },
+    {
+      "type": "terrace",
+      "rect": [
+        -19,
+        -3,
+        -13,
+        3
+      ],
+      "height": 1
+    }
   ],
   "paint": [
-    {"circle": [8, 8, 9], "type": "grass", "soft": 3},
-    {"circle": [-10, 10, 6], "type": "grass", "soft": 2},
-    {"rect": [-20, -2, 20, 0], "type": "gravel", "soft": 1},
-    {"rect": [-18, -18, -6, -8], "type": "asphalt"}
+    {
+      "circle": [
+        8,
+        8,
+        9
+      ],
+      "type": "grass",
+      "soft": 3
+    },
+    {
+      "circle": [
+        -10,
+        10,
+        6
+      ],
+      "type": "grass",
+      "soft": 2
+    },
+    {
+      "rect": [
+        -20,
+        -2,
+        20,
+        0
+      ],
+      "type": "gravel",
+      "soft": 1
+    },
+    {
+      "rect": [
+        -18,
+        -18,
+        -6,
+        -8
+      ],
+      "type": "asphalt"
+    }
   ]
 }
 ```

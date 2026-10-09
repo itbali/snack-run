@@ -71,10 +71,12 @@ static func kit_colliders(model: String) -> Array:
 		return []
 	var ang := rad_to_deg(atan2(h, run))
 	var length := sqrt(h * h + run * run)
-	# Тонкая плита по линии подъёма; верх плиты совпадает с носками ступеней / поверхностью пандуса.
+	# Тонкая плита по линии подъёма; верх плиты — поверхность пандуса, у лестницы — линия через середины
+	# проступей (сдвиг на полступени к началу): кот не тонет в ступенях и не висит над ними больше чем на полподступенка.
 	var th := 0.1
+	var shift := KIT_STEP_TREAD / 2.0 if model.begins_with("terrace_stairs") else 0.0
 	var n := Vector3(0, cos(deg_to_rad(ang)), sin(deg_to_rad(ang)))
-	var center := Vector3(0, h / 2.0, -run / 2.0) - n * (th / 2.0)
+	var center := Vector3(0, h / 2.0, -run / 2.0 + shift) - n * (th / 2.0)
 	return [{"size": [KIT_WIDTH, th, length], "offset": [center.x, center.y, center.z], "rot": [ang, 0, 0]}]
 
 
