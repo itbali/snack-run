@@ -26,9 +26,9 @@ stretch_mode = 6
 [node name="Panel" type="PanelContainer" parent="."]
 layout_mode = 1
 anchors_preset = 8
-anchor_left = 0.5
+anchor_left = 0.68
 anchor_top = 0.5
-anchor_right = 0.5
+anchor_right = 0.68
 anchor_bottom = 0.5
 offset_left = -290.0
 offset_top = -175.0
@@ -40,9 +40,9 @@ grow_vertical = 2
 [node name="VBox" type="VBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 8
-anchor_left = 0.5
+anchor_left = 0.68
 anchor_top = 0.5
-anchor_right = 0.5
+anchor_right = 0.68
 anchor_bottom = 0.5
 offset_left = -270.0
 offset_top = -150.0
