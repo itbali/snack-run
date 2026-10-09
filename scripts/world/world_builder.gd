@@ -132,6 +132,40 @@ func build(data: Dictionary) -> void:
 		_build_water(w)
 	for m in data.get("shore", []):
 		_build_shore(m)
+	for f in data.get("floaters", []):
+		_build_floater(f)
+
+
+func _build_floater(f: Dictionary) -> void:
+	## Лодка или бочка на воде (план 13): pos — абсолютный (y — опора по ватерлинии), коллайдеры — явные или по модели.
+	var model_path := "%s/%s.glb" % [MODELS_DIR, f["model"]]
+	if not ResourceLoader.exists(model_path):
+		push_warning("нет модели " + model_path)
+		return
+	var body := Floater.new()
+	body.name = String(f["model"])
+	body.amp = float(f.get("amp", body.amp))
+	body.roll_deg = float(f.get("roll", body.roll_deg))
+	body.period = float(f.get("period", body.period))
+	body.phase = float(f.get("phase", 0.0))
+	var model := (load(model_path) as PackedScene).instantiate() as Node3D
+	model.name = "Model"
+	body.add_child(model)
+	var colliders: Array = f.get("colliders", [])
+	if colliders.is_empty():
+		var aabb := _model_aabb(model)
+		colliders = [{"size": [aabb.size.x, aabb.size.y, aabb.size.z],
+			"offset": [aabb.position.x + aabb.size.x / 2, aabb.position.y + aabb.size.y / 2, aabb.position.z + aabb.size.z / 2]}]
+	for i in colliders.size():
+		var c: Dictionary = colliders[i]
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = _v3(c["size"])
+		shape.shape = box
+		shape.position = _v3(c.get("offset", [0, 0, 0]))
+		body.add_child(shape)
+	_add_at(_container("Floaters"), body, _v3(f["pos"]), float(f.get("rot", 0)))
+	Toon.apply(model, Toon.OUTLINE_NONE)
 
 
 func _build_water(w: Dictionary) -> void:
