@@ -1,0 +1,18 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/hazards/forklift.gd" id="1"]
+[ext_resource type="PackedScene" path="res://assets/models/forklift.glb" id="2"]
+
+[sub_resource type="BoxShape3D" id="hit"]
+size = Vector3(1.3, 1.2, 3.0)
+
+[node name="Forklift" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Model" parent="." instance=ExtResource("2")]
+
+[node name="HitZone" type="Area3D" parent="."]
+
+[node name="Shape" type="CollisionShape3D" parent="HitZone"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0.2)
+shape = SubResource("hit")

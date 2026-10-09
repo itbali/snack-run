@@ -129,3 +129,53 @@ func test_wave_foam_warns_before_roll() -> void:
 	w.set("offset", Wave.PERIOD - 1.0)   # за 1 с до наката
 	await wait_physics_frames(3)
 	assert_true((w.get_node("Foam") as CPUParticles3D).emitting, "пена у кромки")
+
+const ForkliftScene := preload("res://scenes/hazards/forklift.tscn")
+
+func _forklift(path: Array) -> Node3D:
+	var f := ForkliftScene.instantiate() as Node3D
+	f.position = Vector3(path[0][0], 0, path[0][1])
+	f.call("configure", {"path": path, "wait": [0.5, 0.5]}, null)
+	world.add_child(f)
+	return f
+
+func test_forklift_honks_then_drives_3mps() -> void:
+	_floor()
+	Sfx.reset_counters()
+	var f := _forklift([[0, -10], [0, 10]])
+	await wait_seconds(0.7)
+	assert_eq(f.get("state"), &"horn", "сначала гудок")
+	assert_eq(Sfx.last_played, &"horn")
+	var z0: float = f.global_position.z
+	await wait_seconds(1.5)
+	assert_eq(f.get("state"), &"drive", "через 1,5 с едет")
+	var z1: float = f.global_position.z
+	await wait_seconds(1.0)
+	assert_almost_eq(f.global_position.z - z1, 3.0, 0.4, "3 м/с")
+	assert_almost_eq(z0, -10.0, 0.05, "до гудка стоял")
+
+func test_forklift_hits_cat_on_its_lane() -> void:
+	_floor()
+	var f := _forklift([[0, -6], [0, 6]])
+	_cat(Vector3(0, 0.05, 0))
+	await wait_seconds(5.0)
+	assert_eq(GameState.hearts, 2, "удар погрузчиком")
+
+func test_forklift_stands_at_night() -> void:
+	_floor()
+	var light = (load("res://scenes/world/lighting.tscn") as PackedScene).instantiate()
+	world.add_child(light)
+	light.get_node("DayNight").set_time(220.0)
+	light.get_node("DayNight").set("time_scale", 0.0)
+	var f := _forklift([[0, -6], [0, 6]])
+	await wait_seconds(3.0)
+	assert_eq(f.get("state"), &"wait")
+	assert_almost_eq(f.global_position.z, -6.0, 0.05, "ночью стоит")
+
+func test_forklift_hits_cat_already_standing_at_its_forks() -> void:
+	# Кот стоял у вил, пока погрузчик ждал: при старте удар всё равно проходит.
+	_floor()
+	var f := _forklift([[0, -6], [0, 6]])
+	_cat(Vector3(0, 0.05, -4.9))
+	await wait_seconds(3.0)
+	assert_eq(GameState.hearts, 2)
