@@ -100,3 +100,65 @@ func test_hud_shows_phase_icon() -> void:
 	assert_eq(icon.texture.resource_path, "res://assets/images/ui/sun.png")
 	dn.set_time(200.0)
 	assert_eq(icon.texture.resource_path, "res://assets/images/ui/moon.png")
+
+func test_hold_phases_do_not_rewrite_light_every_frame() -> void:
+	# Ревью плана 7 (I1): в фазах удержания небо и материалы не перезаписываются каждый кадр.
+	dn.set_time(50.0)
+	var w0: int = dn.light_writes
+	dn.set_time(60.0)
+	dn.set_time(70.0)
+	assert_eq(dn.light_writes, w0, "днём свет постоянен — записей нет")
+	dn.set_time(160.0)
+	assert_gt(dn.light_writes, w0, "на закате свет меняется")
+
+func test_lamp_added_at_night_lights_up() -> void:
+	dn.set_time(220.0)
+	var lamp := SpotLight3D.new()
+	lamp.visible = false
+	lamp.add_to_group("night_lights")
+	add_child_autofree(lamp)
+	await wait_process_frames(2)
+	assert_true(lamp.visible, "фонарь, построенный ночью, горит")
+
+func test_night_ends_an_ongoing_chase() -> void:
+	# Ревью плана 7 (M1): ночь, наступившая посреди погони, укладывает собаку спать.
+	var cat = CatScene.instantiate()
+	cat.position = Vector3(0, 0.05, -4)
+	add_child_autofree(cat)
+	var dog = DogScene.instantiate()
+	dog.position = Vector3(0, 0.05, 0)
+	add_child_autofree(dog)
+	dn.set_time(50.0)
+	dn.time_scale = 0.0
+	await wait_seconds(1.3)
+	assert_eq(dog.brain.state, ChaseBrain.State.CHASE)
+	dn.set_time(220.0)
+	await wait_physics_frames(3)
+	assert_true(dog.brain.state in [ChaseBrain.State.RETURN, ChaseBrain.State.IDLE], "ночью погоня прекращается")
+
+func test_two_lighting_instances_do_not_share_sky() -> void:
+	# Ревью плана 7 (M2)
+	var other = LightingScene.instantiate()
+	add_child_autofree(other)
+	await wait_process_frames(1)
+	other.get_node("DayNight").time_scale = 0.0
+	dn.set_time(220.0)
+	var sky_other := ((other.get_node("WorldEnvironment") as WorldEnvironment).environment.sky.sky_material as ProceduralSkyMaterial)
+	assert_ne(sky_other.sky_top_color.to_html(false), "0b1633", "у второй сцены своё небо")
+
+func test_hud_binds_even_if_created_before_lighting() -> void:
+	# Ревью плана 7 (M3)
+	light.free()
+	var hud = HudScene.instantiate()
+	add_child_autofree(hud)
+	await wait_process_frames(1)
+	var l2 = LightingScene.instantiate()
+	add_child_autofree(l2)
+	l2.get_node("DayNight").set_time(220.0)
+	await wait_process_frames(2)
+	assert_eq((hud.get_node("%PhaseIcon") as TextureRect).texture.resource_path, "res://assets/images/ui/moon.png")
+
+func test_phase_names_parse() -> void:
+	assert_almost_eq(DayCycle.parse_time("night"), 225.0, 0.01)
+	assert_almost_eq(DayCycle.parse_time("evening"), 165.0, 0.01)
+	assert_almost_eq(DayCycle.parse_time("120"), 120.0, 0.01)

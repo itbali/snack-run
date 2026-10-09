@@ -19,6 +19,13 @@ func reset() -> void:
 	_hidden_t = 0.0
 
 
+func give_up() -> void:
+	## Погоня обрывается извне (наступила ночь): собака идёт домой спать.
+	if state == State.ALERT or state == State.CHASE:
+		state = State.RETURN
+		_t = 0.0
+
+
 func update(delta: float, sees_cat: bool, cat_hidden: bool, at_home: bool, cat_safe := false) -> int:
 	match state:
 		State.IDLE:

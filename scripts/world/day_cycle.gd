@@ -62,3 +62,9 @@ static func light_at(t: float) -> Dictionary:
 static func lamps_on(t: float) -> bool:
 	var w := wrap_time(t)
 	return w >= LAMPS_FROM and w < LAMPS_TO
+
+
+static func parse_time(text: String) -> float:
+	## «day/evening/night/morning» или число секунд — для ++ --phase= и make shot PHASE=.
+	var named := {"day": 75.0, "evening": 165.0, "night": 225.0, "morning": 285.0}
+	return named.get(text.to_lower(), text.to_float())

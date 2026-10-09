@@ -43,6 +43,8 @@ func _physics_process(delta: float) -> void:
 	var c := _find_cat()
 	var cat_hidden: bool = c != null and (bool(c.get("hidden")) or bool(c.get("in_safe_zone")))
 	var at_home := global_position.distance_to(home) < HOME_RADIUS
+	if DayNight.is_night(get_tree()):
+		brain.give_up()   # ночь посреди погони — собака уходит спать (ревью плана 7)
 	var cat_safe: bool = c != null and bool(c.get("in_safe_zone"))
 	var s := brain.update(delta, sees_cat(), cat_hidden, at_home, cat_safe)
 	if s == ChaseBrain.State.ALERT and _last_state != ChaseBrain.State.ALERT:

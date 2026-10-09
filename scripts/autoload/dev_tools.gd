@@ -4,7 +4,7 @@ extends Node
 func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--phase="):
-			_set_phase_later(float(arg.trim_prefix("--phase=")))
+			_set_phase_later(DayCycle.parse_time(arg.trim_prefix("--phase=")))
 		if arg.begins_with("--screenshot="):
 			_screenshot_and_quit(arg.trim_prefix("--screenshot="))
 
