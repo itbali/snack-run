@@ -183,3 +183,15 @@ def join(name, objs):
 	bpy.context.scene.collection.objects.link(obj)
 	bpy.context.view_layer.update()
 	return obj
+
+
+def lumpy(name, radius, material=None, seed=1, amount=0.22, segments=10, rings=7):
+	"""Комковатая сфера: вершины сдвинуты по нормали на ±amount·radius (детерминированно по seed) — крона и куст не шар."""
+	import random as _random
+	rnd = _random.Random(seed)
+	bm = bmesh.new()
+	bmesh.ops.create_uvsphere(bm, u_segments=segments, v_segments=rings, radius=radius)
+	for v in bm.verts:
+		k = 1.0 + rnd.uniform(-amount, amount)
+		v.co = v.co * k
+	return _finish(name, bm, material, smooth=False)

@@ -1,14 +1,9 @@
-"""Куст: три сферы."""
+"""Куст (план 16): шесть комковатых шапок разного размера и оттенка — пышный, не три шара (foliage.bush)."""
+import foliage
 import lib
 
-SPEC = {"max_tris": 800, "max_dim": 1.2}
+SPEC = {"max_tris": 1200, "max_dim": 1.3}
 
 
 def build():
-	a = lib.sphere("bush", radius=0.4, material="leaf")
-	a.location.z = 0.38
-	b = lib.sphere("bush_b", radius=0.3, material="olive")
-	b.location = (0.35, 0.1, 0.3)
-	c = lib.sphere("bush_c", radius=0.28, material="leaf")
-	c.location = (-0.3, -0.15, 0.28)
-	return lib.group([a, b, c])
+	return lib.group(foliage.bush("bush"))
