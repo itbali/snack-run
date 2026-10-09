@@ -135,3 +135,20 @@ func test_cat_jumps_from_boat_back_onto_pier() -> void:
 	assert_lt(cat.global_position.x, 34.5, "кот на причале, а не в воде")
 	assert_gt(cat.global_position.y, -1.1, "на высоте настила")
 	cat.free()
+
+func test_port_hazards_are_placed() -> void:
+	# План 14: 2 чайки, волна вдоль пляжа, погрузчик на полосе причала, 4 краба днём и ещё 2 ночью.
+	var n := {}
+	var night_crabs := 0
+	for h in WorldBuilder.load_layout(LAYOUT)["hazards"]:
+		n[h["type"]] = n.get(h["type"], 0) + 1
+		if h["type"] == "crab" and h.get("night_only", false):
+			night_crabs += 1
+	assert_eq(n, {"forklift": 1, "gull": 2, "wave": 1, "crab": 6})
+	assert_eq(night_crabs, 2)
+
+func test_forklift_lane_is_clear() -> void:
+	# Review Focus 3 плана 14: по полосе погрузчика нет твёрдых пропсов.
+	var space := world.get_world_3d().direct_space_state
+	var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(25, -0.5, 152), Vector3(25, -0.5, 208.5), Layers.WORLD))
+	assert_true(hit.is_empty(), "полоса свободна: %s" % [hit.get("collider")])

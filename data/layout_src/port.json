@@ -547,6 +547,15 @@
      "level": -1.0
     },
     {
+     "type": "block",
+     "rect": [
+      22.5,
+      151,
+      27.5,
+      211
+     ]
+    },
+    {
      "type": "paint",
      "rect": [
       15,
@@ -758,6 +767,71 @@
      ],
      "count": 4,
      "min_dist": 3.0
+    },
+    {
+     "type": "place",
+     "props": [
+      {
+       "model": "box",
+       "pos": [
+        24.6,
+        0,
+        209.8
+       ],
+       "rot": 0,
+       "outline": true
+      },
+      {
+       "model": "box",
+       "pos": [
+        25.4,
+        0,
+        209.8
+       ],
+       "rot": 0,
+       "outline": true
+      },
+      {
+       "model": "box",
+       "pos": [
+        25.0,
+        0.3,
+        209.8
+       ],
+       "rot": 15,
+       "outline": true
+      }
+     ],
+     "hazards": [
+      {
+       "type": "forklift",
+       "pos": [
+        25,
+        0,
+        153
+       ],
+       "rot": 0,
+       "path": [
+        [
+         25,
+         153
+        ],
+        [
+         25,
+         207
+        ]
+       ]
+      },
+      {
+       "type": "gull",
+       "pos": [
+        30,
+        0,
+        192
+       ],
+       "phase": 0.0
+      }
+     ]
     }
    ]
   },
@@ -1326,6 +1400,81 @@
      ],
      "count": 2,
      "min_dist": 3.0
+    },
+    {
+     "type": "place",
+     "hazards": [
+      {
+       "type": "gull",
+       "pos": [
+        -30,
+        0,
+        170
+       ],
+       "phase": 2.0
+      },
+      {
+       "type": "wave",
+       "pos": [
+        -25,
+        -2.0,
+        194.2
+       ],
+       "snap": false,
+       "width": 68,
+       "inland": -1
+      },
+      {
+       "type": "crab",
+       "pos": [
+        -50,
+        0,
+        175
+       ]
+      },
+      {
+       "type": "crab",
+       "pos": [
+        -35,
+        0,
+        186
+       ]
+      },
+      {
+       "type": "crab",
+       "pos": [
+        -15,
+        0,
+        179
+       ]
+      },
+      {
+       "type": "crab",
+       "pos": [
+        -4,
+        0,
+        160
+       ]
+      },
+      {
+       "type": "crab",
+       "pos": [
+        -42,
+        0,
+        164
+       ],
+       "night_only": true
+      },
+      {
+       "type": "crab",
+       "pos": [
+        -24,
+        0,
+        190
+       ],
+       "night_only": true
+      }
+     ]
     }
    ]
   }

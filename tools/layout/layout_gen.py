@@ -283,6 +283,8 @@ def generate(desc):
 			add("water_zones", [water])
 			add("shore", shore)
 			blocked.append(bl)
+		elif t == "block":
+			blocked.append(tuple(op["rect"]) + (0.0,))   # полоса без россыпи (маршрут погрузчика)
 		elif t == "flat":
 			terrain["features"].append({"type": "flat", "rect": op["rect"], "height": op["height"]})
 		elif t == "water":

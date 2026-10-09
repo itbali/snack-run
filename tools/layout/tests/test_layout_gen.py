@@ -156,6 +156,14 @@ class Primitives(unittest.TestCase):
 		layout, _ = lg.generate(d)
 		self.assertTrue(all("colliders" in p for p in layout["props"]))
 
+	def test_block_keeps_lane_free(self):
+		# План 14: полоса погрузчика на причале свободна от россыпи.
+		d = {"name": "t", "terrain": DESC["terrain"], "zones": [{"name": "z", "ops": [
+			{"type": "scatter", "what": "prop", "model": "box", "rect": [-10, -10, 10, 10], "count": 30, "min_dist": 1.0},
+			{"type": "block", "rect": [-2, -10, 2, 10]}]}]}
+		layout, _ = lg.generate(d)
+		self.assertFalse(any(-2.4 < p["pos"][0] < 2.4 for p in layout["props"]), "в полосе пусто")
+
 	def test_kit_constants_match_world_builder(self):
 		src = (ROOT / "scripts/world/world_builder.gd").read_text()
 		for name, val in (("KIT_STEP_RISE", lg.KIT_RISE), ("KIT_STEP_TREAD", lg.KIT_TREAD), ("KIT_RAMP_DEG", lg.KIT_RAMP_DEG), ("KIT_WIDTH", lg.KIT_WIDTH)):
