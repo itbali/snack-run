@@ -190,6 +190,11 @@ class Primitives(unittest.TestCase):
 		grass = [p["pos"] for p in layout["props"] if p["model"] == "grass"]
 		self.assertEqual(grass, [[0, 0, 2]], "трава внутри дома убрана, перед фасадом осталась")
 
+	def test_perimeter_alternates_house_models(self):
+		# План 16: край района — ряд разных домов, а не одна бесконечная стена.
+		houses = lg.perimeter([0, 0, 24, 6], sides="n", models=["house_a", "house_b", "house_c"])
+		self.assertEqual([h["model"] for h in houses], ["house_a", "house_b", "house_c", "house_a"])
+
 	def test_kit_constants_match_world_builder(self):
 		src = (ROOT / "scripts/world/world_builder.gd").read_text()
 		for name, val in (("KIT_STEP_RISE", lg.KIT_RISE), ("KIT_STEP_TREAD", lg.KIT_TREAD), ("KIT_RAMP_DEG", lg.KIT_RAMP_DEG), ("KIT_WIDTH", lg.KIT_WIDTH)):

@@ -1,1959 +1,1941 @@
 {
-  "props": [
-    {
-      "model": "wall",
-      "pos": [
-        0,
-        0,
-        -14
-      ],
-      "rot": 0
-    },
-    {
-      "model": "wall",
-      "pos": [
-        6,
-        0,
-        -14
-      ],
-      "rot": 0
-    },
-    {
-      "model": "wall",
-      "pos": [
-        -6,
-        0,
-        -14
-      ],
-      "rot": 0
-    },
-    {
-      "model": "wall",
-      "pos": [
-        -12,
-        0,
-        -8
-      ],
-      "rot": 90
-    },
-    {
-      "model": "wall",
-      "pos": [
-        -12,
-        0,
-        -2
-      ],
-      "rot": 90
-    },
-    {
-      "model": "door",
-      "pos": [
-        3,
-        0,
-        -13.75
-      ],
-      "rot": 0
-    },
-    {
-      "model": "door",
-      "pos": [
-        -9,
-        0,
-        -13.75
-      ],
-      "rot": 0
-    },
-    {
-      "model": "stairs",
-      "pos": [
-        -11.3,
-        0,
-        -11.5
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            1.2,
-            0.25,
-            0.5
-          ],
-          "offset": [
-            0,
-            0.125,
-            0
-          ]
-        },
-        {
-          "size": [
-            1.2,
-            0.5,
-            0.5
-          ],
-          "offset": [
-            0,
-            0.25,
-            0.5
-          ]
-        },
-        {
-          "size": [
-            1.2,
-            0.75,
-            0.5
-          ],
-          "offset": [
-            0,
-            0.375,
-            1.0
-          ]
-        },
-        {
-          "size": [
-            1.2,
-            1.0,
-            0.5
-          ],
-          "offset": [
-            0,
-            0.5,
-            1.5
-          ]
-        },
-        {
-          "size": [
-            1.2,
-            0.12,
-            1.2
-          ],
-          "offset": [
-            0,
-            0.94,
-            2.55
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bin",
-      "pos": [
-        3,
-        0,
-        -11
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.74,
-            1.12,
-            0.84
-          ],
-          "offset": [
-            0,
-            0.56,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bin",
-      "pos": [
-        4,
-        0,
-        -11
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.74,
-            1.12,
-            0.84
-          ],
-          "offset": [
-            0,
-            0.56,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bin",
-      "pos": [
-        -6,
-        0,
-        2
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            0.74,
-            1.12,
-            0.84
-          ],
-          "offset": [
-            0,
-            0.56,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bin",
-      "pos": [
-        -6,
-        0,
-        3
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            0.74,
-            1.12,
-            0.84
-          ],
-          "offset": [
-            0,
-            0.56,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bag",
-      "pos": [
-        2.2,
-        0,
-        -11.2
-      ],
-      "rot": 30
-    },
-    {
-      "model": "bag",
-      "pos": [
-        -6.6,
-        0,
-        1.2
-      ],
-      "rot": 0
-    },
-    {
-      "model": "box",
-      "pos": [
-        1.5,
-        0,
-        1.5
-      ],
-      "rot": 0,
-      "outline": true
-    },
-    {
-      "model": "box",
-      "pos": [
-        1.5,
-        0.3,
-        1.5
-      ],
-      "rot": 20,
-      "outline": true
-    },
-    {
-      "model": "box",
-      "pos": [
-        -2,
-        0,
-        -1
-      ],
-      "rot": 45,
-      "outline": true
-    },
-    {
-      "model": "box",
-      "pos": [
-        -3.5,
-        0,
-        4
-      ],
-      "rot": 0,
-      "outline": true
-    },
-    {
-      "model": "box",
-      "pos": [
-        6,
-        0,
-        -1
-      ],
-      "rot": 0,
-      "outline": true
-    },
-    {
-      "model": "box",
-      "pos": [
-        2.6,
-        0,
-        -10.4
-      ],
-      "rot": 10,
-      "outline": true
-    },
-    {
-      "model": "car",
-      "pos": [
-        8,
-        0,
-        4
-      ],
-      "rot": 0,
-      "outline": true,
-      "colliders": [
-        {
-          "size": [
-            1.7,
-            1.2,
-            3.6
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "car",
-      "pos": [
-        -8,
-        0,
-        7
-      ],
-      "rot": 15,
-      "outline": true,
-      "colliders": [
-        {
-          "size": [
-            1.7,
-            1.2,
-            3.6
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bench",
-      "pos": [
-        0,
-        0,
-        7
-      ],
-      "rot": 180,
-      "outline": true,
-      "colliders": [
-        {
-          "size": [
-            1.5,
-            0.1,
-            0.45
-          ],
-          "offset": [
-            0,
-            0.45,
-            0
-          ]
-        },
-        {
-          "size": [
-            1.5,
-            0.4,
-            0.06
-          ],
-          "offset": [
-            0,
-            0.72,
-            0.22
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bench",
-      "pos": [
-        -5,
-        0,
-        -8
-      ],
-      "rot": 90,
-      "outline": true,
-      "colliders": [
-        {
-          "size": [
-            1.5,
-            0.1,
-            0.45
-          ],
-          "offset": [
-            0,
-            0.45,
-            0
-          ]
-        },
-        {
-          "size": [
-            1.5,
-            0.4,
-            0.06
-          ],
-          "offset": [
-            0,
-            0.72,
-            0.22
-          ]
-        }
-      ]
-    },
-    {
-      "model": "lamp",
-      "pos": [
-        5,
-        0,
-        8
-      ],
-      "rot": 0
-    },
-    {
-      "model": "lamp",
-      "pos": [
-        -9,
-        0,
-        -3
-      ],
-      "rot": 0
-    },
-    {
-      "model": "tree",
-      "pos": [
-        9,
-        0,
-        -6
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.3,
-            1.6,
-            0.3
-          ],
-          "offset": [
-            0,
-            0.8,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "tree",
-      "pos": [
-        -9,
-        0,
-        10
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.3,
-            1.6,
-            0.3
-          ],
-          "offset": [
-            0,
-            0.8,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bush",
-      "pos": [
-        7,
-        0,
-        -10
-      ],
-      "rot": 0
-    },
-    {
-      "model": "bush",
-      "pos": [
-        -3,
-        0,
-        10
-      ],
-      "rot": 40
-    },
-    {
-      "model": "bush",
-      "pos": [
-        10,
-        0,
-        0
-      ],
-      "rot": 0
-    },
-    {
-      "model": "fence",
-      "pos": [
-        10,
-        0,
-        7
-      ],
-      "rot": 90
-    },
-    {
-      "model": "fence",
-      "pos": [
-        10,
-        0,
-        9
-      ],
-      "rot": 90
-    },
-    {
-      "model": "puddle",
-      "water": true,
-      "pos": [
-        3,
-        0,
-        3
-      ],
-      "rot": 0
-    },
-    {
-      "model": "puddle",
-      "water": true,
-      "pos": [
-        -5,
-        0,
-        -5
-      ],
-      "rot": 60
-    },
-    {
-      "model": "arch",
-      "pos": [
-        0,
-        0,
-        10.5
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.5,
-            2.6,
-            0.6
-          ],
-          "offset": [
-            -1.45,
-            1.3,
-            0
-          ]
-        },
-        {
-          "size": [
-            0.5,
-            2.6,
-            0.6
-          ],
-          "offset": [
-            1.45,
-            1.3,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "wall",
-      "pos": [
-        0,
-        0,
-        28
-      ],
-      "rot": 180
-    },
-    {
-      "model": "wall",
-      "pos": [
-        6,
-        0,
-        28
-      ],
-      "rot": 180
-    },
-    {
-      "model": "wall",
-      "pos": [
-        -6,
-        0,
-        28
-      ],
-      "rot": 180
-    },
-    {
-      "model": "cafe_sign",
-      "pos": [
-        0,
-        0,
-        26.5
-      ],
-      "rot": 180
-    },
-    {
-      "model": "cafe_table",
-      "pos": [
-        -4,
-        0,
-        17
-      ],
-      "colliders": [
-        {
-          "size": [
-            0.9,
-            0.06,
-            0.9
-          ],
-          "offset": [
-            0,
-            0.72,
-            0
-          ]
-        },
-        {
-          "size": [
-            0.5,
-            0.72,
-            0.5
-          ],
-          "offset": [
-            0,
-            0.36,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "cafe_table",
-      "pos": [
-        0,
-        0,
-        17
-      ],
-      "colliders": [
-        {
-          "size": [
-            0.9,
-            0.06,
-            0.9
-          ],
-          "offset": [
-            0,
-            0.72,
-            0
-          ]
-        },
-        {
-          "size": [
-            0.5,
-            0.72,
-            0.5
-          ],
-          "offset": [
-            0,
-            0.36,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "cafe_table",
-      "pos": [
-        4,
-        0,
-        17
-      ],
-      "colliders": [
-        {
-          "size": [
-            0.9,
-            0.06,
-            0.9
-          ],
-          "offset": [
-            0,
-            0.72,
-            0
-          ]
-        },
-        {
-          "size": [
-            0.5,
-            0.72,
-            0.5
-          ],
-          "offset": [
-            0,
-            0.36,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "cafe_table",
-      "pos": [
-        -2,
-        0,
-        21
-      ],
-      "colliders": [
-        {
-          "size": [
-            0.9,
-            0.06,
-            0.9
-          ],
-          "offset": [
-            0,
-            0.72,
-            0
-          ]
-        },
-        {
-          "size": [
-            0.5,
-            0.72,
-            0.5
-          ],
-          "offset": [
-            0,
-            0.36,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "cafe_table",
-      "pos": [
-        2,
-        0,
-        21
-      ],
-      "colliders": [
-        {
-          "size": [
-            0.9,
-            0.06,
-            0.9
-          ],
-          "offset": [
-            0,
-            0.72,
-            0
-          ]
-        },
-        {
-          "size": [
-            0.5,
-            0.72,
-            0.5
-          ],
-          "offset": [
-            0,
-            0.36,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "chair",
-      "pos": [
-        -4,
-        0,
-        16.2
-      ],
-      "rot": 180,
-      "outline": true,
-      "colliders": [
-        {
-          "size": [
-            0.42,
-            0.45,
-            0.42
-          ],
-          "offset": [
-            0,
-            0.24,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "chair",
-      "pos": [
-        -4,
-        0,
-        17.8
-      ],
-      "rot": 0,
-      "outline": true,
-      "colliders": [
-        {
-          "size": [
-            0.42,
-            0.45,
-            0.42
-          ],
-          "offset": [
-            0,
-            0.24,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "chair",
-      "pos": [
-        0,
-        0,
-        16.2
-      ],
-      "rot": 180,
-      "outline": true,
-      "colliders": [
-        {
-          "size": [
-            0.42,
-            0.45,
-            0.42
-          ],
-          "offset": [
-            0,
-            0.24,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "chair",
-      "pos": [
-        0,
-        0,
-        17.8
-      ],
-      "rot": 0,
-      "outline": true,
-      "colliders": [
-        {
-          "size": [
-            0.42,
-            0.45,
-            0.42
-          ],
-          "offset": [
-            0,
-            0.24,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "chair",
-      "pos": [
-        4,
-        0,
-        16.2
-      ],
-      "rot": 180,
-      "outline": true,
-      "colliders": [
-        {
-          "size": [
-            0.42,
-            0.45,
-            0.42
-          ],
-          "offset": [
-            0,
-            0.24,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "chair",
-      "pos": [
-        4,
-        0,
-        17.8
-      ],
-      "rot": 0,
-      "outline": true,
-      "colliders": [
-        {
-          "size": [
-            0.42,
-            0.45,
-            0.42
-          ],
-          "offset": [
-            0,
-            0.24,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "chair",
-      "pos": [
-        -2,
-        0,
-        21.8
-      ],
-      "rot": 0,
-      "outline": true,
-      "colliders": [
-        {
-          "size": [
-            0.42,
-            0.45,
-            0.42
-          ],
-          "offset": [
-            0,
-            0.24,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "chair",
-      "pos": [
-        2,
-        0,
-        21.8
-      ],
-      "rot": 0,
-      "outline": true,
-      "colliders": [
-        {
-          "size": [
-            0.42,
-            0.45,
-            0.42
-          ],
-          "offset": [
-            0,
-            0.24,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "umbrella",
-      "pos": [
-        -3.3,
-        0,
-        17.7
-      ],
-      "colliders": [
-        {
-          "size": [
-            0.1,
-            2.2,
-            0.1
-          ],
-          "offset": [
-            0,
-            1.1,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "umbrella",
-      "pos": [
-        4.7,
-        0,
-        17.7
-      ],
-      "colliders": [
-        {
-          "size": [
-            0.1,
-            2.2,
-            0.1
-          ],
-          "offset": [
-            0,
-            1.1,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "umbrella",
-      "pos": [
-        2.7,
-        0,
-        21.7
-      ],
-      "colliders": [
-        {
-          "size": [
-            0.1,
-            2.2,
-            0.1
-          ],
-          "offset": [
-            0,
-            1.1,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bin",
-      "pos": [
-        8,
-        0,
-        24
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.74,
-            1.12,
-            0.84
-          ],
-          "offset": [
-            0,
-            0.56,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bin",
-      "pos": [
-        9,
-        0,
-        24
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.74,
-            1.12,
-            0.84
-          ],
-          "offset": [
-            0,
-            0.56,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bush",
-      "pos": [
-        -8,
-        0,
-        24
-      ],
-      "rot": 0
-    },
-    {
-      "model": "bush",
-      "pos": [
-        8,
-        0,
-        14.5
-      ],
-      "rot": 20
-    },
-    {
-      "model": "puddle",
-      "water": true,
-      "pos": [
-        -6,
-        0,
-        19
-      ],
-      "rot": 30
-    },
-    {
-      "model": "bush",
-      "pos": [
-        -7.5,
-        0,
-        -13.0
-      ],
-      "rot": 294
-    },
-    {
-      "model": "bush",
-      "pos": [
-        -2.5,
-        0,
-        -13.0
-      ],
-      "rot": 193
-    },
-    {
-      "model": "bush",
-      "pos": [
-        0.0,
-        0,
-        -13.0
-      ],
-      "rot": 0
-    },
-    {
-      "model": "bush",
-      "pos": [
-        8.8,
-        0,
-        -13.0
-      ],
-      "rot": 277
-    },
-    {
-      "model": "bush",
-      "pos": [
-        4.6,
-        0,
-        -13.0
-      ],
-      "rot": 28
-    },
-    {
-      "model": "bush",
-      "pos": [
-        -11.0,
-        0,
-        -5.0
-      ],
-      "rot": 90
-    },
-    {
-      "model": "bush",
-      "pos": [
-        -11.0,
-        0,
-        0.5
-      ],
-      "rot": 90
-    },
-    {
-      "model": "grass",
-      "pos": [
-        -12.5,
-        0,
-        -12.5
-      ],
-      "rot": 205,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        12.5,
-        0,
-        -12.5
-      ],
-      "rot": 90,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        -12.5,
-        0,
-        9
-      ],
-      "rot": 210,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        12.5,
-        0,
-        9
-      ],
-      "rot": 95,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        -6,
-        0,
-        -12.8
-      ],
-      "rot": 184,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        6,
-        0,
-        -12.8
-      ],
-      "rot": 100,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        -12.8,
-        0,
-        -3
-      ],
-      "rot": 350,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        12.8,
-        0,
-        -3
-      ],
-      "rot": 267,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        3.5,
-        0,
-        4.2
-      ],
-      "rot": 256,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        -3,
-        0,
-        1.5
-      ],
-      "rot": 226,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        8.5,
-        0,
-        -5
-      ],
-      "rot": 5,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        -8.5,
-        0,
-        9.5
-      ],
-      "rot": 71,
-      "solid": false
-    },
-    {
-      "model": "ivy",
-      "pos": [
-        -6.0,
-        2.2,
-        -13.78
-      ],
-      "rot": 0,
-      "solid": false
-    },
-    {
-      "model": "ivy",
-      "pos": [
-        0.0,
-        2.2,
-        -13.78
-      ],
-      "rot": 0,
-      "solid": false
-    },
-    {
-      "model": "ivy",
-      "pos": [
-        8.0,
-        2.2,
-        -13.78
-      ],
-      "rot": 0,
-      "solid": false
-    }
-  ],
-  "hideouts": [
-    {
-      "kind": "box",
-      "pos": [
-        -2,
-        0.2,
-        -0.35
-      ],
-      "size": [
-        0.6,
-        0.4,
-        0.6
-      ]
-    },
-    {
-      "kind": "box",
-      "pos": [
-        -3.5,
-        0.2,
-        4.65
-      ],
-      "size": [
-        0.6,
-        0.4,
-        0.6
-      ]
-    },
-    {
-      "kind": "box",
-      "pos": [
-        6,
-        0.2,
-        -0.35
-      ],
-      "size": [
-        0.6,
-        0.4,
-        0.6
-      ]
-    },
-    {
-      "kind": "box",
-      "pos": [
-        2.6,
-        0.2,
-        -9.75
-      ],
-      "size": [
-        0.6,
-        0.4,
-        0.6
-      ]
-    },
-    {
-      "kind": "car",
-      "pos": [
-        8,
-        0.15,
-        4
-      ],
-      "size": [
-        1.4,
-        0.3,
-        3.2
-      ]
-    },
-    {
-      "kind": "car",
-      "pos": [
-        -8,
-        0.15,
-        7
-      ],
-      "rot": 15,
-      "size": [
-        1.4,
-        0.3,
-        3.2
-      ]
-    },
-    {
-      "kind": "bench",
-      "pos": [
-        0,
-        0.2,
-        7
-      ],
-      "size": [
-        1.3,
-        0.4,
-        0.4
-      ]
-    },
-    {
-      "kind": "bench",
-      "pos": [
-        -5,
-        0.2,
-        -8
-      ],
-      "rot": 90,
-      "size": [
-        1.3,
-        0.4,
-        0.4
-      ]
-    }
-  ],
-  "spawn_points": [
-    {
-      "pos": [
-        3.5,
-        0,
-        -10
-      ],
-      "allowed": [
-        0
-      ],
-      "foods": [
-        "sausage",
-        "cookie"
-      ]
-    },
-    {
-      "pos": [
-        -5,
-        0,
-        2.5
-      ],
-      "allowed": [
-        0
-      ],
-      "foods": [
-        "sausage",
-        "cookie"
-      ]
-    },
-    {
-      "pos": [
-        0,
-        0,
-        -4
-      ],
-      "allowed": [
-        0
-      ],
-      "foods": [
-        "sausage",
-        "cookie"
-      ]
-    },
-    {
-      "pos": [
-        -4,
-        0,
-        -4
-      ],
-      "allowed": [
-        0
-      ],
-      "foods": [
-        "sausage",
-        "cookie"
-      ]
-    },
-    {
-      "pos": [
-        1,
-        0,
-        6.3
-      ],
-      "allowed": [
-        0
-      ],
-      "foods": [
-        "sausage",
-        "cookie"
-      ]
-    },
-    {
-      "pos": [
-        -5.8,
-        0,
-        -7
-      ],
-      "allowed": [
-        0,
-        1
-      ],
-      "foods": [
-        "sausage",
-        "cookie",
-        "pizza",
-        "hotdog"
-      ]
-    },
-    {
-      "pos": [
-        4,
-        0,
-        4
-      ],
-      "allowed": [
-        0,
-        1
-      ],
-      "foods": [
-        "sausage",
-        "cookie",
-        "pizza",
-        "hotdog"
-      ]
-    },
-    {
-      "pos": [
-        -11.3,
-        1.0,
-        -9.0
-      ],
-      "allowed": [
-        1
-      ],
-      "foods": [
-        "pizza",
-        "hotdog"
-      ]
-    },
-    {
-      "pos": [
-        2,
-        0,
-        6
-      ],
-      "allowed": [
-        1,
-        3
-      ],
-      "foods": [
-        "pizza",
-        "hotdog",
-        "donut",
-        "ice_cream"
-      ]
-    },
-    {
-      "pos": [
-        7.5,
-        0,
-        -8
-      ],
-      "allowed": [
-        2,
-        3
-      ],
-      "foods": [
-        "croissant",
-        "fish",
-        "donut",
-        "ice_cream"
-      ]
-    },
-    {
-      "pos": [
-        -4,
-        0,
-        15.3
-      ],
-      "allowed": [
-        1
-      ],
-      "foods": [
-        "pizza",
-        "hotdog"
-      ]
-    },
-    {
-      "pos": [
-        4,
-        0,
-        15.3
-      ],
-      "allowed": [
-        1
-      ],
-      "foods": [
-        "pizza",
-        "hotdog"
-      ]
-    },
-    {
-      "pos": [
-        0,
-        0.75,
-        17
-      ],
-      "allowed": [
-        2
-      ],
-      "foods": [
-        "croissant",
-        "fish"
-      ]
-    },
-    {
-      "pos": [
-        -2,
-        0.75,
-        21
-      ],
-      "allowed": [
-        2
-      ],
-      "foods": [
-        "croissant",
-        "fish"
-      ]
-    },
-    {
-      "pos": [
-        2,
-        0.75,
-        21
-      ],
-      "allowed": [
-        3
-      ],
-      "foods": [
-        "donut",
-        "ice_cream"
-      ]
-    },
-    {
-      "pos": [
-        7,
-        0,
-        20
-      ],
-      "allowed": [
-        0,
-        1
-      ],
-      "foods": [
-        "sausage",
-        "cookie",
-        "pizza",
-        "hotdog"
-      ]
-    }
-  ],
-  "hazards": [
-    {
-      "type": "dog",
-      "pos": [
-        7,
-        0,
-        -7
-      ],
-      "rot": 90
-    },
-    {
-      "type": "wasp",
-      "pos": [
-        2,
-        0.5,
-        6
-      ],
-      "radius": 2.5
-    },
-    {
-      "type": "cyclist",
-      "pos": [
-        0,
-        0,
-        12
-      ]
-    },
-    {
-      "type": "wasp",
-      "pos": [
-        2,
-        1.1,
-        21
-      ],
-      "radius": 0.8,
-      "height": 1.0
-    }
-  ],
-  "road": {
-    "points": [
-      [
-        -25,
-        0,
-        12
-      ],
-      [
-        25,
-        0,
-        12
-      ]
-    ]
+ "props": [
+  {
+   "model": "house_a",
+   "pos": [
+    0,
+    0,
+    -14
+   ],
+   "rot": 0
   },
-  "yarn": [
+  {
+   "model": "house_c",
+   "pos": [
+    6,
+    0,
+    -14
+   ],
+   "rot": 0
+  },
+  {
+   "model": "house_b",
+   "pos": [
+    -6,
+    0,
+    -14
+   ],
+   "rot": 0
+  },
+  {
+   "model": "house_c",
+   "pos": [
+    -12,
+    0,
+    -8
+   ],
+   "rot": 90
+  },
+  {
+   "model": "house_a",
+   "pos": [
+    -12,
+    0,
+    -2
+   ],
+   "rot": 90
+  },
+  {
+   "model": "stairs",
+   "pos": [
+    -11.3,
+    0,
+    -11.5
+   ],
+   "rot": 0,
+   "colliders": [
     {
-      "pos": [
-        -11.3,
-        1.0,
-        -9.3
-      ]
-    },
-    {
-      "pos": [
-        -10.9,
-        0.5,
-        -11.0
-      ]
-    },
-    {
-      "pos": [
-        1.5,
-        0.6,
-        1.5
-      ]
-    },
-    {
-      "pos": [
-        0.4,
-        0.5,
-        7.0
-      ]
-    },
-    {
-      "pos": [
-        8.0,
-        0.0,
-        5.3
-      ]
-    },
-    {
-      "pos": [
-        -8.3,
-        0.0,
-        8.3
-      ]
-    },
-    {
-      "pos": [
-        -11.2,
-        0.0,
-        -13.2
-      ]
-    },
-    {
-      "pos": [
-        11.5,
-        0.0,
-        -13.0
-      ]
-    },
-    {
-      "pos": [
-        1.9,
-        0.0,
-        10.5
-      ]
-    },
-    {
-      "pos": [
-        -5.6,
-        0.0,
-        -9.0
-      ]
-    },
-    {
-      "pos": [
-        -4,
-        0.75,
-        17
-      ]
-    },
-    {
-      "pos": [
-        4,
-        0.75,
-        17
-      ]
-    }
-  ],
-  "gates": [
-    {
-      "pos": [
-        0,
-        0,
-        10.5
-      ],
-      "rot": 0,
-      "size": [
-        2.4,
-        2.6,
-        0.3
-      ],
-      "satiety": 10
-    }
-  ],
-  "shop": {
-    "pos": [
-      -4.5,
+     "size": [
+      1.2,
+      0.25,
+      0.5
+     ],
+     "offset": [
       0,
-      -1.5
-    ],
-    "rot": 180
-  },
-  "decals": [
-    {
-      "texture": "assets/images/world/decal_manhole.png",
-      "pos": [
-        3,
-        0,
-        -2
-      ],
-      "size": [
-        1.0,
-        1.0
-      ]
+      0.125,
+      0
+     ]
     },
     {
-      "texture": "assets/images/world/decal_cracks.png",
-      "pos": [
-        -6,
-        0,
-        4
-      ],
-      "size": [
-        2.0,
-        2.0
-      ],
-      "rot": 20
+     "size": [
+      1.2,
+      0.5,
+      0.5
+     ],
+     "offset": [
+      0,
+      0.25,
+      0.5
+     ]
     },
     {
-      "texture": "assets/images/world/decal_cracks.png",
-      "pos": [
-        8,
-        0,
-        -9
-      ],
-      "size": [
-        1.5,
-        1.5
-      ],
-      "rot": 110
+     "size": [
+      1.2,
+      0.75,
+      0.5
+     ],
+     "offset": [
+      0,
+      0.375,
+      1.0
+     ]
     },
     {
-      "texture": "assets/images/world/decal_leaves.png",
-      "pos": [
-        -2,
-        0,
-        -6
-      ],
-      "size": [
-        2.0,
-        2.0
-      ]
+     "size": [
+      1.2,
+      1.0,
+      0.5
+     ],
+     "offset": [
+      0,
+      0.5,
+      1.5
+     ]
     },
     {
-      "texture": "assets/images/world/decal_leaves.png",
-      "pos": [
-        6,
-        0,
-        6
-      ],
-      "size": [
-        2.0,
-        2.0
-      ],
-      "rot": 70
-    },
-    {
-      "texture": "assets/images/world/poster_cafe.png",
-      "pos": [
-        -5.0,
-        0.8,
-        -13.78
-      ],
-      "size": [
-        0.9,
-        0.9
-      ],
-      "wall": true
-    },
-    {
-      "texture": "assets/images/world/poster_cat.png",
-      "pos": [
-        6.5,
-        0.8,
-        -13.78
-      ],
-      "size": [
-        0.8,
-        0.8
-      ],
-      "wall": true
-    },
-    {
-      "texture": "assets/images/world/poster_paws.png",
-      "pos": [
-        -11.78,
-        0.8,
-        -6.5
-      ],
-      "size": [
-        0.7,
-        0.7
-      ],
-      "wall": true,
-      "rot": 90
+     "size": [
+      1.2,
+      0.12,
+      1.2
+     ],
+     "offset": [
+      0,
+      0.94,
+      2.55
+     ]
     }
+   ]
+  },
+  {
+   "model": "bin",
+   "pos": [
+    3,
+    0,
+    -11
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.74,
+      1.12,
+      0.84
+     ],
+     "offset": [
+      0,
+      0.56,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "bin",
+   "pos": [
+    4,
+    0,
+    -11
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.74,
+      1.12,
+      0.84
+     ],
+     "offset": [
+      0,
+      0.56,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "bin",
+   "pos": [
+    -6,
+    0,
+    2
+   ],
+   "rot": 90,
+   "colliders": [
+    {
+     "size": [
+      0.74,
+      1.12,
+      0.84
+     ],
+     "offset": [
+      0,
+      0.56,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "bin",
+   "pos": [
+    -6,
+    0,
+    3
+   ],
+   "rot": 90,
+   "colliders": [
+    {
+     "size": [
+      0.74,
+      1.12,
+      0.84
+     ],
+     "offset": [
+      0,
+      0.56,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "bag",
+   "pos": [
+    2.2,
+    0,
+    -11.2
+   ],
+   "rot": 30
+  },
+  {
+   "model": "bag",
+   "pos": [
+    -6.6,
+    0,
+    1.2
+   ],
+   "rot": 0
+  },
+  {
+   "model": "box",
+   "pos": [
+    1.5,
+    0,
+    1.5
+   ],
+   "rot": 0,
+   "outline": true
+  },
+  {
+   "model": "box",
+   "pos": [
+    1.5,
+    0.3,
+    1.5
+   ],
+   "rot": 20,
+   "outline": true
+  },
+  {
+   "model": "box",
+   "pos": [
+    -2,
+    0,
+    -1
+   ],
+   "rot": 45,
+   "outline": true
+  },
+  {
+   "model": "box",
+   "pos": [
+    -3.5,
+    0,
+    4
+   ],
+   "rot": 0,
+   "outline": true
+  },
+  {
+   "model": "box",
+   "pos": [
+    6,
+    0,
+    -1
+   ],
+   "rot": 0,
+   "outline": true
+  },
+  {
+   "model": "box",
+   "pos": [
+    2.6,
+    0,
+    -10.4
+   ],
+   "rot": 10,
+   "outline": true
+  },
+  {
+   "model": "car",
+   "pos": [
+    8,
+    0,
+    4
+   ],
+   "rot": 0,
+   "outline": true,
+   "colliders": [
+    {
+     "size": [
+      1.7,
+      1.2,
+      3.6
+     ],
+     "offset": [
+      0,
+      0.9,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "car",
+   "pos": [
+    -8,
+    0,
+    7
+   ],
+   "rot": 15,
+   "outline": true,
+   "colliders": [
+    {
+     "size": [
+      1.7,
+      1.2,
+      3.6
+     ],
+     "offset": [
+      0,
+      0.9,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "bench",
+   "pos": [
+    0,
+    0,
+    7
+   ],
+   "rot": 180,
+   "outline": true,
+   "colliders": [
+    {
+     "size": [
+      1.5,
+      0.1,
+      0.45
+     ],
+     "offset": [
+      0,
+      0.45,
+      0
+     ]
+    },
+    {
+     "size": [
+      1.5,
+      0.4,
+      0.06
+     ],
+     "offset": [
+      0,
+      0.72,
+      0.22
+     ]
+    }
+   ]
+  },
+  {
+   "model": "bench",
+   "pos": [
+    -5,
+    0,
+    -8
+   ],
+   "rot": 90,
+   "outline": true,
+   "colliders": [
+    {
+     "size": [
+      1.5,
+      0.1,
+      0.45
+     ],
+     "offset": [
+      0,
+      0.45,
+      0
+     ]
+    },
+    {
+     "size": [
+      1.5,
+      0.4,
+      0.06
+     ],
+     "offset": [
+      0,
+      0.72,
+      0.22
+     ]
+    }
+   ]
+  },
+  {
+   "model": "lamp",
+   "pos": [
+    5,
+    0,
+    8
+   ],
+   "rot": 0
+  },
+  {
+   "model": "lamp",
+   "pos": [
+    -9,
+    0,
+    -3
+   ],
+   "rot": 0
+  },
+  {
+   "model": "tree",
+   "pos": [
+    9,
+    0,
+    -6
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.3,
+      1.6,
+      0.3
+     ],
+     "offset": [
+      0,
+      0.8,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "tree",
+   "pos": [
+    -9,
+    0,
+    10
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.3,
+      1.6,
+      0.3
+     ],
+     "offset": [
+      0,
+      0.8,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "bush",
+   "pos": [
+    7,
+    0,
+    -10
+   ],
+   "rot": 0
+  },
+  {
+   "model": "bush",
+   "pos": [
+    -3,
+    0,
+    10
+   ],
+   "rot": 40
+  },
+  {
+   "model": "bush",
+   "pos": [
+    10,
+    0,
+    0
+   ],
+   "rot": 0
+  },
+  {
+   "model": "fence",
+   "pos": [
+    10,
+    0,
+    7
+   ],
+   "rot": 90
+  },
+  {
+   "model": "fence",
+   "pos": [
+    10,
+    0,
+    9
+   ],
+   "rot": 90
+  },
+  {
+   "model": "puddle",
+   "water": true,
+   "pos": [
+    3,
+    0,
+    3
+   ],
+   "rot": 0
+  },
+  {
+   "model": "puddle",
+   "water": true,
+   "pos": [
+    -5,
+    0,
+    -5
+   ],
+   "rot": 60
+  },
+  {
+   "model": "arch",
+   "pos": [
+    0,
+    0,
+    10.5
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.5,
+      2.6,
+      0.6
+     ],
+     "offset": [
+      -1.45,
+      1.3,
+      0
+     ]
+    },
+    {
+     "size": [
+      0.5,
+      2.6,
+      0.6
+     ],
+     "offset": [
+      1.45,
+      1.3,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "house_shallow",
+   "pos": [
+    0,
+    0,
+    28
+   ],
+   "rot": 180
+  },
+  {
+   "model": "house_shallow",
+   "pos": [
+    6,
+    0,
+    28
+   ],
+   "rot": 180
+  },
+  {
+   "model": "house_shallow",
+   "pos": [
+    -6,
+    0,
+    28
+   ],
+   "rot": 180
+  },
+  {
+   "model": "cafe_sign",
+   "pos": [
+    0,
+    0,
+    26.5
+   ],
+   "rot": 180
+  },
+  {
+   "model": "cafe_table",
+   "pos": [
+    -4,
+    0,
+    17
+   ],
+   "colliders": [
+    {
+     "size": [
+      0.9,
+      0.06,
+      0.9
+     ],
+     "offset": [
+      0,
+      0.72,
+      0
+     ]
+    },
+    {
+     "size": [
+      0.5,
+      0.72,
+      0.5
+     ],
+     "offset": [
+      0,
+      0.36,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "cafe_table",
+   "pos": [
+    0,
+    0,
+    17
+   ],
+   "colliders": [
+    {
+     "size": [
+      0.9,
+      0.06,
+      0.9
+     ],
+     "offset": [
+      0,
+      0.72,
+      0
+     ]
+    },
+    {
+     "size": [
+      0.5,
+      0.72,
+      0.5
+     ],
+     "offset": [
+      0,
+      0.36,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "cafe_table",
+   "pos": [
+    4,
+    0,
+    17
+   ],
+   "colliders": [
+    {
+     "size": [
+      0.9,
+      0.06,
+      0.9
+     ],
+     "offset": [
+      0,
+      0.72,
+      0
+     ]
+    },
+    {
+     "size": [
+      0.5,
+      0.72,
+      0.5
+     ],
+     "offset": [
+      0,
+      0.36,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "cafe_table",
+   "pos": [
+    -2,
+    0,
+    21
+   ],
+   "colliders": [
+    {
+     "size": [
+      0.9,
+      0.06,
+      0.9
+     ],
+     "offset": [
+      0,
+      0.72,
+      0
+     ]
+    },
+    {
+     "size": [
+      0.5,
+      0.72,
+      0.5
+     ],
+     "offset": [
+      0,
+      0.36,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "cafe_table",
+   "pos": [
+    2,
+    0,
+    21
+   ],
+   "colliders": [
+    {
+     "size": [
+      0.9,
+      0.06,
+      0.9
+     ],
+     "offset": [
+      0,
+      0.72,
+      0
+     ]
+    },
+    {
+     "size": [
+      0.5,
+      0.72,
+      0.5
+     ],
+     "offset": [
+      0,
+      0.36,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "chair",
+   "pos": [
+    -4,
+    0,
+    16.2
+   ],
+   "rot": 180,
+   "outline": true,
+   "colliders": [
+    {
+     "size": [
+      0.42,
+      0.45,
+      0.42
+     ],
+     "offset": [
+      0,
+      0.24,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "chair",
+   "pos": [
+    -4,
+    0,
+    17.8
+   ],
+   "rot": 0,
+   "outline": true,
+   "colliders": [
+    {
+     "size": [
+      0.42,
+      0.45,
+      0.42
+     ],
+     "offset": [
+      0,
+      0.24,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "chair",
+   "pos": [
+    0,
+    0,
+    16.2
+   ],
+   "rot": 180,
+   "outline": true,
+   "colliders": [
+    {
+     "size": [
+      0.42,
+      0.45,
+      0.42
+     ],
+     "offset": [
+      0,
+      0.24,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "chair",
+   "pos": [
+    0,
+    0,
+    17.8
+   ],
+   "rot": 0,
+   "outline": true,
+   "colliders": [
+    {
+     "size": [
+      0.42,
+      0.45,
+      0.42
+     ],
+     "offset": [
+      0,
+      0.24,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "chair",
+   "pos": [
+    4,
+    0,
+    16.2
+   ],
+   "rot": 180,
+   "outline": true,
+   "colliders": [
+    {
+     "size": [
+      0.42,
+      0.45,
+      0.42
+     ],
+     "offset": [
+      0,
+      0.24,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "chair",
+   "pos": [
+    4,
+    0,
+    17.8
+   ],
+   "rot": 0,
+   "outline": true,
+   "colliders": [
+    {
+     "size": [
+      0.42,
+      0.45,
+      0.42
+     ],
+     "offset": [
+      0,
+      0.24,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "chair",
+   "pos": [
+    -2,
+    0,
+    21.8
+   ],
+   "rot": 0,
+   "outline": true,
+   "colliders": [
+    {
+     "size": [
+      0.42,
+      0.45,
+      0.42
+     ],
+     "offset": [
+      0,
+      0.24,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "chair",
+   "pos": [
+    2,
+    0,
+    21.8
+   ],
+   "rot": 0,
+   "outline": true,
+   "colliders": [
+    {
+     "size": [
+      0.42,
+      0.45,
+      0.42
+     ],
+     "offset": [
+      0,
+      0.24,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "umbrella",
+   "pos": [
+    -3.3,
+    0,
+    17.7
+   ],
+   "colliders": [
+    {
+     "size": [
+      0.1,
+      2.2,
+      0.1
+     ],
+     "offset": [
+      0,
+      1.1,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "umbrella",
+   "pos": [
+    4.7,
+    0,
+    17.7
+   ],
+   "colliders": [
+    {
+     "size": [
+      0.1,
+      2.2,
+      0.1
+     ],
+     "offset": [
+      0,
+      1.1,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "umbrella",
+   "pos": [
+    2.7,
+    0,
+    21.7
+   ],
+   "colliders": [
+    {
+     "size": [
+      0.1,
+      2.2,
+      0.1
+     ],
+     "offset": [
+      0,
+      1.1,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "bin",
+   "pos": [
+    8,
+    0,
+    24
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.74,
+      1.12,
+      0.84
+     ],
+     "offset": [
+      0,
+      0.56,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "bin",
+   "pos": [
+    9,
+    0,
+    24
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.74,
+      1.12,
+      0.84
+     ],
+     "offset": [
+      0,
+      0.56,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "bush",
+   "pos": [
+    -8,
+    0,
+    24
+   ],
+   "rot": 0
+  },
+  {
+   "model": "bush",
+   "pos": [
+    8,
+    0,
+    14.5
+   ],
+   "rot": 20
+  },
+  {
+   "model": "puddle",
+   "water": true,
+   "pos": [
+    -6,
+    0,
+    19
+   ],
+   "rot": 30
+  },
+  {
+   "model": "bush",
+   "pos": [
+    -7.5,
+    0,
+    -13.0
+   ],
+   "rot": 294
+  },
+  {
+   "model": "bush",
+   "pos": [
+    -2.5,
+    0,
+    -13.0
+   ],
+   "rot": 193
+  },
+  {
+   "model": "bush",
+   "pos": [
+    0.0,
+    0,
+    -13.0
+   ],
+   "rot": 0
+  },
+  {
+   "model": "bush",
+   "pos": [
+    8.8,
+    0,
+    -13.0
+   ],
+   "rot": 277
+  },
+  {
+   "model": "bush",
+   "pos": [
+    4.6,
+    0,
+    -13.0
+   ],
+   "rot": 28
+  },
+  {
+   "model": "bush",
+   "pos": [
+    -11.0,
+    0,
+    -5.0
+   ],
+   "rot": 90
+  },
+  {
+   "model": "bush",
+   "pos": [
+    -11.0,
+    0,
+    0.5
+   ],
+   "rot": 90
+  },
+  {
+   "model": "grass",
+   "pos": [
+    -12.5,
+    0,
+    -12.5
+   ],
+   "rot": 205,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    12.5,
+    0,
+    -12.5
+   ],
+   "rot": 90,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    -12.5,
+    0,
+    9
+   ],
+   "rot": 210,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    12.5,
+    0,
+    9
+   ],
+   "rot": 95,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    -6,
+    0,
+    -12.8
+   ],
+   "rot": 184,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    6,
+    0,
+    -12.8
+   ],
+   "rot": 100,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    -12.8,
+    0,
+    -3
+   ],
+   "rot": 350,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    12.8,
+    0,
+    -3
+   ],
+   "rot": 267,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    3.5,
+    0,
+    4.2
+   ],
+   "rot": 256,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    -3,
+    0,
+    1.5
+   ],
+   "rot": 226,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    8.5,
+    0,
+    -5
+   ],
+   "rot": 5,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    -8.5,
+    0,
+    9.5
+   ],
+   "rot": 71,
+   "solid": false
+  },
+  {
+   "model": "ivy",
+   "pos": [
+    -6.0,
+    2.2,
+    -13.78
+   ],
+   "rot": 0,
+   "solid": false
+  },
+  {
+   "model": "ivy",
+   "pos": [
+    0.0,
+    2.2,
+    -13.78
+   ],
+   "rot": 0,
+   "solid": false
+  },
+  {
+   "model": "ivy",
+   "pos": [
+    8.0,
+    2.2,
+    -13.78
+   ],
+   "rot": 0,
+   "solid": false
+  }
+ ],
+ "hideouts": [
+  {
+   "kind": "box",
+   "pos": [
+    -2,
+    0.2,
+    -0.35
+   ],
+   "size": [
+    0.6,
+    0.4,
+    0.6
+   ]
+  },
+  {
+   "kind": "box",
+   "pos": [
+    -3.5,
+    0.2,
+    4.65
+   ],
+   "size": [
+    0.6,
+    0.4,
+    0.6
+   ]
+  },
+  {
+   "kind": "box",
+   "pos": [
+    6,
+    0.2,
+    -0.35
+   ],
+   "size": [
+    0.6,
+    0.4,
+    0.6
+   ]
+  },
+  {
+   "kind": "box",
+   "pos": [
+    2.6,
+    0.2,
+    -9.75
+   ],
+   "size": [
+    0.6,
+    0.4,
+    0.6
+   ]
+  },
+  {
+   "kind": "car",
+   "pos": [
+    8,
+    0.15,
+    4
+   ],
+   "size": [
+    1.4,
+    0.3,
+    3.2
+   ]
+  },
+  {
+   "kind": "car",
+   "pos": [
+    -8,
+    0.15,
+    7
+   ],
+   "rot": 15,
+   "size": [
+    1.4,
+    0.3,
+    3.2
+   ]
+  },
+  {
+   "kind": "bench",
+   "pos": [
+    0,
+    0.2,
+    7
+   ],
+   "size": [
+    1.3,
+    0.4,
+    0.4
+   ]
+  },
+  {
+   "kind": "bench",
+   "pos": [
+    -5,
+    0.2,
+    -8
+   ],
+   "rot": 90,
+   "size": [
+    1.3,
+    0.4,
+    0.4
+   ]
+  }
+ ],
+ "spawn_points": [
+  {
+   "pos": [
+    3.5,
+    0,
+    -10
+   ],
+   "allowed": [
+    0
+   ],
+   "foods": [
+    "sausage",
+    "cookie"
+   ]
+  },
+  {
+   "pos": [
+    -5,
+    0,
+    2.5
+   ],
+   "allowed": [
+    0
+   ],
+   "foods": [
+    "sausage",
+    "cookie"
+   ]
+  },
+  {
+   "pos": [
+    0,
+    0,
+    -4
+   ],
+   "allowed": [
+    0
+   ],
+   "foods": [
+    "sausage",
+    "cookie"
+   ]
+  },
+  {
+   "pos": [
+    -4,
+    0,
+    -4
+   ],
+   "allowed": [
+    0
+   ],
+   "foods": [
+    "sausage",
+    "cookie"
+   ]
+  },
+  {
+   "pos": [
+    1,
+    0,
+    6.3
+   ],
+   "allowed": [
+    0
+   ],
+   "foods": [
+    "sausage",
+    "cookie"
+   ]
+  },
+  {
+   "pos": [
+    -5.8,
+    0,
+    -7
+   ],
+   "allowed": [
+    0,
+    1
+   ],
+   "foods": [
+    "sausage",
+    "cookie",
+    "pizza",
+    "hotdog"
+   ]
+  },
+  {
+   "pos": [
+    4,
+    0,
+    4
+   ],
+   "allowed": [
+    0,
+    1
+   ],
+   "foods": [
+    "sausage",
+    "cookie",
+    "pizza",
+    "hotdog"
+   ]
+  },
+  {
+   "pos": [
+    -11.3,
+    1.0,
+    -9.0
+   ],
+   "allowed": [
+    1
+   ],
+   "foods": [
+    "pizza",
+    "hotdog"
+   ]
+  },
+  {
+   "pos": [
+    2,
+    0,
+    6
+   ],
+   "allowed": [
+    1,
+    3
+   ],
+   "foods": [
+    "pizza",
+    "hotdog",
+    "donut",
+    "ice_cream"
+   ]
+  },
+  {
+   "pos": [
+    7.5,
+    0,
+    -8
+   ],
+   "allowed": [
+    2,
+    3
+   ],
+   "foods": [
+    "croissant",
+    "fish",
+    "donut",
+    "ice_cream"
+   ]
+  },
+  {
+   "pos": [
+    -4,
+    0,
+    15.3
+   ],
+   "allowed": [
+    1
+   ],
+   "foods": [
+    "pizza",
+    "hotdog"
+   ]
+  },
+  {
+   "pos": [
+    4,
+    0,
+    15.3
+   ],
+   "allowed": [
+    1
+   ],
+   "foods": [
+    "pizza",
+    "hotdog"
+   ]
+  },
+  {
+   "pos": [
+    0,
+    0.75,
+    17
+   ],
+   "allowed": [
+    2
+   ],
+   "foods": [
+    "croissant",
+    "fish"
+   ]
+  },
+  {
+   "pos": [
+    -2,
+    0.75,
+    21
+   ],
+   "allowed": [
+    2
+   ],
+   "foods": [
+    "croissant",
+    "fish"
+   ]
+  },
+  {
+   "pos": [
+    2,
+    0.75,
+    21
+   ],
+   "allowed": [
+    3
+   ],
+   "foods": [
+    "donut",
+    "ice_cream"
+   ]
+  },
+  {
+   "pos": [
+    7,
+    0,
+    20
+   ],
+   "allowed": [
+    0,
+    1
+   ],
+   "foods": [
+    "sausage",
+    "cookie",
+    "pizza",
+    "hotdog"
+   ]
+  }
+ ],
+ "hazards": [
+  {
+   "type": "dog",
+   "pos": [
+    7,
+    0,
+    -7
+   ],
+   "rot": 90
+  },
+  {
+   "type": "wasp",
+   "pos": [
+    2,
+    0.5,
+    6
+   ],
+   "radius": 2.5
+  },
+  {
+   "type": "cyclist",
+   "pos": [
+    0,
+    0,
+    12
+   ]
+  },
+  {
+   "type": "wasp",
+   "pos": [
+    2,
+    1.1,
+    21
+   ],
+   "radius": 0.8,
+   "height": 1.0
+  }
+ ],
+ "road": {
+  "points": [
+   [
+    -25,
+    0,
+    12
+   ],
+   [
+    25,
+    0,
+    12
+   ]
   ]
+ },
+ "yarn": [
+  {
+   "pos": [
+    -11.3,
+    1.0,
+    -9.3
+   ]
+  },
+  {
+   "pos": [
+    -10.9,
+    0.5,
+    -11.0
+   ]
+  },
+  {
+   "pos": [
+    1.5,
+    0.6,
+    1.5
+   ]
+  },
+  {
+   "pos": [
+    0.4,
+    0.5,
+    7.0
+   ]
+  },
+  {
+   "pos": [
+    8.0,
+    0.0,
+    5.3
+   ]
+  },
+  {
+   "pos": [
+    -8.3,
+    0.0,
+    8.3
+   ]
+  },
+  {
+   "pos": [
+    -11.2,
+    0.0,
+    -13.2
+   ]
+  },
+  {
+   "pos": [
+    11.5,
+    0.0,
+    -13.0
+   ]
+  },
+  {
+   "pos": [
+    1.9,
+    0.0,
+    10.5
+   ]
+  },
+  {
+   "pos": [
+    -5.6,
+    0.0,
+    -9.0
+   ]
+  },
+  {
+   "pos": [
+    -4,
+    0.75,
+    17
+   ]
+  },
+  {
+   "pos": [
+    4,
+    0.75,
+    17
+   ]
+  }
+ ],
+ "gates": [
+  {
+   "pos": [
+    0,
+    0,
+    10.5
+   ],
+   "rot": 0,
+   "size": [
+    2.4,
+    2.6,
+    0.3
+   ],
+   "satiety": 10
+  }
+ ],
+ "shop": {
+  "pos": [
+   -4.5,
+   0,
+   -1.5
+  ],
+  "rot": 180
+ },
+ "decals": [
+  {
+   "texture": "assets/images/world/decal_manhole.png",
+   "pos": [
+    3,
+    0,
+    -2
+   ],
+   "size": [
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "texture": "assets/images/world/decal_cracks.png",
+   "pos": [
+    -6,
+    0,
+    4
+   ],
+   "size": [
+    2.0,
+    2.0
+   ],
+   "rot": 20
+  },
+  {
+   "texture": "assets/images/world/decal_cracks.png",
+   "pos": [
+    8,
+    0,
+    -9
+   ],
+   "size": [
+    1.5,
+    1.5
+   ],
+   "rot": 110
+  },
+  {
+   "texture": "assets/images/world/decal_leaves.png",
+   "pos": [
+    -2,
+    0,
+    -6
+   ],
+   "size": [
+    2.0,
+    2.0
+   ]
+  },
+  {
+   "texture": "assets/images/world/decal_leaves.png",
+   "pos": [
+    6,
+    0,
+    6
+   ],
+   "size": [
+    2.0,
+    2.0
+   ],
+   "rot": 70
+  },
+  {
+   "texture": "assets/images/world/poster_cafe.png",
+   "pos": [
+    -5.0,
+    0.8,
+    -13.78
+   ],
+   "size": [
+    0.9,
+    0.9
+   ],
+   "wall": true
+  },
+  {
+   "texture": "assets/images/world/poster_cat.png",
+   "pos": [
+    6.5,
+    0.8,
+    -13.78
+   ],
+   "size": [
+    0.8,
+    0.8
+   ],
+   "wall": true
+  },
+  {
+   "texture": "assets/images/world/poster_paws.png",
+   "pos": [
+    -11.78,
+    0.8,
+    -6.5
+   ],
+   "size": [
+    0.7,
+    0.7
+   ],
+   "wall": true,
+   "rot": 90
+  }
+ ]
 }

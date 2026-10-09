@@ -85,7 +85,7 @@ def _local(origin, rot, dx, dz):
 SIDES = {"n": 0, "s": 180, "w": 90, "e": -90}   # стена дома лицом внутрь прямоугольника
 
 
-def perimeter(rect, model="wall", length=6.0, sides="nswe", gaps=(), extra=None):
+def perimeter(rect, model="wall", length=6.0, sides="nswe", gaps=(), extra=None, models=None):
 	"""Модули стен по сторонам rect; gaps — [(сторона, центр вдоль стороны, ширина)] — проходы без стен."""
 	x0, z0, x1, z1 = rect
 	out = []
@@ -107,7 +107,8 @@ def perimeter(rect, model="wall", length=6.0, sides="nswe", gaps=(), extra=None)
 			line = (z0 if side == "n" else z1) if horiz else (x0 if side == "w" else x1)
 			line = round(line + shift, 3)
 			pos = [c, 0, line] if horiz else [line, 0, c]
-			out.append({"model": model, "pos": pos, "rot": SIDES[side], **(extra or {})})
+			m = models[len(out) % len(models)] if models else model   # ряд разных домов (план 16)
+			out.append({"model": m, "pos": pos, "rot": SIDES[side], **(extra or {})})
 	return out
 
 
@@ -292,7 +293,7 @@ def generate(desc):
 	for op in [o for o in ops if o["type"] != "scatter"] + [o for o in ops if o["type"] == "scatter"]:
 		t = op["type"]
 		if t == "perimeter":
-			add("props", perimeter(op["rect"], op.get("model", "wall"), op.get("length", 6.0), op.get("sides", "nswe"), [tuple(g) for g in op.get("gaps", [])], op.get("extra")))
+			add("props", perimeter(op["rect"], op.get("model", "wall"), op.get("length", 6.0), op.get("sides", "nswe"), [tuple(g) for g in op.get("gaps", [])], op.get("extra"), op.get("models")))
 		elif t == "terrace":
 			feature, props, bl = terrace(op["rect"], op["height"], [tuple(a) for a in op.get("access", [])],
 				op.get("sides", "nswe"), [tuple(g) for g in op.get("gaps", [])], op.get("ground", 0.0), op.get("wall_h"), op.get("level"))
@@ -355,7 +356,7 @@ def generate(desc):
 					add("hideouts", [{"kind": "bench", "pos": [x, 0.2, z], "rot": r, "size": [1.3, 0.4, 0.4]}])
 				elif w == "prop":
 					rot = rng.randrange(0, 360, 15) if op.get("rot") == "random" else op.get("rot", 0)
-					add("props", [{"model": op["model"], "pos": [x, 0, z], "rot": rot}])
+					add("props", [{"model": op["model"], "pos": [x, 0, z], "rot": rot, **op.get("extra", {})}])
 		else:
 			raise ValueError(f"неизвестная операция {t}")
 	# Несплошное (трава, плющ, лужи) внутри зданий — убрать: после замены стен домами оно оказалось в корпусе (план 16).

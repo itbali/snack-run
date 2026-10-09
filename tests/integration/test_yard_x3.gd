@@ -67,19 +67,19 @@ func test_garage_chain_steps_by_physics() -> void:
 	assert_almost_eq(tops[-1], 2.28, 0.05, "цепочка ведёт на крышу")
 
 func test_district_edge_is_closed() -> void:
-	# Review Focus 2: горизонтальный луч наружу на высоте кота упирается в стену по всему периметру, кроме прохода в парк.
+	# Review Focus 2 (план 16: край — ряд домов, фасады на 6 м внутрь): луч наружу перед фасадом упирается в дом.
 	var space := world.get_world_3d().direct_space_state
 	var checks := []
-	for x in range(-84, 85, 12):
-		checks.append([Vector3(x, 0.3, -147), Vector3(x, 0.3, -153)])
-		if absf(x) > 18:
-			checks.append([Vector3(x, 0.3, 27), Vector3(x, 0.3, 33)])
-	for z in range(-144, 25, 12):
-		checks.append([Vector3(-87, 0.3, z), Vector3(-93, 0.3, z)])
-		checks.append([Vector3(87, 0.3, z), Vector3(93, 0.3, z)])
+	for x in range(-80, 81, 8):
+		checks.append([Vector3(x, 0.3, -141), Vector3(x, 0.3, -153)])
+		if absf(x) > 16:
+			checks.append([Vector3(x, 0.3, 21), Vector3(x, 0.3, 33)])
+	for z in range(-138, 21, 8):
+		checks.append([Vector3(-81, 0.3, z), Vector3(-93, 0.3, z)])
+		checks.append([Vector3(81, 0.3, z), Vector3(93, 0.3, z)])
 	for c in checks:
 		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(c[0], c[1], Layers.WORLD))
-		assert_false(hit.is_empty(), "стена на краю у %s" % [c[0]])
+		assert_false(hit.is_empty(), "дом на краю у %s" % [c[0]])
 
 func test_zones_reachable_through_gaps() -> void:
 	# Review Focus 1: лестницы и пандусы террас стоят в проходах подпорных стен (луч вдоль подъёма не упирается в стену).

@@ -89,32 +89,47 @@
     {
      "type": "perimeter",
      "rect": [
-      -90,
-      -150,
-      90,
-      30
+      -84,
+      -144,
+      84,
+      24
      ],
-     "sides": "nwe"
+     "sides": "nwe",
+     "models": [
+      "house_a",
+      "house_b",
+      "house_c"
+     ]
     },
     {
      "type": "perimeter",
      "rect": [
-      -90,
+      -84,
       0,
       -15,
-      30
+      24
      ],
-     "sides": "s"
+     "sides": "s",
+     "models": [
+      "house_a",
+      "house_b",
+      "house_c"
+     ]
     },
     {
      "type": "perimeter",
      "rect": [
       15,
       0,
-      90,
-      30
+      84,
+      24
      ],
-     "sides": "s"
+     "sides": "s",
+     "models": [
+      "house_a",
+      "house_b",
+      "house_c"
+     ]
     }
    ]
   },
@@ -304,7 +319,7 @@
      "type": "scatter",
      "what": "spawn",
      "rect": [
-      -86,
+      -82,
       4,
       -16,
       9
@@ -328,7 +343,7 @@
      "rect": [
       16,
       4,
-      86,
+      82,
       9
      ],
      "count": 2,
@@ -349,10 +364,10 @@
      "what": "hideout",
      "kind": "bench",
      "rect": [
-      -86,
+      -82,
       15,
       -30,
-      27
+      22
      ],
      "count": 1,
      "min_dist": 3.0
@@ -364,8 +379,8 @@
      "rect": [
       30,
       15,
-      86,
-      27
+      82,
+      22
      ],
      "count": 1,
      "min_dist": 3.0
@@ -834,12 +849,17 @@
     {
      "type": "perimeter",
      "rect": [
-      -38,
-      -116,
-      38,
+      -36,
+      -112,
+      36,
       -72
      ],
-     "sides": "n"
+     "sides": "n",
+     "models": [
+      "house_a",
+      "house_b",
+      "house_c"
+     ]
     },
     {
      "type": "place",
@@ -849,7 +869,7 @@
        "pos": [
         -25,
         0,
-        -113.5
+        -109.5
        ],
        "rot": 0
       },
@@ -858,7 +878,7 @@
        "pos": [
         0,
         0,
-        -113.5
+        -109.5
        ],
        "rot": 0
       },
@@ -867,7 +887,7 @@
        "pos": [
         25,
         0,
-        -113.5
+        -109.5
        ],
        "rot": 0
       },
@@ -922,7 +942,7 @@
        "pos": [
         -25,
         1.0,
-        -110.95
+        -106.95
        ],
        "allowed": [
         1,
@@ -939,7 +959,7 @@
        "pos": [
         0,
         1.0,
-        -110.95
+        -106.95
        ],
        "allowed": [
         1,
@@ -956,7 +976,7 @@
        "pos": [
         25,
         1.0,
-        -110.95
+        -106.95
        ],
        "allowed": [
         1,
@@ -975,21 +995,21 @@
        "pos": [
         -24.6,
         0.5,
-        -113.0
+        -109.0
        ]
       },
       {
        "pos": [
         0.4,
         0.5,
-        -113.0
+        -109.0
        ]
       },
       {
        "pos": [
         25.4,
         0.5,
-        -113.0
+        -109.0
        ]
       }
      ],
@@ -1020,7 +1040,7 @@
      "model": "tree",
      "rect": [
       -36,
-      -110,
+      -106,
       36,
       -76
      ],
@@ -1034,7 +1054,7 @@
      "model": "bush",
      "rect": [
       -36,
-      -110,
+      -106,
       36,
       -76
      ],
@@ -1047,7 +1067,7 @@
      "what": "spawn",
      "rect": [
       -36,
-      -110,
+      -106,
       36,
       -76
      ],
@@ -1075,7 +1095,7 @@
      "what": "yarn",
      "rect": [
       -36,
-      -110,
+      -106,
       36,
       -76
      ],
@@ -1088,7 +1108,7 @@
      "kind": "box",
      "rect": [
       -36,
-      -110,
+      -106,
       36,
       -76
      ],
@@ -1101,7 +1121,7 @@
      "kind": "bench",
      "rect": [
       -36,
-      -110,
+      -106,
       36,
       -76
      ],
@@ -1119,7 +1139,7 @@
       -27,
       15,
       -13,
-      26
+      23
      ],
      "height": 1,
      "access": [
@@ -1136,7 +1156,7 @@
       -27,
       15,
       -13,
-      26
+      23
      ],
      "surface": "paving"
     },
@@ -1148,7 +1168,7 @@
        "pos": [
         -23,
         0,
-        18
+        17.5
        ]
       },
       {
@@ -1156,15 +1176,15 @@
        "pos": [
         -19,
         0,
-        22
+        20.5
        ]
       },
       {
        "model": "cafe_table",
        "pos": [
-        -23,
+        -24.5,
         0,
-        23
+        21.3
        ]
       },
       {
@@ -1172,7 +1192,7 @@
        "pos": [
         -22.3,
         0,
-        18.7
+        18.2
        ]
       },
       {
@@ -1180,7 +1200,7 @@
        "pos": [
         -18.3,
         0,
-        22.7
+        21.2
        ]
       },
       {
@@ -1188,7 +1208,7 @@
        "pos": [
         -23,
         0,
-        17.2
+        16.7
        ],
        "rot": 180
       },
@@ -1197,25 +1217,25 @@
        "pos": [
         -19,
         0,
-        21.2
+        19.7
        ],
        "rot": 180
       },
       {
        "model": "chair",
        "pos": [
-        -23,
+        -24.5,
         0,
-        22.2
+        20.5
        ],
        "rot": 180
       },
       {
        "model": "lamp",
        "pos": [
-        -26,
+        -26.3,
         0,
-        25
+        15.7
        ],
        "rot": 0
       }
@@ -1225,7 +1245,7 @@
        "pos": [
         -23,
         0.75,
-        18
+        17.5
        ],
        "allowed": [
         2
@@ -1239,7 +1259,7 @@
        "pos": [
         -19,
         0.75,
-        22
+        20.5
        ],
        "allowed": [
         3
@@ -1251,9 +1271,9 @@
       },
       {
        "pos": [
-        -23,
+        -24.5,
         0.75,
-        23
+        21.3
        ],
        "allowed": [
         1
@@ -1286,8 +1306,8 @@
      "what": "prop",
      "model": "tree",
      "rect": [
-      -88,
-      -146,
+      -82,
+      -142,
       -66,
       -46
      ],
@@ -1300,8 +1320,8 @@
      "what": "prop",
      "model": "bush",
      "rect": [
-      -88,
-      -146,
+      -82,
+      -142,
       -66,
       -46
      ],
@@ -1314,8 +1334,8 @@
      "what": "prop",
      "model": "grass",
      "rect": [
-      -88,
-      -146,
+      -82,
+      -142,
       -66,
       -46
      ],
@@ -1327,8 +1347,8 @@
      "type": "scatter",
      "what": "spawn",
      "rect": [
-      -88,
-      -146,
+      -82,
+      -142,
       -66,
       -46
      ],
@@ -1352,8 +1372,8 @@
      "type": "scatter",
      "what": "yarn",
      "rect": [
-      -88,
-      -146,
+      -82,
+      -142,
       -66,
       -46
      ],
@@ -1365,8 +1385,8 @@
      "what": "hideout",
      "kind": "box",
      "rect": [
-      -88,
-      -146,
+      -82,
+      -142,
       -66,
       -46
      ],
@@ -1395,8 +1415,8 @@
      "model": "tree",
      "rect": [
       56,
-      -146,
-      88,
+      -142,
+      82,
       -46
      ],
      "count": 5,
@@ -1409,8 +1429,8 @@
      "model": "bush",
      "rect": [
       56,
-      -146,
-      88,
+      -142,
+      82,
       -46
      ],
      "count": 6,
@@ -1423,8 +1443,8 @@
      "model": "grass",
      "rect": [
       56,
-      -146,
-      88,
+      -142,
+      82,
       -46
      ],
      "count": 8,
@@ -1436,8 +1456,8 @@
      "what": "spawn",
      "rect": [
       56,
-      -146,
-      88,
+      -142,
+      82,
       -46
      ],
      "count": 2,
@@ -1461,8 +1481,8 @@
      "what": "yarn",
      "rect": [
       56,
-      -146,
-      88,
+      -142,
+      82,
       -46
      ],
      "count": 1,
@@ -1474,8 +1494,8 @@
      "kind": "box",
      "rect": [
       56,
-      -146,
-      88,
+      -142,
+      82,
       -46
      ],
      "count": 1,
@@ -1503,7 +1523,7 @@
      "model": "tree",
      "rect": [
       -60,
-      -146,
+      -142,
       52,
       -124
      ],
@@ -1517,7 +1537,7 @@
      "model": "bush",
      "rect": [
       -60,
-      -146,
+      -142,
       52,
       -124
      ],
@@ -1531,7 +1551,7 @@
      "model": "grass",
      "rect": [
       -60,
-      -146,
+      -142,
       52,
       -124
      ],
@@ -1544,7 +1564,7 @@
      "what": "spawn",
      "rect": [
       -60,
-      -146,
+      -142,
       52,
       -124
      ],
@@ -1569,7 +1589,7 @@
      "what": "yarn",
      "rect": [
       -60,
-      -146,
+      -142,
       52,
       -124
      ],
@@ -1582,7 +1602,7 @@
      "kind": "box",
      "rect": [
       -60,
-      -146,
+      -142,
       52,
       -124
      ],
@@ -1612,7 +1632,7 @@
      "rect": [
       56,
       -40,
-      88,
+      82,
       4
      ],
      "count": 5,
@@ -1626,7 +1646,7 @@
      "rect": [
       56,
       -40,
-      88,
+      82,
       4
      ],
      "count": 6,
@@ -1640,7 +1660,7 @@
      "rect": [
       56,
       -40,
-      88,
+      82,
       4
      ],
      "count": 8,
@@ -1653,7 +1673,7 @@
      "rect": [
       56,
       -40,
-      88,
+      82,
       4
      ],
      "count": 2,
@@ -1678,7 +1698,7 @@
      "rect": [
       56,
       -40,
-      88,
+      82,
       4
      ],
      "count": 1,
@@ -1691,11 +1711,554 @@
      "rect": [
       56,
       -40,
-      88,
+      82,
       4
      ],
      "count": 1,
      "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "наполнение",
+   "ops": [
+    {
+     "type": "decor",
+     "model": "decor_grass",
+     "rect": [
+      -20,
+      -70,
+      20,
+      -18
+     ],
+     "count": 600,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_flowers",
+     "rect": [
+      -20,
+      -70,
+      20,
+      -18
+     ],
+     "count": 150,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_leaves",
+     "rect": [
+      -20,
+      -70,
+      20,
+      -18
+     ],
+     "count": 150,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_stones",
+     "rect": [
+      -20,
+      -70,
+      20,
+      -18
+     ],
+     "count": 60,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_grass",
+     "rect": [
+      -36,
+      -106,
+      36,
+      -76
+     ],
+     "count": 150,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_flowers",
+     "rect": [
+      -36,
+      -106,
+      36,
+      -76
+     ],
+     "count": 120,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_stones",
+     "rect": [
+      -36,
+      -106,
+      36,
+      -76
+     ],
+     "count": 40,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_grass",
+     "rect": [
+      -11,
+      -13,
+      11,
+      9
+     ],
+     "count": 150,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_flowers",
+     "rect": [
+      -11,
+      -13,
+      11,
+      9
+     ],
+     "count": 60,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_litter",
+     "rect": [
+      -11,
+      -13,
+      11,
+      9
+     ],
+     "count": 40,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_stones",
+     "rect": [
+      -11,
+      -13,
+      11,
+      9
+     ],
+     "count": 30,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_litter",
+     "rect": [
+      -82,
+      4,
+      82,
+      22
+     ],
+     "count": 80,
+     "min_dist": 1.0
+    },
+    {
+     "type": "decor",
+     "model": "decor_grass",
+     "rect": [
+      -82,
+      4,
+      82,
+      22
+     ],
+     "count": 150,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_stones",
+     "rect": [
+      -82,
+      4,
+      82,
+      22
+     ],
+     "count": 40,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_litter",
+     "rect": [
+      -62,
+      -44,
+      -22,
+      -6
+     ],
+     "count": 60,
+     "min_dist": 0.8
+    },
+    {
+     "type": "decor",
+     "model": "decor_grass",
+     "rect": [
+      -62,
+      -44,
+      -22,
+      -6
+     ],
+     "count": 80,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_grass",
+     "rect": [
+      22,
+      -40,
+      52,
+      -14
+     ],
+     "count": 120,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_flowers",
+     "rect": [
+      22,
+      -40,
+      52,
+      -14
+     ],
+     "count": 40,
+     "min_dist": 0.35
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree_pine",
+     "rect": [
+      -20,
+      -70,
+      20,
+      -18
+     ],
+     "count": 4,
+     "rot": "random",
+     "min_dist": 5.0,
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         0.25,
+         1.2,
+         0.25
+        ],
+        "offset": [
+         0,
+         0.6,
+         0
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush_flowers",
+     "rect": [
+      -20,
+      -70,
+      20,
+      -18
+     ],
+     "count": 4,
+     "rot": "random",
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush_flowers",
+     "rect": [
+      -36,
+      -106,
+      36,
+      -76
+     ],
+     "count": 4,
+     "rot": "random",
+     "min_dist": 3.0
+    },
+    {
+     "type": "decor",
+     "model": "decor_grass",
+     "rect": [
+      -82,
+      -142,
+      -66,
+      -46
+     ],
+     "count": 300,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_leaves",
+     "rect": [
+      -82,
+      -142,
+      -66,
+      -46
+     ],
+     "count": 50,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_stones",
+     "rect": [
+      -82,
+      -142,
+      -66,
+      -46
+     ],
+     "count": 30,
+     "min_dist": 0.35
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree_pine",
+     "rect": [
+      -82,
+      -142,
+      -66,
+      -46
+     ],
+     "count": 3,
+     "rot": "random",
+     "min_dist": 5.0,
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         0.25,
+         1.2,
+         0.25
+        ],
+        "offset": [
+         0,
+         0.6,
+         0
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "type": "decor",
+     "model": "decor_grass",
+     "rect": [
+      56,
+      -142,
+      82,
+      -46
+     ],
+     "count": 300,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_leaves",
+     "rect": [
+      56,
+      -142,
+      82,
+      -46
+     ],
+     "count": 50,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_stones",
+     "rect": [
+      56,
+      -142,
+      82,
+      -46
+     ],
+     "count": 30,
+     "min_dist": 0.35
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree_pine",
+     "rect": [
+      56,
+      -142,
+      82,
+      -46
+     ],
+     "count": 3,
+     "rot": "random",
+     "min_dist": 5.0,
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         0.25,
+         1.2,
+         0.25
+        ],
+        "offset": [
+         0,
+         0.6,
+         0
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "type": "decor",
+     "model": "decor_grass",
+     "rect": [
+      -60,
+      -142,
+      52,
+      -124
+     ],
+     "count": 300,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_leaves",
+     "rect": [
+      -60,
+      -142,
+      52,
+      -124
+     ],
+     "count": 50,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_stones",
+     "rect": [
+      -60,
+      -142,
+      52,
+      -124
+     ],
+     "count": 30,
+     "min_dist": 0.35
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree_pine",
+     "rect": [
+      -60,
+      -142,
+      52,
+      -124
+     ],
+     "count": 3,
+     "rot": "random",
+     "min_dist": 5.0,
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         0.25,
+         1.2,
+         0.25
+        ],
+        "offset": [
+         0,
+         0.6,
+         0
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "type": "decor",
+     "model": "decor_grass",
+     "rect": [
+      56,
+      -40,
+      82,
+      4
+     ],
+     "count": 300,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_leaves",
+     "rect": [
+      56,
+      -40,
+      82,
+      4
+     ],
+     "count": 50,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_stones",
+     "rect": [
+      56,
+      -40,
+      82,
+      4
+     ],
+     "count": 30,
+     "min_dist": 0.35
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree_pine",
+     "rect": [
+      56,
+      -40,
+      82,
+      4
+     ],
+     "count": 3,
+     "rot": "random",
+     "min_dist": 5.0,
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         0.25,
+         1.2,
+         0.25
+        ],
+        "offset": [
+         0,
+         0.6,
+         0
+        ]
+       }
+      ]
+     }
     }
    ]
   }

@@ -1533,6 +1533,59 @@
      ]
     }
    ]
+  },
+  {
+   "name": "наполнение",
+   "ops": [
+    {
+     "type": "decor",
+     "model": "decor_shell",
+     "rect": [
+      -58,
+      150,
+      8,
+      193
+     ],
+     "count": 500,
+     "min_dist": 0.5
+    },
+    {
+     "type": "decor",
+     "model": "decor_stones",
+     "rect": [
+      -58,
+      150,
+      8,
+      193
+     ],
+     "count": 150,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_grass",
+     "rect": [
+      -58,
+      150,
+      -30,
+      170
+     ],
+     "count": 150,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_litter",
+     "rect": [
+      -58,
+      127,
+      58,
+      145
+     ],
+     "count": 60,
+     "min_dist": 1.0
+    }
+   ]
   }
  ]
 }

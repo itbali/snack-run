@@ -50,7 +50,7 @@ func test_real_yard_layout_loads() -> void:
 	var models := {}
 	for p in data["props"]:
 		models[p["model"]] = true
-	for m in ["bench", "lamp", "car", "wall", "fence", "bag", "stairs", "bush", "tree", "puddle", "arch", "door"]:
+	for m in ["bench", "lamp", "car", "house_a", "fence", "bag", "stairs", "bush", "tree", "puddle", "arch"]:   # план 16: дома вместо стен и дверей
 		assert_true(models.has(m), "в раскладке есть " + m)
 	for m in ["cafe_table", "chair", "umbrella", "cafe_sign"]:
 		assert_true(models.has(m), "в раскладке есть " + m)
@@ -206,7 +206,7 @@ func test_wall_decals_and_ivy_hang_on_real_walls() -> void:
 	var data := WorldBuilder.load_layout("res://data/layout/yard.json")
 	var walls := []
 	for p in data["props"]:
-		if p["model"] == "wall":
+		if p["model"] == "wall" or String(p["model"]).begins_with("house"):   # план 16: фасады домов вместо стен
 			walls.append({"pos": WorldBuilder._v3(p["pos"]), "rot": int(p.get("rot", 0)) % 180})
 	var items := []
 	for dc in data["decals"]:

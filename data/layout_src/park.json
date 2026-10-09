@@ -1033,6 +1033,145 @@
      "min_dist": 3.0
     }
    ]
+  },
+  {
+   "name": "наполнение",
+   "ops": [
+    {
+     "type": "decor",
+     "model": "decor_grass",
+     "rect": [
+      -44,
+      31,
+      44,
+      124
+     ],
+     "count": 2200,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_flowers",
+     "rect": [
+      -44,
+      31,
+      44,
+      124
+     ],
+     "count": 400,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_stones",
+     "rect": [
+      -44,
+      31,
+      44,
+      124
+     ],
+     "count": 150,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_leaves",
+     "rect": [
+      18,
+      36,
+      43,
+      88
+     ],
+     "count": 300,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_reeds",
+     "rect": [
+      -42,
+      52,
+      -14,
+      80
+     ],
+     "count": 160,
+     "min_dist": 0.5
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree_pine",
+     "rect": [
+      18,
+      36,
+      43,
+      88
+     ],
+     "count": 6,
+     "rot": "random",
+     "min_dist": 4.0,
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         0.25,
+         1.2,
+         0.25
+        ],
+        "offset": [
+         0,
+         0.6,
+         0
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree_pine",
+     "rect": [
+      -43,
+      80,
+      -17,
+      98
+     ],
+     "count": 3,
+     "rot": "random",
+     "min_dist": 4.0,
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         0.25,
+         1.2,
+         0.25
+        ],
+        "offset": [
+         0,
+         0.6,
+         0
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush_flowers",
+     "rect": [
+      -43,
+      100,
+      43,
+      123
+     ],
+     "count": 6,
+     "rot": "random",
+     "min_dist": 3.0
+    }
+   ]
   }
  ]
 }
