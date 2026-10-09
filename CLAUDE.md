@@ -40,7 +40,8 @@
 ## Команды
 
 ```
-make test          # Blender-тесты (unittest внутри Blender) + GUT; делает import сам
+make test          # test-tools (Python) + Blender-тесты + GUT; делает import сам
+make terrain       # data/terrain_src/*.json → data/terrain/*.json (tools/terrain/terrain_gen.py)
 make test-godot    # только GUT (сначала import); падает и на SCRIPT ERROR
 make test-blender  # только Blender
 make assets        # пересобрать все glb из tools/blender/gen/*.py в assets/models/
@@ -74,7 +75,8 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 - `scripts/autoload/sfx.gd` — звуки (`Sfx.play(&"eat")`, один вызов на событие), файлы и лицензии в `assets/sfx/README.md`; `assets/ui/theme.tres` (Nunito, плашки), `assets/shaders/vignette.gdshader`; `scripts/core/mouse.gd` (`Mouse.capture`, в headless no-op).
 - `scripts/autoload/input_setup.gd` (InputMap в коде), `dev_tools.gd` (`++ --screenshot=path`).
 - `tools/blender/`: `palette.py`, `lib.py` (rounded_box, world_extent, tri_count, check_asset), `export.py`, `build.py`, `cat.py` (сварка + subdivision) + `cat_eyes.py` (глаза) + `cat_fluff.py` (пучки, усы, ошейник), `dog.py` + `dog_sleep.py` (поза «спит»), `gen/*.py` (каждый: `SPEC` + `build()`); `tools/audio/gen_sfx.py`; `tools/images/gen.py` + `manifest.json`; `export_presets.cfg`.
-- `scripts/visual/surface_textures.gd` — текстуры крупных поверхностей по имени меша (`ground`, `sidewalk`, `wall`), трипланар по мировым координатам (спек 2.9).
+- `scripts/world/terrain.gd` (`Terrain`: меш тайлами, `HeightMapShape3D` «Floor», шейдер `terrain.gdshader` со сплатом, `height_at`); `WorldBuilder.terrain_path` — раскладка привязывается к высоте (`"snap": false` — абсолютно); набор террас `tools/blender/terrace_kit.py`; демо `scenes/dev/terrain_demo.tscn`.
+- `scripts/visual/surface_textures.gd` — текстуры крупных поверхностей по имени меша (`wall` и др.; пол — каналы рельефа), трипланар по мировым координатам (спек 2.9).
 - `scripts/world/day_cycle.gd` (чистая логика суток) + `day_night.gd` (узел в `lighting.tscn`, группа `day_night`; `DayNight.is_night(tree)`, без узла — день); группы `night_lights`, `night_windows`.
 - `scenes/world/lighting.tscn` — солнце, заполняющий свет, окружение (SSAO, SSR, glow, облака `sky_cover`), листья; `WorldBuilder` читает `solid`, `water`, `decals` из `yard.json`.
 - `third_party/quaternius_animal_pack_v2/` (CC0 кот и собака), `third_party/quaternius_animated_human/` (CC0 люди парка), `third_party/pigeon_mujtaba/` (CC0 голубь), `third_party/unimate_clips/` (канонический риг + клипы jump/hide/hit/run + README с воспроизведением).
@@ -124,9 +126,11 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 
 **UniMate на Mac** (подробно в заметке): venv Python 3.10 через `uv`, requirements без `+cu124`, `sampling.device = cpu` в `config.json` чекпоинта (MPS не умеет float64), ручная `annotation.json` (авторазметка путает спину и хвост), шим `blender` → venv-python с pip-`bpy` для `run_animate_motion.sh`. Окружение жило в scratchpad и не сохранилось; чекпоинт 1,2 ГБ качается с HF заново.
 
+**План 10:** тела раскладки ставить в позицию до `add_child` (`WorldBuilder._add_at`), иначе на первом кадре они в начале координат и выталкивают кота сквозь heightmap; пол районов — `Terrain`, в тестах с парком/двором без `Main` рельеф создавать самому.
+
 ## Статус и что дальше
 
-- План 6 (текстуры крупных поверхностей, гибрид) выполнен 2026-10-09. Этап 2 (парк и сутки): спек подтверждён, планы 7 (смена суток), 8 (район парка) и 9 (опасности парка) выполнены — этап 2 закрыт; дальше этап 3 (порт) по спеку.
-- Планы 1–5 выполнены и слиты в `main` (2026-10-09): фундамент, игровой цикл, хаб и прогрессия, полировка под ролик, визуальная полировка (картинки OpenAI, гладкий кот с глазами в глазницах и пучками, короткие лапы, тун v2, яркий день, VFX, зелень и декали). Отложенные мелочи — в конце дорожной карты.
-- Следующий шаг: живой плейтест владельца с правками по его замечаниям, затем этапы 2+ (парк, сутки, порт) отдельными спеками через brainstorming.
+- План 10 «Рельеф» выполнен 2026-10-09 (спек `2026-10-09-snack-run-scale-terrain-design.md`: районы ×3 и рельеф). Дальше план 11 (генератор раскладки + двор ×3), план 12 (парк ×3), затем порт — планы 13–15.
+- Планы 1–9 выполнены и слиты в `main`: фундамент, игровой цикл, хаб и прогрессия, полировка, визуальная полировка, текстуры крупных поверхностей, этап 2 (сутки, парк, опасности парка). Отложенные мелочи — в дорожной карте.
+- Отложено по просьбе владельца: текстуры пропсов («потом вернёмся к текстурам»).
 - Открытый вопрос владельцу: лицензия весов UniMate для сгенерированных движений (код MIT, для весов явной лицензии не найдено).

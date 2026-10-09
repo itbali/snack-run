@@ -844,6 +844,32 @@ Godot: `data/food/*.tres` (+6, каталог 14), `data/layout/park.json` (104 
 видимости (через забор; сторож может погнаться за котом во дворе при открытых воротах); капли перед поливом; голуби
 улетают по прямой и телепортируются назад; расписание садовника не вынесено в статическую функцию.
 
+## Масштаб ×3 и рельеф: спек (`docs/superpowers/specs/2026-10-09-snack-run-scale-terrain-design.md`)
+
+Замечание владельца: «все раунды плоские и довольно мелкие». Решения: районы ×3 по стороне (двор 180×180, парк 90×96,
+порт 120×102); рельеф всех трёх типов (террасы и лестницы, плавные холмы, крыши); порядок — сначала двор и парк, потом
+порт. Планы 10 (рельеф), 11 (генератор раскладки + двор ×3), 12 (парк ×3); порт сдвинут в планы 13–15.
+
+## План 10. Рельеф (`docs/superpowers/plans/2026-10-09-snack-run-10-terrain.md`)
+
+Ветка `plan-10-terrain`.
+- `tools/terrain/terrain_gen.py` (stdlib): описание `data/terrain_src/*.json` (размер, начало, базовая высота, `features`:
+  `hill` — купол cos², `basin`, `terrace` — плато через max, `flat`; `paint` — прямоугольник или круг с мягким краем) →
+  `data/terrain/*.json` (сетка высот с шагом 1 м и RGBA-карта покрытий в base64). `make terrain`, тесты `make test-tools` (6).
+- `scripts/world/terrain.gd` (`Terrain`): тайлы меша 30×30 м (SurfaceTool), коллизия `HeightMapShape3D` (тело `Floor`, слой WORLD,
+  центр в середине сетки), `ShaderMaterial` `assets/shaders/terrain.gdshader` (тун, 4 канала текстур, камень `stone.png` на
+  крутых гранях). `height_at` повторяет триангуляцию меша и коллизии; `Terrain.surface_height(tree, x, z, fallback)`.
+- `WorldBuilder`: `terrain_path`; `_place(item)` — y из раскладки становится смещением над рельефом, `"snap": false` — абсолютная
+  высота; `kit_colliders` — наклонные коллайдеры лестниц и пандусов; `"rot"` у коллайдеров; **все тела ставятся в позицию до
+  `add_child`** (`_add_at`). Ключ клубочка — по позиции из раскладки (правка рельефа не ломает сохранения).
+- Набор террас `tools/blender/terrace_kit.py`: `retaining_wall{1,2,3}`, `terrace_stairs{1,2,3}`, `ramp{1,2,3}` (`gen/*.py`).
+  Демо `scenes/dev/terrain_demo.tscn` (`data/layout/terrain_demo.json`), кадр `build/shot_terrain.png`.
+- Двор и парк переведены на плоский рельеф (`data/terrain_src/yard.json`, `park.json`): `ground.glb`, коробка `Floor` и
+  `park_ground` убраны из сцены. Тест `test_terrain.gd` (12): луч против `height_at`, склон без скольжения, подъём по пандусу и
+  лестнице, прыжок с террасы без урона, регрессия «тела раскладки на первом кадре».
+- Rulings: меш рельефа строится в Godot, а не в Blender (один источник высот для меша, коллизии и `height_at`); подпорные
+  стены в демо `"snap": false`.
+
 ## Известные грабли (сводка, чтобы не искать по тексту)
 
 **Godot 4.7:** `class_name` виден после `make import`; GUT не падает на parse error (grep в Makefile);
@@ -886,3 +912,7 @@ Godot: `data/food/*.tres` (+6, каталог 14), `data/layout/park.json` (104 
 **План 2 (Blender):** объектные каналы в actions (`Dog.blend` Idle) выкидывать; меш с поворотом
 относительно арматуры запекать в вершины и сбрасывать `arm.matrix_world`; лимиты треугольников:
 сфера 12×8 = 176, тор 16×8 = 256, скруглённый бокс с 3 сегментами = 188.
+
+**План 10:** тела раскладки, добавленные в начало координат и сдвинутые после `add_child`, на первом физическом кадре
+выталкивают кота сквозь тонкий `HeightMapShape3D` — ставить `transform` до `add_child`; подъём по пандусу в тестах медленнее
+(ждать 300 кадров); новые glb видны тестам только после `make import`; `unittest discover` для `tools/terrain/tests` — с `-p`, без `-t`.

@@ -18,6 +18,7 @@ INCLUDE = [
     "docs/superpowers/notes/*.md",
     "export_presets.cfg", "tools/audio/*.py", "tools/release/*.sh", "tools/images/*.py", "tools/images/manifest.json", "assets/ui/*.tres", "assets/shaders/*.gdshader",
     "assets/sfx/README.md", "assets/fonts/OFL.txt",
+    "tools/terrain/**/*.py", "data/terrain_src/*.json", "data/layout/*.json",
 ]
 EXCLUDE_DIRS = {"addons", "build", ".godot", ".superpowers"}
 # Двоичные файлы (.ttf/.ogg/.wav/.glb/.png) в приложение не входят: откуда их взять (или как сгенерировать), описано в процедуре.

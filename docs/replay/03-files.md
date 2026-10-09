@@ -5,7 +5,7 @@
 Отступы в GDScript и Makefile — табы; в Python проекта — тоже табы, кроме
 `palette.py` и тестов Blender (пробелы). Копировать как есть.
 
-Файлов: 225
+Файлов: 250
 
 ## `CLAUDE.md`
 
@@ -52,7 +52,8 @@
 ## Команды
 
 ```
-make test          # Blender-тесты (unittest внутри Blender) + GUT; делает import сам
+make test          # test-tools (Python) + Blender-тесты + GUT; делает import сам
+make terrain       # data/terrain_src/*.json → data/terrain/*.json (tools/terrain/terrain_gen.py)
 make test-godot    # только GUT (сначала import); падает и на SCRIPT ERROR
 make test-blender  # только Blender
 make assets        # пересобрать все glb из tools/blender/gen/*.py в assets/models/
@@ -86,7 +87,8 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 - `scripts/autoload/sfx.gd` — звуки (`Sfx.play(&"eat")`, один вызов на событие), файлы и лицензии в `assets/sfx/README.md`; `assets/ui/theme.tres` (Nunito, плашки), `assets/shaders/vignette.gdshader`; `scripts/core/mouse.gd` (`Mouse.capture`, в headless no-op).
 - `scripts/autoload/input_setup.gd` (InputMap в коде), `dev_tools.gd` (`++ --screenshot=path`).
 - `tools/blender/`: `palette.py`, `lib.py` (rounded_box, world_extent, tri_count, check_asset), `export.py`, `build.py`, `cat.py` (сварка + subdivision) + `cat_eyes.py` (глаза) + `cat_fluff.py` (пучки, усы, ошейник), `dog.py` + `dog_sleep.py` (поза «спит»), `gen/*.py` (каждый: `SPEC` + `build()`); `tools/audio/gen_sfx.py`; `tools/images/gen.py` + `manifest.json`; `export_presets.cfg`.
-- `scripts/visual/surface_textures.gd` — текстуры крупных поверхностей по имени меша (`ground`, `sidewalk`, `wall`), трипланар по мировым координатам (спек 2.9).
+- `scripts/world/terrain.gd` (`Terrain`: меш тайлами, `HeightMapShape3D` «Floor», шейдер `terrain.gdshader` со сплатом, `height_at`); `WorldBuilder.terrain_path` — раскладка привязывается к высоте (`"snap": false` — абсолютно); набор террас `tools/blender/terrace_kit.py`; демо `scenes/dev/terrain_demo.tscn`.
+- `scripts/visual/surface_textures.gd` — текстуры крупных поверхностей по имени меша (`wall` и др.; пол — каналы рельефа), трипланар по мировым координатам (спек 2.9).
 - `scripts/world/day_cycle.gd` (чистая логика суток) + `day_night.gd` (узел в `lighting.tscn`, группа `day_night`; `DayNight.is_night(tree)`, без узла — день); группы `night_lights`, `night_windows`.
 - `scenes/world/lighting.tscn` — солнце, заполняющий свет, окружение (SSAO, SSR, glow, облака `sky_cover`), листья; `WorldBuilder` читает `solid`, `water`, `decals` из `yard.json`.
 - `third_party/quaternius_animal_pack_v2/` (CC0 кот и собака), `third_party/quaternius_animated_human/` (CC0 люди парка), `third_party/pigeon_mujtaba/` (CC0 голубь), `third_party/unimate_clips/` (канонический риг + клипы jump/hide/hit/run + README с воспроизведением).
@@ -136,11 +138,13 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 
 **UniMate на Mac** (подробно в заметке): venv Python 3.10 через `uv`, requirements без `+cu124`, `sampling.device = cpu` в `config.json` чекпоинта (MPS не умеет float64), ручная `annotation.json` (авторазметка путает спину и хвост), шим `blender` → venv-python с pip-`bpy` для `run_animate_motion.sh`. Окружение жило в scratchpad и не сохранилось; чекпоинт 1,2 ГБ качается с HF заново.
 
+**План 10:** тела раскладки ставить в позицию до `add_child` (`WorldBuilder._add_at`), иначе на первом кадре они в начале координат и выталкивают кота сквозь heightmap; пол районов — `Terrain`, в тестах с парком/двором без `Main` рельеф создавать самому.
+
 ## Статус и что дальше
 
-- План 6 (текстуры крупных поверхностей, гибрид) выполнен 2026-10-09. Этап 2 (парк и сутки): спек подтверждён, планы 7 (смена суток), 8 (район парка) и 9 (опасности парка) выполнены — этап 2 закрыт; дальше этап 3 (порт) по спеку.
-- Планы 1–5 выполнены и слиты в `main` (2026-10-09): фундамент, игровой цикл, хаб и прогрессия, полировка под ролик, визуальная полировка (картинки OpenAI, гладкий кот с глазами в глазницах и пучками, короткие лапы, тун v2, яркий день, VFX, зелень и декали). Отложенные мелочи — в конце дорожной карты.
-- Следующий шаг: живой плейтест владельца с правками по его замечаниям, затем этапы 2+ (парк, сутки, порт) отдельными спеками через brainstorming.
+- План 10 «Рельеф» выполнен 2026-10-09 (спек `2026-10-09-snack-run-scale-terrain-design.md`: районы ×3 и рельеф). Дальше план 11 (генератор раскладки + двор ×3), план 12 (парк ×3), затем порт — планы 13–15.
+- Планы 1–9 выполнены и слиты в `main`: фундамент, игровой цикл, хаб и прогрессия, полировка, визуальная полировка, текстуры крупных поверхностей, этап 2 (сутки, парк, опасности парка). Отложенные мелочи — в дорожной карте.
+- Отложено по просьбе владельца: текстуры пропсов («потом вернёмся к текстурам»).
 - Открытый вопрос владельцу: лицензия весов UniMate для сгенерированных движений (код MIT, для весов явной лицензии не найдено).
 ````
 
@@ -155,12 +159,18 @@ PHASE   ?=
 AT      ?=
 TEMPLATES_DIR := $(HOME)/Library/Application Support/Godot/export_templates/4.7.2.stable
 
-.PHONY: import test test-godot test-blender assets shot run replay sfx templates export images
+.PHONY: import test test-godot test-blender test-tools terrain assets shot run replay sfx templates export images
 
 import:
 	$(GODOT) --headless --path . --import
 
-test: test-blender test-godot
+test: test-tools test-blender test-godot
+
+test-tools:
+	set -o pipefail; python3 -m unittest discover -s tools/terrain/tests -p "test_*.py" 2>&1 | tail -3
+
+terrain:
+	python3 tools/terrain/terrain_gen.py
 
 test-godot: import
 	mkdir -p build
@@ -276,6 +286,31 @@ __pycache__/
 # build
 build/
 export/
+```
+
+## `scenes/dev/terrain_demo.tscn`
+
+```
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/dev/terrain_demo.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/world/lighting.tscn" id="2"]
+[ext_resource type="Script" path="res://scripts/world/terrain.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/world/world_builder.gd" id="4"]
+
+[node name="TerrainDemo" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Lighting" parent="." instance=ExtResource("2")]
+
+[node name="Terrain" type="Node3D" parent="."]
+script = ExtResource("3")
+data_path = "res://data/terrain/demo.json"
+
+[node name="Builder" type="Node3D" parent="."]
+script = ExtResource("4")
+layout_path = "res://data/layout/terrain_demo.json"
+terrain_path = NodePath("../Terrain")
 ```
 
 ## `scenes/food/food_pickup.tscn`
@@ -1022,31 +1057,28 @@ text = "Выход"
 ```
 [gd_scene format=3]
 
-[ext_resource type="PackedScene" path="res://assets/models/ground.glb" id="1"]
+[ext_resource type="Script" path="res://scripts/world/terrain.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/world/world_builder.gd" id="2"]
-
-[sub_resource type="BoxShape3D" id="floor"]
-size = Vector3(60, 0.2, 60)
 
 [node name="DistrictYard" type="Node3D"]
 
-[node name="Ground" parent="." instance=ExtResource("1")]
+[node name="YardTerrain" type="Node3D" parent="."]
+script = ExtResource("1")
+data_path = "res://data/terrain/yard.json"
 
-[node name="Floor" type="StaticBody3D" parent="."]
-collision_layer = 1
-collision_mask = 0
-
-[node name="Shape" type="CollisionShape3D" parent="Floor"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
-shape = SubResource("floor")
+[node name="ParkTerrain" type="Node3D" parent="."]
+script = ExtResource("1")
+data_path = "res://data/terrain/park.json"
 
 [node name="WorldBuilder" type="Node3D" parent="."]
 script = ExtResource("2")
 layout_path = "res://data/layout/yard.json"
+terrain_path = NodePath("../YardTerrain")
 
 [node name="ParkBuilder" type="Node3D" parent="."]
 script = ExtResource("2")
 layout_path = "res://data/layout/park.json"
+terrain_path = NodePath("../ParkTerrain")
 
 [node name="Spawn" type="Marker3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 0)
@@ -1899,6 +1931,33 @@ static func get_by_id(id: StringName) -> CatSkin:
 		if s.id == id:
 			return s
 	return null
+```
+
+## `scripts/dev/terrain_demo.gd`
+
+```gdscript
+extends Node3D
+## Демо рельефа (план 10): холм, низина, терраса со стенами, лестница и пандус; кот с камерой.
+## Запуск кадра: godot --path . res://scenes/dev/terrain_demo.tscn ++ --screenshot=build/x.png
+
+const CatScene := preload("res://scenes/player/cat.tscn")
+const RigScene := preload("res://scenes/player/camera_rig.tscn")
+
+
+func _ready() -> void:
+	Toon.apply($Builder, Toon.OUTLINE_NONE)
+	SurfaceTextures.apply($Builder)
+	var rig := RigScene.instantiate()
+	var cat := CatScene.instantiate()
+	cat.camera_rig = rig
+	rig.target = cat
+	add_child(rig)
+	add_child(cat)
+	cat.global_position = Vector3(3, 0.1, -3)
+	rig.global_position = cat.global_position + Vector3(0, 0.6, 0)
+	rig.set("_yaw", deg_to_rad(55))   # на террасу с лестницей и пандусом
+	(rig.get_node("SpringArm3D") as SpringArm3D).spring_length = 1.8
+	(rig.get_node("SpringArm3D/Camera3D") as Camera3D).make_current()
 ```
 
 ## `scripts/food/food_catalog.gd`
@@ -4740,6 +4799,7 @@ const TABLE := {
 	"wall": ["stucco.png", 4.5],
 	"lawn": ["grass.png", 2.0],
 	"path": ["gravel.png", 0.8],
+	"retaining_wall": ["stone.png", 3.0],
 }
 
 
@@ -5149,6 +5209,172 @@ static func surface_y(space: PhysicsDirectSpaceState3D, from: Vector3) -> float:
 	return (hit["position"] as Vector3).y if not hit.is_empty() else 0.0
 ```
 
+## `scripts/world/terrain.gd`
+
+```gdscript
+class_name Terrain
+extends Node3D
+## Пол района по карте высот (спек «Масштаб и рельеф», раздел 3). Данные — data/terrain/<район>.json (tools/terrain).
+## Меш тайлами 30×30 м и коллизия HeightMapShape3D строятся из одной сетки — совпадают точно (Ruling плана 10).
+## Узел должен стоять в начале координат (сетка задана в мировых x, z).
+
+const TILE := 30
+const TEX_DIR := "res://assets/images/textures/"
+const DEFAULT_TEXTURES := {"asphalt": "asphalt.png", "paving": "paving.png", "grass": "grass.png", "gravel": "gravel.png",
+	"sand": "paving.png", "stone": "stone.png"}
+const DEFAULT_TILES := {"asphalt": 4.0, "paving": 1.2, "grass": 2.0, "gravel": 0.8, "sand": 2.0, "stone": 3.0}
+const TerrainShader := preload("res://assets/shaders/terrain.gdshader")
+
+@export_file("*.json") var data_path := ""
+var nx := 0
+var nz := 0
+var cell := 1.0
+var x0 := 0.0
+var z0 := 0.0
+var width := 0.0
+var depth := 0.0
+var channels: Array = []
+var heights := PackedFloat32Array()
+var splat := PackedByteArray()
+var loaded := false
+var material: ShaderMaterial
+
+
+func ensure_loaded() -> void:
+	if loaded or data_path == "":
+		return
+	var json := JSON.new()
+	if json.parse(FileAccess.get_file_as_string(data_path)) != OK:
+		push_error("не разобрать рельеф " + data_path)
+		return
+	var d: Dictionary = json.data
+	nx = int(d["nx"])
+	nz = int(d["nz"])
+	cell = float(d["cell"])
+	x0 = float(d["origin"][0])
+	z0 = float(d["origin"][1])
+	width = float(d["size"][0])
+	depth = float(d["size"][1])
+	channels = d.get("channels", ["asphalt", "paving", "grass", "gravel"])
+	heights.resize(nx * nz)
+	for j in nz:
+		var row: Array = d["heights"][j]
+		for i in nx:
+			heights[j * nx + i] = float(row[i])
+	splat = Marshalls.base64_to_raw(d["splat"])
+	loaded = true
+
+
+func _ready() -> void:
+	add_to_group("terrain")
+	ensure_loaded()
+	if not loaded:
+		return
+	assert(is_equal_approx(cell, 1.0), "HeightMapShape3D — шаг 1 м")
+	_build_material()
+	_build_tiles()
+	_build_collision()
+
+
+func h(i: int, j: int) -> float:
+	return heights[clampi(j, 0, nz - 1) * nx + clampi(i, 0, nx - 1)]
+
+
+func contains(x: float, z: float) -> bool:
+	return x >= x0 and x <= x0 + width and z >= z0 and z <= z0 + depth
+
+
+func height_at(x: float, z: float) -> float:
+	## Высота поверхности по треугольникам сетки — так же, как в меше и HeightMapShape3D.
+	ensure_loaded()
+	var fx := (x - x0) / cell
+	var fz := (z - z0) / cell
+	var i := clampi(int(floor(fx)), 0, nx - 2)
+	var j := clampi(int(floor(fz)), 0, nz - 2)
+	var u := clampf(fx - i, 0.0, 1.0)
+	var v := clampf(fz - j, 0.0, 1.0)
+	var h00 := h(i, j)
+	var h10 := h(i + 1, j)
+	var h01 := h(i, j + 1)
+	var h11 := h(i + 1, j + 1)
+	if u + v <= 1.0:   # треугольник (i,j)-(i+1,j)-(i,j+1)
+		return h00 + (h10 - h00) * u + (h01 - h00) * v
+	return h11 + (h01 - h11) * (1.0 - u) + (h10 - h11) * (1.0 - v)
+
+
+static func surface_height(tree: SceneTree, x: float, z: float, fallback := 0.0) -> float:
+	## Высота рельефа в точке по всем узлам группы terrain; вне всех — fallback.
+	for n in tree.get_nodes_in_group("terrain"):
+		var t := n as Terrain
+		if t and t.loaded and t.contains(x, z):
+			return t.height_at(x, z)
+	return fallback
+
+
+func _texture(name: String) -> Texture2D:
+	var path: String = TEX_DIR + DEFAULT_TEXTURES.get(name, "paving.png")
+	return load(path) as Texture2D if ResourceLoader.exists(path) else null
+
+
+func _build_material() -> void:
+	var img := Image.create_from_data(nx, nz, false, Image.FORMAT_RGBA8, splat)
+	material = ShaderMaterial.new()
+	material.shader = TerrainShader
+	material.set_shader_parameter("splat", ImageTexture.create_from_image(img))
+	var keys := ["tex_r", "tex_g", "tex_b", "tex_a"]
+	var tiles := Vector4.ONE
+	for c in 4:
+		var name: String = channels[c] if c < channels.size() else "paving"
+		material.set_shader_parameter(keys[c], _texture(name))
+		tiles[c] = DEFAULT_TILES.get(name, 2.0)
+	material.set_shader_parameter("tile_sizes", tiles)
+	material.set_shader_parameter("tex_cliff", _texture("stone"))
+	material.set_shader_parameter("origin", Vector2(x0, z0))
+	material.set_shader_parameter("size", Vector2(width, depth))
+	material.set_shader_parameter("texels", Vector2(nx, nz))
+
+
+func _normal(i: int, j: int) -> Vector3:
+	return Vector3(h(i - 1, j) - h(i + 1, j), 2.0 * cell, h(i, j - 1) - h(i, j + 1)).normalized()
+
+
+func _build_tiles() -> void:
+	var t := 0
+	for tj in range(0, nz - 1, TILE):
+		for ti in range(0, nx - 1, TILE):
+			var st := SurfaceTool.new()
+			st.begin(Mesh.PRIMITIVE_TRIANGLES)
+			var i1 := mini(ti + TILE, nx - 1)
+			var j1 := mini(tj + TILE, nz - 1)
+			for j in range(tj, j1):
+				for i in range(ti, i1):
+					for q in [[i, j], [i + 1, j], [i, j + 1], [i + 1, j], [i + 1, j + 1], [i, j + 1]]:
+						st.set_normal(_normal(q[0], q[1]))
+						st.add_vertex(Vector3(x0 + q[0] * cell, h(q[0], q[1]), z0 + q[1] * cell))
+			var mi := MeshInstance3D.new()
+			mi.name = "Tile%d" % t
+			mi.mesh = st.commit()
+			mi.material_override = material
+			add_child(mi)
+			t += 1
+
+
+func _build_collision() -> void:
+	var body := StaticBody3D.new()
+	body.name = "Floor"   # имя пола: инварианты раскладки не считают его пропсом
+	body.collision_layer = Layers.WORLD
+	body.collision_mask = 0
+	var shape := CollisionShape3D.new()
+	var hm := HeightMapShape3D.new()
+	hm.map_width = nx
+	hm.map_depth = nz
+	hm.map_data = heights
+	shape.shape = hm
+	shape.position = Vector3(x0 + width / 2.0, 0.0, z0 + depth / 2.0)
+	body.add_child(shape)
+	add_child(body)
+```
+
 ## `scripts/world/world_builder.gd`
 
 ```gdscript
@@ -5175,6 +5401,8 @@ const GateScene := preload("res://scenes/world/gate.tscn")
 const YarnShopScene := preload("res://scenes/world/yarn_shop.tscn")
 
 @export var layout_path := ""
+@export var terrain_path: NodePath   # пусто — плоский мир, y раскладки абсолютные
+var terrain: Terrain
 var props_built := 0
 var hideouts_built := 0
 var spawns_built := 0
@@ -5187,6 +5415,10 @@ var decals_built := 0
 
 
 func _ready() -> void:
+	if terrain == null and not terrain_path.is_empty():
+		terrain = get_node_or_null(terrain_path) as Terrain
+	if terrain:
+		terrain.ensure_loaded()   # рельеф мог ещё не пройти _ready (порядок соседей)
 	if layout_path != "":
 		build(load_layout(layout_path))
 
@@ -5196,6 +5428,48 @@ static func load_layout(path: String) -> Dictionary:
 	var parsed = JSON.parse_string(text)
 	assert(parsed is Dictionary, "не удалось разобрать " + path)
 	return parsed
+
+
+## Модули террас (tools/blender/terrace_kit.py): подъём по −Z модели от начала координат.
+const KIT_STEP_RISE := 0.2
+const KIT_STEP_TREAD := 0.3
+const KIT_RAMP_DEG := 25.0
+const KIT_WIDTH := 1.6
+
+
+static func kit_colliders(model: String) -> Array:
+	## Наклонный коллайдер лестницы террасы или пандуса по имени модели (terrace_stairsN, rampN); иначе [].
+	var h := 0.0
+	var run := 0.0
+	if model.begins_with("terrace_stairs") and model.trim_prefix("terrace_stairs").is_valid_int():
+		h = float(model.trim_prefix("terrace_stairs"))
+		run = roundf(h / KIT_STEP_RISE) * KIT_STEP_TREAD
+	elif model.begins_with("ramp") and model.trim_prefix("ramp").is_valid_int():
+		h = float(model.trim_prefix("ramp"))
+		run = h / tan(deg_to_rad(KIT_RAMP_DEG))
+	else:
+		return []
+	var ang := rad_to_deg(atan2(h, run))
+	var length := sqrt(h * h + run * run)
+	# Тонкая плита по линии подъёма; верх плиты совпадает с носками ступеней / поверхностью пандуса.
+	var th := 0.1
+	var n := Vector3(0, cos(deg_to_rad(ang)), sin(deg_to_rad(ang)))
+	var center := Vector3(0, h / 2.0, -run / 2.0) - n * (th / 2.0)
+	return [{"size": [KIT_WIDTH, th, length], "offset": [center.x, center.y, center.z], "rot": [ang, 0, 0]}]
+
+
+func _add_at(parent: Node3D, node: Node3D, pos: Vector3, rot_y_deg: float) -> void:
+	## Ставит узел в мировую позицию ДО add_child: тела не появляются на кадр в начале координат.
+	node.transform = parent.global_transform.affine_inverse() * Transform3D(Basis(Vector3.UP, deg_to_rad(rot_y_deg)), pos)
+	parent.add_child(node)
+
+
+func _place(item: Dictionary) -> Vector3:
+	## Позиция из раскладки: на рельефе y — смещение над поверхностью; "snap": false — абсолютная высота.
+	var v := _v3(item["pos"])
+	if terrain and bool(item.get("snap", true)):
+		v.y += terrain.height_at(v.x, v.z)
+	return v
 
 
 static func _v3(arr: Array) -> Vector3:
@@ -5244,7 +5518,7 @@ func _build_prop(p: Dictionary) -> void:
 	model.name = "Model"
 	body.add_child(model)
 	var solid := bool(p.get("solid", true))
-	var colliders: Array = p.get("colliders", []) if solid else []
+	var colliders: Array = p.get("colliders", kit_colliders(String(p["model"]))) if solid else []
 	if colliders.is_empty() and solid:
 		var aabb := _model_aabb(model)
 		colliders = [{"size": [aabb.size.x, aabb.size.y, aabb.size.z],
@@ -5257,10 +5531,13 @@ func _build_prop(p: Dictionary) -> void:
 		box.size = _v3(c["size"])
 		shape.shape = box
 		shape.position = _v3(c.get("offset", [0, 0, 0]))
+		shape.rotation_degrees = _v3(c.get("rot", [0, 0, 0]))   # наклонные коллайдеры лестниц и пандусов
 		body.add_child(shape)
-	_container("Props").add_child(body)
-	body.global_position = _v3(p["pos"])
-	body.rotation_degrees.y = float(p.get("rot", 0))
+	# Позиция до add_child: иначе первый физический кадр тело стоит в начале координат и выталкивает
+	# кота, появившегося там, сквозь тонкую карту высот (план 10).
+	var props := _container("Props")
+	body.transform = props.global_transform.affine_inverse() * Transform3D(Basis(Vector3.UP, deg_to_rad(float(p.get("rot", 0)))), _place(p))
+	props.add_child(body)
 	Toon.apply(model, Toon.OUTLINE_FOOD if p.get("outline", false) else Toon.OUTLINE_NONE)
 	if p["model"] == "lamp":
 		body.add_child(_night_light())
@@ -5338,7 +5615,7 @@ func _build_decal(d: Dictionary) -> void:
 	mat.roughness = 0.9
 	mi.set_surface_override_material(0, mat)
 	_container("Decals").add_child(mi)
-	var pos := _v3(d["pos"])
+	var pos := _place(d)
 	var wall := bool(d.get("wall", false))
 	mi.global_position = pos + (Vector3.ZERO if wall else Vector3(0, 0.01, 0))
 	mi.rotation_degrees = Vector3(0.0, float(d.get("rot", 0)), 0.0) if wall else Vector3(-90.0, float(d.get("rot", 0)), 0.0)
@@ -5370,9 +5647,7 @@ func _build_hideout(h: Dictionary) -> void:
 	var node := HideoutScene.instantiate() as Hideout
 	node.kind = StringName(h.get("kind", "box"))
 	node.size = _v3(h.get("size", [0.6, 0.4, 0.5]))
-	_container("Hideouts").add_child(node)
-	node.global_position = _v3(h["pos"])
-	node.rotation_degrees.y = float(h.get("rot", 0))
+	_add_at(_container("Hideouts"), node, _place(h), float(h.get("rot", 0)))
 	hideouts_built += 1
 
 
@@ -5383,8 +5658,7 @@ func _build_spawn(s: Dictionary) -> void:
 		allowed.append(int(t))   # JSON даёт float, ключи словарей Rarity — int
 	node.allowed = allowed
 	node.foods = s.get("foods", [])
-	_container("Spawns").add_child(node)
-	node.global_position = _v3(s["pos"])
+	_add_at(_container("Spawns"), node, _place(s), 0.0)
 	spawns_built += 1
 
 
@@ -5393,7 +5667,10 @@ func _build_road(road: Dictionary) -> void:
 	path.name = "Road"
 	var curve := Curve3D.new()
 	for pt in road.get("points", []):
-		curve.add_point(_v3(pt))
+		var v := _v3(pt)
+		if terrain:
+			v.y += terrain.height_at(v.x, v.z)
+		curve.add_point(v)
 	path.curve = curve
 	add_child(path)
 
@@ -5408,18 +5685,15 @@ func _build_hazard(hz: Dictionary) -> void:
 	node.name = "%s_%d" % [type_name, hazards_built]
 	if node.has_method("configure"):
 		node.call("configure", hz, self)
-	_container("Hazards").add_child(node)
-	node.global_position = _v3(hz["pos"])
-	node.rotation_degrees.y = float(hz.get("rot", 0))
+	_add_at(_container("Hazards"), node, _place(hz), float(hz.get("rot", 0)))
 	hazards_built += 1
 
 
 func _build_yarn(y: Dictionary) -> void:
 	var node := YarnScene.instantiate() as YarnPickup
-	var pos := _v3(y["pos"])
-	node.key = "%.1f,%.1f,%.1f" % [pos.x, pos.y, pos.z]
-	_container("Yarn").add_child(node)
-	node.global_position = pos
+	var raw := _v3(y["pos"])   # ключ — по раскладке, а не по высоте рельефа: сохранения не ломаются при правке рельефа
+	node.key = "%.1f,%.1f,%.1f" % [raw.x, raw.y, raw.z]
+	_add_at(_container("Yarn"), node, _place(y), 0.0)
 	yarn_built += 1
 
 
@@ -5429,18 +5703,14 @@ func _build_gate(g: Dictionary) -> void:
 	node.satiety_required = int(g.get("satiety", GameState.SATIETY_GATE))
 	node.label = String(g.get("label", node.label))
 	node.size = _v3(g.get("size", [2.4, 2.6, 0.3]))
-	_container("Gates").add_child(node)
-	node.global_position = _v3(g["pos"])
-	node.rotation_degrees.y = float(g.get("rot", 0))
+	_add_at(_container("Gates"), node, _place(g), float(g.get("rot", 0)))
 	gates_built += 1
 
 
 func _build_shop(s: Dictionary) -> void:
 	var node := YarnShopScene.instantiate() as YarnShop
 	node.name = "YarnShop"
-	add_child(node)
-	node.global_position = _v3(s["pos"])
-	node.rotation_degrees.y = float(s.get("rot", 0))
+	_add_at(self, node, _place(s), float(s.get("rot", 0)))
 	shop_built += 1
 ```
 
@@ -7139,7 +7409,11 @@ func before_each() -> void:
 func _park_with_floor() -> Node3D:
 	var world := Node3D.new()
 	add_child_autofree(world)
+	var t := Terrain.new()
+	t.data_path = "res://data/terrain/park.json"   # пол парка — рельеф (план 10)
+	world.add_child(t)
 	var b := WorldBuilder.new()
+	b.terrain = t
 	world.add_child(b)
 	b.build(WorldBuilder.load_layout(PARK))
 	return world
@@ -7150,7 +7424,7 @@ func _prop_at(world: Node3D, point: Vector3) -> String:
 	q.collision_mask = Layers.WORLD
 	for hit in world.get_world_3d().direct_space_state.intersect_point(q, 8):
 		var n: String = hit["collider"].name
-		if not n.begins_with("park_ground"):
+		if n != "Floor":
 			return n
 	return ""
 
@@ -7159,7 +7433,7 @@ func test_park_layout_has_the_spec_content() -> void:
 	var models := {}
 	for p in d["props"]:
 		models[p["model"]] = models.get(p["model"], 0) + 1
-	for m in ["park_ground", "fountain", "slide", "swings", "sandbox", "kiosk", "shed", "lamp", "bench", "fence", "tree", "flowerbed"]:
+	for m in ["fountain", "slide", "swings", "sandbox", "kiosk", "shed", "lamp", "bench", "fence", "tree", "flowerbed"]:
 		assert_gt(models.get(m, 0), 0, "в парке есть %s" % m)
 	assert_gte(models.get("lamp", 0), 8, "аллея фонарей")
 	assert_between(d["yarn"].size(), 10, 15, "10–15 клубочков")
@@ -7244,19 +7518,20 @@ func test_park_is_fenced_and_floored() -> void:
 		assert_false(down.is_empty(), "под %s есть пол" % p)
 
 func test_lawn_and_paths_are_textured_in_main() -> void:
+	# План 10: пол парка — рельеф; газон и гравий — каналы карты покрытий.
 	SaveGame.path = "user://test_save.json"
 	SaveGame.clear()
 	var main := (load("res://scenes/main.tscn") as PackedScene).instantiate()
 	add_child_autofree(main)
 	await wait_process_frames(2)
-	for pair in [["lawn", "grass"], ["path", "gravel"]]:
-		var mi := main.find_child(pair[0], true, false) as MeshInstance3D
-		assert_not_null(mi, "меш %s в главной сцене" % pair[0])
-		if mi:
-			var m := mi.get_surface_override_material(0) as StandardMaterial3D
-			assert_not_null(m.albedo_texture)
-			if m.albedo_texture:
-				assert_eq(m.albedo_texture.resource_path, "res://assets/images/textures/%s.png" % pair[1])
+	var t := main.find_child("ParkTerrain", true, false) as Terrain
+	assert_not_null(t)
+	if t:
+		assert_eq(t.channels[2], "grass")
+		assert_eq(t.channels[3], "gravel")
+		assert_eq((t.material.get_shader_parameter("tex_b") as Texture2D).resource_path, "res://assets/images/textures/grass.png")
+		assert_eq((t.material.get_shader_parameter("tex_a") as Texture2D).resource_path, "res://assets/images/textures/gravel.png")
+		assert_gt(t.height_at(0, 45) + 1.0, 1.0, "пол парка на месте")
 	SaveGame.clear()
 
 func test_perimeter_fence_is_too_high_to_jump_from_any_prop() -> void:
@@ -7736,7 +8011,7 @@ func test_large_surfaces_get_triplanar_textures() -> void:
 	var main := (load(MAIN_SCENE) as PackedScene).instantiate()
 	add_child_autofree(main)
 	await wait_process_frames(2)
-	var expected := {"ground": ["asphalt", 4.0], "sidewalk": ["paving", 1.2], "wall": ["stucco", 4.5]}
+	var expected := {"wall": ["stucco", 4.5]}
 	for name in expected:
 		var found: Array = _meshes_named(main, name)
 		assert_gt(found.size(), 0, "есть меш %s" % name)
@@ -7749,6 +8024,20 @@ func test_large_surfaces_get_triplanar_textures() -> void:
 			assert_almost_eq(m.uv1_scale.x, 1.0 / expected[name][1], 0.001, "%s: тайл %.0f м" % [name, expected[name][1]])
 			assert_eq(m.albedo_color.to_html(false), "ffffff", "цвет несёт текстура")
 			assert_eq(m.diffuse_mode, BaseMaterial3D.DIFFUSE_TOON, "тун сохраняется")
+
+func test_yard_floor_is_terrain_with_asphalt_and_paving() -> void:
+	# План 10: прежние меши ground/sidewalk заменены рельефом с картой покрытий.
+	var main := (load(MAIN_SCENE) as PackedScene).instantiate()
+	add_child_autofree(main)
+	await wait_process_frames(2)
+	var t := main.find_child("YardTerrain", true, false) as Terrain
+	assert_not_null(t)
+	if t == null:
+		return
+	assert_eq(t.channels.slice(0, 2), ["asphalt", "paving"])
+	assert_eq((t.material.get_shader_parameter("tex_r") as Texture2D).resource_path, "res://assets/images/textures/asphalt.png")
+	assert_eq((t.material.get_shader_parameter("tex_g") as Texture2D).resource_path, "res://assets/images/textures/paving.png")
+	assert_eq(_meshes_named(main, "ground").size(), 0, "старого плоского пола нет")
 
 func test_windows_props_and_puddles_stay_flat() -> void:
 	# Review Focus 1–2
@@ -7773,6 +8062,164 @@ func test_missing_texture_file_is_not_an_error() -> void:
 	Toon.apply(root, Toon.OUTLINE_NONE)
 	assert_eq(SurfaceTextures.apply(root), 0, "незнакомые меши не трогаются")
 	assert_eq(SurfaceTextures.texture_or_null("res://assets/images/textures/none.png"), null)
+```
+
+## `tests/integration/test_terrain.gd`
+
+```gdscript
+extends GutTest
+## План 10: рельеф (спек «Масштаб и рельеф», раздел 3).
+
+const DEMO := "res://data/terrain/demo.json"
+
+var t: Terrain
+
+func before_each() -> void:
+	t = Terrain.new()
+	t.data_path = DEMO
+	add_child_autofree(t)
+	await wait_physics_frames(2)
+
+func _corner_spread(x: float, z: float) -> float:
+	var i := int(floor(x - t.x0))
+	var j := int(floor(z - t.z0))
+	var hs := [t.h(i, j), t.h(i + 1, j), t.h(i, j + 1), t.h(i + 1, j + 1)]
+	return hs.max() - hs.min()
+
+func test_height_at_matches_generator_points() -> void:
+	assert_almost_eq(t.height_at(8, 8), 3.0, 0.01, "вершина холма")
+	assert_almost_eq(t.height_at(-10, 10), -1.0, 0.01, "дно низины")
+	assert_almost_eq(t.height_at(-12, -13), 2.0, 0.01, "терраса")
+	assert_almost_eq(t.height_at(15, -15), 0.0, 0.01, "ровное место")
+
+func test_ray_hits_terrain_at_height_at() -> void:
+	# Review Focus 1: коллизия совпадает с картой высот (кроме самой ячейки обрыва).
+	var space := t.get_world_3d().direct_space_state
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5
+	var checked := 0
+	while checked < 40:
+		var x := rng.randf_range(-19.5, 19.5)
+		var z := rng.randf_range(-19.5, 19.5)
+		if _corner_spread(x, z) > 0.6:
+			continue
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(x, 10, z), Vector3(x, -10, z), Layers.WORLD))
+		assert_false(hit.is_empty(), "луч в (%.1f, %.1f) попал в рельеф" % [x, z])
+		if not hit.is_empty():
+			assert_almost_eq((hit["position"] as Vector3).y, t.height_at(x, z), 0.03, "высота в (%.1f, %.1f)" % [x, z])
+		checked += 1
+	var edge := space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(-6.3, 10, -12), Vector3(-6.3, -10, -12), Layers.WORLD))
+	assert_almost_eq((edge["position"] as Vector3).y, 2.0, 0.03, "у самого края террасы — её высота")
+
+func test_tiles_material_and_group() -> void:
+	assert_true(t.is_in_group("terrain"))
+	var tiles := t.find_children("Tile*", "MeshInstance3D", false, false)
+	assert_eq(tiles.size(), 4, "40×40 м — четыре тайла по 30 м")
+	var m := (tiles[0] as MeshInstance3D).material_override as ShaderMaterial
+	assert_not_null(m)
+	assert_not_null(m.get_shader_parameter("splat"), "карта покрытий в шейдере")
+	assert_not_null(m.get_shader_parameter("tex_cliff"), "камень для обрывов")
+
+func test_surface_height_static_helper() -> void:
+	assert_almost_eq(Terrain.surface_height(get_tree(), 8, 8), 3.0, 0.01)
+	assert_almost_eq(Terrain.surface_height(get_tree(), 500, 500, -7.0), -7.0, 0.001, "вне рельефа — запасная высота")
+
+func _builder() -> WorldBuilder:
+	var b := WorldBuilder.new()
+	add_child_autofree(b)
+	b.terrain = t
+	return b
+
+func test_builder_snaps_everything_to_surface() -> void:
+	var b := _builder()
+	b.build({"props": [{"model": "bin", "pos": [8, 0, 8]}, {"model": "box", "pos": [15, 1.0, -15], "snap": false}],
+		"spawn_points": [{"pos": [-12, 0, -13], "allowed": [0]}],
+		"yarn": [{"pos": [8, 0.1, 8]}],
+		"hideouts": [{"kind": "box", "pos": [-10, 0.2, 10], "size": [0.6, 0.4, 0.6]}]})
+	var props := b.get_node("Props").get_children()
+	assert_almost_eq((props[0] as Node3D).global_position.y, 3.0, 0.02, "бак на вершине холма")
+	assert_almost_eq((props[1] as Node3D).global_position.y, 1.0, 0.001, "snap: false — абсолютная высота (Review Focus 3)")
+	assert_almost_eq((b.get_node("Spawns").get_child(0) as Node3D).global_position.y, 2.0, 0.02, "еда на террасе")
+	assert_almost_eq((b.get_node("Yarn").get_child(0) as Node3D).global_position.y, 3.1, 0.02, "клубочек на 10 см над вершиной")
+	assert_almost_eq((b.get_node("Hideouts").get_child(0) as Node3D).global_position.y, -0.8, 0.02, "укрытие в низине")
+
+func test_builder_without_terrain_keeps_heights() -> void:
+	var b := WorldBuilder.new()
+	add_child_autofree(b)
+	b.build({"props": [{"model": "bin", "pos": [8, 0, 8]}]})
+	assert_almost_eq((b.get_node("Props").get_child(0) as Node3D).global_position.y, 0.0, 0.001)
+
+func test_collider_rotation() -> void:
+	var b := _builder()
+	b.build({"props": [{"model": "box", "pos": [15, 0, -15], "colliders": [{"size": [1, 0.1, 2], "offset": [0, 0.5, 0], "rot": [-25, 0, 0]}]}]})
+	var shape := b.get_node("Props").get_child(0).find_child("Shape0", true, false) as CollisionShape3D
+	assert_almost_eq(shape.rotation_degrees.x, -25.0, 0.01, "наклонный коллайдер для пандусов и лестниц")
+
+# --- кот на рельефе (Review Focus 2) ---
+
+const CatScene := preload("res://scenes/player/cat.tscn")
+
+func _demo_world() -> Node3D:
+	var b := _builder()
+	b.build(WorldBuilder.load_layout("res://data/layout/terrain_demo.json"))
+	return b
+
+func _cat_at(pos: Vector3) -> Node:
+	var cat = CatScene.instantiate()
+	cat.position = pos
+	add_child_autofree(cat)
+	return cat
+
+func test_kit_colliders_are_slopes() -> void:
+	var c: Array = WorldBuilder.kit_colliders("ramp2")
+	assert_eq(c.size(), 1)
+	assert_almost_eq(float(c[0]["rot"][0]), 25.0, 0.01, "пандус 25°")
+	var s: Array = WorldBuilder.kit_colliders("terrace_stairs2")
+	assert_lt(float(s[0]["rot"][0]), 35.0, "ход лестницы не круче 35°")
+	assert_eq(WorldBuilder.kit_colliders("bin"), [], "обычные пропсы — без особых коллайдеров")
+
+func test_cat_stands_on_slope_without_sliding() -> void:
+	var cat = _cat_at(Vector3(13, t.height_at(13, 8) + 0.1, 8))   # склон холма ≈ 20°
+	await wait_physics_frames(30)
+	var p0: Vector3 = cat.global_position
+	await wait_physics_frames(60)
+	assert_lt(Vector2(cat.global_position.x - p0.x, cat.global_position.z - p0.z).length(), 0.05, "кот на склоне не сползает")
+
+func _walk(cat, action: String, frames: int) -> void:
+	Input.action_press(action)
+	await wait_physics_frames(frames)
+	Input.action_release(action)
+
+func test_cat_climbs_ramp_and_stairs_to_terrace() -> void:
+	_demo_world()
+	await wait_physics_frames(2)
+	for start in [Vector3(0.5, 0.1, -10), Vector3(-1.0, 0.1, -15.5)]:
+		var cat = _cat_at(start)
+		await wait_physics_frames(10)
+		await _walk(cat, "move_left", 300)   # без камеры «влево» — это −X; на подъёме горизонтальная скорость ниже
+		assert_gt(cat.global_position.y, 1.8, "с %s кот поднялся на террасу" % start)
+		cat.queue_free()
+		await wait_physics_frames(2)
+
+func test_cat_jumps_down_from_terrace_unhurt() -> void:
+	GameState.reset()
+	var cat = _cat_at(Vector3(-7, 2.1, -12))
+	await wait_physics_frames(10)
+	await _walk(cat, "move_right", 60)
+	await wait_physics_frames(30)
+	assert_lt(cat.global_position.y, 0.3, "спрыгнул вниз")
+	assert_eq(GameState.hearts, 3, "без урона")
+
+func test_props_are_in_place_on_the_very_first_physics_frame() -> void:
+	# Пропс, добавленный в начале координат и только потом сдвинутый, выталкивал кота сквозь рельеф.
+	var b := _builder()
+	b.build({"props": [{"model": "box", "pos": [15, 0, -15]}]})
+	var space: PhysicsDirectSpaceState3D = t.get_world_3d().direct_space_state
+	var q := PhysicsPointQueryParameters3D.new()
+	q.position = Vector3(0, 0.2, 0)
+	q.collision_mask = Layers.WORLD
+	var names := space.intersect_point(q, 4).map(func(h): return String(h["collider"].name))
+	assert_false(names.any(func(n): return n.begins_with("box")), "в начале координат нет призрака коробки: %s" % [names])
 ```
 
 ## `tests/integration/test_wasp.gd`
@@ -10801,6 +11248,84 @@ def build():
 	return [p]
 ```
 
+## `tools/blender/gen/ramp1.py`
+
+```python
+"""Модуль террасы: ramp высотой 1 м (terrace_kit.py)."""
+import terrace_kit
+
+SPEC = {"max_tris": 1500, "max_dim": 7.5}
+
+
+def build():
+	return terrace_kit.ramp(1)
+```
+
+## `tools/blender/gen/ramp2.py`
+
+```python
+"""Модуль террасы: ramp высотой 2 м (terrace_kit.py)."""
+import terrace_kit
+
+SPEC = {"max_tris": 1500, "max_dim": 7.5}
+
+
+def build():
+	return terrace_kit.ramp(2)
+```
+
+## `tools/blender/gen/ramp3.py`
+
+```python
+"""Модуль террасы: ramp высотой 3 м (terrace_kit.py)."""
+import terrace_kit
+
+SPEC = {"max_tris": 1500, "max_dim": 7.5}
+
+
+def build():
+	return terrace_kit.ramp(3)
+```
+
+## `tools/blender/gen/retaining_wall1.py`
+
+```python
+"""Модуль террасы: wall высотой 1 м (terrace_kit.py)."""
+import terrace_kit
+
+SPEC = {"max_tris": 1500, "max_dim": 7.5}
+
+
+def build():
+	return terrace_kit.wall(1)
+```
+
+## `tools/blender/gen/retaining_wall2.py`
+
+```python
+"""Модуль террасы: wall высотой 2 м (terrace_kit.py)."""
+import terrace_kit
+
+SPEC = {"max_tris": 1500, "max_dim": 7.5}
+
+
+def build():
+	return terrace_kit.wall(2)
+```
+
+## `tools/blender/gen/retaining_wall3.py`
+
+```python
+"""Модуль террасы: wall высотой 3 м (terrace_kit.py)."""
+import terrace_kit
+
+SPEC = {"max_tris": 1500, "max_dim": 7.5}
+
+
+def build():
+	return terrace_kit.wall(3)
+```
+
 ## `tools/blender/gen/sandbox.py`
 
 ```python
@@ -10953,6 +11478,45 @@ def build():
 			rope.location = (x + dx, 0, 1.12)
 			parts.append(rope)
 	return lib.group(parts)
+```
+
+## `tools/blender/gen/terrace_stairs1.py`
+
+```python
+"""Модуль террасы: stairs высотой 1 м (terrace_kit.py)."""
+import terrace_kit
+
+SPEC = {"max_tris": 1500, "max_dim": 7.5}
+
+
+def build():
+	return terrace_kit.stairs(1)
+```
+
+## `tools/blender/gen/terrace_stairs2.py`
+
+```python
+"""Модуль террасы: stairs высотой 2 м (terrace_kit.py)."""
+import terrace_kit
+
+SPEC = {"max_tris": 1500, "max_dim": 7.5}
+
+
+def build():
+	return terrace_kit.stairs(2)
+```
+
+## `tools/blender/gen/terrace_stairs3.py`
+
+```python
+"""Модуль террасы: stairs высотой 3 м (terrace_kit.py)."""
+import terrace_kit
+
+SPEC = {"max_tris": 1500, "max_dim": 7.5}
+
+
+def build():
+	return terrace_kit.stairs(3)
 ```
 
 ## `tools/blender/gen/tree.py`
@@ -11623,6 +12187,70 @@ def split_material_by_height(mesh, top_key, bottom_key, fraction=0.35):
 		poly.material_index = 1 if (m @ poly.center).z < threshold else 0
 ```
 
+## `tools/blender/terrace_kit.py`
+
+```python
+"""Модули террас (спек «Масштаб и рельеф», раздел 3): подпорная стена, лестница, пандус высотой 1/2/3 м.
+Подъём идёт по +Y Blender (= −Z Godot) от начала координат: низ у origin, верх на расстоянии run(h).
+Коллайдеры лестниц и пандусов — наклонный параллелепипед (WorldBuilder.kit_colliders)."""
+import math
+
+import lib
+
+STEP_RISE = 0.2
+STEP_TREAD = 0.3
+RAMP_DEG = 25.0
+WIDTH = 1.6
+WALL_LEN = 4.0
+WALL_THICK = 0.4
+
+
+def stairs_run(h):
+	return round(h / STEP_RISE) * STEP_TREAD
+
+
+def ramp_run(h):
+	return h / math.tan(math.radians(RAMP_DEG))
+
+
+def wall(h):
+	w = lib.rounded_box("retaining_wall", (WALL_LEN, WALL_THICK, h), bevel=0.03, segments=1, material="sand")
+	w.location.z = h / 2.0
+	cap = lib.rounded_box("retaining_wall_cap", (WALL_LEN + 0.06, WALL_THICK + 0.08, 0.08), bevel=0.02, segments=1, material="cream")
+	cap.location.z = h + 0.04
+	return lib.group([w, cap])
+
+
+def stairs(h):
+	n = round(h / STEP_RISE)
+	parts = []
+	for k in range(n):
+		top = (k + 1) * STEP_RISE
+		s = lib.rounded_box("terrace_stairs" if k == 0 else f"terrace_stairs_s{k}", (WIDTH, STEP_TREAD, top), bevel=0.015, segments=1, material="sand")
+		s.location = (0, k * STEP_TREAD + STEP_TREAD / 2.0, top / 2.0)
+		parts.append(s)
+	for side, x in (("l", -WIDTH / 2 - 0.05), ("r", WIDTH / 2 + 0.05)):
+		rail = lib.rounded_box(f"terrace_stairs_side_{side}", (0.1, n * STEP_TREAD, 0.12), bevel=0.0, material="ink")
+		rail.location = (x, n * STEP_TREAD / 2.0, h / 2.0 + 0.3)
+		rail.rotation_euler = (math.atan2(h, n * STEP_TREAD), 0, 0)
+		parts.append(rail)
+	return lib.group(parts)
+
+
+def ramp(h):
+	L = ramp_run(h)
+	slab = lib.rounded_box("ramp", (WIDTH, math.hypot(L, h), 0.1), bevel=0.0, material="asphalt")
+	slab.rotation_euler = (math.atan2(h, L), 0, 0)
+	slab.location = (0, L / 2.0, h / 2.0)
+	curb_parts = [slab]
+	for side, x in (("l", -WIDTH / 2 - 0.05), ("r", WIDTH / 2 + 0.05)):
+		c = lib.rounded_box(f"ramp_curb_{side}", (0.1, math.hypot(L, h), 0.18), bevel=0.0, material="cream")
+		c.rotation_euler = (math.atan2(h, L), 0, 0)
+		c.location = (x, L / 2.0, h / 2.0 + 0.06)
+		curb_parts.append(c)
+	return lib.group(curb_parts)
+```
+
 ## `tools/blender/tests/list_glb.py`
 
 ```python
@@ -12068,6 +12696,7 @@ INCLUDE = [
     "docs/superpowers/notes/*.md",
     "export_presets.cfg", "tools/audio/*.py", "tools/release/*.sh", "tools/images/*.py", "tools/images/manifest.json", "assets/ui/*.tres", "assets/shaders/*.gdshader",
     "assets/sfx/README.md", "assets/fonts/OFL.txt",
+    "tools/terrain/**/*.py", "data/terrain_src/*.json", "data/layout/*.json",
 ]
 EXCLUDE_DIRS = {"addons", "build", ".godot", ".superpowers"}
 # Двоичные файлы (.ttf/.ogg/.wav/.glb/.png) в приложение не входят: откуда их взять (или как сгенерировать), описано в процедуре.
@@ -12941,6 +13570,84 @@ snack_run/
 случайные события и дворовые коты. Каждый этап — отдельный спек и план.
 ````
 
+## `docs/superpowers/specs/2026-10-09-snack-run-scale-terrain-design.md`
+
+```markdown
+# Snack Run: масштаб ×3 и рельеф (спек)
+
+Решения владельца 2026-10-09: «все районы плоские и мелкие» — увеличить **втрое по стороне** и сделать рельефными:
+**террасы и лестницы, плавные холмы, крыши и вертикаль** (все три); **сначала двор и парк, потом порт** (этап 3 строится
+сразу по этим правилам). Основной спек и спеки этапов 2–3 остаются в силе, кроме размеров и пола.
+
+## 1. Размеры
+
+| Район | Было | Станет | Бегом насквозь (4 м/с) |
+|---|---|---|---|
+| Двор с кафе | 60×60 м | 180×180 м | ~45 с |
+| Парк | 30×32 м | 90×96 м | ~24 с |
+| Порт (этап 3) | 40×34 м | 120×102 м | ~30 с |
+
+Кот, люди, пропсы, скорости и камера не масштабируются: мир становится больше, а не крупнее.
+
+## 2. Плотность и зоны
+
+Чтобы площадь ×9 не стала пустой, район делится на **зоны** 25–40 м со своим характером, связанные дорожками,
+лестницами и проходами. Контент ×4–5 (не ×9): между зонами — «проходные» участки с редкой едой и укрытиями.
+
+- **Двор (180×180)**: 4 зоны — старый двор (нынешний, ядро), гаражи с крышами (паркур), детская площадка на террасе,
+  верхний двор у домов на холме (2–3 м выше) с балконами; дальше улица с велосипедистом и кафе (кафе ×1,5, летняя
+  веранда на террасе). Дома — модули стен по периметру зон, проходы-арки между ними.
+- **Парк (90×96)**: холмистый: центральная поляна с фонтаном, холм с беседкой (+3 м), пруд в низине (вода — правила
+  этапа 3), площадка у подножия, аллея по склону, лесок.
+- Количество (ориентир): двор — 60 точек еды, 40 клубочков, 25 укрытий, опасностей ×3 (3 собаки, 4 осы, 2 велосипедиста);
+  парк — 35 точек еды, 25 клубочков, опасностей ×2.
+
+## 3. Рельеф
+
+- **Карта высот** района — сетка 1 м, генерируется скриптом из описания (холмы — гауссовы купола, террасы — плато с
+  обрывом, низины). Из неё: меш пола (Blender-скрипт, ≤ 40 000 треугольников на район, тайлы 30×30 м для отсечения)
+  и коллизия `HeightMapShape3D` той же сетки (точное совпадение).
+- **Террасы**: перепады 1–3 м; обрыв закрыт подпорной стенкой (модуль, текстура камня), подъём — лестницы (модуль,
+  ступень 0,15 м — кот поднимается) и пандусы ≤ 25°. С края террасы можно спрыгнуть (кот не получает урона).
+- **Холмы**: склоны ≤ 30° (кот ходит, `floor_max_angle` 40°), на вершинах — достопримечательности.
+- **Крыши и вертикаль**: гаражи, навесы, сараи, киоски, автобусные остановки — с плоскими крышами, на которые можно
+  запрыгнуть по ящикам/бакам/заборам (цепочки прыжков ≤ 0,8 м по высоте). На крышах — клубочки и редкая еда.
+- **Пропсы встают на поверхность**: `WorldBuilder` берёт высоту из карты (`y` в раскладке — смещение над землёй;
+  `"snap": false` — абсолютная высота). Опасности и точки спавна — так же.
+- Текстуры пола по уклону и высоте (спек 2.9): трава на склонах, плитка/асфальт на плоском, камень на обрывах — смешение
+  в шейдере по нормали.
+
+## 4. Раскладка
+
+- Ручная расстановка 300+ пропсов неприемлема. **Генератор раскладки** (`tools/layout/`, Python): описание района
+  (зоны, достопримечательности, дорожки, правила плотности) → `data/layout/*.json` и `heightmap`. Детерминирован
+  (seed), инварианты из тестов раскладки проверяются и самим генератором.
+- Ключевые места (будка пряжи, ворота, кафе, старт) — фиксированы в описании.
+
+## 5. Технические рамки
+
+- Производительность mac-билда: ≥ 60 к/с на M4 в развёрнутом окне. Отсечение по видимости (тайлы пола, `visibility_range`
+  у мелких пропсов 40 м), фонари — `SpotLight3D` без теней с `distance_fade` 35 м.
+- Тени солнца — каскады на 40 м (было 30).
+- Камера не меняется; пружина упирается в рельеф (уже работает).
+
+## 6. Тестирование
+
+- Карта высот: юнит-тесты генератора (высота в точке, совпадение меша и коллизии, уклоны ≤ 30° вне обрывов).
+- Инварианты раскладки на больших районах (спавны/клубочки/укрытия на поверхности и не в пропсах, крыши достижимы
+  цепочкой прыжков — проверка графом высот).
+- Кот на склоне не скользит, по лестнице поднимается, с террасы спрыгивает (интеграционные).
+- Кадры зон днём и ночью.
+
+## 7. Разбивка на планы
+
+- **План 10. Рельеф**: карта высот, меш и коллизия, привязка пропсов к поверхности, подпорные стены, лестницы, пандусы,
+  шейдер пола по уклону.
+- **План 11. Генератор раскладки и двор ×3**: зоны двора, гаражи и крыши, терраса с площадкой, верхний двор, кафе с верандой.
+- **План 12. Парк ×3**: холмы, пруд, беседка, лесок, аллея по склону; опасности парка по зонам.
+- Затем этап 3 (порт 120×102) планами 13–15.
+```
+
 ## `docs/superpowers/specs/2026-10-09-snack-run-stage2-park-design.md`
 
 ```markdown
@@ -13039,6 +13746,102 @@ snack_run/
 ## 9. Вне этапа 2
 
 Порт, пляж, чайки (этап 3); случайные события и дворовые коты (этап 4); сохранение фазы суток.
+```
+
+## `docs/superpowers/specs/2026-10-09-snack-run-stage3-port-design.md`
+
+```markdown
+# Snack Run, этап 3: порт, пляж, чайки и вода (спек)
+
+Продолжение `2026-10-07-snack-run-design.md` и `2026-10-09-snack-run-stage2-park-design.md` (стиль, управление,
+прогрессия, сутки — оттуда). Решения владельца 2026-10-09: опасности — чайки с пикированием, волны и прилив, погрузчик
+с ящиками, крабы на песке; механика — рыбалка у причала, вода и качающиеся лодки, новый район; вход — ворота из парка
+при сытости 50. Рельеф и размеры — по спеку масштаба: набережная на террасе над пляжем, причал ниже,
+дюны на пляже, крыши складов для паркура.
+
+## 1. Что добавляется
+
+- **Район «Порт»** 120×102 м (масштаб ×3 по спеку `2026-10-09-snack-run-scale-terrain-design.md`) севернее парка: набережная (мощёная, z 63…70) с лестницей от ворот парка,
+  на востоке причал с ящиками и швартовкой лодок, на западе песчаный пляж, вдоль севера вода (море). Ворота в северном
+  заборе парка (x −6), порог накопленной сытости 50.
+- **4 опасности**, **рыбалка**, **вода и лодки**, 6 новых вкусняшек (альбом 14 → 20), 12 клубочков, новые укрытия.
+- Смена суток действует и здесь (правила по фазам — раздел 3).
+
+## 2. Вода и лодки
+
+- Море — плоскость воды на уровне −0,3 м (зеркальный материал с лёгкой рябью шейдером). Кот, упавший в воду, «тонет»:
+  1 с всплеск и бульканье, затем возвращается на ближайшую точку берега (маркеры `shore` в раскладке), еда из зубов
+  потеряна, сердечко не снимается, 2 с неуязвимости. Это не kill-plane двора: возврат к ближайшему берегу, а не в будку.
+- **Лодки** (3, у причала): плавающие платформы — качаются по синусу (подъём ±0,12 м, крен ±6°, период 3–4 с, разные
+  фазы), кот на них стоит и прыгает; на лодках еда и клубочки. **Бочки** (5, в воде между лодками) — маленькие
+  качающиеся опоры для прыжков (верх выше воды на 0,3 м).
+- Тон воды и отражения следуют суткам (ночью тёмная вода, отражения фонарей набережной).
+
+## 3. Опасности
+
+| Опасность | Поведение | Попадание |
+|---|---|---|
+| **Чайки** (2, над причалом и пляжем) | Кружат на высоте 4 м радиусом 3–4 м. Если кот с едой в зубах в 6 м под чайкой — пикирует: за 1 с на земле растёт тень и крик, затем бросок в точку, где был кот. Перерыв 8 с. Ночью сидят на столбах и спят. | Удар, и чайка уносит последнюю еду (не рассыпается) |
+| **Волны и прилив** (пляж) | Каждые 14 с волна накатывает от линии воды на 5 м вглубь пляжа и откатывается (3 с туда, 3 с обратно); за 1,5 с — пена у кромки и шум. | Кот отброшен к берегу на 1,5 м и мокрый (×0,6 на 4 с); без урона. Еда не теряется |
+| **Погрузчик** (причал) | Ездит по маршруту на причале 3 м/с с ящиком на вилах, перед движением 1,5 с гудок; стоит у штабеля 4–6 с. Ночью стоит. | Удар (как велосипедист) |
+| **Крабы** (4, пляж) | Сидят в норках; кот ближе 3 м — вылезают и бегут боком к коту 2,4 м/с; прыжок кота над крабом или 5 с погони — прячутся в норку на 6 с. Ночью их 6 и они смелее (радиус 4 м). | Щипок — удар |
+
+Новые укрытия: штабель ящиков (за ящиками), перевёрнутая лодка на пляже (под ней), бочка на набережной.
+
+## 4. Рыбалка
+
+- 2 рыбака на краю причала (люди из CC0-пака Quaternius, новая роль: жилет, панама), с удочкой и ведром позади.
+- Цикл рыбака: смотрит на воду 10–20 с → клюёт (поплавок дёргается, всплеск) → 2 с вытягивает → рыба падает в ведро
+  (появляется вкусняшка «Золотая рыбка», легендарная, только так) → 3 с смотрит в ведро (повернувшись к берегу) → снова к воде.
+- Пока рыбак смотрит на воду, кот может стащить рыбу из ведра. Если кот у ведра (ближе 1 м), когда рыбак поворачивается, —
+  рыбак шугает: удар, еда из зубов рассыпается.
+- Днём и вечером; ночью рыбаков нет.
+
+## 5. Еда порта (альбом +6)
+
+| Вкусняшка | Редкость | Где |
+|---|---|---|
+| Креветка | обычная | набережная, ящики |
+| Картошка фри | обычная | киоск на набережной, урны |
+| Кальмар | редкая | причал, лодки |
+| Рыбный сэндвич | редкая | у киоска, на бочках |
+| Суши | очень редкая | на дальней лодке |
+| Золотая рыбка | легендарная | только из ведра рыбака |
+
+## 6. Район «Порт»
+
+- Набережная — мощёная (текстура камня), парапет с проёмами к пляжу, фонари (6), киоск, скамейки, урны.
+- Причал — деревянный настил (текстура досок), сваи, швартовые тумбы, штабели ящиков, погрузчик, рыбаки.
+- Пляж — песок (текстура песка), шезлонги, зонты, перевёрнутая лодка, ракушки, норки крабов.
+- Море — плоскость воды шейдером, качающиеся лодки и бочки, буйки.
+- Пол порта, забор/парапет по краям, kill-plane не нужен (вода возвращает на берег).
+
+## 7. Ассеты и анимации (правило владельца: сначала бесплатные готовые)
+
+- Чайка и краб — ищем CC0 с клипами (Quaternius, OpenGameArt, Kenney); иначе процедурное движение (махание крыльями
+  синусом, как у осы; боковой бег краба — покачивание корпуса).
+- Рыбаки — модель людей этапа 2 с новой ролью, удочка и ведро — Blender-скрипты.
+- Погрузчик, лодки, бочки, ящики, причал, сваи, шезлонги, зонты — Blender-скрипты.
+- Вода — шейдер; волна и пена — меш-полоса со смещением и частицы.
+- Текстуры (камень набережной, доски причала, песок) — генератор картинок, трипланарно (спек 2.9).
+
+## 8. Тестирование
+
+Как в этапе 2: чистая логика (волна по времени, цикл рыбака, решение чайки/краба, качание лодки) — юнит-тесты;
+поведение — интеграционные GUT; вода и возврат на берег; инварианты раскладки; кадры днём и ночью.
+
+## 9. Разбивка на планы
+
+Номера планов сдвинуты этапом «Масштаб и рельеф» (планы 10–12): порт — планы 13–15.
+
+- **План 13. Район «Порт» и вода**: пол, текстуры, набережная, причал, пляж, море-шейдер, тонущий кот и возврат на берег,
+  лодки и бочки, ворота 50, еда, укрытия, клубочки.
+- **План 14. Опасности порта**: чайки, волны, погрузчик, крабы; поиск анимаций чайки и краба.
+- **План 15. Рыбалка**: рыбаки, удочки, ведра, цикл, кража, золотая рыбка.
+
+## 10. Вне этапа 3
+
+Случайные события и дворовые коты (этап 4); плавание как навык; сохранение фазы суток.
 ```
 
 ## `docs/superpowers/plans/2026-10-07-snack-run-roadmap.md`
@@ -13205,6 +14008,14 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
 - Отложено из ревью плана 9: окклюзия луча сторожа и струи садовника (через забор), капли перед поливом,
   возврат голубей к стае, расписание садовника в статической функции.
 - Этап 2 закрыт. Дальше по спеку: этап 3 (порт, пляж, чайки, вода), этап 4 (случайные события, дворовые коты).
+
+## Масштаб ×3 и рельеф (спек `2026-10-09-snack-run-scale-terrain-design.md`)
+
+- План 10. Рельеф (`2026-10-09-snack-run-10-terrain.md`) — ВЫПОЛНЕН 2026-10-09: генератор карт высот, узел `Terrain`
+  (меш, коллизия, шейдер со сплатом), привязка раскладки к высоте, набор террас (стены, лестницы, пандусы), двор и парк на рельефе.
+- План 11. Генератор раскладки и двор ×3 (180×180, зоны, гаражи и крыши, террасы) — следующий.
+- План 12. Парк ×3 (90×96: холм с беседкой, пруд, роща, аллея на склоне).
+- Планы 13–15. Этап 3: порт 120×102 (район и вода, опасности, рыбалка) по спеку `2026-10-09-snack-run-stage3-port-design.md`.
 ```
 
 ## `docs/superpowers/notes/2026-10-07-unimate-attempt.md`
@@ -13704,6 +14515,12 @@ if __name__ == "__main__":
       "note": "иконка капкейка",
       "prompt": "Game icon of a cupcake with swirled pink frosting, sprinkles and a cherry on top, paper cup in sky blue #659ECF, centered, transparent background",
       "background": "transparent"
+    },
+    {
+      "file": "assets/images/textures/stone.png",
+      "note": "бесшовный камень (обрывы, подпорные стены)",
+      "model": "gpt-image-2.5-sunburst",
+      "prompt": "Seamless tileable texture of a stylized cartoon stone retaining wall seen straight on, irregular rounded stones in sand (#D3AB87), cream (#FCD3A1) and soft grey tones with darker mortar lines, flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly on all four sides, no text"
     }
   ]
 }
@@ -13834,6 +14651,49 @@ void vertex() {
 void fragment() {
 	ALBEDO = color.rgb;
 	ALPHA = alpha * color.a;
+}
+```
+
+## `assets/shaders/terrain.gdshader`
+
+```glsl
+shader_type spatial;
+render_mode diffuse_toon, specular_toon;
+// Пол района (спек «Масштаб и рельеф», раздел 3): 4 покрытия по карте весов (RGBA), камень на крутых гранях.
+// Покрытия — проекция сверху по мировым xz, камень — трипланарно по бокам.
+uniform sampler2D splat : filter_linear, repeat_disable;
+uniform sampler2D tex_r : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D tex_g : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D tex_b : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D tex_a : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D tex_cliff : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform vec4 tile_sizes = vec4(4.0, 1.2, 2.0, 0.8);   // метров на один повтор текстуры R, G, B, A
+uniform float cliff_tile = 3.0;
+uniform vec2 origin = vec2(0.0);
+uniform vec2 size = vec2(40.0);
+uniform vec2 texels = vec2(41.0);
+
+varying vec3 wpos;
+varying vec3 wnorm;
+
+void vertex() {
+	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	wnorm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+}
+
+void fragment() {
+	vec2 suv = ((wpos.xz - origin) / size) * ((texels - 1.0) / texels) + 0.5 / texels;   // центры текселей = вершины сетки
+	vec4 w = texture(splat, suv);
+	w /= max(w.r + w.g + w.b + w.a, 0.001);
+	vec3 ground = texture(tex_r, wpos.xz / tile_sizes.x).rgb * w.r
+		+ texture(tex_g, wpos.xz / tile_sizes.y).rgb * w.g
+		+ texture(tex_b, wpos.xz / tile_sizes.z).rgb * w.b
+		+ texture(tex_a, wpos.xz / tile_sizes.w).rgb * w.a;
+	vec3 an = abs(wnorm);
+	vec3 cliff = (texture(tex_cliff, wpos.zy / cliff_tile).rgb * an.x + texture(tex_cliff, wpos.xy / cliff_tile).rgb * an.z) / max(an.x + an.z, 0.001);
+	float steep = smoothstep(0.80, 0.62, wnorm.y);
+	ALBEDO = mix(ground, cliff, steep);
+	ROUGHNESS = 0.9;
 }
 ```
 
@@ -13970,5 +14830,5041 @@ INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
 DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
+```
+
+## `tools/terrain/terrain_gen.py`
+
+```python
+#!/usr/bin/env python3
+"""Генератор карт высот районов (спек «Масштаб и рельеф», раздел 3). Только стандартная библиотека.
+
+Вход  data/terrain_src/<район>.json:
+  size [W, D] метров, origin [x0, z0] — угол с наименьшими x, z в координатах Godot, cell 1.0, base — высота по умолчанию,
+  channels — имена 4 покрытий (R, G, B, A), default — покрытие по умолчанию,
+  features — по порядку: hill {center, radius, height}, basin {center, radius, depth},
+             terrace {rect [x0, z0, x1, z1], height} (плато с отвесным краем, max с текущей высотой),
+             flat {rect, height} (ровно заданная высота).
+  paint — по порядку: {rect | circle [x, z, r], type, soft? метры размытия края}.
+Выход data/terrain/<район>.json: size, origin, cell, nx, nz, heights (nz строк по nx, см), splat (base64 RGBA, nx*nz*4).
+Запуск: make terrain  (все файлы из data/terrain_src)."""
+import base64
+import json
+import math
+import pathlib
+import sys
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+
+
+class Grid:
+	def __init__(self, desc):
+		self.w, self.d = desc["size"]
+		self.x0, self.z0 = desc["origin"]
+		self.cell = float(desc.get("cell", 1.0))
+		self.nx = int(round(self.w / self.cell)) + 1
+		self.nz = int(round(self.d / self.cell)) + 1
+		self.h = [[float(desc.get("base", 0.0))] * self.nx for _ in range(self.nz)]
+		self.channels = desc.get("channels", ["asphalt", "paving", "grass", "gravel"])
+		default = self.channels.index(desc.get("default", self.channels[0]))
+		self.splat = [[[255 if c == default else 0 for c in range(4)] for _ in range(self.nx)] for _ in range(self.nz)]
+
+	def pos(self, i, j):
+		return self.x0 + i * self.cell, self.z0 + j * self.cell
+
+	def cells(self):
+		for j in range(self.nz):
+			for i in range(self.nx):
+				yield i, j, *self.pos(i, j)
+
+
+def _in_rect(x, z, r):
+	return r[0] <= x <= r[2] and r[1] <= z <= r[3]
+
+
+def apply_feature(g, f):
+	t = f["type"]
+	for i, j, x, z in g.cells():
+		if t == "hill" or t == "basin":
+			cx, cz = f["center"]
+			d = math.hypot(x - cx, z - cz) / f["radius"]
+			if d < 1.0:
+				bump = math.cos(d * math.pi / 2.0) ** 2   # гладкий купол, нулевой наклон на вершине и у подножия
+				g.h[j][i] += bump * (f["height"] if t == "hill" else -f["depth"])
+		elif t == "terrace":
+			if _in_rect(x, z, f["rect"]):
+				g.h[j][i] = max(g.h[j][i], f["height"])
+		elif t == "flat":
+			if _in_rect(x, z, f["rect"]):
+				g.h[j][i] = f["height"]
+		else:
+			raise ValueError(f"неизвестный рельеф: {t}")
+
+
+def apply_paint(g, p):
+	c = g.channels.index(p["type"])
+	soft = float(p.get("soft", 0.0))
+	for i, j, x, z in g.cells():
+		if "rect" in p:
+			r = p["rect"]
+			dist = max(r[0] - x, x - r[2], r[1] - z, z - r[3])   # <0 внутри
+		else:
+			cx, cz, rad = p["circle"]
+			dist = math.hypot(x - cx, z - cz) - rad
+		if soft > 0.0:
+			k = min(1.0, max(0.0, 0.5 - dist / soft))
+		else:
+			k = 1.0 if dist <= 0.0 else 0.0
+		if k <= 0.0:
+			continue
+		px = g.splat[j][i]
+		for ch in range(4):
+			target = 255 if ch == c else 0
+			px[ch] = int(round(px[ch] * (1.0 - k) + target * k))
+
+
+def build(desc):
+	g = Grid(desc)
+	for f in desc.get("features", []):
+		apply_feature(g, f)
+	for p in desc.get("paint", []):
+		apply_paint(g, p)
+	return g
+
+
+def height_at(g, x, z):
+	"""Билинейная высота (та же, что Terrain.height_at в Godot)."""
+	fx = (x - g.x0) / g.cell
+	fz = (z - g.z0) / g.cell
+	i = max(0, min(g.nx - 2, int(math.floor(fx))))
+	j = max(0, min(g.nz - 2, int(math.floor(fz))))
+	u = min(1.0, max(0.0, fx - i))
+	v = min(1.0, max(0.0, fz - j))
+	h00, h10, h01, h11 = g.h[j][i], g.h[j][i + 1], g.h[j + 1][i], g.h[j + 1][i + 1]
+	return (h00 * (1 - u) + h10 * u) * (1 - v) + (h01 * (1 - u) + h11 * u) * v
+
+
+def max_slope_deg(g, skip_cliffs_above=None):
+	"""Наибольший уклон между соседними вершинами, градусы; перепады больше skip_cliffs_above м (обрывы террас) пропускаются."""
+	worst = 0.0
+	for j in range(g.nz):
+		for i in range(g.nx):
+			for di, dj in ((1, 0), (0, 1)):
+				if i + di < g.nx and j + dj < g.nz:
+					dh = abs(g.h[j + dj][i + di] - g.h[j][i])
+					if skip_cliffs_above is not None and dh > skip_cliffs_above:
+						continue
+					worst = max(worst, math.degrees(math.atan2(dh, g.cell)))
+	return worst
+
+
+def to_json(g):
+	raw = bytearray()
+	for j in range(g.nz):
+		for i in range(g.nx):
+			raw.extend(g.splat[j][i])
+	return {
+		"size": [g.w, g.d], "origin": [g.x0, g.z0], "cell": g.cell, "nx": g.nx, "nz": g.nz,
+		"channels": g.channels,
+		"heights": [[round(v, 3) for v in row] for row in g.h],
+		"splat": base64.b64encode(bytes(raw)).decode(),
+	}
+
+
+def main(argv):
+	srcs = [pathlib.Path(a) for a in argv] or sorted((ROOT / "data" / "terrain_src").glob("*.json"))
+	for src in srcs:
+		g = build(json.loads(src.read_text(encoding="utf-8")))
+		out = ROOT / "data" / "terrain" / src.name
+		out.write_text(json.dumps(to_json(g), separators=(",", ":")), encoding="utf-8")
+		print(f"ОК {out.relative_to(ROOT)}: {g.nx}×{g.nz}, уклон ≤ {max_slope_deg(g, 0.6):.1f}° (без обрывов)")
+	return 0
+
+
+if __name__ == "__main__":
+	sys.exit(main(sys.argv[1:]))
+```
+
+## `tools/terrain/tests/test_terrain_gen.py`
+
+```python
+import math
+import pathlib
+import sys
+import unittest
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import terrain_gen as tg  # noqa: E402
+
+
+def desc(**kw):
+    d = {"size": [40, 40], "origin": [-20, -20], "cell": 1.0, "base": 0.0, "features": [], "paint": []}
+    d.update(kw)
+    return d
+
+
+class TestTerrainGen(unittest.TestCase):
+    def test_flat_grid_size_and_base(self):
+        g = tg.build(desc(base=0.5))
+        self.assertEqual((g.nx, g.nz), (41, 41))
+        self.assertAlmostEqual(tg.height_at(g, 3.3, -7.1), 0.5)
+
+    def test_hill_peak_and_gentle_slope(self):
+        g = tg.build(desc(features=[{"type": "hill", "center": [0, 0], "radius": 12, "height": 3}]))
+        self.assertAlmostEqual(tg.height_at(g, 0, 0), 3.0, places=3)
+        self.assertAlmostEqual(tg.height_at(g, 13, 0), 0.0, places=3, msg="за радиусом ровно")
+        self.assertLessEqual(tg.max_slope_deg(g), 30.0, "склон холма проходим")
+
+    def test_basin_goes_down(self):
+        g = tg.build(desc(features=[{"type": "basin", "center": [5, 5], "radius": 6, "depth": 1.2}]))
+        self.assertAlmostEqual(tg.height_at(g, 5, 5), -1.2, places=3)
+
+    def test_terrace_has_sharp_edge(self):
+        g = tg.build(desc(features=[{"type": "terrace", "rect": [0, 0, 10, 10], "height": 2}]))
+        self.assertAlmostEqual(tg.height_at(g, 5, 5), 2.0)
+        self.assertAlmostEqual(tg.height_at(g, -1, 5), 0.0)
+        self.assertGreater(tg.max_slope_deg(g), 60.0, "обрыв террасы отвесный")
+        self.assertLessEqual(tg.max_slope_deg(g, skip_cliffs_above=0.6), 0.001, "кроме обрыва — ровно")
+
+    def test_paint_rect_and_soft_circle(self):
+        g = tg.build(desc(paint=[{"rect": [0, 0, 5, 5], "type": "grass"}, {"circle": [-10, -10, 3], "type": "gravel", "soft": 2}]))
+        i, j = 22, 22  # x=2, z=2
+        self.assertEqual(g.splat[j][i], [0, 0, 255, 0])
+        self.assertEqual(g.splat[10][10][3], 255, "центр круга — гравий")
+        edge = g.splat[10][13]  # x=-7: ровно на радиусе 3 → половина
+        self.assertTrue(100 < edge[3] < 160, edge)
+
+    def test_json_round_trip(self):
+        g = tg.build(desc(features=[{"type": "hill", "center": [0, 0], "radius": 8, "height": 2}]))
+        j = tg.to_json(g)
+        self.assertEqual(len(j["heights"]), g.nz)
+        import base64
+        self.assertEqual(len(base64.b64decode(j["splat"])), g.nx * g.nz * 4)
+
+
+if __name__ == "__main__":
+    unittest.main()
+```
+
+## `data/terrain_src/demo.json`
+
+```json
+{
+  "note": "Демо-рельеф для тестов и кадров: холм, низина, терраса 2 м, гравийная дорожка, газон на холме.",
+  "size": [40, 40], "origin": [-20, -20], "cell": 1.0, "base": 0.0,
+  "channels": ["asphalt", "paving", "grass", "gravel"], "default": "paving",
+  "features": [
+    {"type": "hill", "center": [8, 8], "radius": 10, "height": 3},
+    {"type": "basin", "center": [-10, 10], "radius": 6, "depth": 1},
+    {"type": "terrace", "rect": [-18, -18, -6, -8], "height": 2}
+  ],
+  "paint": [
+    {"circle": [8, 8, 9], "type": "grass", "soft": 3},
+    {"circle": [-10, 10, 6], "type": "grass", "soft": 2},
+    {"rect": [-20, -2, 20, 0], "type": "gravel", "soft": 1},
+    {"rect": [-18, -18, -6, -8], "type": "asphalt"}
+  ]
+}
+```
+
+## `data/terrain_src/park.json`
+
+```json
+{
+  "note": "Парк 30×32 (до масштаба ×3): плоский газон, гравийные дорожки как прежний park_ground.glb.",
+  "size": [
+    30,
+    32
+  ],
+  "origin": [
+    -15,
+    29
+  ],
+  "cell": 1.0,
+  "base": 0.01,
+  "channels": [
+    "asphalt",
+    "paving",
+    "grass",
+    "gravel"
+  ],
+  "default": "grass",
+  "features": [],
+  "paint": [
+    {
+      "rect": [
+        -1.1,
+        29,
+        1.1,
+        61
+      ],
+      "type": "gravel"
+    },
+    {
+      "rect": [
+        -15,
+        43.9,
+        15,
+        46.1
+      ],
+      "type": "gravel"
+    },
+    {
+      "rect": [
+        10.9,
+        29,
+        13.1,
+        38
+      ],
+      "type": "gravel"
+    },
+    {
+      "rect": [
+        0,
+        36.9,
+        12,
+        39.1
+      ],
+      "type": "gravel"
+    },
+    {
+      "rect": [
+        -12,
+        40.9,
+        -4,
+        43.1
+      ],
+      "type": "gravel"
+    }
+  ]
+}
+```
+
+## `data/terrain_src/yard.json`
+
+```json
+{
+  "note": "Двор с кафе 60×60 (до масштаба ×3): плоский, асфальт и плитка тротуара как прежний ground.glb.",
+  "size": [
+    60,
+    60
+  ],
+  "origin": [
+    -30,
+    -30
+  ],
+  "cell": 1.0,
+  "base": 0.0,
+  "channels": [
+    "asphalt",
+    "paving",
+    "grass",
+    "gravel"
+  ],
+  "default": "asphalt",
+  "features": [],
+  "paint": [
+    {
+      "rect": [
+        -25,
+        -25,
+        5,
+        5
+      ],
+      "type": "paving"
+    }
+  ]
+}
+```
+
+## `data/layout/park.json`
+
+```json
+{
+  "props": [
+    {
+      "model": "fence",
+      "pos": [
+        -14,
+        0,
+        29.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -14,
+        0,
+        60.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -12,
+        0,
+        29.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -12,
+        0,
+        60.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -10,
+        0,
+        29.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -10,
+        0,
+        60.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -8,
+        0,
+        29.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -8,
+        0,
+        60.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -6,
+        0,
+        29.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -6,
+        0,
+        60.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -4,
+        0,
+        29.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -4,
+        0,
+        60.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -2,
+        0,
+        29.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -2,
+        0,
+        60.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        0,
+        0,
+        29.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        0,
+        0,
+        60.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        2,
+        0,
+        29.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        2,
+        0,
+        60.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        4,
+        0,
+        29.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        4,
+        0,
+        60.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        6,
+        0,
+        29.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        6,
+        0,
+        60.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        8,
+        0,
+        29.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        8,
+        0,
+        60.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        10,
+        0,
+        29.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        10,
+        0,
+        60.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        12,
+        0,
+        60.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        14,
+        0,
+        29.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        14,
+        0,
+        60.9
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -15,
+        0,
+        31
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        15,
+        0,
+        31
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -15,
+        0,
+        33
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        15,
+        0,
+        33
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -15,
+        0,
+        35
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        15,
+        0,
+        35
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -15,
+        0,
+        37
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        15,
+        0,
+        37
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -15,
+        0,
+        39
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        15,
+        0,
+        39
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -15,
+        0,
+        41
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        15,
+        0,
+        41
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -15,
+        0,
+        43
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        15,
+        0,
+        43
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -15,
+        0,
+        45
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        15,
+        0,
+        45
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -15,
+        0,
+        47
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        15,
+        0,
+        47
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -15,
+        0,
+        49
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        15,
+        0,
+        49
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -15,
+        0,
+        51
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        15,
+        0,
+        51
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -15,
+        0,
+        53
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        15,
+        0,
+        53
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -15,
+        0,
+        55
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        15,
+        0,
+        55
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -15,
+        0,
+        57
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        15,
+        0,
+        57
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        -15,
+        0,
+        59
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fence",
+      "pos": [
+        15,
+        0,
+        59
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            1.8,
+            0.12
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "fountain",
+      "pos": [
+        0,
+        0,
+        45
+      ],
+      "rot": 0,
+      "water": true,
+      "colliders": [
+        {
+          "size": [
+            3.2,
+            0.45,
+            3.2
+          ],
+          "offset": [
+            0,
+            0.225,
+            0
+          ]
+        },
+        {
+          "size": [
+            0.5,
+            1.4,
+            0.5
+          ],
+          "offset": [
+            0,
+            0.7,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "slide",
+      "pos": [
+        -9,
+        0,
+        38
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            1.3,
+            0.06,
+            1.3
+          ],
+          "offset": [
+            0,
+            0.72,
+            0
+          ]
+        },
+        {
+          "size": [
+            1.2,
+            0.7,
+            0.08
+          ],
+          "offset": [
+            0,
+            0.35,
+            0.56
+          ]
+        },
+        {
+          "size": [
+            0.08,
+            0.7,
+            1.2
+          ],
+          "offset": [
+            -0.56,
+            0.35,
+            0
+          ]
+        },
+        {
+          "size": [
+            0.08,
+            0.7,
+            1.2
+          ],
+          "offset": [
+            0.56,
+            0.35,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "swings",
+      "pos": [
+        -9,
+        0,
+        45
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            0.2,
+            1.9,
+            0.8
+          ],
+          "offset": [
+            -1.15,
+            0.95,
+            0
+          ]
+        },
+        {
+          "size": [
+            0.2,
+            1.9,
+            0.8
+          ],
+          "offset": [
+            1.15,
+            0.95,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "sandbox",
+      "pos": [
+        -5,
+        0,
+        37.5
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            2.0,
+            0.2,
+            2.0
+          ],
+          "offset": [
+            0,
+            0.1,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "kiosk",
+      "pos": [
+        9,
+        0,
+        41.5
+      ],
+      "rot": 180
+    },
+    {
+      "model": "shed",
+      "pos": [
+        11,
+        0,
+        56
+      ],
+      "rot": 180
+    },
+    {
+      "model": "tree",
+      "pos": [
+        -12,
+        0,
+        32.5
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            0.3,
+            1.6,
+            0.3
+          ],
+          "offset": [
+            0,
+            0.8,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "tree",
+      "pos": [
+        12,
+        0,
+        51
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            0.3,
+            1.6,
+            0.3
+          ],
+          "offset": [
+            0,
+            0.8,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "tree",
+      "pos": [
+        -12,
+        0,
+        58
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            0.3,
+            1.6,
+            0.3
+          ],
+          "offset": [
+            0,
+            0.8,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "tree",
+      "pos": [
+        -6,
+        0,
+        57
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            0.3,
+            1.6,
+            0.3
+          ],
+          "offset": [
+            0,
+            0.8,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "tree",
+      "pos": [
+        7,
+        0,
+        48
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            0.3,
+            1.6,
+            0.3
+          ],
+          "offset": [
+            0,
+            0.8,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "bench",
+      "pos": [
+        4,
+        0,
+        34
+      ],
+      "rot": -90,
+      "colliders": [
+        {
+          "size": [
+            1.5,
+            0.08,
+            0.45
+          ],
+          "offset": [
+            0,
+            0.45,
+            0
+          ]
+        },
+        {
+          "size": [
+            1.5,
+            0.4,
+            0.06
+          ],
+          "offset": [
+            0,
+            0.72,
+            0.22
+          ]
+        }
+      ]
+    },
+    {
+      "model": "bench",
+      "pos": [
+        4,
+        0,
+        52
+      ],
+      "rot": -90,
+      "colliders": [
+        {
+          "size": [
+            1.5,
+            0.08,
+            0.45
+          ],
+          "offset": [
+            0,
+            0.45,
+            0
+          ]
+        },
+        {
+          "size": [
+            1.5,
+            0.4,
+            0.06
+          ],
+          "offset": [
+            0,
+            0.72,
+            0.22
+          ]
+        }
+      ]
+    },
+    {
+      "model": "bench",
+      "pos": [
+        -4,
+        0,
+        52
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            1.5,
+            0.08,
+            0.45
+          ],
+          "offset": [
+            0,
+            0.45,
+            0
+          ]
+        },
+        {
+          "size": [
+            1.5,
+            0.4,
+            0.06
+          ],
+          "offset": [
+            0,
+            0.72,
+            0.22
+          ]
+        }
+      ]
+    },
+    {
+      "model": "bench",
+      "pos": [
+        -4,
+        0,
+        34
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            1.5,
+            0.08,
+            0.45
+          ],
+          "offset": [
+            0,
+            0.45,
+            0
+          ]
+        },
+        {
+          "size": [
+            1.5,
+            0.4,
+            0.06
+          ],
+          "offset": [
+            0,
+            0.72,
+            0.22
+          ]
+        }
+      ]
+    },
+    {
+      "model": "lamp",
+      "pos": [
+        2,
+        0,
+        33
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            0.2,
+            2.6,
+            0.2
+          ],
+          "offset": [
+            0,
+            1.3,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "lamp",
+      "pos": [
+        2,
+        0,
+        41
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            0.2,
+            2.6,
+            0.2
+          ],
+          "offset": [
+            0,
+            1.3,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "lamp",
+      "pos": [
+        2,
+        0,
+        49
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            0.2,
+            2.6,
+            0.2
+          ],
+          "offset": [
+            0,
+            1.3,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "lamp",
+      "pos": [
+        2,
+        0,
+        57
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            0.2,
+            2.6,
+            0.2
+          ],
+          "offset": [
+            0,
+            1.3,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "lamp",
+      "pos": [
+        -2,
+        0,
+        37
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            0.2,
+            2.6,
+            0.2
+          ],
+          "offset": [
+            0,
+            1.3,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "lamp",
+      "pos": [
+        -2,
+        0,
+        53
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            0.2,
+            2.6,
+            0.2
+          ],
+          "offset": [
+            0,
+            1.3,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "lamp",
+      "pos": [
+        -12,
+        0,
+        47.5
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            0.2,
+            2.6,
+            0.2
+          ],
+          "offset": [
+            0,
+            1.3,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "lamp",
+      "pos": [
+        12,
+        0,
+        43
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            0.2,
+            2.6,
+            0.2
+          ],
+          "offset": [
+            0,
+            1.3,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "flowerbed",
+      "pos": [
+        -5,
+        0,
+        49
+      ],
+      "rot": 0
+    },
+    {
+      "model": "flowerbed",
+      "pos": [
+        5,
+        0,
+        41
+      ],
+      "rot": 0
+    },
+    {
+      "model": "bush",
+      "pos": [
+        -13,
+        0,
+        50
+      ],
+      "rot": 0,
+      "solid": false
+    },
+    {
+      "model": "bush",
+      "pos": [
+        13,
+        0,
+        36
+      ],
+      "rot": 0,
+      "solid": false
+    },
+    {
+      "model": "bush",
+      "pos": [
+        6,
+        0,
+        58.5
+      ],
+      "rot": 0,
+      "solid": false
+    },
+    {
+      "model": "bush",
+      "pos": [
+        -13.5,
+        0,
+        40
+      ],
+      "rot": 30
+    },
+    {
+      "model": "bush",
+      "pos": [
+        9,
+        0,
+        59
+      ],
+      "rot": 30
+    },
+    {
+      "model": "bush",
+      "pos": [
+        -8,
+        0,
+        59
+      ],
+      "rot": 30
+    },
+    {
+      "model": "bush",
+      "pos": [
+        13.5,
+        0,
+        47
+      ],
+      "rot": 30
+    },
+    {
+      "model": "grass",
+      "pos": [
+        -14,
+        0,
+        31
+      ],
+      "rot": 143,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        14,
+        0,
+        31
+      ],
+      "rot": 291,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        -7,
+        0,
+        31.5
+      ],
+      "rot": 3,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        6,
+        0,
+        31.5
+      ],
+      "rot": 46,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        -14,
+        0,
+        59.5
+      ],
+      "rot": 342,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        3,
+        0,
+        59.5
+      ],
+      "rot": 149,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        -10,
+        0,
+        53
+      ],
+      "rot": 61,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        10,
+        0,
+        34
+      ],
+      "rot": 188,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        -3,
+        0,
+        41
+      ],
+      "rot": 194,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        3,
+        0,
+        49.5
+      ],
+      "rot": 79,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        8,
+        0,
+        53
+      ],
+      "rot": 259,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        -11,
+        0,
+        41
+      ],
+      "rot": 306,
+      "solid": false
+    }
+  ],
+  "hideouts": [
+    {
+      "kind": "bush",
+      "pos": [
+        -13,
+        0.25,
+        50
+      ],
+      "size": [
+        0.9,
+        0.5,
+        0.9
+      ]
+    },
+    {
+      "kind": "bush",
+      "pos": [
+        13,
+        0.25,
+        36
+      ],
+      "size": [
+        0.9,
+        0.5,
+        0.9
+      ]
+    },
+    {
+      "kind": "bush",
+      "pos": [
+        6,
+        0.25,
+        58.5
+      ],
+      "size": [
+        0.9,
+        0.5,
+        0.9
+      ]
+    },
+    {
+      "kind": "bench",
+      "pos": [
+        4,
+        0.2,
+        52
+      ],
+      "rot": -90,
+      "size": [
+        1.2,
+        0.4,
+        0.35
+      ]
+    },
+    {
+      "kind": "bench",
+      "pos": [
+        -4,
+        0.2,
+        34
+      ],
+      "rot": 90,
+      "size": [
+        1.2,
+        0.4,
+        0.35
+      ]
+    },
+    {
+      "kind": "slide",
+      "pos": [
+        -9,
+        0.3,
+        38
+      ],
+      "size": [
+        0.9,
+        0.5,
+        0.9
+      ]
+    }
+  ],
+  "spawn_points": [
+    {
+      "pos": [
+        8,
+        0,
+        39.3
+      ],
+      "allowed": [
+        0
+      ],
+      "foods": [
+        "popcorn",
+        "bagel"
+      ]
+    },
+    {
+      "pos": [
+        3,
+        0,
+        35.5
+      ],
+      "allowed": [
+        0
+      ],
+      "foods": [
+        "popcorn",
+        "bagel"
+      ]
+    },
+    {
+      "pos": [
+        3,
+        0,
+        53.5
+      ],
+      "allowed": [
+        0
+      ],
+      "foods": [
+        "bagel"
+      ]
+    },
+    {
+      "pos": [
+        -3,
+        0,
+        50.5
+      ],
+      "allowed": [
+        0
+      ],
+      "foods": [
+        "popcorn"
+      ]
+    },
+    {
+      "pos": [
+        -11,
+        0,
+        49
+      ],
+      "allowed": [
+        0
+      ],
+      "foods": [
+        "bagel"
+      ]
+    },
+    {
+      "pos": [
+        -1,
+        0,
+        31.5
+      ],
+      "allowed": [
+        0
+      ],
+      "foods": [
+        "popcorn",
+        "bagel"
+      ]
+    },
+    {
+      "pos": [
+        9.5,
+        0,
+        53.8
+      ],
+      "allowed": [
+        1
+      ],
+      "foods": [
+        "sandwich"
+      ]
+    },
+    {
+      "pos": [
+        2.3,
+        0,
+        42.6
+      ],
+      "allowed": [
+        1
+      ],
+      "foods": [
+        "corn"
+      ]
+    },
+    {
+      "pos": [
+        -2.3,
+        0,
+        47.4
+      ],
+      "allowed": [
+        1
+      ],
+      "foods": [
+        "corn"
+      ]
+    },
+    {
+      "pos": [
+        -7,
+        0,
+        40.2
+      ],
+      "allowed": [
+        2
+      ],
+      "foods": [
+        "cotton_candy"
+      ]
+    },
+    {
+      "pos": [
+        -6.3,
+        0,
+        35.2
+      ],
+      "allowed": [
+        2
+      ],
+      "foods": [
+        "cotton_candy"
+      ]
+    },
+    {
+      "pos": [
+        1.45,
+        0.45,
+        45
+      ],
+      "allowed": [
+        3
+      ],
+      "foods": [
+        "cupcake"
+      ]
+    }
+  ],
+  "yarn": [
+    {
+      "pos": [
+        -1.45,
+        0.45,
+        45
+      ]
+    },
+    {
+      "pos": [
+        0,
+        0.45,
+        46.45
+      ]
+    },
+    {
+      "pos": [
+        -9,
+        0.75,
+        38
+      ]
+    },
+    {
+      "pos": [
+        -5,
+        0.2,
+        36.6
+      ]
+    },
+    {
+      "pos": [
+        12.5,
+        0,
+        57.8
+      ]
+    },
+    {
+      "pos": [
+        -12.6,
+        0,
+        33.2
+      ]
+    },
+    {
+      "pos": [
+        -14,
+        0,
+        60
+      ]
+    },
+    {
+      "pos": [
+        14,
+        0,
+        30.6
+      ]
+    },
+    {
+      "pos": [
+        -14,
+        0,
+        30.6
+      ]
+    },
+    {
+      "pos": [
+        13.7,
+        0,
+        52.5
+      ]
+    },
+    {
+      "pos": [
+        -5.5,
+        0,
+        58.5
+      ]
+    },
+    {
+      "pos": [
+        7.6,
+        0,
+        47.3
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "pos": [
+        12,
+        0,
+        29.9
+      ],
+      "rot": 0,
+      "size": [
+        2.2,
+        2.6,
+        0.3
+      ],
+      "satiety": 25,
+      "label": "Ворота в парк открыты!"
+    }
+  ],
+  "hazards": [
+    {
+      "type": "pigeons",
+      "pos": [
+        3.2,
+        0,
+        47.5
+      ]
+    },
+    {
+      "type": "pigeons",
+      "pos": [
+        -3.5,
+        0,
+        33.2
+      ]
+    },
+    {
+      "type": "gardener",
+      "pos": [
+        11,
+        0,
+        54.3
+      ],
+      "rot": 180,
+      "path": [
+        [
+          11,
+          50
+        ],
+        [
+          12,
+          39
+        ],
+        [
+          6,
+          38.5
+        ],
+        [
+          1,
+          38.5
+        ],
+        [
+          1,
+          52
+        ],
+        [
+          10,
+          53
+        ]
+      ]
+    },
+    {
+      "type": "sprinkler",
+      "pos": [
+        -7,
+        0,
+        52
+      ],
+      "offset": 0
+    },
+    {
+      "type": "sprinkler",
+      "pos": [
+        7,
+        0,
+        33.5
+      ],
+      "offset": 7
+    },
+    {
+      "type": "sprinkler",
+      "pos": [
+        9,
+        0,
+        46
+      ],
+      "offset": 14
+    },
+    {
+      "type": "kid",
+      "pos": [
+        -7.5,
+        0,
+        41
+      ],
+      "rot": 90
+    },
+    {
+      "type": "guard",
+      "pos": [
+        0,
+        0,
+        31
+      ],
+      "rot": 180,
+      "path": [
+        [
+          0,
+          31
+        ],
+        [
+          0,
+          58
+        ],
+        [
+          -13,
+          58
+        ],
+        [
+          -13,
+          45
+        ],
+        [
+          0,
+          45
+        ],
+        [
+          13,
+          45
+        ],
+        [
+          13,
+          31
+        ]
+      ]
+    }
+  ]
+}
+```
+
+## `data/layout/terrain_demo.json`
+
+```json
+{
+  "note": "Демо террасы на data/terrain/demo.json: терраса x −18…−6, z −18…−8, высота 2 м.",
+  "props": [
+    {
+      "model": "ramp2",
+      "pos": [
+        -1.711,
+        0,
+        -10
+      ],
+      "rot": 90
+    },
+    {
+      "model": "terrace_stairs2",
+      "pos": [
+        -3.0,
+        0,
+        -15.5
+      ],
+      "rot": 90
+    },
+    {
+      "model": "retaining_wall2",
+      "pos": [
+        -5.8,
+        0,
+        -17.6
+      ],
+      "rot": 90,
+      "snap": false
+    },
+    {
+      "model": "retaining_wall2",
+      "pos": [
+        -12,
+        0,
+        -7.8
+      ],
+      "rot": 0,
+      "snap": false
+    },
+    {
+      "model": "retaining_wall2",
+      "pos": [
+        -16,
+        0,
+        -7.8
+      ],
+      "rot": 0,
+      "snap": false
+    },
+    {
+      "model": "bin",
+      "pos": [
+        8,
+        0,
+        8
+      ]
+    },
+    {
+      "model": "bench",
+      "pos": [
+        -12,
+        0,
+        -12
+      ]
+    }
+  ]
+}
+```
+
+## `data/layout/yard.json`
+
+```json
+{
+  "props": [
+    {
+      "model": "wall",
+      "pos": [
+        0,
+        0,
+        -14
+      ],
+      "rot": 0
+    },
+    {
+      "model": "wall",
+      "pos": [
+        6,
+        0,
+        -14
+      ],
+      "rot": 0
+    },
+    {
+      "model": "wall",
+      "pos": [
+        -6,
+        0,
+        -14
+      ],
+      "rot": 0
+    },
+    {
+      "model": "wall",
+      "pos": [
+        -12,
+        0,
+        -8
+      ],
+      "rot": 90
+    },
+    {
+      "model": "wall",
+      "pos": [
+        -12,
+        0,
+        -2
+      ],
+      "rot": 90
+    },
+    {
+      "model": "door",
+      "pos": [
+        3,
+        0,
+        -13.75
+      ],
+      "rot": 0
+    },
+    {
+      "model": "door",
+      "pos": [
+        -9,
+        0,
+        -13.75
+      ],
+      "rot": 0
+    },
+    {
+      "model": "stairs",
+      "pos": [
+        -11.3,
+        0,
+        -11.5
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            1.2,
+            0.25,
+            0.5
+          ],
+          "offset": [
+            0,
+            0.125,
+            0
+          ]
+        },
+        {
+          "size": [
+            1.2,
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0,
+            0.25,
+            0.5
+          ]
+        },
+        {
+          "size": [
+            1.2,
+            0.75,
+            0.5
+          ],
+          "offset": [
+            0,
+            0.375,
+            1.0
+          ]
+        },
+        {
+          "size": [
+            1.2,
+            1.0,
+            0.5
+          ],
+          "offset": [
+            0,
+            0.5,
+            1.5
+          ]
+        },
+        {
+          "size": [
+            1.2,
+            0.12,
+            1.2
+          ],
+          "offset": [
+            0,
+            0.94,
+            2.55
+          ]
+        }
+      ]
+    },
+    {
+      "model": "bin",
+      "pos": [
+        3,
+        0,
+        -11
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            0.74,
+            1.12,
+            0.84
+          ],
+          "offset": [
+            0,
+            0.56,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "bin",
+      "pos": [
+        4,
+        0,
+        -11
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            0.74,
+            1.12,
+            0.84
+          ],
+          "offset": [
+            0,
+            0.56,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "bin",
+      "pos": [
+        -6,
+        0,
+        2
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            0.74,
+            1.12,
+            0.84
+          ],
+          "offset": [
+            0,
+            0.56,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "bin",
+      "pos": [
+        -6,
+        0,
+        3
+      ],
+      "rot": 90,
+      "colliders": [
+        {
+          "size": [
+            0.74,
+            1.12,
+            0.84
+          ],
+          "offset": [
+            0,
+            0.56,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "bag",
+      "pos": [
+        2.2,
+        0,
+        -11.2
+      ],
+      "rot": 30
+    },
+    {
+      "model": "bag",
+      "pos": [
+        -6.6,
+        0,
+        1.2
+      ],
+      "rot": 0
+    },
+    {
+      "model": "box",
+      "pos": [
+        1.5,
+        0,
+        1.5
+      ],
+      "rot": 0,
+      "outline": true
+    },
+    {
+      "model": "box",
+      "pos": [
+        1.5,
+        0.3,
+        1.5
+      ],
+      "rot": 20,
+      "outline": true
+    },
+    {
+      "model": "box",
+      "pos": [
+        -2,
+        0,
+        -1
+      ],
+      "rot": 45,
+      "outline": true
+    },
+    {
+      "model": "box",
+      "pos": [
+        -3.5,
+        0,
+        4
+      ],
+      "rot": 0,
+      "outline": true
+    },
+    {
+      "model": "box",
+      "pos": [
+        6,
+        0,
+        -1
+      ],
+      "rot": 0,
+      "outline": true
+    },
+    {
+      "model": "box",
+      "pos": [
+        2.6,
+        0,
+        -10.4
+      ],
+      "rot": 10,
+      "outline": true
+    },
+    {
+      "model": "car",
+      "pos": [
+        8,
+        0,
+        4
+      ],
+      "rot": 0,
+      "outline": true,
+      "colliders": [
+        {
+          "size": [
+            1.7,
+            1.2,
+            3.6
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "car",
+      "pos": [
+        -8,
+        0,
+        7
+      ],
+      "rot": 15,
+      "outline": true,
+      "colliders": [
+        {
+          "size": [
+            1.7,
+            1.2,
+            3.6
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "bench",
+      "pos": [
+        0,
+        0,
+        7
+      ],
+      "rot": 180,
+      "outline": true,
+      "colliders": [
+        {
+          "size": [
+            1.5,
+            0.1,
+            0.45
+          ],
+          "offset": [
+            0,
+            0.45,
+            0
+          ]
+        },
+        {
+          "size": [
+            1.5,
+            0.4,
+            0.06
+          ],
+          "offset": [
+            0,
+            0.72,
+            0.22
+          ]
+        }
+      ]
+    },
+    {
+      "model": "bench",
+      "pos": [
+        -5,
+        0,
+        -8
+      ],
+      "rot": 90,
+      "outline": true,
+      "colliders": [
+        {
+          "size": [
+            1.5,
+            0.1,
+            0.45
+          ],
+          "offset": [
+            0,
+            0.45,
+            0
+          ]
+        },
+        {
+          "size": [
+            1.5,
+            0.4,
+            0.06
+          ],
+          "offset": [
+            0,
+            0.72,
+            0.22
+          ]
+        }
+      ]
+    },
+    {
+      "model": "lamp",
+      "pos": [
+        5,
+        0,
+        8
+      ],
+      "rot": 0
+    },
+    {
+      "model": "lamp",
+      "pos": [
+        -9,
+        0,
+        -3
+      ],
+      "rot": 0
+    },
+    {
+      "model": "tree",
+      "pos": [
+        9,
+        0,
+        -6
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            0.3,
+            1.6,
+            0.3
+          ],
+          "offset": [
+            0,
+            0.8,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "tree",
+      "pos": [
+        -9,
+        0,
+        10
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            0.3,
+            1.6,
+            0.3
+          ],
+          "offset": [
+            0,
+            0.8,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "bush",
+      "pos": [
+        7,
+        0,
+        -10
+      ],
+      "rot": 0
+    },
+    {
+      "model": "bush",
+      "pos": [
+        -3,
+        0,
+        10
+      ],
+      "rot": 40
+    },
+    {
+      "model": "bush",
+      "pos": [
+        10,
+        0,
+        0
+      ],
+      "rot": 0
+    },
+    {
+      "model": "fence",
+      "pos": [
+        10,
+        0,
+        7
+      ],
+      "rot": 90
+    },
+    {
+      "model": "fence",
+      "pos": [
+        10,
+        0,
+        9
+      ],
+      "rot": 90
+    },
+    {
+      "model": "puddle",
+      "water": true,
+      "pos": [
+        3,
+        0,
+        3
+      ],
+      "rot": 0
+    },
+    {
+      "model": "puddle",
+      "water": true,
+      "pos": [
+        -5,
+        0,
+        -5
+      ],
+      "rot": 60
+    },
+    {
+      "model": "arch",
+      "pos": [
+        0,
+        0,
+        10.5
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            0.5,
+            2.6,
+            0.6
+          ],
+          "offset": [
+            -1.45,
+            1.3,
+            0
+          ]
+        },
+        {
+          "size": [
+            0.5,
+            2.6,
+            0.6
+          ],
+          "offset": [
+            1.45,
+            1.3,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "wall",
+      "pos": [
+        0,
+        0,
+        28
+      ],
+      "rot": 180
+    },
+    {
+      "model": "wall",
+      "pos": [
+        6,
+        0,
+        28
+      ],
+      "rot": 180
+    },
+    {
+      "model": "wall",
+      "pos": [
+        -6,
+        0,
+        28
+      ],
+      "rot": 180
+    },
+    {
+      "model": "cafe_sign",
+      "pos": [
+        0,
+        0,
+        26.5
+      ],
+      "rot": 180
+    },
+    {
+      "model": "cafe_table",
+      "pos": [
+        -4,
+        0,
+        17
+      ],
+      "colliders": [
+        {
+          "size": [
+            0.9,
+            0.06,
+            0.9
+          ],
+          "offset": [
+            0,
+            0.72,
+            0
+          ]
+        },
+        {
+          "size": [
+            0.5,
+            0.72,
+            0.5
+          ],
+          "offset": [
+            0,
+            0.36,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "cafe_table",
+      "pos": [
+        0,
+        0,
+        17
+      ],
+      "colliders": [
+        {
+          "size": [
+            0.9,
+            0.06,
+            0.9
+          ],
+          "offset": [
+            0,
+            0.72,
+            0
+          ]
+        },
+        {
+          "size": [
+            0.5,
+            0.72,
+            0.5
+          ],
+          "offset": [
+            0,
+            0.36,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "cafe_table",
+      "pos": [
+        4,
+        0,
+        17
+      ],
+      "colliders": [
+        {
+          "size": [
+            0.9,
+            0.06,
+            0.9
+          ],
+          "offset": [
+            0,
+            0.72,
+            0
+          ]
+        },
+        {
+          "size": [
+            0.5,
+            0.72,
+            0.5
+          ],
+          "offset": [
+            0,
+            0.36,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "cafe_table",
+      "pos": [
+        -2,
+        0,
+        21
+      ],
+      "colliders": [
+        {
+          "size": [
+            0.9,
+            0.06,
+            0.9
+          ],
+          "offset": [
+            0,
+            0.72,
+            0
+          ]
+        },
+        {
+          "size": [
+            0.5,
+            0.72,
+            0.5
+          ],
+          "offset": [
+            0,
+            0.36,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "cafe_table",
+      "pos": [
+        2,
+        0,
+        21
+      ],
+      "colliders": [
+        {
+          "size": [
+            0.9,
+            0.06,
+            0.9
+          ],
+          "offset": [
+            0,
+            0.72,
+            0
+          ]
+        },
+        {
+          "size": [
+            0.5,
+            0.72,
+            0.5
+          ],
+          "offset": [
+            0,
+            0.36,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "chair",
+      "pos": [
+        -4,
+        0,
+        16.2
+      ],
+      "rot": 180,
+      "outline": true,
+      "colliders": [
+        {
+          "size": [
+            0.42,
+            0.45,
+            0.42
+          ],
+          "offset": [
+            0,
+            0.24,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "chair",
+      "pos": [
+        -4,
+        0,
+        17.8
+      ],
+      "rot": 0,
+      "outline": true,
+      "colliders": [
+        {
+          "size": [
+            0.42,
+            0.45,
+            0.42
+          ],
+          "offset": [
+            0,
+            0.24,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "chair",
+      "pos": [
+        0,
+        0,
+        16.2
+      ],
+      "rot": 180,
+      "outline": true,
+      "colliders": [
+        {
+          "size": [
+            0.42,
+            0.45,
+            0.42
+          ],
+          "offset": [
+            0,
+            0.24,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "chair",
+      "pos": [
+        0,
+        0,
+        17.8
+      ],
+      "rot": 0,
+      "outline": true,
+      "colliders": [
+        {
+          "size": [
+            0.42,
+            0.45,
+            0.42
+          ],
+          "offset": [
+            0,
+            0.24,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "chair",
+      "pos": [
+        4,
+        0,
+        16.2
+      ],
+      "rot": 180,
+      "outline": true,
+      "colliders": [
+        {
+          "size": [
+            0.42,
+            0.45,
+            0.42
+          ],
+          "offset": [
+            0,
+            0.24,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "chair",
+      "pos": [
+        4,
+        0,
+        17.8
+      ],
+      "rot": 0,
+      "outline": true,
+      "colliders": [
+        {
+          "size": [
+            0.42,
+            0.45,
+            0.42
+          ],
+          "offset": [
+            0,
+            0.24,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "chair",
+      "pos": [
+        -2,
+        0,
+        21.8
+      ],
+      "rot": 0,
+      "outline": true,
+      "colliders": [
+        {
+          "size": [
+            0.42,
+            0.45,
+            0.42
+          ],
+          "offset": [
+            0,
+            0.24,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "chair",
+      "pos": [
+        2,
+        0,
+        21.8
+      ],
+      "rot": 0,
+      "outline": true,
+      "colliders": [
+        {
+          "size": [
+            0.42,
+            0.45,
+            0.42
+          ],
+          "offset": [
+            0,
+            0.24,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "umbrella",
+      "pos": [
+        -3.3,
+        0,
+        17.7
+      ],
+      "colliders": [
+        {
+          "size": [
+            0.1,
+            2.2,
+            0.1
+          ],
+          "offset": [
+            0,
+            1.1,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "umbrella",
+      "pos": [
+        4.7,
+        0,
+        17.7
+      ],
+      "colliders": [
+        {
+          "size": [
+            0.1,
+            2.2,
+            0.1
+          ],
+          "offset": [
+            0,
+            1.1,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "umbrella",
+      "pos": [
+        2.7,
+        0,
+        21.7
+      ],
+      "colliders": [
+        {
+          "size": [
+            0.1,
+            2.2,
+            0.1
+          ],
+          "offset": [
+            0,
+            1.1,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "bin",
+      "pos": [
+        8,
+        0,
+        24
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            0.74,
+            1.12,
+            0.84
+          ],
+          "offset": [
+            0,
+            0.56,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "bin",
+      "pos": [
+        9,
+        0,
+        24
+      ],
+      "rot": 0,
+      "colliders": [
+        {
+          "size": [
+            0.74,
+            1.12,
+            0.84
+          ],
+          "offset": [
+            0,
+            0.56,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "model": "bush",
+      "pos": [
+        -8,
+        0,
+        24
+      ],
+      "rot": 0
+    },
+    {
+      "model": "bush",
+      "pos": [
+        8,
+        0,
+        14.5
+      ],
+      "rot": 20
+    },
+    {
+      "model": "puddle",
+      "water": true,
+      "pos": [
+        -6,
+        0,
+        19
+      ],
+      "rot": 30
+    },
+    {
+      "model": "bush",
+      "pos": [
+        -7.5,
+        0,
+        -13.0
+      ],
+      "rot": 294
+    },
+    {
+      "model": "bush",
+      "pos": [
+        -2.5,
+        0,
+        -13.0
+      ],
+      "rot": 193
+    },
+    {
+      "model": "bush",
+      "pos": [
+        0.0,
+        0,
+        -13.0
+      ],
+      "rot": 0
+    },
+    {
+      "model": "bush",
+      "pos": [
+        8.8,
+        0,
+        -13.0
+      ],
+      "rot": 277
+    },
+    {
+      "model": "bush",
+      "pos": [
+        4.6,
+        0,
+        -13.0
+      ],
+      "rot": 28
+    },
+    {
+      "model": "bush",
+      "pos": [
+        -11.0,
+        0,
+        -5.0
+      ],
+      "rot": 90
+    },
+    {
+      "model": "bush",
+      "pos": [
+        -11.0,
+        0,
+        0.5
+      ],
+      "rot": 90
+    },
+    {
+      "model": "grass",
+      "pos": [
+        -12.5,
+        0,
+        -12.5
+      ],
+      "rot": 205,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        12.5,
+        0,
+        -12.5
+      ],
+      "rot": 90,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        -12.5,
+        0,
+        9
+      ],
+      "rot": 210,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        12.5,
+        0,
+        9
+      ],
+      "rot": 95,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        -6,
+        0,
+        -12.8
+      ],
+      "rot": 184,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        6,
+        0,
+        -12.8
+      ],
+      "rot": 100,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        -12.8,
+        0,
+        -3
+      ],
+      "rot": 350,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        12.8,
+        0,
+        -3
+      ],
+      "rot": 267,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        3.5,
+        0,
+        4.2
+      ],
+      "rot": 256,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        -3,
+        0,
+        1.5
+      ],
+      "rot": 226,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        8.5,
+        0,
+        -5
+      ],
+      "rot": 5,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        -8.5,
+        0,
+        9.5
+      ],
+      "rot": 71,
+      "solid": false
+    },
+    {
+      "model": "ivy",
+      "pos": [
+        -6.0,
+        2.2,
+        -13.78
+      ],
+      "rot": 0,
+      "solid": false
+    },
+    {
+      "model": "ivy",
+      "pos": [
+        0.0,
+        2.2,
+        -13.78
+      ],
+      "rot": 0,
+      "solid": false
+    },
+    {
+      "model": "ivy",
+      "pos": [
+        8.0,
+        2.2,
+        -13.78
+      ],
+      "rot": 0,
+      "solid": false
+    }
+  ],
+  "hideouts": [
+    {
+      "kind": "box",
+      "pos": [
+        -2,
+        0.2,
+        -0.35
+      ],
+      "size": [
+        0.6,
+        0.4,
+        0.6
+      ]
+    },
+    {
+      "kind": "box",
+      "pos": [
+        -3.5,
+        0.2,
+        4.65
+      ],
+      "size": [
+        0.6,
+        0.4,
+        0.6
+      ]
+    },
+    {
+      "kind": "box",
+      "pos": [
+        6,
+        0.2,
+        -0.35
+      ],
+      "size": [
+        0.6,
+        0.4,
+        0.6
+      ]
+    },
+    {
+      "kind": "box",
+      "pos": [
+        2.6,
+        0.2,
+        -9.75
+      ],
+      "size": [
+        0.6,
+        0.4,
+        0.6
+      ]
+    },
+    {
+      "kind": "car",
+      "pos": [
+        8,
+        0.15,
+        4
+      ],
+      "size": [
+        1.4,
+        0.3,
+        3.2
+      ]
+    },
+    {
+      "kind": "car",
+      "pos": [
+        -8,
+        0.15,
+        7
+      ],
+      "rot": 15,
+      "size": [
+        1.4,
+        0.3,
+        3.2
+      ]
+    },
+    {
+      "kind": "bench",
+      "pos": [
+        0,
+        0.2,
+        7
+      ],
+      "size": [
+        1.3,
+        0.4,
+        0.4
+      ]
+    },
+    {
+      "kind": "bench",
+      "pos": [
+        -5,
+        0.2,
+        -8
+      ],
+      "rot": 90,
+      "size": [
+        1.3,
+        0.4,
+        0.4
+      ]
+    }
+  ],
+  "spawn_points": [
+    {
+      "pos": [
+        3.5,
+        0,
+        -10
+      ],
+      "allowed": [
+        0
+      ],
+      "foods": [
+        "sausage",
+        "cookie"
+      ]
+    },
+    {
+      "pos": [
+        -5,
+        0,
+        2.5
+      ],
+      "allowed": [
+        0
+      ],
+      "foods": [
+        "sausage",
+        "cookie"
+      ]
+    },
+    {
+      "pos": [
+        0,
+        0,
+        -4
+      ],
+      "allowed": [
+        0
+      ],
+      "foods": [
+        "sausage",
+        "cookie"
+      ]
+    },
+    {
+      "pos": [
+        -4,
+        0,
+        -4
+      ],
+      "allowed": [
+        0
+      ],
+      "foods": [
+        "sausage",
+        "cookie"
+      ]
+    },
+    {
+      "pos": [
+        1,
+        0,
+        6.3
+      ],
+      "allowed": [
+        0
+      ],
+      "foods": [
+        "sausage",
+        "cookie"
+      ]
+    },
+    {
+      "pos": [
+        -5.8,
+        0,
+        -7
+      ],
+      "allowed": [
+        0,
+        1
+      ],
+      "foods": [
+        "sausage",
+        "cookie",
+        "pizza",
+        "hotdog"
+      ]
+    },
+    {
+      "pos": [
+        4,
+        0,
+        4
+      ],
+      "allowed": [
+        0,
+        1
+      ],
+      "foods": [
+        "sausage",
+        "cookie",
+        "pizza",
+        "hotdog"
+      ]
+    },
+    {
+      "pos": [
+        -11.3,
+        1.0,
+        -9.0
+      ],
+      "allowed": [
+        1
+      ],
+      "foods": [
+        "pizza",
+        "hotdog"
+      ]
+    },
+    {
+      "pos": [
+        2,
+        0,
+        6
+      ],
+      "allowed": [
+        1,
+        3
+      ],
+      "foods": [
+        "pizza",
+        "hotdog",
+        "donut",
+        "ice_cream"
+      ]
+    },
+    {
+      "pos": [
+        7.5,
+        0,
+        -8
+      ],
+      "allowed": [
+        2,
+        3
+      ],
+      "foods": [
+        "croissant",
+        "fish",
+        "donut",
+        "ice_cream"
+      ]
+    },
+    {
+      "pos": [
+        -4,
+        0,
+        15.3
+      ],
+      "allowed": [
+        1
+      ],
+      "foods": [
+        "pizza",
+        "hotdog"
+      ]
+    },
+    {
+      "pos": [
+        4,
+        0,
+        15.3
+      ],
+      "allowed": [
+        1
+      ],
+      "foods": [
+        "pizza",
+        "hotdog"
+      ]
+    },
+    {
+      "pos": [
+        0,
+        0.75,
+        17
+      ],
+      "allowed": [
+        2
+      ],
+      "foods": [
+        "croissant",
+        "fish"
+      ]
+    },
+    {
+      "pos": [
+        -2,
+        0.75,
+        21
+      ],
+      "allowed": [
+        2
+      ],
+      "foods": [
+        "croissant",
+        "fish"
+      ]
+    },
+    {
+      "pos": [
+        2,
+        0.75,
+        21
+      ],
+      "allowed": [
+        3
+      ],
+      "foods": [
+        "donut",
+        "ice_cream"
+      ]
+    },
+    {
+      "pos": [
+        7,
+        0,
+        20
+      ],
+      "allowed": [
+        0,
+        1
+      ],
+      "foods": [
+        "sausage",
+        "cookie",
+        "pizza",
+        "hotdog"
+      ]
+    }
+  ],
+  "hazards": [
+    {
+      "type": "dog",
+      "pos": [
+        7,
+        0,
+        -7
+      ],
+      "rot": 90
+    },
+    {
+      "type": "wasp",
+      "pos": [
+        2,
+        0.5,
+        6
+      ],
+      "radius": 2.5
+    },
+    {
+      "type": "cyclist",
+      "pos": [
+        0,
+        0,
+        12
+      ]
+    },
+    {
+      "type": "wasp",
+      "pos": [
+        2,
+        1.1,
+        21
+      ],
+      "radius": 0.8,
+      "height": 1.0
+    }
+  ],
+  "road": {
+    "points": [
+      [
+        -25,
+        0,
+        12
+      ],
+      [
+        25,
+        0,
+        12
+      ]
+    ]
+  },
+  "yarn": [
+    {
+      "pos": [
+        -11.3,
+        1.0,
+        -9.3
+      ]
+    },
+    {
+      "pos": [
+        -10.9,
+        0.5,
+        -11.0
+      ]
+    },
+    {
+      "pos": [
+        1.5,
+        0.6,
+        1.5
+      ]
+    },
+    {
+      "pos": [
+        0.4,
+        0.5,
+        7.0
+      ]
+    },
+    {
+      "pos": [
+        8.0,
+        0.0,
+        5.3
+      ]
+    },
+    {
+      "pos": [
+        -8.3,
+        0.0,
+        8.3
+      ]
+    },
+    {
+      "pos": [
+        -11.2,
+        0.0,
+        -13.2
+      ]
+    },
+    {
+      "pos": [
+        11.5,
+        0.0,
+        -13.0
+      ]
+    },
+    {
+      "pos": [
+        1.9,
+        0.0,
+        10.5
+      ]
+    },
+    {
+      "pos": [
+        -5.6,
+        0.0,
+        -9.0
+      ]
+    },
+    {
+      "pos": [
+        -4,
+        0.75,
+        17
+      ]
+    },
+    {
+      "pos": [
+        4,
+        0.75,
+        17
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "pos": [
+        0,
+        0,
+        10.5
+      ],
+      "rot": 0,
+      "size": [
+        2.4,
+        2.6,
+        0.3
+      ],
+      "satiety": 10
+    }
+  ],
+  "shop": {
+    "pos": [
+      -4.5,
+      0,
+      -1.5
+    ],
+    "rot": 180
+  },
+  "decals": [
+    {
+      "texture": "assets/images/world/decal_manhole.png",
+      "pos": [
+        3,
+        0,
+        -2
+      ],
+      "size": [
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "texture": "assets/images/world/decal_cracks.png",
+      "pos": [
+        -6,
+        0,
+        4
+      ],
+      "size": [
+        2.0,
+        2.0
+      ],
+      "rot": 20
+    },
+    {
+      "texture": "assets/images/world/decal_cracks.png",
+      "pos": [
+        8,
+        0,
+        -9
+      ],
+      "size": [
+        1.5,
+        1.5
+      ],
+      "rot": 110
+    },
+    {
+      "texture": "assets/images/world/decal_leaves.png",
+      "pos": [
+        -2,
+        0,
+        -6
+      ],
+      "size": [
+        2.0,
+        2.0
+      ]
+    },
+    {
+      "texture": "assets/images/world/decal_leaves.png",
+      "pos": [
+        6,
+        0,
+        6
+      ],
+      "size": [
+        2.0,
+        2.0
+      ],
+      "rot": 70
+    },
+    {
+      "texture": "assets/images/world/poster_cafe.png",
+      "pos": [
+        -5.0,
+        0.8,
+        -13.78
+      ],
+      "size": [
+        0.9,
+        0.9
+      ],
+      "wall": true
+    },
+    {
+      "texture": "assets/images/world/poster_cat.png",
+      "pos": [
+        6.5,
+        0.8,
+        -13.78
+      ],
+      "size": [
+        0.8,
+        0.8
+      ],
+      "wall": true
+    },
+    {
+      "texture": "assets/images/world/poster_paws.png",
+      "pos": [
+        -11.78,
+        0.8,
+        -6.5
+      ],
+      "size": [
+        0.7,
+        0.7
+      ],
+      "wall": true,
+      "rot": 90
+    }
+  ]
+}
 ```
 
