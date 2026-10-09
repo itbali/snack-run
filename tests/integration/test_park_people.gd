@@ -133,3 +133,37 @@ func test_guard_sees_cat_under_lamp_even_outside_flashlight() -> void:
 	lamp.global_position = Vector3(5, 2.45, -5)
 	lamp.visible = true
 	assert_true(gd.sees_cat(), "кот под горящим фонарём заметен")
+
+func test_absent_people_are_not_invisible_walls() -> void:
+	# Ревью плана 9 (I1): вне своей фазы тело не должно перекрывать дорогу коту.
+	var gd = _spawn("res://scenes/hazards/guard.tscn")
+	var k = _spawn("res://scenes/hazards/kid.tscn")
+	await wait_physics_frames(2)
+	assert_eq(gd.collision_layer, 0, "днём тела сторожа нет")
+	assert_eq(k.collision_layer, Layers.HAZARD, "ребёнок днём на месте")
+	dn.set_time(220.0)
+	await wait_physics_frames(2)
+	assert_eq(gd.collision_layer, Layers.HAZARD)
+	assert_eq(k.collision_layer, 0, "ночью ребёнка нет")
+
+func test_guard_touch_does_not_hit_by_day() -> void:
+	var gd = _spawn("res://scenes/hazards/guard.tscn")
+	await wait_physics_frames(2)
+	cat.global_position = Vector3(0, 0.05, -0.2)
+	await wait_physics_frames(6)
+	assert_eq(GameState.hearts, 3)
+
+func test_kid_touch_does_not_pet_at_night() -> void:
+	var k = _spawn("res://scenes/hazards/kid.tscn")
+	dn.set_time(220.0)
+	await wait_physics_frames(2)
+	cat.global_position = Vector3(0, 0.05, -0.3)
+	await wait_physics_frames(6)
+	assert_almost_eq(cat.petted_left, 0.0, 0.001)
+
+func test_respawn_dries_and_frees_cat() -> void:
+	cat.wet(4.0)
+	cat.petted_left = 1.5
+	cat.teleport(Vector3(0, 0.05, 5))
+	assert_almost_eq(cat.wet_left, 0.0, 0.001)
+	assert_almost_eq(cat.petted_left, 0.0, 0.001)

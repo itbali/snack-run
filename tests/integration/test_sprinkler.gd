@@ -54,3 +54,9 @@ func test_sprinklers_work_at_night_too() -> void:
 	sp.time = 12.5
 	await wait_physics_frames(3)
 	assert_gt(cat.wet_left, 0.0, "ночью дождеватели тоже работают")
+
+func test_rewetting_extends_drying() -> void:
+	cat.wet(4.0)
+	await wait_seconds(2.0)
+	cat.wet(4.0)
+	assert_almost_eq(cat.wet_left, 4.0, 0.05, "повторное намокание продлевает срок")

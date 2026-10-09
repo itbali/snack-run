@@ -257,7 +257,6 @@ func pet(seconds: float) -> bool:
 	## Поймал ребёнок: 2 с стоим довольные, еда выпала, сердечко цело; потом неуязвимость, как после удара.
 	if petted_left > 0.0 or invulnerable_left > 0.0 or hidden or in_safe_zone:
 		return false
-	unhide()
 	petted_left = seconds
 	invulnerable_left = seconds + INVULNERABLE_TIME
 	velocity = Vector3.ZERO
@@ -298,6 +297,10 @@ func teleport(pos: Vector3) -> void:
 	velocity = Vector3.ZERO
 	stunned_left = 0.0
 	invulnerable_left = INVULNERABLE_TIME   # после возрождения дать прийти в себя
+	wet_left = 0.0
+	petted_left = 0.0
+	if _drips:
+		_drips.emitting = false
 	state = &"idle"
 
 

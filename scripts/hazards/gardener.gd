@@ -38,6 +38,8 @@ func present() -> bool:
 
 
 func start_watering() -> void:
+	if not present():
+		return   # ночью садовник спит: ни полива, ни шипения
 	mode = &"warn"
 	mode_left = WARN_TIME
 	velocity = Vector3.ZERO
@@ -51,12 +53,11 @@ func _on_hit_body(_body: Node3D) -> void:
 func _physics_process(delta: float) -> void:
 	_ensure_home()
 	if not sync_presence():
-		hit_zone.monitoring = false
 		mode = &"walk"
 		_spray.emitting = false
 		global_position = home
 		return
-	hit_zone.monitoring = false
+	hit_zone.monitoring = false   # садовник бьёт только струёй (sync_presence включает зону остальным людям)
 	match mode:
 		&"walk":
 			walk_patrol(delta)

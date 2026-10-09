@@ -48,4 +48,5 @@ func sync_presence() -> bool:
 	var here := present()
 	visible = here
 	hit_zone.monitoring = here
+	collision_layer = Layers.HAZARD if here else 0   # отсутствующий человек — не невидимая стена (ревью плана 9)
 	return here

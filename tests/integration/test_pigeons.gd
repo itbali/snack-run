@@ -61,3 +61,21 @@ func test_pigeons_sleep_at_night() -> void:
 	await wait_physics_frames(5)
 	assert_false(flock.visible, "ночью стаи нет (спят на ветках)")
 	assert_eq(GameState.mouth.size(), 1)
+
+func test_hidden_cat_keeps_food_next_to_flock() -> void:
+	# Review Focus 1, интеграционно
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	cat.global_position = Vector3(0.6, 0.05, 0)
+	cat.hidden = true
+	await wait_physics_frames(6)
+	assert_eq(GameState.mouth.size(), 1, "у спрятавшегося не крадут")
+
+func test_flock_steals_again_after_cooldown() -> void:
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	GameState.pick_up(FoodCatalog.get_by_id(&"sausage"))
+	cat.global_position = Vector3(0.6, 0.05, 0)
+	await wait_physics_frames(4)
+	assert_eq(GameState.mouth.size(), 1)
+	flock.cooldown_left = 0.0   # перерыв 10 с истёк
+	await wait_physics_frames(4)
+	assert_eq(GameState.mouth.size(), 0, "после перерыва стая снова крадёт")

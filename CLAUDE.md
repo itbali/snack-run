@@ -65,7 +65,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 - `scripts/autoload/game_state.gd` — сердечки, зубы (3), сытость, альбом, цель сессии; сигналы `cat_hit`, `cat_fainted` и др. В тестах `GameState.reset()` в `before_each`.
 - `scripts/core/` (`Layers`, `Rarity`), `scripts/food/` (`FoodDef`, `FoodCatalog`, `FoodPickup`, `FoodSpawnPoint`), `data/food/*.tres`.
 - `scripts/hideouts/hideout.gd`, `scripts/world/world_builder.gd` (двор из `data/layout/yard.json`), `scripts/world/spill_spawner.gd`.
-- `scripts/hazards/`: `perception.gd`, `chase_brain.gd` (чистые), `hazard_base.gd`, `dog.gd`, `wasp.gd`, `cyclist.gd`.
+- `scripts/hazards/`: `perception.gd`, `chase_brain.gd` (чистые), `hazard_base.gd`, `dog.gd`, `wasp.gd`, `cyclist.gd`; парк: `sprinkler.gd`, `pigeon_flock.gd`, `park_person.gd` → `gardener.gd`, `kid.gd`, `guard.gd`; модели людей `tools/blender/human.py`, голубя `pigeon.py`.
 - `scripts/ui/hud.gd` + `scenes/ui/hud.tscn`; экраны `shop_menu.gd`, `album_menu.gd`, `pause_menu.gd`, `title.gd` (главная сцена `scenes/ui/title.tscn`), `menu_input.gd` (опрос клавиш меню, работает на паузе).
 - `scripts/core/shop_item.gd`, `shop_catalog.gd`, `cat_skin.gd`, `skin_catalog.gd`; данные `data/shop/*.tres`, `data/skins/*.tres`.
 - `scripts/autoload/save_game.gd` — JSON в `user://save.json`, пишет только по `save_now()` из `Main`; в тестах с `Main` путь переопределяется.
@@ -77,7 +77,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 - `scripts/visual/surface_textures.gd` — текстуры крупных поверхностей по имени меша (`ground`, `sidewalk`, `wall`), трипланар по мировым координатам (спек 2.9).
 - `scripts/world/day_cycle.gd` (чистая логика суток) + `day_night.gd` (узел в `lighting.tscn`, группа `day_night`; `DayNight.is_night(tree)`, без узла — день); группы `night_lights`, `night_windows`.
 - `scenes/world/lighting.tscn` — солнце, заполняющий свет, окружение (SSAO, SSR, glow, облака `sky_cover`), листья; `WorldBuilder` читает `solid`, `water`, `decals` из `yard.json`.
-- `third_party/quaternius_animal_pack_v2/` (CC0 кот и собака), `third_party/unimate_clips/` (канонический риг + клипы jump/hide/hit/run + README с воспроизведением).
+- `third_party/quaternius_animal_pack_v2/` (CC0 кот и собака), `third_party/quaternius_animated_human/` (CC0 люди парка), `third_party/pigeon_mujtaba/` (CC0 голубь), `third_party/unimate_clips/` (канонический риг + клипы jump/hide/hit/run + README с воспроизведением).
 - `tests/unit`, `tests/integration` (GUT 9.7.1 в `addons/gut`, вендор), `tools/blender/tests/`.
 
 ## Грабли, на которые уже наступали (не повторять)
@@ -126,7 +126,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 
 ## Статус и что дальше
 
-- План 6 (текстуры крупных поверхностей, гибрид) выполнен 2026-10-09. Этап 2 (парк и сутки): спек подтверждён, планы 7 (смена суток) и 8 (район парка) выполнены; дальше план 9 (опасности парка).
+- План 6 (текстуры крупных поверхностей, гибрид) выполнен 2026-10-09. Этап 2 (парк и сутки): спек подтверждён, планы 7 (смена суток), 8 (район парка) и 9 (опасности парка) выполнены — этап 2 закрыт; дальше этап 3 (порт) по спеку.
 - Планы 1–5 выполнены и слиты в `main` (2026-10-09): фундамент, игровой цикл, хаб и прогрессия, полировка под ролик, визуальная полировка (картинки OpenAI, гладкий кот с глазами в глазницах и пучками, короткие лапы, тун v2, яркий день, VFX, зелень и декали). Отложенные мелочи — в конце дорожной карты.
 - Следующий шаг: живой плейтест владельца с правками по его замечаниям, затем этапы 2+ (парк, сутки, порт) отдельными спеками через brainstorming.
 - Открытый вопрос владельцу: лицензия весов UniMate для сгенерированных движений (код MIT, для весов явной лицензии не найдено).

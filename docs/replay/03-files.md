@@ -5,7 +5,7 @@
 Отступы в GDScript и Makefile — табы; в Python проекта — тоже табы, кроме
 `palette.py` и тестов Blender (пробелы). Копировать как есть.
 
-Файлов: 208
+Файлов: 225
 
 ## `CLAUDE.md`
 
@@ -77,7 +77,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 - `scripts/autoload/game_state.gd` — сердечки, зубы (3), сытость, альбом, цель сессии; сигналы `cat_hit`, `cat_fainted` и др. В тестах `GameState.reset()` в `before_each`.
 - `scripts/core/` (`Layers`, `Rarity`), `scripts/food/` (`FoodDef`, `FoodCatalog`, `FoodPickup`, `FoodSpawnPoint`), `data/food/*.tres`.
 - `scripts/hideouts/hideout.gd`, `scripts/world/world_builder.gd` (двор из `data/layout/yard.json`), `scripts/world/spill_spawner.gd`.
-- `scripts/hazards/`: `perception.gd`, `chase_brain.gd` (чистые), `hazard_base.gd`, `dog.gd`, `wasp.gd`, `cyclist.gd`.
+- `scripts/hazards/`: `perception.gd`, `chase_brain.gd` (чистые), `hazard_base.gd`, `dog.gd`, `wasp.gd`, `cyclist.gd`; парк: `sprinkler.gd`, `pigeon_flock.gd`, `park_person.gd` → `gardener.gd`, `kid.gd`, `guard.gd`; модели людей `tools/blender/human.py`, голубя `pigeon.py`.
 - `scripts/ui/hud.gd` + `scenes/ui/hud.tscn`; экраны `shop_menu.gd`, `album_menu.gd`, `pause_menu.gd`, `title.gd` (главная сцена `scenes/ui/title.tscn`), `menu_input.gd` (опрос клавиш меню, работает на паузе).
 - `scripts/core/shop_item.gd`, `shop_catalog.gd`, `cat_skin.gd`, `skin_catalog.gd`; данные `data/shop/*.tres`, `data/skins/*.tres`.
 - `scripts/autoload/save_game.gd` — JSON в `user://save.json`, пишет только по `save_now()` из `Main`; в тестах с `Main` путь переопределяется.
@@ -89,7 +89,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 - `scripts/visual/surface_textures.gd` — текстуры крупных поверхностей по имени меша (`ground`, `sidewalk`, `wall`), трипланар по мировым координатам (спек 2.9).
 - `scripts/world/day_cycle.gd` (чистая логика суток) + `day_night.gd` (узел в `lighting.tscn`, группа `day_night`; `DayNight.is_night(tree)`, без узла — день); группы `night_lights`, `night_windows`.
 - `scenes/world/lighting.tscn` — солнце, заполняющий свет, окружение (SSAO, SSR, glow, облака `sky_cover`), листья; `WorldBuilder` читает `solid`, `water`, `decals` из `yard.json`.
-- `third_party/quaternius_animal_pack_v2/` (CC0 кот и собака), `third_party/unimate_clips/` (канонический риг + клипы jump/hide/hit/run + README с воспроизведением).
+- `third_party/quaternius_animal_pack_v2/` (CC0 кот и собака), `third_party/quaternius_animated_human/` (CC0 люди парка), `third_party/pigeon_mujtaba/` (CC0 голубь), `third_party/unimate_clips/` (канонический риг + клипы jump/hide/hit/run + README с воспроизведением).
 - `tests/unit`, `tests/integration` (GUT 9.7.1 в `addons/gut`, вендор), `tools/blender/tests/`.
 
 ## Грабли, на которые уже наступали (не повторять)
@@ -138,7 +138,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 
 ## Статус и что дальше
 
-- План 6 (текстуры крупных поверхностей, гибрид) выполнен 2026-10-09. Этап 2 (парк и сутки): спек подтверждён, планы 7 (смена суток) и 8 (район парка) выполнены; дальше план 9 (опасности парка).
+- План 6 (текстуры крупных поверхностей, гибрид) выполнен 2026-10-09. Этап 2 (парк и сутки): спек подтверждён, планы 7 (смена суток), 8 (район парка) и 9 (опасности парка) выполнены — этап 2 закрыт; дальше этап 3 (порт) по спеку.
 - Планы 1–5 выполнены и слиты в `main` (2026-10-09): фундамент, игровой цикл, хаб и прогрессия, полировка под ролик, визуальная полировка (картинки OpenAI, гладкий кот с глазами в глазницах и пучками, короткие лапы, тун v2, яркий день, VFX, зелень и декали). Отложенные мелочи — в конце дорожной карты.
 - Следующий шаг: живой плейтест владельца с правками по его замечаниям, затем этапы 2+ (парк, сутки, порт) отдельными спеками через brainstorming.
 - Открытый вопрос владельцу: лицензия весов UniMate для сгенерированных движений (код MIT, для весов явной лицензии не найдено).
@@ -389,6 +389,134 @@ shape = SubResource("body")
 [node name="Shape" type="CollisionShape3D" parent="HitZone"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
 shape = SubResource("hit")
+```
+
+## `scenes/hazards/gardener.tscn`
+
+```
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/hazards/gardener.gd" id="1"]
+[ext_resource type="PackedScene" path="res://assets/models/gardener.glb" id="2"]
+
+[sub_resource type="CapsuleShape3D" id="body"]
+radius = 0.22
+height = 1.7
+
+[sub_resource type="SphereShape3D" id="hit"]
+radius = 0.4
+
+[node name="Gardener" type="CharacterBody3D"]
+script = ExtResource("1")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.85, 0)
+shape = SubResource("body")
+
+[node name="Model" parent="." instance=ExtResource("2")]
+
+[node name="HitZone" type="Area3D" parent="."]
+
+[node name="Shape" type="CollisionShape3D" parent="HitZone"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
+shape = SubResource("hit")
+```
+
+## `scenes/hazards/guard.tscn`
+
+```
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/hazards/guard.gd" id="1"]
+[ext_resource type="PackedScene" path="res://assets/models/guard.glb" id="2"]
+
+[sub_resource type="CapsuleShape3D" id="body"]
+radius = 0.22
+height = 1.7
+
+[sub_resource type="SphereShape3D" id="hit"]
+radius = 0.4
+
+[node name="Guard" type="CharacterBody3D"]
+script = ExtResource("1")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.85, 0)
+shape = SubResource("body")
+
+[node name="Model" parent="." instance=ExtResource("2")]
+
+[node name="HitZone" type="Area3D" parent="."]
+
+[node name="Shape" type="CollisionShape3D" parent="HitZone"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
+shape = SubResource("hit")
+```
+
+## `scenes/hazards/kid.tscn`
+
+```
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/hazards/kid.gd" id="1"]
+[ext_resource type="PackedScene" path="res://assets/models/kid.glb" id="2"]
+
+[sub_resource type="CapsuleShape3D" id="body"]
+radius = 0.22
+height = 1.1
+
+[sub_resource type="SphereShape3D" id="hit"]
+radius = 0.4
+
+[node name="Kid" type="CharacterBody3D"]
+script = ExtResource("1")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55, 0)
+shape = SubResource("body")
+
+[node name="Model" parent="." instance=ExtResource("2")]
+
+[node name="HitZone" type="Area3D" parent="."]
+
+[node name="Shape" type="CollisionShape3D" parent="HitZone"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
+shape = SubResource("hit")
+```
+
+## `scenes/hazards/pigeon_flock.tscn`
+
+```
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/hazards/pigeon_flock.gd" id="1"]
+
+[node name="PigeonFlock" type="Node3D"]
+script = ExtResource("1")
+```
+
+## `scenes/hazards/sprinkler.tscn`
+
+```
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/hazards/sprinkler.gd" id="1"]
+[ext_resource type="PackedScene" path="res://assets/models/sprinkler.glb" id="2"]
+
+[sub_resource type="CylinderShape3D" id="zone"]
+height = 1.2
+radius = 2.0
+
+[node name="Sprinkler" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Model" parent="." instance=ExtResource("2")]
+
+[node name="Zone" type="Area3D" parent="."]
+
+[node name="Shape" type="CollisionShape3D" parent="Zone"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+shape = SubResource("zone")
 ```
 
 ## `scenes/hazards/wasp.tscn`
@@ -1141,6 +1269,8 @@ signal goal_completed(target: int)
 signal yarn_changed(count: int)
 signal upgrade_bought(id: StringName)
 signal skin_changed(id: StringName)
+signal food_stolen(food: FoodDef)
+signal cat_petted(spilled: Array)
 
 const MAX_HEARTS := 3
 const MOUTH_CAPACITY := 3
@@ -1236,6 +1366,23 @@ func spill() -> Array[FoodDef]:
 	var spilled: Array[FoodDef] = mouth.duplicate()
 	mouth = []
 	mouth_changed.emit(mouth)
+	return spilled
+
+
+func steal_last() -> FoodDef:
+	## Голубь выхватывает последнюю еду из зубов: без урона и без рассыпания (этап 2).
+	if mouth.is_empty():
+		return null
+	var f: FoodDef = mouth.pop_back()
+	mouth_changed.emit(mouth)
+	food_stolen.emit(f)
+	return f
+
+
+func pet() -> Array[FoodDef]:
+	## Ребёнок гладит кота: еда из зубов выпадает рядом, сердечко не снимается (этап 2).
+	var spilled := spill()
+	cat_petted.emit(spilled)
 	return spilled
 
 
@@ -1526,9 +1673,12 @@ const STREAMS := {
 	&"meow": "res://assets/sfx/meow.wav",
 	&"bark": "res://assets/sfx/bark.wav",
 	&"bell": "res://assets/sfx/bell.ogg",
+	&"hiss": "res://assets/sfx/hiss.wav",
+	&"sprinkle": "res://assets/sfx/sprinkle.wav",
+	&"coo": "res://assets/sfx/coo.wav",
 }
 const POOL := 6
-const VOLUME_DB := {&"bark": -4.0, &"bell": -2.0, &"meow": -3.0}
+const VOLUME_DB := {&"bark": -4.0, &"bell": -2.0, &"meow": -3.0, &"hiss": -6.0, &"sprinkle": -6.0, &"coo": -4.0}
 
 var enabled := true
 var last_played: StringName = &""
@@ -2024,6 +2174,8 @@ const CHASE_MAX := 8.0
 const LOST_HIDDEN := 2.0
 
 var state: int = State.IDLE
+var alert_time := ALERT_TIME   # ребёнок парка настораживается быстрее и устаёт раньше собаки
+var chase_max := CHASE_MAX
 var _t := 0.0
 var _hidden_t := 0.0
 
@@ -2053,7 +2205,7 @@ func update(delta: float, sees_cat: bool, cat_hidden: bool, at_home: bool, cat_s
 				_t = 0.0
 			else:
 				_t += delta
-				if _t >= ALERT_TIME:
+				if _t >= alert_time:
 					state = State.CHASE
 					_t = 0.0
 					_hidden_t = 0.0
@@ -2063,7 +2215,7 @@ func update(delta: float, sees_cat: bool, cat_hidden: bool, at_home: bool, cat_s
 			else:
 				_t += delta
 				_hidden_t = _hidden_t + delta if cat_hidden else 0.0
-				if _t >= CHASE_MAX or _hidden_t >= LOST_HIDDEN:
+				if _t >= chase_max or _hidden_t >= LOST_HIDDEN:
 					state = State.RETURN
 		State.RETURN:
 			if at_home:
@@ -2278,6 +2430,186 @@ func play_clip(name: StringName) -> void:
 		_anim.play(clip, 0.2)
 ```
 
+## `scripts/hazards/gardener.gd`
+
+```gdscript
+class_name Gardener
+extends ParkPerson
+## Садовник со шлангом (спек этапа 2, раздел 3): ходит по маршруту; каждые 15–25 с останавливается, 1 с шипит
+## (предупреждение), 4 с поливает перед собой конусом 3 м / 40° — струя бьёт кота. Ночью спит в сторожке.
+
+const WARN_TIME := 1.0
+const SPRAY_TIME := 4.0
+const SPRAY_RANGE := 3.0
+const SPRAY_HALF_ANGLE := 20.0
+const WATER := Color("#9FD3F0")
+
+var mode: StringName = &"walk"   # walk | warn | spray
+var mode_left := 0.0
+var _next_water := 0.0
+var _spray: CPUParticles3D
+
+
+func _ready() -> void:
+	super()
+	walk_speed = 1.2
+	_next_water = randf_range(15.0, 25.0)
+	_spray = Effects.trail(self, WATER, 50)
+	_spray.name = "Hose"
+	_spray.local_coords = true
+	_spray.direction = Vector3(0, 0.35, -1)
+	_spray.spread = 12.0
+	_spray.initial_velocity_min = 4.0
+	_spray.initial_velocity_max = 5.0
+	_spray.gravity = Vector3(0, -9.0, 0)
+	_spray.lifetime = 0.7
+	_spray.position = Vector3(0.25, 0.9, -0.3)
+	_spray.emitting = false
+	hit_zone.monitoring = false   # садовник бьёт только струёй
+
+
+func present() -> bool:
+	return not DayNight.is_night(get_tree())
+
+
+func start_watering() -> void:
+	if not present():
+		return   # ночью садовник спит: ни полива, ни шипения
+	mode = &"warn"
+	mode_left = WARN_TIME
+	velocity = Vector3.ZERO
+	Sfx.play(&"hiss", 0.1)
+
+
+func _on_hit_body(_body: Node3D) -> void:
+	pass   # касание садовника не ранит
+
+
+func _physics_process(delta: float) -> void:
+	_ensure_home()
+	if not sync_presence():
+		mode = &"walk"
+		_spray.emitting = false
+		global_position = home
+		return
+	hit_zone.monitoring = false   # садовник бьёт только струёй (sync_presence включает зону остальным людям)
+	match mode:
+		&"walk":
+			walk_patrol(delta)
+			_next_water -= delta
+			if _next_water <= 0.0:
+				start_watering()
+		&"warn":
+			mode_left -= delta
+			play(&"idle")
+			_apply_gravity(delta)
+			move_and_slide()
+			if mode_left <= 0.0:
+				mode = &"spray"
+				mode_left = SPRAY_TIME
+				_spray.emitting = true
+		&"spray":
+			mode_left -= delta
+			play(&"idle")
+			_check_spray()
+			if mode_left <= 0.0:
+				mode = &"walk"
+				_spray.emitting = false
+				_next_water = randf_range(15.0, 25.0)
+
+
+func _check_spray() -> void:
+	var c := _find_cat()
+	if c == null or c.get("hidden") or c.get("in_safe_zone"):
+		return
+	var forward := -global_transform.basis.z
+	if Perception.in_cone(global_position, forward, c.global_position, SPRAY_HALF_ANGLE, SPRAY_RANGE) and c.has_method("take_hit"):
+		c.call("take_hit", global_position)
+```
+
+## `scripts/hazards/guard.gd`
+
+```gdscript
+class_name Guard
+extends ParkPerson
+## Ночной сторож с фонариком (спек этапа 2, раздел 3): только ночью; патрулирует аллеи; видит кота в луче фонарика
+## (конус 30°, 8 м) или когда кот стоит в свете фонаря парка; погоня как у собаки; касание — удар.
+
+const BEAM_HALF_ANGLE := 15.0
+const BEAM_RANGE := 8.0
+const LAMP_RADIUS := 3.0
+const LAMP_SEE_RANGE := 14.0
+
+var brain := ChaseBrain.new()
+var _torch: SpotLight3D
+
+
+func _ready() -> void:
+	super()
+	walk_speed = 1.3
+	run_speed = 4.6
+	_torch = SpotLight3D.new()
+	_torch.name = "Flashlight"
+	_torch.position = Vector3(0.2, 1.1, -0.2)
+	_torch.rotation_degrees = Vector3(-12, 0, 0)
+	_torch.spot_angle = BEAM_HALF_ANGLE
+	_torch.spot_range = BEAM_RANGE
+	_torch.light_color = Color("#FFF1C2")
+	_torch.light_energy = 6.0
+	add_child(_torch)
+
+
+func present() -> bool:
+	return DayNight.is_night(get_tree())
+
+
+func _cat_under_lamp(c: Node3D) -> bool:
+	for n in get_tree().get_nodes_in_group("night_lights"):
+		var l := n as Node3D
+		if l.visible and Vector2(l.global_position.x - c.global_position.x, l.global_position.z - c.global_position.z).length() < LAMP_RADIUS:
+			return true
+	return false
+
+
+func sees_cat() -> bool:
+	var c := _find_cat()
+	if c == null or c.get("hidden") or c.get("in_safe_zone") or not present():
+		return false
+	if Perception.in_cone(global_position, -global_transform.basis.z, c.global_position, BEAM_HALF_ANGLE, BEAM_RANGE):
+		return true
+	return _cat_under_lamp(c) and global_position.distance_to(c.global_position) < LAMP_SEE_RANGE
+
+
+func _physics_process(delta: float) -> void:
+	_ensure_home()
+	if not sync_presence():
+		brain.reset()
+		global_position = home
+		return
+	var c := _find_cat()
+	var cat_hidden: bool = c != null and (bool(c.get("hidden")) or bool(c.get("in_safe_zone")))
+	var s := brain.update(delta, sees_cat(), cat_hidden, global_position.distance_to(home) < 0.6, c != null and bool(c.get("in_safe_zone")))
+	match s:
+		ChaseBrain.State.CHASE:
+			if c:
+				move_towards_point(c.global_position, run_speed, delta)
+			play(&"run")
+		ChaseBrain.State.ALERT:
+			if c:
+				var to := c.global_position - global_position
+				rotation.y = lerp_angle(rotation.y, atan2(-to.x, -to.z), 10.0 * delta)
+			velocity.x = 0.0
+			velocity.z = 0.0
+			_apply_gravity(delta)
+			move_and_slide()
+			play(&"idle")
+		ChaseBrain.State.RETURN:
+			move_towards_point(home, walk_speed, delta)
+			play(&"walk")
+		_:
+			walk_patrol(delta)
+```
+
 ## `scripts/hazards/hazard_base.gd`
 
 ```gdscript
@@ -2355,6 +2687,146 @@ func move_towards_point(target: Vector3, speed: float, delta: float) -> float:
 	return dist
 ```
 
+## `scripts/hazards/kid.gd`
+
+```gdscript
+class_name Kid
+extends ParkPerson
+## Ребёнок, который хочет погладить (спек этапа 2, раздел 3): днём бегает у площадки; заметил кота (конус 50°, 7 м) —
+## бежит к нему 1,1× шага кота, в укрытии теряет через 2 с, устаёт через 6 с; поймал — гладит 2 с (без урона).
+## Вечером уходит домой, утром возвращается.
+
+const VISION_HALF_ANGLE := 25.0
+const VISION_RANGE := 7.0
+const PET_TIME := 2.0
+
+var brain := ChaseBrain.new()
+var _wander := Vector3.ZERO
+var _wander_t := 0.0
+
+
+func _ready() -> void:
+	super()
+	walk_speed = 1.0
+	run_speed = CatMotion.WALK_SPEED * 1.1
+	brain.alert_time = 0.4
+	brain.chase_max = 6.0
+
+
+func present() -> bool:
+	var p := DayNight.current_phase(get_tree())
+	return p == &"day" or p == &"morning"
+
+
+func sees_cat() -> bool:
+	var c := _find_cat()
+	if c == null or c.get("hidden") or c.get("in_safe_zone") or not present():
+		return false
+	return Perception.in_cone(global_position, -global_transform.basis.z, c.global_position, VISION_HALF_ANGLE, VISION_RANGE)
+
+
+func _on_hit_body(body: Node3D) -> void:
+	if present() and body.is_in_group("cat") and body.has_method("pet"):
+		if body.call("pet", PET_TIME):
+			brain.give_up()   # погладил — идёт играть дальше
+
+
+func _physics_process(delta: float) -> void:
+	_ensure_home()
+	if not sync_presence():
+		brain.reset()
+		global_position = home
+		return
+	var c := _find_cat()
+	var cat_hidden: bool = c != null and (bool(c.get("hidden")) or bool(c.get("in_safe_zone")))
+	var at_home := global_position.distance_to(home) < 0.6
+	var s := brain.update(delta, sees_cat(), cat_hidden, at_home, c != null and bool(c.get("in_safe_zone")))
+	match s:
+		ChaseBrain.State.CHASE:
+			if c:
+				move_towards_point(c.global_position, run_speed, delta)
+				for body in hit_zone.get_overlapping_bodies():   # кот мог стоять в зоне с начала погони
+					_on_hit_body(body)
+			play(&"run")
+		ChaseBrain.State.ALERT:
+			if c:
+				var to := c.global_position - global_position
+				rotation.y = lerp_angle(rotation.y, atan2(-to.x, -to.z), 10.0 * delta)
+			velocity.x = 0.0
+			velocity.z = 0.0
+			_apply_gravity(delta)
+			move_and_slide()
+			play(&"idle")
+		ChaseBrain.State.RETURN:
+			move_towards_point(home, walk_speed, delta)
+			play(&"walk")
+		_:
+			_wander_t -= delta
+			if _wander_t <= 0.0:
+				var a := randf_range(0.0, TAU)
+				_wander = home + Vector3(cos(a), 0, sin(a)) * randf_range(0.5, 3.0)
+				_wander_t = randf_range(2.0, 4.0)
+			var left := move_towards_point(_wander, walk_speed, delta)
+			play(&"walk" if left > 0.2 else &"idle")
+```
+
+## `scripts/hazards/park_person.gd`
+
+```gdscript
+class_name ParkPerson
+extends HazardBase
+## Общее для людей парка: модель с клипами, маршрут патруля, присутствие по фазе суток.
+
+@export var patrol: Array = []        # точки маршрута [[x, z], ...] из раскладки; пусто — стоит у дома
+var _patrol_i := 0
+@onready var _model: Node3D = $Model
+@onready var _anim: AnimationPlayer = $Model.find_child("AnimationPlayer", true, false)
+
+
+func configure(hz: Dictionary, _builder: Node3D) -> void:
+	patrol = hz.get("path", [])
+
+
+func _ready() -> void:
+	super()
+	Toon.apply(_model, Toon.OUTLINE_CHARACTER, true)
+	for clip in ["idle", "walk", "run", "work"]:
+		if _anim and _anim.has_animation(clip):
+			_anim.get_animation(clip).loop_mode = Animation.LOOP_LINEAR
+	play(&"idle")
+
+
+func present() -> bool:
+	## Переопределяется: когда человек в парке (по фазе суток).
+	return true
+
+
+func play(clip: StringName) -> void:
+	if _anim and _anim.has_animation(String(clip)) and _anim.current_animation != String(clip):
+		_anim.play(String(clip), 0.2)
+
+
+func walk_patrol(delta: float) -> void:
+	if patrol.is_empty():
+		move_towards_point(home, walk_speed, delta)
+		play(&"walk" if global_position.distance_to(home) > 0.2 else &"idle")
+		return
+	var p: Array = patrol[_patrol_i]
+	var target := Vector3(p[0], global_position.y, p[1])
+	if move_towards_point(target, walk_speed, delta) < 0.3:
+		_patrol_i = (_patrol_i + 1) % patrol.size()
+	play(&"walk")
+
+
+func sync_presence() -> bool:
+	## Скрывает и выключает человека вне его фазы суток; возвращает «в парке ли он».
+	var here := present()
+	visible = here
+	hit_zone.monitoring = here
+	collision_layer = Layers.HAZARD if here else 0   # отсутствующий человек — не невидимая стена (ревью плана 9)
+	return here
+```
+
 ## `scripts/hazards/perception.gd`
 
 ```gdscript
@@ -2372,6 +2844,226 @@ static func in_cone(origin: Vector3, forward: Vector3, target: Vector3, half_ang
 		return false
 	var cos_angle := fwd.normalized().dot(to.normalized())
 	return cos_angle >= cos(deg_to_rad(half_angle_deg))
+```
+
+## `scripts/hazards/pigeon_flock.gd`
+
+```gdscript
+class_name PigeonFlock
+extends Node3D
+## Стая голубей (спек этапа 2, раздел 3): бродят и клюют у точки; у кота с едой в зубах, идущего шагом ближе
+## 1,5 м, один голубь выхватывает последнюю еду и улетает (перерыв 10 с); бегущий кот разгоняет стаю на 10 с.
+## Ночью спят на ветках (стаи нет). Не бьют.
+
+const PigeonModel := preload("res://assets/models/pigeon.glb")
+const COUNT := 5
+const WANDER := 1.5
+const STEAL_DIST := 1.5
+const SCATTER_DIST := 2.5
+const COOLDOWN := 10.0
+const WALK := 0.35
+
+var mode: StringName = &"idle"      # idle | scattered | sleep
+var cooldown_left := 0.0
+var _rng := RandomNumberGenerator.new()
+var _targets: Array[Vector3] = []
+var _fly: Array[float] = []          # >0 — голубь в полёте (секунды до возвращения)
+
+
+static func decide(dist: float, running: bool, mouth: int, hidden: bool, safe: bool, cooldown: float, night: bool) -> StringName:
+	if night or hidden or safe:
+		return &"none"
+	if running and dist < SCATTER_DIST:
+		return &"scatter"
+	if cooldown <= 0.0 and mouth > 0 and dist < STEAL_DIST:
+		return &"steal"
+	return &"none"
+
+
+func configure(_hz: Dictionary, _builder: Node3D) -> void:
+	pass
+
+
+func _ready() -> void:
+	add_to_group("hazards")
+	_rng.randomize()
+	for i in COUNT:
+		var p := PigeonModel.instantiate() as Node3D
+		p.name = "Pigeon%d" % i
+		add_child(p)
+		p.position = _random_spot()
+		p.rotation.y = _rng.randf_range(0.0, TAU)
+		Toon.apply(p, Toon.OUTLINE_CHARACTER, true)
+		_targets.append(_random_spot())
+		_fly.append(0.0)
+		_play(p, "idle")
+
+
+func pigeons() -> Array[Node3D]:
+	var out: Array[Node3D] = []
+	for c in get_children():
+		if String(c.name).begins_with("Pigeon"):
+			out.append(c)
+	return out
+
+
+func _random_spot() -> Vector3:
+	var a := _rng.randf_range(0.0, TAU)
+	var r := _rng.randf_range(0.2, WANDER)
+	return Vector3(cos(a) * r, 0.0, sin(a) * r)
+
+
+func _play(p: Node3D, clip: String) -> void:
+	var ap := p.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	if ap and ap.has_animation(clip):
+		ap.get_animation(clip).loop_mode = Animation.LOOP_LINEAR
+		if ap.current_animation != clip:
+			ap.play(clip)
+
+
+func _physics_process(delta: float) -> void:
+	var night := DayNight.is_night(get_tree())
+	visible = not night
+	if night:
+		mode = &"sleep"
+		return
+	if mode == &"sleep":
+		mode = &"idle"
+	cooldown_left = maxf(cooldown_left - delta, 0.0)
+	var cat := get_tree().get_first_node_in_group("cat") as Node3D
+	if cat:
+		var d := Vector2(cat.global_position.x - global_position.x, cat.global_position.z - global_position.z).length()
+		var action := decide(d, cat.get("state") == &"run", GameState.mouth.size(), bool(cat.get("hidden")),
+			bool(cat.get("in_safe_zone")), cooldown_left, night)
+		if action == &"steal":
+			_steal()
+		elif action == &"scatter" and mode != &"scattered":
+			_scatter()
+	if mode == &"scattered" and cooldown_left <= 0.0:
+		mode = &"idle"
+	_move_birds(delta)
+
+
+func _steal() -> void:
+	if GameState.steal_last() == null:
+		return
+	cooldown_left = COOLDOWN
+	Sfx.play(&"coo", 0.15)
+	var ps := pigeons()
+	if not ps.is_empty():
+		_fly[_rng.randi_range(0, ps.size() - 1)] = COOLDOWN
+
+
+func _scatter() -> void:
+	mode = &"scattered"
+	cooldown_left = COOLDOWN
+	Sfx.play(&"coo", 0.2)
+	for i in _fly.size():
+		_fly[i] = COOLDOWN
+
+
+func _move_birds(delta: float) -> void:
+	var ps := pigeons()
+	for i in ps.size():
+		var p := ps[i]
+		if _fly[i] > 0.0:
+			_fly[i] = maxf(_fly[i] - delta, 0.0)
+			_play(p, "flap")
+			var up := 3.0 if _fly[i] > COOLDOWN * 0.5 else -3.0   # взлёт, потом возвращение
+			p.position += (Vector3(p.position.x, 0, p.position.z).normalized() * 1.5 + Vector3(0, up, 0)) * delta
+			p.position.y = clampf(p.position.y, 0.0, 8.0)
+			if _fly[i] <= 0.0:
+				p.position = _random_spot()
+			continue
+		_play(p, "idle")
+		var to := _targets[i] - p.position
+		to.y = 0.0
+		if to.length() < 0.05:
+			_targets[i] = _random_spot()
+		else:
+			var step := to.normalized() * minf(WALK * delta, to.length())
+			p.position += step
+			p.rotation.y = lerp_angle(p.rotation.y, atan2(-to.x, -to.z), 6.0 * delta)
+```
+
+## `scripts/hazards/sprinkler.gd`
+
+```gdscript
+class_name Sprinkler
+extends Node3D
+## Дождеватель газона (спек этапа 2, раздел 3): цикл 20 с — 11 с стоит, 1 с булькает (предупреждение),
+## 8 с поливает круг радиусом RADIUS. Кот под струёй мокнет (замедление, без урона). Работает и ночью.
+
+const CYCLE := 20.0
+const WARN_AT := 11.0
+const ON_AT := 12.0
+const RADIUS := 2.0
+const WET_TIME := 4.0
+const WATER := Color("#9FD3F0")
+
+@export var time := 0.0          # сдвиг фазы задаёт раскладка, чтобы зоны не работали синхронно
+var phase: StringName = &"off"
+var _spray: CPUParticles3D
+var _bubbles: CPUParticles3D
+
+@onready var _zone: Area3D = $Zone
+@onready var _model: Node3D = $Model
+
+
+static func phase_at(t: float) -> StringName:
+	var w := fposmod(t, CYCLE)
+	if w >= ON_AT:
+		return &"on"
+	if w >= WARN_AT:
+		return &"warn"
+	return &"off"
+
+
+func configure(hz: Dictionary, _builder: Node3D) -> void:
+	time = float(hz.get("offset", 0.0))
+
+
+func _ready() -> void:
+	add_to_group("hazards")
+	_zone.collision_layer = Layers.AREA
+	_zone.collision_mask = Layers.CAT
+	_zone.monitorable = false
+	Toon.apply(_model, Toon.OUTLINE_FOOD)
+	_spray = Effects.trail(self, WATER, 60)
+	_spray.name = "Spray"
+	_spray.local_coords = true
+	_spray.direction = Vector3.UP
+	_spray.spread = 75.0
+	_spray.initial_velocity_min = 3.0
+	_spray.initial_velocity_max = 4.2
+	_spray.gravity = Vector3(0, -9.0, 0)
+	_spray.lifetime = 0.9
+	_spray.position = Vector3(0, 0.16, 0)
+	_spray.emitting = false
+	_bubbles = Effects.trail(self, WATER, 10)
+	_bubbles.name = "Bubbles"
+	_bubbles.local_coords = true
+	_bubbles.direction = Vector3.UP
+	_bubbles.spread = 20.0
+	_bubbles.initial_velocity_min = 0.3
+	_bubbles.initial_velocity_max = 0.6
+	_bubbles.position = Vector3(0, 0.16, 0)
+	_bubbles.emitting = false
+
+
+func _physics_process(delta: float) -> void:
+	time += delta
+	var p := phase_at(time)
+	if p != phase:
+		phase = p
+		_spray.emitting = phase == &"on"
+		_bubbles.emitting = phase == &"warn"
+		if phase == &"warn":
+			Sfx.play(&"sprinkle", 0.1)
+	if phase == &"on":
+		for body in _zone.get_overlapping_bodies():
+			if body.is_in_group("cat") and body.has_method("wet") and not bool(body.get("hidden")):
+				body.call("wet", WET_TIME)
 ```
 
 ## `scripts/hazards/wasp.gd`
@@ -2527,6 +3219,9 @@ func _ready() -> void:
 	_fade = _make_fade()
 	GameState.cat_hit.connect(_on_cat_hit)
 	GameState.food_eaten.connect(_on_food_eaten)
+	GameState.cat_petted.connect(func(spilled: Array) -> void:
+		if not spilled.is_empty():
+			_spill.spill_around(_cat.global_position, spilled))
 	GameState.cat_fainted.connect(_on_cat_fainted)
 	for c in get_tree().get_nodes_in_group("hazards"):
 		if c.has_signal("bell"):
@@ -2811,6 +3506,7 @@ const STUN_TIME := 1.0
 const INVULNERABLE_TIME := 2.0
 const RUN_DUST_EVERY := 0.25
 const FLASH_COLOR := Color.WHITE
+const WET_SLOW := 0.6   # мокрый кот (дождеватель парка)
 
 var camera_rig: CameraRig
 var current_hideout: Area3D
@@ -2822,6 +3518,9 @@ var invulnerable_left := 0.0
 var face := CatFace.new()   # выражения глаз, переключает меши eyes_* модели
 var fade := 1.0   # 1 = непрозрачен; значением владеет камера (set_fade), скин его не трогает
 var was_on_floor := true
+var wet_left := 0.0
+var petted_left := 0.0   # ребёнок гладит: кот стоит, не ранен
+var _drips: CPUParticles3D
 var flashing := false
 var _run_dust_t := 0.0
 var _squash: Tween
@@ -2868,9 +3567,14 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	face.update(delta, stunned_left > 0.0)
+	if wet_left > 0.0:
+		wet_left = maxf(wet_left - delta, 0.0)
+		if _drips:
+			_drips.emitting = wet_left > 0.0
 	stunned_left = maxf(stunned_left - delta, 0.0)
 	invulnerable_left = maxf(invulnerable_left - delta, 0.0)
-	if stunned_left > 0.0:
+	petted_left = maxf(petted_left - delta, 0.0)
+	if stunned_left > 0.0 or petted_left > 0.0:
 		velocity = CatMotion.step(velocity, Vector3.ZERO, false, is_on_floor(), false, delta)
 		move_and_slide()
 		return
@@ -2899,12 +3603,12 @@ func _physics_process(delta: float) -> void:
 	var dir := CatMotion.world_direction(input, yaw)
 	var running := Input.is_action_pressed("run")
 	var jump := Input.is_action_just_pressed("jump")
-	velocity = CatMotion.step(velocity, dir, running, is_on_floor(), jump, delta, GameState.speed_mult)
+	velocity = CatMotion.step(velocity, dir, running, is_on_floor(), jump, delta, GameState.speed_mult * speed_factor())
 	move_and_slide()
 	if dir.length() > 0.0:
 		var target_yaw := atan2(-dir.x, -dir.z)
 		_model.rotation.y = lerp_angle(_model.rotation.y, target_yaw, TURN_SPEED * delta)
-	state = CatMotion.pick_state(velocity, is_on_floor(), running, GameState.speed_mult)
+	state = CatMotion.pick_state(velocity, is_on_floor(), running, GameState.speed_mult * speed_factor())
 	_after_move(delta)
 
 
@@ -3039,6 +3743,35 @@ func _fade_material(mat: StandardMaterial3D) -> void:
 	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_OPAQUE_ONLY if fade >= 0.999 else BaseMaterial3D.DEPTH_DRAW_ALWAYS
 
 
+func pet(seconds: float) -> bool:
+	## Поймал ребёнок: 2 с стоим довольные, еда выпала, сердечко цело; потом неуязвимость, как после удара.
+	if petted_left > 0.0 or invulnerable_left > 0.0 or hidden or in_safe_zone:
+		return false
+	petted_left = seconds
+	invulnerable_left = seconds + INVULNERABLE_TIME
+	velocity = Vector3.ZERO
+	face.cheer()
+	face.happy_left = seconds
+	state = &"idle"
+	Sfx.play(&"meow", 0.2)
+	GameState.pet()
+	return true
+
+
+func wet(seconds: float) -> void:
+	## Намок под дождевателем: замедление ×0,6; повторное намокание продлевает до большего срока, не складывается.
+	wet_left = maxf(wet_left, seconds)
+	if _drips == null:
+		_drips = Effects.trail(self, Color("#9FD3F0"), 8)
+		_drips.name = "Drips"
+		_drips.position = Vector3(0, 0.2, 0)
+	_drips.emitting = true
+
+
+func speed_factor() -> float:
+	return WET_SLOW if wet_left > 0.0 else 1.0
+
+
 func threaten() -> void:
 	## Собака насторожилась или гонится рядом: зовётся каждый физический кадр, пока угроза есть.
 	face.threaten()
@@ -3054,6 +3787,10 @@ func teleport(pos: Vector3) -> void:
 	velocity = Vector3.ZERO
 	stunned_left = 0.0
 	invulnerable_left = INVULNERABLE_TIME   # после возрождения дать прийти в себя
+	wet_left = 0.0
+	petted_left = 0.0
+	if _drips:
+		_drips.emitting = false
 	state = &"idle"
 
 
@@ -4425,6 +5162,11 @@ const HAZARD_SCENES := {
 	"dog": "res://scenes/hazards/dog.tscn",
 	"wasp": "res://scenes/hazards/wasp.tscn",
 	"cyclist": "res://scenes/hazards/cyclist.tscn",
+	"sprinkler": "res://scenes/hazards/sprinkler.tscn",
+	"pigeons": "res://scenes/hazards/pigeon_flock.tscn",
+	"gardener": "res://scenes/hazards/gardener.tscn",
+	"kid": "res://scenes/hazards/kid.tscn",
+	"guard": "res://scenes/hazards/guard.tscn",
 }
 const HideoutScene := preload("res://scenes/hideouts/hideout.tscn")
 const SpawnScene := preload("res://scenes/food/food_spawn_point.tscn")
@@ -6537,6 +7279,278 @@ func test_yard_spawns_never_give_park_food() -> void:
 	for sp in b.find_children("*", "FoodSpawnPoint", true, false):
 		for i in 60:
 			assert_false(StringName((sp as FoodSpawnPoint).pick_def().id) in park_food, "точка двора %s дала еду парка" % (sp as Node3D).global_position)
+
+func test_park_hazards_are_placed() -> void:
+	var types := {}
+	for hz in WorldBuilder.load_layout(PARK)["hazards"]:
+		types[hz["type"]] = types.get(hz["type"], 0) + 1
+	assert_eq(types.get("sprinkler", 0), 3, "три зоны дождевателей")
+	for t in ["pigeons", "gardener", "kid", "guard"]:
+		assert_gt(types.get(t, 0), 0, "в парке есть %s" % t)
+	var b := WorldBuilder.new()
+	add_child_autofree(b)
+	b.build(WorldBuilder.load_layout(PARK))
+	assert_eq(b.hazards_built, WorldBuilder.load_layout(PARK)["hazards"].size(), "все опасности построены")
+```
+
+## `tests/integration/test_park_people.gd`
+
+```gdscript
+extends GutTest
+## Садовник, ребёнок, сторож (спек этапа 2, раздел 3).
+
+const CatScene := preload("res://scenes/player/cat.tscn")
+const LightingScene := preload("res://scenes/world/lighting.tscn")
+
+var world: Node3D
+var cat
+var dn
+
+func before_each() -> void:
+	GameState.reset()
+	world = Node3D.new()
+	add_child_autofree(world)
+	var floor_body := StaticBody3D.new()
+	floor_body.collision_layer = Layers.WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(40, 0.2, 40)
+	shape.shape = box
+	shape.position.y = -0.1
+	floor_body.add_child(shape)
+	world.add_child(floor_body)
+	var light = LightingScene.instantiate()
+	world.add_child(light)
+	dn = light.get_node("DayNight")
+	dn.set_time(50.0)
+	dn.time_scale = 0.0
+	cat = CatScene.instantiate()
+	cat.position = Vector3(0, 0.05, 10)
+	world.add_child(cat)
+
+func _spawn(path: String) -> Node3D:
+	var n := (load(path) as PackedScene).instantiate() as Node3D
+	n.position = Vector3(0, 0.05, 0)   # смотрит по −Z
+	world.add_child(n)
+	return n
+
+# --- садовник ---
+
+func test_gardener_spray_hits_only_in_cone_and_not_during_warning() -> void:
+	# Review Focus 5
+	var g = _spawn("res://scenes/hazards/gardener.tscn")
+	await wait_physics_frames(2)
+	cat.global_position = Vector3(0, 0.05, -2)
+	g.start_watering()
+	assert_eq(g.mode, &"warn")
+	await wait_physics_frames(5)
+	assert_eq(GameState.hearts, 3, "шипение — ещё не удар")
+	g.mode_left = 0.0
+	await wait_physics_frames(3)
+	assert_eq(g.mode, &"spray")
+	assert_eq(GameState.hearts, 2, "струя бьёт кота в конусе 3 м")
+
+func test_gardener_spray_misses_cat_outside_cone() -> void:
+	var g = _spawn("res://scenes/hazards/gardener.tscn")
+	await wait_physics_frames(2)
+	cat.global_position = Vector3(2.2, 0.05, -2)   # 48° от направления струи
+	g.start_watering()
+	g.mode_left = 0.0
+	await wait_physics_frames(6)
+	assert_eq(GameState.hearts, 3)
+
+func test_gardener_sleeps_at_night() -> void:
+	# Review Focus 4
+	var g = _spawn("res://scenes/hazards/gardener.tscn")
+	dn.set_time(220.0)
+	await wait_physics_frames(2)
+	assert_false(g.visible, "ночью садовник спит в сторожке")
+	cat.global_position = Vector3(0, 0.05, -2)
+	g.start_watering()
+	g.mode_left = 0.0
+	await wait_physics_frames(6)
+	assert_eq(GameState.hearts, 3, "спящий садовник не поливает")
+
+# --- ребёнок ---
+
+func test_kid_catches_and_pets_without_damage() -> void:
+	# Review Focus 2
+	var k = _spawn("res://scenes/hazards/kid.tscn")
+	GameState.pick_up(FoodCatalog.get_by_id(&"popcorn"))
+	watch_signals(GameState)
+	cat.global_position = Vector3(0, 0.05, -0.3)
+	await wait_physics_frames(6)
+	assert_signal_emitted(GameState, "cat_petted")
+	assert_eq(GameState.hearts, 3, "гладит, а не бьёт")
+	assert_true(GameState.mouth.is_empty(), "еда из зубов выпала")
+	assert_gt(cat.petted_left, 1.5)
+	await wait_seconds(2.2)
+	assert_almost_eq(cat.petted_left, 0.0, 0.001, "не дольше 2 с")
+	assert_gt(cat.invulnerable_left, 0.0, "после — неуязвимость")
+
+func test_kid_chases_cat_it_sees() -> void:
+	var k = _spawn("res://scenes/hazards/kid.tscn")
+	cat.global_position = Vector3(0, 0.05, -5)
+	await wait_seconds(1.0)
+	assert_eq(k.brain.state, ChaseBrain.State.CHASE, "заметил и бежит")
+	var d0: float = k.global_position.distance_to(cat.global_position)
+	await wait_seconds(0.5)
+	assert_lt(k.global_position.distance_to(cat.global_position), d0 - 0.5)
+
+func test_kid_goes_home_in_the_evening() -> void:
+	var k = _spawn("res://scenes/hazards/kid.tscn")
+	dn.set_time(160.0)
+	await wait_physics_frames(2)
+	assert_false(k.visible, "вечером ребёнок ушёл домой")
+	cat.global_position = Vector3(0, 0.05, -0.3)
+	await wait_physics_frames(5)
+	assert_almost_eq(cat.petted_left, 0.0, 0.001)
+
+# --- сторож ---
+
+func test_guard_only_at_night() -> void:
+	var gd = _spawn("res://scenes/hazards/guard.tscn")
+	await wait_physics_frames(2)
+	assert_false(gd.visible, "днём сторожа нет")
+	cat.global_position = Vector3(0, 0.05, -4)
+	assert_false(gd.sees_cat())
+	dn.set_time(220.0)
+	await wait_physics_frames(2)
+	assert_true(gd.visible)
+	assert_true(gd.sees_cat(), "ночью видит кота в луче фонарика")
+
+func test_guard_sees_cat_under_lamp_even_outside_flashlight() -> void:
+	var gd = _spawn("res://scenes/hazards/guard.tscn")
+	dn.set_time(220.0)
+	await wait_physics_frames(2)
+	cat.global_position = Vector3(5, 0.05, -5)   # 45° — вне луча 15°
+	assert_false(gd.sees_cat(), "в темноте сбоку не видит")
+	var lamp := SpotLight3D.new()
+	lamp.add_to_group("night_lights")
+	world.add_child(lamp)
+	lamp.global_position = Vector3(5, 2.45, -5)
+	lamp.visible = true
+	assert_true(gd.sees_cat(), "кот под горящим фонарём заметен")
+
+func test_absent_people_are_not_invisible_walls() -> void:
+	# Ревью плана 9 (I1): вне своей фазы тело не должно перекрывать дорогу коту.
+	var gd = _spawn("res://scenes/hazards/guard.tscn")
+	var k = _spawn("res://scenes/hazards/kid.tscn")
+	await wait_physics_frames(2)
+	assert_eq(gd.collision_layer, 0, "днём тела сторожа нет")
+	assert_eq(k.collision_layer, Layers.HAZARD, "ребёнок днём на месте")
+	dn.set_time(220.0)
+	await wait_physics_frames(2)
+	assert_eq(gd.collision_layer, Layers.HAZARD)
+	assert_eq(k.collision_layer, 0, "ночью ребёнка нет")
+
+func test_guard_touch_does_not_hit_by_day() -> void:
+	var gd = _spawn("res://scenes/hazards/guard.tscn")
+	await wait_physics_frames(2)
+	cat.global_position = Vector3(0, 0.05, -0.2)
+	await wait_physics_frames(6)
+	assert_eq(GameState.hearts, 3)
+
+func test_kid_touch_does_not_pet_at_night() -> void:
+	var k = _spawn("res://scenes/hazards/kid.tscn")
+	dn.set_time(220.0)
+	await wait_physics_frames(2)
+	cat.global_position = Vector3(0, 0.05, -0.3)
+	await wait_physics_frames(6)
+	assert_almost_eq(cat.petted_left, 0.0, 0.001)
+
+func test_respawn_dries_and_frees_cat() -> void:
+	cat.wet(4.0)
+	cat.petted_left = 1.5
+	cat.teleport(Vector3(0, 0.05, 5))
+	assert_almost_eq(cat.wet_left, 0.0, 0.001)
+	assert_almost_eq(cat.petted_left, 0.0, 0.001)
+```
+
+## `tests/integration/test_pigeons.gd`
+
+```gdscript
+extends GutTest
+
+const FlockScene := preload("res://scenes/hazards/pigeon_flock.tscn")
+const CatScene := preload("res://scenes/player/cat.tscn")
+
+var world: Node3D
+var cat
+var flock
+
+func before_each() -> void:
+	GameState.reset()
+	world = Node3D.new()
+	add_child_autofree(world)
+	var floor_body := StaticBody3D.new()
+	floor_body.collision_layer = Layers.WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(20, 0.2, 20)
+	shape.shape = box
+	shape.position.y = -0.1
+	floor_body.add_child(shape)
+	world.add_child(floor_body)
+	cat = CatScene.instantiate()
+	cat.position = Vector3(6, 0.05, 0)
+	world.add_child(cat)
+	flock = FlockScene.instantiate()
+	world.add_child(flock)
+
+func test_flock_has_five_pigeons() -> void:
+	await wait_physics_frames(2)
+	assert_eq(flock.pigeons().size(), 5)
+
+func test_pigeon_steals_last_food_once_then_rests() -> void:
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	GameState.pick_up(FoodCatalog.get_by_id(&"sausage"))
+	cat.global_position = Vector3(0.6, 0.05, 0)
+	await wait_physics_frames(5)
+	assert_eq(GameState.mouth.size(), 1, "голубь утащил последнюю еду")
+	assert_eq(GameState.hearts, 3)
+	await wait_physics_frames(10)
+	assert_eq(GameState.mouth.size(), 1, "перерыв 10 с: вторую не крадут")
+
+func test_running_cat_scatters_and_keeps_food() -> void:
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	cat.global_position = Vector3(2.0, 0.05, 0)
+	await wait_physics_frames(2)
+	Input.action_press("move_forward")
+	Input.action_press("run")
+	await wait_physics_frames(25)
+	Input.action_release("run")
+	Input.action_release("move_forward")
+	assert_eq(flock.mode, &"scattered", "бегущий кот разогнал стаю")
+	assert_eq(GameState.mouth.size(), 1, "еда цела")
+
+func test_pigeons_sleep_at_night() -> void:
+	var light = (load("res://scenes/world/lighting.tscn") as PackedScene).instantiate()
+	add_child_autofree(light)
+	light.get_node("DayNight").set_time(220.0)
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	cat.global_position = Vector3(0.6, 0.05, 0)
+	await wait_physics_frames(5)
+	assert_false(flock.visible, "ночью стаи нет (спят на ветках)")
+	assert_eq(GameState.mouth.size(), 1)
+
+func test_hidden_cat_keeps_food_next_to_flock() -> void:
+	# Review Focus 1, интеграционно
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	cat.global_position = Vector3(0.6, 0.05, 0)
+	cat.hidden = true
+	await wait_physics_frames(6)
+	assert_eq(GameState.mouth.size(), 1, "у спрятавшегося не крадут")
+
+func test_flock_steals_again_after_cooldown() -> void:
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	GameState.pick_up(FoodCatalog.get_by_id(&"sausage"))
+	cat.global_position = Vector3(0.6, 0.05, 0)
+	await wait_physics_frames(4)
+	assert_eq(GameState.mouth.size(), 1)
+	flock.cooldown_left = 0.0   # перерыв 10 с истёк
+	await wait_physics_frames(4)
+	assert_eq(GameState.mouth.size(), 0, "после перерыва стая снова крадёт")
 ```
 
 ## `tests/integration/test_shop_menu.gd`
@@ -6625,6 +7639,73 @@ func test_owned_skins_can_be_reselected() -> void:
 	assert_eq(GameState.yarn, 0, "повторный выбор бесплатен")
 	assert_true(black_btn.text.ends_with("— надет"))
 	main.close_shop()
+```
+
+## `tests/integration/test_sprinkler.gd`
+
+```gdscript
+extends GutTest
+
+const SprinklerScene := preload("res://scenes/hazards/sprinkler.tscn")
+const CatScene := preload("res://scenes/player/cat.tscn")
+
+var world: Node3D
+var cat
+var sp
+
+func before_each() -> void:
+	GameState.reset()
+	world = Node3D.new()
+	add_child_autofree(world)
+	var floor_body := StaticBody3D.new()
+	floor_body.collision_layer = Layers.WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(20, 0.2, 20)
+	shape.shape = box
+	shape.position.y = -0.1
+	floor_body.add_child(shape)
+	world.add_child(floor_body)
+	cat = CatScene.instantiate()
+	cat.position = Vector3(1.0, 0.05, 0)
+	world.add_child(cat)
+	sp = SprinklerScene.instantiate()
+	world.add_child(sp)
+
+func test_warning_does_not_wet_but_spray_does() -> void:
+	sp.time = 11.2   # предупреждение
+	await wait_physics_frames(3)
+	assert_eq(sp.phase, &"warn")
+	assert_almost_eq(cat.wet_left, 0.0, 0.001, "бульканье — ещё не мокро")
+	sp.time = 12.5
+	await wait_physics_frames(3)
+	assert_eq(sp.phase, &"on")
+	assert_gt(cat.wet_left, 3.5, "под струёй кот намок")
+	assert_eq(GameState.hearts, 3, "без урона")
+
+func test_wet_cat_is_slower_and_dries() -> void:
+	# Review Focus 3
+	cat.wet(4.0)
+	assert_almost_eq(cat.speed_factor(), 0.6, 0.001, "мокрый ×0,6")
+	cat.wet(2.0)
+	assert_almost_eq(cat.wet_left, 4.0, 0.05, "повторное намокание продлевает до большего, а не складывается")
+	assert_almost_eq(cat.speed_factor(), 0.6, 0.001, "и не умножает замедление")
+	await wait_seconds(4.2)
+	assert_almost_eq(cat.speed_factor(), 1.0, 0.001, "высох через 4 с")
+
+func test_sprinklers_work_at_night_too() -> void:
+	var light = (load("res://scenes/world/lighting.tscn") as PackedScene).instantiate()
+	add_child_autofree(light)
+	light.get_node("DayNight").set_time(220.0)
+	sp.time = 12.5
+	await wait_physics_frames(3)
+	assert_gt(cat.wet_left, 0.0, "ночью дождеватели тоже работают")
+
+func test_rewetting_extends_drying() -> void:
+	cat.wet(4.0)
+	await wait_seconds(2.0)
+	cat.wet(4.0)
+	assert_almost_eq(cat.wet_left, 4.0, 0.05, "повторное намокание продлевает срок")
 ```
 
 ## `tests/integration/test_surface_textures.gd`
@@ -7581,6 +8662,21 @@ func test_yarn_add_spend_and_card_bonus() -> void:
 	gs.eat_all()
 	assert_eq(gs.yarn, 3, "повтор карточки клубочков не даёт")
 	assert_signal_emitted(gs, "yarn_changed")
+
+func test_steal_last_takes_only_the_last_food_without_damage() -> void:
+	var gs = load("res://scripts/autoload/game_state.gd").new()
+	add_child_autofree(gs)
+	gs.reset()
+	gs.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	gs.pick_up(FoodCatalog.get_by_id(&"pizza"))
+	watch_signals(gs)
+	var f = gs.steal_last()
+	assert_eq(f.id, &"pizza")
+	assert_eq(gs.mouth.size(), 1)
+	assert_eq(gs.hearts, 3, "кража не ранит")
+	assert_signal_emitted(gs, "food_stolen")
+	gs.mouth.clear()
+	assert_null(gs.steal_last(), "из пустых зубов красть нечего")
 ```
 
 ## `tests/unit/test_images.gd`
@@ -7631,6 +8727,29 @@ func test_out_of_range() -> void:
 
 func test_height_is_ignored() -> void:
 	assert_true(Perception.in_cone(Vector3.ZERO, Vector3(0, 0, -1), Vector3(0, 5, -3), 45.0, 6.0))
+```
+
+## `tests/unit/test_pigeon_rules.gd`
+
+```gdscript
+extends GutTest
+## Решение стаи голубей (спек этапа 2, раздел 3).
+
+func test_steal_only_from_walking_cat_with_food_near() -> void:
+	assert_eq(PigeonFlock.decide(1.2, false, 2, false, false, 0.0, false), &"steal")
+	assert_eq(PigeonFlock.decide(2.0, false, 2, false, false, 0.0, false), &"none", "дальше 1,5 м — нет")
+	assert_eq(PigeonFlock.decide(1.2, false, 0, false, false, 0.0, false), &"none", "нет еды в зубах")
+
+func test_running_cat_scatters_flock() -> void:
+	assert_eq(PigeonFlock.decide(2.2, true, 2, false, false, 0.0, false), &"scatter")
+	assert_eq(PigeonFlock.decide(1.0, true, 0, false, false, 0.0, false), &"scatter", "разгоняет и без еды")
+
+func test_no_theft_from_hidden_or_safe_cat_on_cooldown_or_at_night() -> void:
+	# Review Focus 1
+	assert_eq(PigeonFlock.decide(1.0, false, 2, true, false, 0.0, false), &"none", "спрятался")
+	assert_eq(PigeonFlock.decide(1.0, false, 2, false, true, 0.0, false), &"none", "в будке")
+	assert_eq(PigeonFlock.decide(1.0, false, 2, false, false, 4.0, false), &"none", "перерыв после кражи")
+	assert_eq(PigeonFlock.decide(1.0, false, 2, false, false, 0.0, true), &"none", "ночью спят")
 ```
 
 ## `tests/unit/test_rarity.gd`
@@ -7783,7 +8902,7 @@ func before_each() -> void:
 	Sfx.reset_counters()
 
 func test_all_six_streams_exist() -> void:
-	for key in [&"pickup", &"eat", &"hit", &"meow", &"bark", &"bell"]:
+	for key in [&"pickup", &"eat", &"hit", &"meow", &"bark", &"bell", &"hiss", &"sprinkle", &"coo"]:
 		assert_true(Sfx.has(key), "нет звука %s" % key)
 
 func test_play_assigns_stream_and_counts() -> void:
@@ -7934,6 +9053,21 @@ func test_godot_version_is_4_7() -> void:
 	var v := Engine.get_version_info()
 	assert_eq(v.major, 4)
 	assert_eq(v.minor, 7)
+```
+
+## `tests/unit/test_sprinkler_cycle.gd`
+
+```gdscript
+extends GutTest
+## Цикл дождевателя (спек этапа 2, раздел 3): 12 с стоит, из них последняя 1 с — предупреждение, 8 с работает.
+
+func test_phases() -> void:
+	assert_eq(Sprinkler.phase_at(0.0), &"off")
+	assert_eq(Sprinkler.phase_at(10.9), &"off")
+	assert_eq(Sprinkler.phase_at(11.5), &"warn")
+	assert_eq(Sprinkler.phase_at(12.0), &"on")
+	assert_eq(Sprinkler.phase_at(19.9), &"on")
+	assert_eq(Sprinkler.phase_at(20.0), &"off", "цикл 20 с")
 ```
 
 ## `tests/unit/test_theme.gd`
@@ -9744,6 +10878,23 @@ def build():
 		rung.location = (0.75, 0, 0.15 + i * 0.17)
 		parts.append(rung)
 	return lib.group(parts)
+```
+
+## `tools/blender/gen/sprinkler.py`
+
+```python
+"""Дождеватель газона: низкая головка на стойке (вода — частицы в Godot)."""
+import lib
+
+SPEC = {"max_tris": 300, "max_dim": 0.3}
+
+
+def build():
+	base = lib.cylinder("sprinkler", radius=0.06, depth=0.08, segments=10, material="ink")
+	base.location.z = 0.04
+	head = lib.cylinder("sprinkler_head", radius=0.035, depth=0.08, segments=8, material="sky")
+	head.location.z = 0.12
+	return lib.group([base, head])
 ```
 
 ## `tools/blender/gen/stairs.py`
@@ -12049,7 +13200,11 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
   фонари и окна ночью, значок фазы, собака спит ночью, ночные веса еды.
 - План 8. Район «Парк» (`2026-10-09-snack-run-08-park.md`) — ВЫПОЛНЕН 2026-10-09: газон и гравий, фонтан,
   площадка, аллея фонарей, киоск, сторожка, забор, ворота 25, 6 вкусняшек, укрытия, 12 клубочков.
-- План 9. Опасности парка: голуби, садовник, дождеватели, ребёнок, сторож; анимации людей и птиц из CC0-паков.
+- План 9. Опасности парка (`2026-10-09-snack-run-09-park-hazards.md`) — ВЫПОЛНЕН 2026-10-09: голуби-воришки,
+  садовник со шлангом, дождеватели, ребёнок «погладить», ночной сторож; люди и голубь из CC0-паков (Quaternius, mujtaba-io).
+- Отложено из ревью плана 9: окклюзия луча сторожа и струи садовника (через забор), капли перед поливом,
+  возврат голубей к стае, расписание садовника в статической функции.
+- Этап 2 закрыт. Дальше по спеку: этап 3 (порт, пляж, чайки, вода), этап 4 (случайные события, дворовые коты).
 ```
 
 ## `docs/superpowers/notes/2026-10-07-unimate-attempt.md`
@@ -12191,10 +13346,57 @@ def bark(duration=0.16, gap=0.07):
 	return pulse() + [0.0] * int(RATE * gap) + pulse()
 
 
+def hiss(duration=0.9):
+	"""Шипение шланга: шум с плавной атакой 150 мс и затуханием, без тона."""
+	rnd = random.Random(11)
+	out = []
+	n = int(RATE * duration)
+	prev = 0.0
+	for i in range(n):
+		t = i / RATE
+		env = min(1.0, t / 0.15) * (1.0 - t / duration) ** 0.5
+		prev = prev * 0.55 + rnd.uniform(-1.0, 1.0) * 0.45   # мягкий фильтр: шипение, а не треск
+		out.append(env * 0.5 * prev)
+	return out
+
+
+def sprinkle(count=6, gap=0.11):
+	"""Бульканье дождевателя: короткие «бульки» — тон 300→700 Гц по 60 мс."""
+	out = []
+	for k in range(count):
+		n = int(RATE * 0.06)
+		phase = 0.0
+		for i in range(n):
+			u = i / n
+			phase += 2 * math.pi * (300 + 400 * u + 40 * k) / RATE
+			out.append(math.sin(phase) * 0.45 * (1 - u) ** 2)
+		out += [0.0] * int(RATE * gap)
+	return out
+
+
+def coo(duration=0.5):
+	"""Воркование голубя: два низких «гу-у» 320→260 Гц с вибрато 9 Гц."""
+	out = []
+	for part in (0.22, 0.28):
+		n = int(RATE * part)
+		phase = 0.0
+		for i in range(n):
+			t = i / RATE
+			u = t / part
+			phase += 2 * math.pi * (320 - 60 * u + 12 * math.sin(2 * math.pi * 9 * t)) / RATE
+			env = min(1.0, t / 0.03) * (1.0 - u) ** 1.2
+			out.append(env * 0.55 * (math.sin(phase) + 0.25 * math.sin(2 * phase)))
+		out += [0.0] * int(RATE * 0.05)
+	return out
+
+
 if __name__ == "__main__":
 	write("meow.wav", meow())
 	write("bark.wav", bark())
-	print("ОК assets/sfx/meow.wav, assets/sfx/bark.wav")
+	write("hiss.wav", hiss())
+	write("sprinkle.wav", sprinkle())
+	write("coo.wav", coo())
+	print("ОК assets/sfx/meow.wav, bark.wav, hiss.wav, sprinkle.wav, coo.wav")
 ```
 
 ## `tools/release/fetch_templates.sh`
@@ -12664,6 +13866,9 @@ void fragment() {
 | bell.ogg | звонок велосипеда | Kenney «Impact Sounds», impactBell_heavy_000 | CC0 |
 | meow.wav | писк кота | синтез `tools/audio/gen_sfx.py` (`make sfx`) | проект |
 | bark.wav | лай | синтез `tools/audio/gen_sfx.py` (`make sfx`) | проект |
+| hiss.wav | шланг садовника | синтез `make sfx` | проект |
+| sprinkle.wav | дождеватель | синтез `make sfx` | проект |
+| coo.wav | голуби | синтез `make sfx` | проект |
 
 Паки: https://kenney.nl/assets/interface-sounds, https://kenney.nl/assets/impact-sounds.
 Правило: один `Sfx.play()` на игровое событие (сигнал), никогда из `_process`.
