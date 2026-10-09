@@ -7,8 +7,8 @@ extends Node3D
 const TILE := 30
 const TEX_DIR := "res://assets/images/textures/"
 const DEFAULT_TEXTURES := {"asphalt": "asphalt.png", "paving": "paving.png", "grass": "grass.png", "gravel": "gravel.png",
-	"sand": "paving.png", "stone": "stone.png"}
-const DEFAULT_TILES := {"asphalt": 4.0, "paving": 1.2, "grass": 2.0, "gravel": 0.8, "sand": 2.0, "stone": 3.0}
+	"sand": "sand.png", "stone": "stone.png", "planks": "planks.png"}   # песок и доски — порт (план 13)
+const DEFAULT_TILES := {"asphalt": 4.0, "paving": 1.2, "grass": 2.0, "gravel": 0.8, "sand": 3.0, "stone": 3.0, "planks": 2.0}
 const TerrainShader := preload("res://assets/shaders/terrain.gdshader")
 
 @export_file("*.json") var data_path := ""

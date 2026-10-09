@@ -202,3 +202,19 @@ func test_terrain_without_data_answers_zero() -> void:
 	bad.data_path = "res://data/terrain/none.json"
 	add_child_autofree(bad)
 	assert_eq(bad.height_at(3, 3), 0.0)
+
+func test_port_terrain_channels_use_sand_and_planks() -> void:
+	# План 13: песок пляжа и доски причала — каналы карты покрытий.
+	var n := 3
+	var rows := [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+	var splat := PackedByteArray()
+	splat.resize(n * n * 4)
+	var f := FileAccess.open("user://port_channels.json", FileAccess.WRITE)
+	f.store_string(JSON.stringify({"nx": n, "nz": n, "cell": 1.0, "origin": [0, 0], "size": [2, 2], "heights": rows,
+		"splat": Marshalls.raw_to_base64(splat), "channels": ["paving", "sand", "planks", "grass"]}))
+	f.close()
+	var pt := Terrain.new()
+	pt.data_path = "user://port_channels.json"
+	add_child_autofree(pt)
+	assert_eq((pt.material.get_shader_parameter("tex_g") as Texture2D).resource_path, "res://assets/images/textures/sand.png")
+	assert_eq((pt.material.get_shader_parameter("tex_b") as Texture2D).resource_path, "res://assets/images/textures/planks.png")
