@@ -252,3 +252,24 @@ func test_lamp_light_fades_at_35m() -> void:
 	assert_true(l.distance_fade_enabled)
 	assert_almost_eq(l.distance_fade_begin, 35.0, 0.01)
 	assert_false(l.shadow_enabled)
+
+const GAZEBO_COLLIDERS := [{"size": [3.4, 0.3, 3.4], "offset": [0, 0.15, 0]},
+	{"size": [0.16, 2.2, 0.16], "offset": [1.85, 1.4, 0]}, {"size": [0.16, 2.2, 0.16], "offset": [-1.85, 1.4, 0]},
+	{"size": [0.16, 2.2, 0.16], "offset": [0.925, 1.4, 1.602]}, {"size": [0.16, 2.2, 0.16], "offset": [-0.925, 1.4, 1.602]},
+	{"size": [0.16, 2.2, 0.16], "offset": [0.925, 1.4, -1.602]}, {"size": [0.16, 2.2, 0.16], "offset": [-0.925, 1.4, -1.602]}]
+
+func test_gazebo_floor_and_posts_are_solid_but_inside_is_free() -> void:
+	# План 12: беседка на холме парка — пол 0,3 м, внутри проходимо.
+	var b = _builder()
+	b.build({"props": [{"model": "gazebo", "pos": [0, 0, 0], "colliders": GAZEBO_COLLIDERS}]})
+	await wait_physics_frames(1)
+	assert_eq(b.props_built, 1, "модель беседки есть")
+	var space: PhysicsDirectSpaceState3D = b.get_world_3d().direct_space_state
+	var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(0.5, 5, 0.3), Vector3(0.5, -1, 0.3), Layers.WORLD))
+	assert_false(hit.is_empty())
+	if not hit.is_empty():
+		assert_almost_eq((hit["position"] as Vector3).y, 0.3, 0.02, "пол беседки")
+	var q := PhysicsPointQueryParameters3D.new()
+	q.position = Vector3(0.5, 0.6, 0.3)
+	q.collision_mask = Layers.WORLD
+	assert_eq(space.intersect_point(q).size(), 0, "внутри беседки свободно")

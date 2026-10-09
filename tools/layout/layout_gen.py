@@ -170,6 +170,20 @@ def garage_row(origin, count, rot=0, step=3.2, foods=None):
 	return {"props": props, "yarn": yarn, "spawn_points": spawns}
 
 
+def pond(center, radius, depth, level):
+	"""Пруд: котловина рельефа, зона воды (поверхность level, абсолютная), 8 маркеров берега на radius + 1,5,
+	прямоугольник, закрытый для россыпи. Возвращает (feature, water, shore, blocked)."""
+	cx, cz = center
+	feature = {"type": "basin", "center": [cx, cz], "radius": radius, "depth": depth}
+	water = {"pos": [cx, level, cz], "size": [2 * radius, 2.0, 2 * radius]}
+	shore = []
+	for k in range(8):
+		a = k * math.pi / 4
+		shore.append({"pos": [round(cx + (radius + 1.5) * math.cos(a), 2), 0, round(cz + (radius + 1.5) * math.sin(a), 2)]})
+	blocked = (cx - radius - 1, cz - radius - 1, cx + radius + 1, cz + radius + 1, 0.0)
+	return feature, water, shore, blocked
+
+
 def scatter(rng, rect, count, blocked, min_dist=2.0, margin=0.4, taken=None, tries=6000):
 	"""count точек в rect не ближе min_dist друг к другу и к taken, вне blocked (+margin)."""
 	pts = []
@@ -214,7 +228,7 @@ def model_defaults(props):
 	return d
 
 
-LISTS = ("props", "hideouts", "spawn_points", "yarn", "hazards", "decals", "gates")
+LISTS = ("props", "hideouts", "spawn_points", "yarn", "hazards", "decals", "gates", "water_zones", "shore")
 
 
 def generate(desc):
@@ -257,6 +271,12 @@ def generate(desc):
 			row = garage_row(tuple(op["origin"]), op["count"], op.get("rot", 0), op.get("step", 3.2), op.get("foods"))
 			for k, v in row.items():
 				add(k, v)
+		elif t == "pond":
+			feature, water, shore, bl = pond(tuple(op["center"]), op["radius"], op["depth"], op["level"])
+			terrain["features"].append(feature)
+			add("water_zones", [water])
+			add("shore", shore)
+			blocked.append(bl)
 		elif t == "hill":
 			terrain["features"].append({"type": "hill", "center": op["center"], "radius": op["radius"], "height": op["height"]})
 		elif t == "paint":
@@ -281,6 +301,9 @@ def generate(desc):
 				elif w == "hideout" and op.get("kind", "box") == "box":
 					add("props", [{"model": "box", "pos": [x, 0, z], "rot": rng.randrange(0, 360, 15), "outline": True}])
 					add("hideouts", [{"kind": "box", "pos": [x, 0.2, round(z + 0.65, 2)], "size": [0.6, 0.4, 0.6]}])
+				elif w == "hideout" and op.get("kind") == "bush":
+					add("props", [{"model": "bush", "pos": [x, 0, z], "rot": rng.randrange(0, 360, 15)}])
+					add("hideouts", [{"kind": "bush", "pos": [x, 0.25, z], "size": [0.9, 0.5, 0.9]}])
 				elif w == "hideout":
 					r = rng.choice((0, 90, 180, 270))
 					add("props", [{"model": "bench", "pos": [x, 0, z], "rot": r}])

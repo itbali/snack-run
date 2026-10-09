@@ -99,6 +99,30 @@ class Primitives(unittest.TestCase):
 		for x, z in pts:
 			self.assertFalse(abs(x - 20.0) < 1.5 and start[2] <= z <= start[2] + 3.0, f"{x},{z} перед лестницей")
 
+	def test_pond_makes_basin_water_and_shore_ring(self):
+		feature, water, shore, blocked = lg.pond((-28, 62), 11, 1.5, -0.5)
+		self.assertEqual(feature, {"type": "basin", "center": [-28, 62], "radius": 11, "depth": 1.5})
+		self.assertEqual(water, {"pos": [-28, -0.5, 62], "size": [22, 2.0, 22]})
+		self.assertEqual(len(shore), 8)
+		for m in shore:
+			self.assertAlmostEqual(math.dist((m["pos"][0], m["pos"][2]), (-28, 62)), 12.5, 2)
+		self.assertEqual(blocked, (-40, 50, -16, 74, 0.0))
+
+	def test_scatter_bush_hideout(self):
+		d = {"name": "t", "terrain": DESC["terrain"], "zones": [{"name": "z", "ops": [
+			{"type": "scatter", "what": "hideout", "kind": "bush", "rect": [-10, -10, 10, 10], "count": 2}]}]}
+		layout, _ = lg.generate(d)
+		self.assertEqual([p["model"] for p in layout["props"]], ["bush", "bush"])
+		self.assertTrue(all(h["kind"] == "bush" and h["pos"][1] == 0.25 and h["size"] == [0.9, 0.5, 0.9] for h in layout["hideouts"]))
+
+	def test_generate_writes_pond_lists(self):
+		d = {"name": "t", "terrain": DESC["terrain"], "zones": [{"name": "z", "ops": [
+			{"type": "pond", "center": [0, 0], "radius": 6, "depth": 1.5, "level": -0.5}]}]}
+		layout, terrain = lg.generate(d)
+		self.assertEqual(len(layout["water_zones"]), 1)
+		self.assertEqual(len(layout["shore"]), 8)
+		self.assertEqual(terrain["features"][0]["type"], "basin")
+
 	def test_kit_constants_match_world_builder(self):
 		src = (ROOT / "scripts/world/world_builder.gd").read_text()
 		for name, val in (("KIT_STEP_RISE", lg.KIT_RISE), ("KIT_STEP_TREAD", lg.KIT_TREAD), ("KIT_RAMP_DEG", lg.KIT_RAMP_DEG), ("KIT_WIDTH", lg.KIT_WIDTH)):
