@@ -5,7 +5,7 @@
 Отступы в GDScript и Makefile — табы; в Python проекта — тоже табы, кроме
 `palette.py` и тестов Blender (пробелы). Копировать как есть.
 
-Файлов: 282
+Файлов: 283
 
 ## `CLAUDE.md`
 
@@ -1300,14 +1300,21 @@ func _open_album_later() -> void:
 	## Кадр альбома: ++ --album открывает альбом со всеми карточками (план 13: 20 вкусняшек).
 	for i in 6:
 		await get_tree().process_frame
-	for f in FoodCatalog.all():
-		GameState.album[f.id] = GameState.album.get(f.id, 0) + 1
-	GameState.album_changed.emit(GameState.album)
 	var main := get_tree().get_first_node_in_group("main")
 	if main == null:
 		main = get_tree().current_scene
+	fill_album(main)
 	if main and main.has_method("toggle_album"):
 		main.call("toggle_album")
+
+
+func fill_album(main: Node) -> void:
+	## Все карточки — только для кадра: автосохранение выключается, настоящий save.json не меняется (ревью плана 13).
+	if main and "autosave" in main:
+		main.set("autosave", false)
+	for f in FoodCatalog.all():
+		GameState.album[f.id] = maxi(int(GameState.album.get(f.id, 0)), 1)
+	GameState.album_changed.emit(GameState.album)
 
 
 func _screenshot_and_quit(path: String) -> void:
@@ -5188,6 +5195,7 @@ extends AnimatableBody3D
 @export var roll_deg := 6.0
 @export var period := 3.5
 @export var phase := 0.0
+@export var solid := true   # false — декоративная опора (буёк), без коллизии
 var base: Transform3D
 var _t := 0.0
 
@@ -5200,7 +5208,7 @@ static func offset_at(t: float, a: float, roll: float, p: float, ph: float) -> V
 
 func _ready() -> void:
 	add_to_group("floaters")
-	collision_layer = Layers.WORLD
+	collision_layer = Layers.WORLD if solid else 0
 	collision_mask = 0
 	sync_to_physics = true
 	base = transform
@@ -5744,7 +5752,9 @@ func _build_floater(f: Dictionary) -> void:
 	model.name = "Model"
 	body.add_child(model)
 	var colliders: Array = f.get("colliders", [])
-	if colliders.is_empty():
+	if not bool(f.get("solid", true)):
+		body.solid = false   # декоративная опора (буёк): на неё не встать
+	elif colliders.is_empty():
 		var aabb := _model_aabb(model)
 		colliders = [{"size": [aabb.size.x, aabb.size.y, aabb.size.z],
 			"offset": [aabb.position.x + aabb.size.x / 2, aabb.position.y + aabb.size.y / 2, aabb.position.z + aabb.size.z / 2]}]
@@ -7748,6 +7758,12 @@ func test_album_with_twenty_cards_fits_the_window() -> void:
 	assert_lte(need.y, 700.0, "альбом по высоте влезает в 720: %s" % need)
 	assert_lte(need.x, 1260.0, "альбом по ширине влезает в 1280: %s" % need)
 	m.toggle_album()
+
+func test_dev_album_fill_does_not_touch_the_save() -> void:
+	# Ревью плана 13: ++ --album открывал все карточки и сохранял их в настоящий save.json.
+	DevTools.fill_album(main)
+	assert_false(main.autosave, "кадр альбома не пишет сохранение")
+	main.autosave = true
 ```
 
 ## `tests/integration/test_park.gd`
@@ -8368,6 +8384,56 @@ func test_generated_items_stand_on_surface() -> void:
 			PhysicsRayQueryParameters3D.create(p + Vector3.UP * 0.3, p + Vector3.DOWN * 0.7, Layers.WORLD))
 		assert_false(hit.is_empty(), "%s в %s на опоре" % [s.name, p])
 		assert_gt(p.y, -2.3, "%s в %s не под водой" % [s.name, p])
+
+func test_port_north_edge_beyond_park_is_closed() -> void:
+	# Ревью плана 13: порт шире парка — на x −60…−45 и 45…60 у z 125 набережная обрывалась в пустоту.
+	var space := world.get_world_3d().direct_space_state
+	for x in [-58, -52, -47, 47, 52, 58]:
+		var from := Vector3(x, 0.3, 127)
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(from, from + Vector3(0, 0, -4), Layers.WORLD))
+		assert_false(hit.is_empty(), "забор на юге набережной у x %d" % x)
+
+func test_climb_steps_from_boats_to_pier() -> void:
+	# Ревью плана 13: с палубы до настила 0,77–0,85 м — на пределе прыжка; понтоны у проёмов дают ступени ≤ 0,5 м.
+	var space := world.get_world_3d().direct_space_state
+	for f in b.find_children("boat*", "Floater", true, false):
+		var boat := f as Floater
+		var deck := boat.base.origin.y + 0.45
+		var to_pier := signf(25.0 - boat.base.origin.x)
+		var probe := boat.base.origin + Vector3(to_pier * 1.6, 0, 0)   # 0,8 м за бортом к причалу
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(probe + Vector3.UP * 3, probe + Vector3.DOWN * 3, Layers.WORLD))
+		assert_false(hit.is_empty(), "у %s ступень к причалу" % boat.name)
+		if not hit.is_empty():
+			var step := (hit["position"] as Vector3).y
+			assert_lte(step - (deck - boat.amp - 0.1), 0.55, "%s: с палубы на ступень" % boat.name)
+			assert_lte(-1.0 - step, 0.55, "%s: со ступени на причал" % boat.name)
+
+func test_barrels_are_a_walkable_chain() -> void:
+	# Ревью плана 13: бочки через 3 м — зазор 2,3 м; цепочка — центры не дальше 2,0 м.
+	var zs: Array = []
+	for f in b.find_children("barrel*", "Floater", true, false):
+		zs.append((f as Floater).base.origin.z)
+	zs.sort()
+	for i in zs.size() - 1:
+		assert_lte(zs[i + 1] - zs[i], 2.05, "шаг бочек")
+
+func test_cat_jumps_from_boat_back_onto_pier() -> void:
+	# Ревью плана 13: реальный ввод — с лодки через понтон на причал.
+	GameState.reset()
+	var cat = (load("res://scenes/player/cat.tscn") as PackedScene).instantiate()
+	cat.position = Vector3(37.3, -1.4, 165)
+	world.add_child(cat)
+	await wait_physics_frames(20)
+	Input.action_press("move_left")   # без камеры «влево» — это −X, к причалу
+	for i in 8:
+		Input.action_press("jump")
+		await wait_physics_frames(2)
+		Input.action_release("jump")
+		await wait_physics_frames(22)
+	Input.action_release("move_left")
+	assert_lt(cat.global_position.x, 34.5, "кот на причале, а не в воде")
+	assert_gt(cat.global_position.y, -1.1, "на высоте настила")
+	cat.free()
 ```
 
 ## `tests/integration/test_shop_menu.gd`
@@ -12468,6 +12534,28 @@ def build():
 	return pigeon.build()
 ```
 
+## `tools/blender/gen/pontoon.py`
+
+```python
+"""Понтон-ступень у проёма причала (ревью плана 13): дощатая площадка 1,4×1,6 м высотой 0,3 — с лодки на причал в два шага."""
+import lib
+
+SPEC = {"max_tris": 600, "max_dim": 1.7}
+
+
+def build():
+	parts = []
+	for i in range(4):
+		p = lib.rounded_box("pontoon" if i == 0 else f"pontoon_plank{i}", (1.4, 0.36, 0.08), bevel=0.01, segments=1, material="sand" if i % 2 else "brick")
+		p.location = (0, -0.6 + i * 0.4, 0.26)
+		parts.append(p)
+	for i, (x, y) in enumerate(((-0.6, -0.7), (0.6, -0.7), (-0.6, 0.7), (0.6, 0.7))):
+		post = lib.cylinder(f"pontoon_post{i}", radius=0.07, depth=0.6, segments=8, material="ink")
+		post.location = (x, y, 0.0)
+		parts.append(post)
+	return lib.group(parts)
+```
+
 ## `tools/blender/gen/puddle.py`
 
 ```python
@@ -15076,6 +15164,12 @@ snack_run/
 - **План 14. Опасности порта**: чайки, волны, погрузчик, крабы; поиск анимаций чайки и краба.
 - **План 15. Рыбалка**: рыбаки, удочки, ведра, цикл, кража, золотая рыбка.
 
+## 9а. Фактические числа после масштаба ×3 (план 13)
+
+Порт x −60…60, z 125…227, база рельефа −2. Набережная — уровень 0, z 125…148, парапет 0,7 м к пляжу. Причал — уровень −1,
+x 15…35, z 148…212, понтоны-ступени (верх −1,45) у проёмов к лодкам. Пляж — −2. Море и гавань: дно −3,5, вода −2,3
+(на 0,3 ниже пляжа, как в разделе 2). Лодки: палуба −1,65 ±0,12; бочки — шаг 2 м, верх −2,0. Ворота в парке — x −6, z 125.
+
 ## 10. Вне этапа 3
 
 Случайные события и дворовые коты (этап 4); плавание как навык; сохранение фазы суток.
@@ -15275,6 +15369,7 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
   дну пруда; линейный поиск маркера берега; маршруты ядра парка через фонтан и качели (с плана 9).
 - План 13. Район «Порт» и вода (`2026-10-09-snack-run-13-port.md`) — ВЫПОЛНЕН 2026-10-09: набережная, причал, пляж, море,
   качающиеся лодки и бочки, ворота 50, шесть вкусняшек, альбом 20.
+- Отложено из ревью плана 13: проёмы стен в описании «1.0» при фактических 4 м; лодки и бочки без тун-обводки.
 - Планы 13–15. Этап 3: порт 120×102 (район и вода, опасности, рыбалка) по спеку `2026-10-09-snack-run-stage3-port-design.md`.
 ```
 
@@ -17368,7 +17463,7 @@ if __name__ == "__main__":
     {"model": "retaining_wall2", "pos": [35.5, -2.3, 169.5], "rot": 90, "snap": false},
     {"model": "retaining_wall2", "pos": [35.5, -2.3, 173.5], "rot": 90, "snap": false},
     {"model": "retaining_wall2", "pos": [35.5, -2.3, 177.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [35.5, -2.3, 181.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [35.5, -2.3, 185.5], "rot": 90, "snap": false},
     {"model": "retaining_wall2", "pos": [35.5, -2.3, 189.5], "rot": 90, "snap": false},
     {"model": "retaining_wall2", "pos": [35.5, -2.3, 193.5], "rot": 90, "snap": false},
     {"model": "retaining_wall2", "pos": [35.5, -2.3, 197.5], "rot": 90, "snap": false},
@@ -17383,6 +17478,9 @@ if __name__ == "__main__":
     {"model": "bollard", "pos": [34, 0, 160], "rot": 0},
     {"model": "bollard", "pos": [34, 0, 180], "rot": 0},
     {"model": "bollard", "pos": [34, 0, 200], "rot": 0},
+    {"model": "pontoon", "pos": [35.7, -1.75, 165], "rot": 0, "snap": false, "colliders": [{"size": [1.4, 0.3, 1.6], "offset": [0, 0.15, 0]}]},
+    {"model": "pontoon", "pos": [35.7, -1.75, 181], "rot": 0, "snap": false, "colliders": [{"size": [1.4, 0.3, 1.6], "offset": [0, 0.15, 0]}]},
+    {"model": "pontoon", "pos": [14.3, -1.75, 176], "rot": 0, "snap": false, "colliders": [{"size": [1.4, 0.3, 1.6], "offset": [0, 0.15, 0]}]},
     {"model": "retaining_wall3", "pos": [-58.5, -2.3, 148.5], "rot": 0, "snap": false},
     {"model": "retaining_wall3", "pos": [-54.5, -2.3, 148.5], "rot": 0, "snap": false},
     {"model": "retaining_wall3", "pos": [-50.5, -2.3, 148.5], "rot": 0, "snap": false},
@@ -17436,6 +17534,22 @@ if __name__ == "__main__":
     {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [60.0, 0, 144.0], "rot": -90},
     {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [60.0, 0, 146.0], "rot": -90},
     {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [59.95, 0, 147.0], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-59.0, 0, 125.1], "rot": 0},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-57.0, 0, 125.1], "rot": 0},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-55.0, 0, 125.1], "rot": 0},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-53.0, 0, 125.1], "rot": 0},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-51.0, 0, 125.1], "rot": 0},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-49.0, 0, 125.1], "rot": 0},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-47.0, 0, 125.1], "rot": 0},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 125.1], "rot": 0},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 125.1], "rot": 0},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [47.0, 0, 125.1], "rot": 0},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [49.0, 0, 125.1], "rot": 0},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [51.0, 0, 125.1], "rot": 0},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [53.0, 0, 125.1], "rot": 0},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [55.0, 0, 125.1], "rot": 0},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [57.0, 0, 125.1], "rot": 0},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [59.0, 0, 125.1], "rot": 0},
     {"colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}], "model": "lamp", "pos": [-50, 0, 146], "rot": 0},
     {"colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}], "model": "lamp", "pos": [-30, 0, 146], "rot": 0},
     {"colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}], "model": "lamp", "pos": [-10, 0, 146], "rot": 0},
@@ -17519,9 +17633,9 @@ if __name__ == "__main__":
     {"kind": "box", "pos": [-7.7, 0.2, 157.95], "size": [0.6, 0.4, 0.6]}
   ],
   "spawn_points": [
-    {"pos": [37.5, -1.55, 164], "allowed": [1], "foods": ["squid"], "snap": false},
-    {"pos": [12.5, -1.55, 177], "allowed": [1], "foods": ["squid", "fish_sandwich"], "snap": false},
-    {"pos": [37.5, -1.55, 187], "allowed": [2], "foods": ["sushi"], "snap": false},
+    {"pos": [37.3, -1.55, 164], "allowed": [1], "foods": ["squid"], "snap": false},
+    {"pos": [12.7, -1.55, 177], "allowed": [1], "foods": ["squid", "fish_sandwich"], "snap": false},
+    {"pos": [37.3, -1.55, 182], "allowed": [2], "foods": ["sushi"], "snap": false},
     {"pos": [-30, 0, 133.6], "allowed": [0], "foods": ["fries"]},
     {"pos": [16.5, 0, 157.6], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
     {"pos": [28.3, 0, 209.9], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
@@ -17556,8 +17670,8 @@ if __name__ == "__main__":
     {"pos": [-20.2, 0, 177.2], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]}
   ],
   "yarn": [
-    {"pos": [37.5, -1.55, 166.5], "snap": false},
-    {"pos": [12.5, -1.55, 174.5], "snap": false},
+    {"pos": [37.3, -1.55, 166.5], "snap": false},
+    {"pos": [12.7, -1.55, 174.5], "snap": false},
     {"pos": [32.0, 0, 188.3]},
     {"pos": [27.8, 0, 170.8]},
     {"pos": [26.7, 0, 188.0]},
@@ -17589,8 +17703,8 @@ if __name__ == "__main__":
   "gates": [
   ],
   "water_zones": [
-    {"pos": [0.0, -2.3, 211.0], "size": [120, 2.0, 32]},
-    {"pos": [35.0, -2.3, 171.5], "size": [50, 2.0, 47]}
+    {"pos": [0.0, -2.3, 210.5], "size": [120, 2.0, 33]},
+    {"pos": [34.5, -2.3, 171.5], "size": [51, 2.0, 47]}
   ],
   "shore": [
     {"pos": [-55, 0, 192]},
@@ -17608,21 +17722,25 @@ if __name__ == "__main__":
     {"pos": [25, 0, 205]},
     {"pos": [40, 0, 145]},
     {"pos": [50, 0, 145]},
-    {"pos": [57, 0, 145]}
+    {"pos": [57, 0, 145]},
+    {"pos": [8, 0, 155]},
+    {"pos": [8, 0, 165]},
+    {"pos": [8, 0, 175]},
+    {"pos": [8, 0, 185]}
   ],
   "floaters": [
-    {"model": "boat", "pos": [37.5, -2.1, 165], "rot": 0, "period": 3.4, "phase": 0.0, "colliders": [{"size": [1.6, 0.75, 4.2], "offset": [0, 0.075, 0]}]},
-    {"model": "boat", "pos": [37.5, -2.1, 186], "rot": 0, "period": 3.8, "phase": 1.7, "colliders": [{"size": [1.6, 0.75, 4.2], "offset": [0, 0.075, 0]}]},
-    {"model": "boat", "pos": [12.5, -2.1, 176], "rot": 0, "period": 3.1, "phase": 3.1, "colliders": [{"size": [1.6, 0.75, 4.2], "offset": [0, 0.075, 0]}]},
-    {"model": "barrel", "pos": [38.5, -2.6999999999999997, 169.5], "rot": 0, "amp": 0.06, "roll": 4.0, "period": 2.6, "phase": 0.0, "colliders": [{"size": [0.7, 0.7, 0.7], "offset": [0, 0.35, 0]}]},
-    {"model": "barrel", "pos": [38.5, -2.6999999999999997, 172.5], "rot": 0, "amp": 0.06, "roll": 4.0, "period": 2.8000000000000003, "phase": 1.1, "colliders": [{"size": [0.7, 0.7, 0.7], "offset": [0, 0.35, 0]}]},
-    {"model": "barrel", "pos": [38.5, -2.6999999999999997, 175.5], "rot": 0, "amp": 0.06, "roll": 4.0, "period": 3.0, "phase": 2.2, "colliders": [{"size": [0.7, 0.7, 0.7], "offset": [0, 0.35, 0]}]},
-    {"model": "barrel", "pos": [38.5, -2.6999999999999997, 178.5], "rot": 0, "amp": 0.06, "roll": 4.0, "period": 3.2, "phase": 3.3000000000000003, "colliders": [{"size": [0.7, 0.7, 0.7], "offset": [0, 0.35, 0]}]},
-    {"model": "barrel", "pos": [38.5, -2.6999999999999997, 181.5], "rot": 0, "amp": 0.06, "roll": 4.0, "period": 3.4000000000000004, "phase": 4.4, "colliders": [{"size": [0.7, 0.7, 0.7], "offset": [0, 0.35, 0]}]},
-    {"model": "buoy", "pos": [-40, -2.3, 215], "rot": 0, "amp": 0.08, "period": 2.9, "phase": -4.0},
-    {"model": "buoy", "pos": [-10, -2.3, 215], "rot": 0, "amp": 0.08, "period": 2.9, "phase": -1.0},
-    {"model": "buoy", "pos": [20, -2.3, 215], "rot": 0, "amp": 0.08, "period": 2.9, "phase": 2.0},
-    {"model": "buoy", "pos": [50, -2.3, 215], "rot": 0, "amp": 0.08, "period": 2.9, "phase": 5.0}
+    {"model": "boat", "pos": [37.3, -2.1, 165], "rot": 0, "period": 3.4, "phase": 0.0, "colliders": [{"size": [1.6, 0.75, 4.2], "offset": [0, 0.075, 0]}]},
+    {"model": "boat", "pos": [37.3, -2.1, 181], "rot": 0, "period": 3.8, "phase": 1.7, "colliders": [{"size": [1.6, 0.75, 4.2], "offset": [0, 0.075, 0]}]},
+    {"model": "boat", "pos": [12.7, -2.1, 176], "rot": 0, "period": 3.1, "phase": 3.1, "colliders": [{"size": [1.6, 0.75, 4.2], "offset": [0, 0.075, 0]}]},
+    {"model": "barrel", "pos": [37.6, -2.6999999999999997, 169], "rot": 0, "amp": 0.06, "roll": 4.0, "period": 2.6, "phase": 0.0, "colliders": [{"size": [0.7, 0.7, 0.7], "offset": [0, 0.35, 0]}]},
+    {"model": "barrel", "pos": [37.6, -2.6999999999999997, 171], "rot": 0, "amp": 0.06, "roll": 4.0, "period": 2.8000000000000003, "phase": 1.1, "colliders": [{"size": [0.7, 0.7, 0.7], "offset": [0, 0.35, 0]}]},
+    {"model": "barrel", "pos": [37.6, -2.6999999999999997, 173], "rot": 0, "amp": 0.06, "roll": 4.0, "period": 3.0, "phase": 2.2, "colliders": [{"size": [0.7, 0.7, 0.7], "offset": [0, 0.35, 0]}]},
+    {"model": "barrel", "pos": [37.6, -2.6999999999999997, 175], "rot": 0, "amp": 0.06, "roll": 4.0, "period": 3.2, "phase": 3.3000000000000003, "colliders": [{"size": [0.7, 0.7, 0.7], "offset": [0, 0.35, 0]}]},
+    {"model": "barrel", "pos": [37.6, -2.6999999999999997, 177], "rot": 0, "amp": 0.06, "roll": 4.0, "period": 3.4000000000000004, "phase": 4.4, "colliders": [{"size": [0.7, 0.7, 0.7], "offset": [0, 0.35, 0]}]},
+    {"model": "buoy", "pos": [-40, -2.3, 215], "rot": 0, "amp": 0.08, "period": 2.9, "phase": -4.0, "solid": false},
+    {"model": "buoy", "pos": [-10, -2.3, 215], "rot": 0, "amp": 0.08, "period": 2.9, "phase": -1.0, "solid": false},
+    {"model": "buoy", "pos": [20, -2.3, 215], "rot": 0, "amp": 0.08, "period": 2.9, "phase": 2.0, "solid": false},
+    {"model": "buoy", "pos": [50, -2.3, 215], "rot": 0, "amp": 0.08, "period": 2.9, "phase": 5.0, "solid": false}
   ]
 }
 ```
@@ -21858,7 +21976,7 @@ class Generate(unittest.TestCase):
      "type": "water",
      "rect": [
       -60,
-      195,
+      194,
       60,
       227
      ],
@@ -21904,7 +22022,7 @@ class Generate(unittest.TestCase):
     {
      "type": "water",
      "rect": [
-      10,
+      9,
       148,
       60,
       195
@@ -21955,6 +22073,26 @@ class Generate(unittest.TestCase):
        57,
        0,
        145
+      ],
+      [
+       8,
+       0,
+       155
+      ],
+      [
+       8,
+       0,
+       165
+      ],
+      [
+       8,
+       0,
+       175
+      ],
+      [
+       8,
+       0,
+       185
       ]
      ]
     },
@@ -21964,7 +22102,7 @@ class Generate(unittest.TestCase):
       {
        "model": "boat",
        "pos": [
-        37.5,
+        37.3,
         -2.1,
         165
        ],
@@ -21989,9 +22127,9 @@ class Generate(unittest.TestCase):
       {
        "model": "boat",
        "pos": [
-        37.5,
+        37.3,
         -2.1,
-        186
+        181
        ],
        "rot": 0,
        "period": 3.8,
@@ -22014,7 +22152,7 @@ class Generate(unittest.TestCase):
       {
        "model": "boat",
        "pos": [
-        12.5,
+        12.7,
         -2.1,
         176
        ],
@@ -22039,9 +22177,9 @@ class Generate(unittest.TestCase):
       {
        "model": "barrel",
        "pos": [
-        38.5,
+        37.6,
         -2.6999999999999997,
-        169.5
+        169
        ],
        "rot": 0,
        "amp": 0.06,
@@ -22066,9 +22204,9 @@ class Generate(unittest.TestCase):
       {
        "model": "barrel",
        "pos": [
-        38.5,
+        37.6,
         -2.6999999999999997,
-        172.5
+        171
        ],
        "rot": 0,
        "amp": 0.06,
@@ -22093,9 +22231,9 @@ class Generate(unittest.TestCase):
       {
        "model": "barrel",
        "pos": [
-        38.5,
+        37.6,
         -2.6999999999999997,
-        175.5
+        173
        ],
        "rot": 0,
        "amp": 0.06,
@@ -22120,9 +22258,9 @@ class Generate(unittest.TestCase):
       {
        "model": "barrel",
        "pos": [
-        38.5,
+        37.6,
         -2.6999999999999997,
-        178.5
+        175
        ],
        "rot": 0,
        "amp": 0.06,
@@ -22147,9 +22285,9 @@ class Generate(unittest.TestCase):
       {
        "model": "barrel",
        "pos": [
-        38.5,
+        37.6,
         -2.6999999999999997,
-        181.5
+        177
        ],
        "rot": 0,
        "amp": 0.06,
@@ -22181,7 +22319,8 @@ class Generate(unittest.TestCase):
        "rot": 0,
        "amp": 0.08,
        "period": 2.9,
-       "phase": -4.0
+       "phase": -4.0,
+       "solid": false
       },
       {
        "model": "buoy",
@@ -22193,7 +22332,8 @@ class Generate(unittest.TestCase):
        "rot": 0,
        "amp": 0.08,
        "period": 2.9,
-       "phase": -1.0
+       "phase": -1.0,
+       "solid": false
       },
       {
        "model": "buoy",
@@ -22205,7 +22345,8 @@ class Generate(unittest.TestCase):
        "rot": 0,
        "amp": 0.08,
        "period": 2.9,
-       "phase": 2.0
+       "phase": 2.0,
+       "solid": false
       },
       {
        "model": "buoy",
@@ -22217,13 +22358,14 @@ class Generate(unittest.TestCase):
        "rot": 0,
        "amp": 0.08,
        "period": 2.9,
-       "phase": 5.0
+       "phase": 5.0,
+       "solid": false
       }
      ],
      "spawn_points": [
       {
        "pos": [
-        37.5,
+        37.3,
         -1.55,
         164
        ],
@@ -22237,7 +22379,7 @@ class Generate(unittest.TestCase):
       },
       {
        "pos": [
-        12.5,
+        12.7,
         -1.55,
         177
        ],
@@ -22252,9 +22394,9 @@ class Generate(unittest.TestCase):
       },
       {
        "pos": [
-        37.5,
+        37.3,
         -1.55,
-        187
+        182
        ],
        "allowed": [
         2
@@ -22268,7 +22410,7 @@ class Generate(unittest.TestCase):
      "yarn": [
       {
        "pos": [
-        37.5,
+        37.3,
         -1.55,
         166.5
        ],
@@ -22276,7 +22418,7 @@ class Generate(unittest.TestCase):
       },
       {
        "pos": [
-        12.5,
+        12.7,
         -1.55,
         174.5
        ],
@@ -22309,7 +22451,7 @@ class Generate(unittest.TestCase):
       ],
       [
        "e",
-       186,
+       181,
        1.0
       ],
       [
@@ -22395,6 +22537,78 @@ class Generate(unittest.TestCase):
         200
        ],
        "rot": 0
+      },
+      {
+       "model": "pontoon",
+       "pos": [
+        35.7,
+        -1.75,
+        165
+       ],
+       "rot": 0,
+       "snap": false,
+       "colliders": [
+        {
+         "size": [
+          1.4,
+          0.3,
+          1.6
+         ],
+         "offset": [
+          0,
+          0.15,
+          0
+         ]
+        }
+       ]
+      },
+      {
+       "model": "pontoon",
+       "pos": [
+        35.7,
+        -1.75,
+        181
+       ],
+       "rot": 0,
+       "snap": false,
+       "colliders": [
+        {
+         "size": [
+          1.4,
+          0.3,
+          1.6
+         ],
+         "offset": [
+          0,
+          0.15,
+          0
+         ]
+        }
+       ]
+      },
+      {
+       "model": "pontoon",
+       "pos": [
+        14.3,
+        -1.75,
+        176
+       ],
+       "rot": 0,
+       "snap": false,
+       "colliders": [
+        {
+         "size": [
+          1.4,
+          0.3,
+          1.6
+         ],
+         "offset": [
+          0,
+          0.15,
+          0
+         ]
+        }
+       ]
       }
      ]
     },
@@ -22525,6 +22739,41 @@ class Generate(unittest.TestCase):
      "model": "fence",
      "length": 2.0,
      "sides": "we",
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         2.0,
+         1.8,
+         0.12
+        ],
+        "offset": [
+         0,
+         0.9,
+         0
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "type": "perimeter",
+     "rect": [
+      -60,
+      125.1,
+      60,
+      148
+     ],
+     "model": "fence",
+     "length": 2.0,
+     "sides": "n",
+     "gaps": [
+      [
+       "n",
+       0,
+       88
+      ]
+     ],
      "extra": {
       "colliders": [
        {
