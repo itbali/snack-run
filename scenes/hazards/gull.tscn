@@ -1,0 +1,26 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/hazards/gull.gd" id="1"]
+[ext_resource type="PackedScene" path="res://assets/models/gull.glb" id="2"]
+
+[sub_resource type="CylinderMesh" id="shadow"]
+top_radius = 0.5
+bottom_radius = 0.5
+height = 0.02
+radial_segments = 16
+
+[sub_resource type="StandardMaterial3D" id="shadow_mat"]
+transparency = 1
+shading_mode = 0
+albedo_color = Color(0.22, 0.25, 0.32, 0.55)
+
+[node name="Gull" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Model" parent="." instance=ExtResource("2")]
+
+[node name="Shadow" type="MeshInstance3D" parent="."]
+top_level = true
+visible = false
+mesh = SubResource("shadow")
+surface_material_override/0 = SubResource("shadow_mat")

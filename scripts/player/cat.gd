@@ -219,8 +219,24 @@ func try_eat() -> bool:
 func take_hit(from: Vector3) -> void:
 	if drowning_left > 0.0:
 		return   # в воде сердечко не снимается (спек порта, раздел 2)
-	if invulnerable_left > 0.0 or stunned_left > 0.0 or hidden or in_safe_zone:
+	if not _hit_reaction(from):
 		return
+	GameState.take_hit()
+
+
+func take_peck(from: Vector3) -> void:
+	## Чайка (спек порта, раздел 3): удар, последняя еда унесена, остальное остаётся в зубах.
+	if drowning_left > 0.0:
+		return
+	if not _hit_reaction(from):
+		return
+	GameState.peck()
+
+
+func _hit_reaction(from: Vector3) -> bool:
+	## Общая реакция на удар; false — удар не прошёл (неуязвим, оглушён, спрятан, в будке).
+	if invulnerable_left > 0.0 or stunned_left > 0.0 or hidden or in_safe_zone:
+		return false
 	Sfx.play(&"hit")   # один вызов на реальный удар: повторные касания блокирует неуязвимость
 	Sfx.play(&"meow", 0.12)
 	flash()
@@ -235,7 +251,7 @@ func take_hit(from: Vector3) -> void:
 	invulnerable_left = INVULNERABLE_TIME
 	state = &"hit"
 	hit_taken.emit(from)
-	GameState.take_hit()
+	return true
 
 
 func set_fade(alpha: float) -> void:

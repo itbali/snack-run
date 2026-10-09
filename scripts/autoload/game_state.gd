@@ -142,6 +142,18 @@ func take_hit() -> bool:
 	return false
 
 
+func peck() -> bool:
+	## Чайка: сердечко минус одно, последняя еда унесена (food_stolen), остальное в зубах не рассыпается (спек порта).
+	steal_last()
+	hearts = maxi(hearts - 1, 0)
+	hearts_changed.emit(hearts, max_hearts)
+	cat_hit.emit([] as Array[FoodDef])
+	if hearts == 0:
+		cat_fainted.emit()
+		return true
+	return false
+
+
 func revive() -> void:
 	hearts = max_hearts
 	mouth = []
