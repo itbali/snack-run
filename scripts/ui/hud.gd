@@ -2,11 +2,13 @@ class_name Hud
 extends CanvasLayer
 ## HUD на белых плашках темы: сердечки, сытость, слоты зубов, клубочки, цель сессии, вспышка звонка (спек 2.6).
 
-const HEART_FULL := "♥"
-const HEART_EMPTY := "♡"
+const HEART_ICON := "res://assets/images/ui/heart.png"
+const YARN_ICON := "res://assets/images/ui/yarn.png"
+const HEART_LOST_ALPHA := 0.3
 const MAX_MOUTH := 5   # максимум после улучшений магазина
 
-@onready var _hearts: Label = %Hearts
+@onready var _hearts: HBoxContainer = %Hearts
+@onready var _yarn_icon: TextureRect = %YarnIcon
 @onready var _satiety: ProgressBar = %Satiety
 @onready var _satiety_label: Label = %SatietyLabel
 @onready var _yarn: Label = %Yarn
@@ -18,6 +20,7 @@ const MAX_MOUTH := 5   # максимум после улучшений мага
 
 func _ready() -> void:
 	_satiety.max_value = GameState.SATIETY_GATE
+	_yarn_icon.texture = _icon(YARN_ICON)
 	_bell_panel.visible = false
 	for i in MAX_MOUTH:
 		var panel := PanelContainer.new()
@@ -51,7 +54,16 @@ func _ready() -> void:
 
 
 func hearts_text() -> String:
-	return _hearts.text
+	## Состояние сердечек для тестов: «осталось/всего» (на экране — иконки).
+	var full := 0
+	for h in _hearts.get_children():
+		if (h as TextureRect).modulate.a > 0.9:
+			full += 1
+	return "%d/%d" % [full, _hearts.get_child_count()]
+
+
+static func _icon(path: String) -> Texture2D:
+	return load(path) as Texture2D if ResourceLoader.exists(path) else null
 
 
 func mouth_names() -> Array[String]:
@@ -73,7 +85,7 @@ func yarn_text() -> String:
 
 
 func _on_yarn(count: int) -> void:
-	_yarn.text = "◎ %d" % count
+	_yarn.text = "%d" % count
 
 
 func flash_bell(text := "🔔 Велосипед!", seconds := 2.0) -> void:
@@ -83,7 +95,19 @@ func flash_bell(text := "🔔 Велосипед!", seconds := 2.0) -> void:
 
 
 func _on_hearts(hearts: int, max_hearts: int) -> void:
-	_hearts.text = HEART_FULL.repeat(hearts) + HEART_EMPTY.repeat(max_hearts - hearts)
+	while _hearts.get_child_count() < max_hearts:
+		var t := TextureRect.new()
+		t.custom_minimum_size = Vector2(34, 34)
+		t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		t.texture = _icon(HEART_ICON)
+		_hearts.add_child(t)
+	while _hearts.get_child_count() > max_hearts:
+		var last := _hearts.get_child(_hearts.get_child_count() - 1)
+		_hearts.remove_child(last)
+		last.free()
+	for i in _hearts.get_child_count():
+		(_hearts.get_child(i) as TextureRect).modulate.a = 1.0 if i < hearts else HEART_LOST_ALPHA
 
 
 func _on_mouth(items: Array) -> void:

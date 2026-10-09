@@ -11,9 +11,9 @@ func before_each() -> void:
 	await wait_process_frames(1)
 
 func test_hearts_reflect_state() -> void:
-	assert_eq(hud.hearts_text(), "♥♥♥")
+	assert_eq(hud.hearts_text(), "3/3")
 	GameState.take_hit()
-	assert_eq(hud.hearts_text(), "♥♥♡")
+	assert_eq(hud.hearts_text(), "2/3")
 
 func test_mouth_slots_show_names() -> void:
 	GameState.pick_up(FoodCatalog.get_by_id(&"pizza"))
@@ -61,3 +61,14 @@ func test_hud_elements_sit_on_white_panels() -> void:
 			p = p.get_parent() as Control
 		assert_not_null(p, "%s лежит на PanelContainer" % path)
 	assert_eq((hud.get_node("%Yarn") as Label).get_theme_color("font_color").to_html(false), "394151", "счётчик клубочков графитовый, читается на любом фоне")
+
+func test_hearts_and_yarn_are_icons() -> void:
+	var hearts := hud.get_node("%Hearts") as HBoxContainer
+	assert_eq(hearts.get_child_count(), GameState.max_hearts, "по иконке на сердечко")
+	for h in hearts.get_children():
+		assert_not_null((h as TextureRect).texture, "иконка сердечка из сгенерированной картинки")
+	GameState.take_hit()
+	assert_lt((hearts.get_child(2) as TextureRect).modulate.a, 0.6, "потерянное сердечко блёклое")
+	assert_gt((hearts.get_child(0) as TextureRect).modulate.a, 0.9)
+	assert_not_null((hud.get_node("%YarnIcon") as TextureRect).texture, "иконка клубочка")
+	assert_eq(hud.yarn_text(), "0")

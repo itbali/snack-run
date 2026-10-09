@@ -8,19 +8,17 @@ script = ExtResource("1")
 [node name="Status" type="PanelContainer" parent="."]
 offset_left = 20.0
 offset_top = 16.0
-offset_right = 280.0
-offset_bottom = 130.0
+offset_right = 300.0
+offset_bottom = 140.0
 
 [node name="VBox" type="VBoxContainer" parent="Status"]
 layout_mode = 2
 theme_override_constants/separation = 4
 
-[node name="Hearts" type="Label" parent="Status/VBox"]
+[node name="Hearts" type="HBoxContainer" parent="Status/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.961, 0.455, 0.522, 1)
-theme_override_font_sizes/font_size = 30
-text = "♥♥♥"
+theme_override_constants/separation = 4
 
 [node name="SatietyRow" type="HBoxContainer" parent="Status/VBox"]
 layout_mode = 2
@@ -40,11 +38,22 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 16
 text = "Сытость 0/10"
 
-[node name="Yarn" type="Label" parent="Status/VBox"]
+[node name="YarnRow" type="HBoxContainer" parent="Status/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="YarnIcon" type="TextureRect" parent="Status/VBox/YarnRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(30, 30)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Yarn" type="Label" parent="Status/VBox/YarnRow"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 22
-text = "◎ 0"
+theme_override_font_sizes/font_size = 24
+text = "0"
 
 [node name="Mouth" type="HBoxContainer" parent="."]
 unique_name_in_owner = true

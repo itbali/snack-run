@@ -42,8 +42,8 @@ func test_buttons_reflect_affordability_and_buy_works() -> void:
 	speed_btn.pressed.emit()
 	assert_true(GameState.owns(&"speed"))
 	assert_eq(GameState.yarn, 0)
-	assert_eq(main.shop_menu.yarn_text(), "◎ 0")
-	assert_true(speed_btn.text.ends_with("✓"))
+	assert_eq(main.shop_menu.yarn_text(), "Клубочков: 0")
+	assert_true(speed_btn.text.ends_with("куплено"))
 	assert_true(speed_btn.disabled, "куплено")
 	main.close_shop()
 
@@ -79,5 +79,5 @@ func test_owned_skins_can_be_reselected() -> void:
 	black_btn.pressed.emit()
 	assert_eq(GameState.skin, &"black")
 	assert_eq(GameState.yarn, 0, "повторный выбор бесплатен")
-	assert_true(black_btn.text.ends_with("✓ надет"))
+	assert_true(black_btn.text.ends_with("— надет"))
 	main.close_shop()

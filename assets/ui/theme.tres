@@ -1,6 +1,6 @@
 [gd_resource type="Theme" load_steps=8 format=3]
 
-[ext_resource type="FontFile" path="res://assets/fonts/Nunito.ttf" id="1"]
+[ext_resource type="FontVariation" path="res://assets/ui/nunito_bold.tres" id="1"]
 
 [sub_resource type="StyleBoxFlat" id="panel"]
 content_margin_left = 14.0
@@ -65,7 +65,7 @@ corner_radius_bottom_left = 8
 
 [resource]
 default_font = ExtResource("1")
-default_font_size = 20
+default_font_size = 24
 Button/colors/font_color = Color(0.224, 0.255, 0.318, 1)
 Button/colors/font_disabled_color = Color(0.5, 0.5, 0.5, 1)
 Button/colors/font_focus_color = Color(1, 1, 1, 1)

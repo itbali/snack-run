@@ -12,7 +12,7 @@ anchor_left = 1.0
 anchor_top = 0.5
 anchor_right = 1.0
 anchor_bottom = 0.5
-offset_left = -420.0
+offset_left = -460.0
 offset_top = -260.0
 offset_right = -24.0
 offset_bottom = 260.0
@@ -37,7 +37,7 @@ text = "Магазин пряжи"
 [node name="Yarn" type="Label" parent="Panel/Margin/VBox"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "◎ 0"
+text = "Клубочков: 0"
 
 [node name="List" type="VBoxContainer" parent="Panel/Margin/VBox"]
 layout_mode = 2

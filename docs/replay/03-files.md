@@ -5,7 +5,7 @@
 Отступы в GDScript и Makefile — табы; в Python проекта — тоже табы, кроме
 `palette.py` и тестов Blender (пробелы). Копировать как есть.
 
-Файлов: 176
+Файлов: 177
 
 ## `CLAUDE.md`
 
@@ -126,6 +126,8 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 
 **План 4:** одиночный прогон GUT — `-gselect=`, не `-gtest=`; пары Area3D фиксируются по позициям в момент `add_child` (в тестах `position` ставить **до** `add_child`, иначе кот в точке собаки ловит удар на первом кадре); скрипт `-s` (SceneTree) без автозагрузок — `cat.tscn` там не компилируется, рендерить `cat.glb`; в `_init()` такого скрипта `global_position`/`look_at` не применяются — задавать `transform`; в Blender при записи клипа позу ставить при снятом action (иначе `view_layer.update()` возвращает уже записанные кадры); `GameState.reset()` рядом с `Main` тут же автосохраняется — файл стирать после сброса или выключать `autosave`; эмоции — меши на кости головы (материалы не из ролей скина, обводку с глаз снимать).
 
+**Шрифт и окно:** Nunito вариативный — только через `assets/ui/nunito_bold.tres` (`wght 700`), без веса это ExtraLight; в Nunito нет ♥ ♡ ◎ ✓ — в UI иконки или слова; окно развёрнуто, `stretch canvas_items/expand` (Retina, масштаб 2).
+
 **План 5:** **ось Y скелета кота идёт вдоль тела, верх — +Z скелета** (модификаторы берут верх из `skel.global_transform.basis.inverse() * Vector3.UP`, тесты модификаторов меряют мировые координаты); у мешей из Blender-скриптов нет UV — шейдеры берут шум по `VERTEX_ID`; импортированный glb-меш перед subdivision сваривать (`remove_doubles`), иначе мозаика; subdivision на триангулированном меше ×6; `CPUParticles3D`, созданные в физическом шаге, получают `finished` сразу — эмиссию включать после `add_child`, удалять по таймеру; `ambient_light_source`: 1 = DISABLED, 3 = SKY; внешний `velocity.y` у кота гасится шагом на полу (в тестах прыгать через `Input.action_press("jump")`); с нетипизированным `main` в тестах писать `var x: Тип = main.f()`; `yard.json` многострочный — правки скриптом по строкам; служебный рендер `-s` к `cat.glb` добавляет модификаторы скелета вручную; веки над утопленными глазами читаются как брови — не делать.
 
 **UniMate на Mac** (подробно в заметке): venv Python 3.10 через `uv`, requirements без `+cu124`, `sampling.device = cpu` в `config.json` чекпоинта (MPS не умеет float64), ручная `annotation.json` (авторазметка путает спину и хвост), шим `blender` → venv-python с pip-`bpy` для `run_animate_motion.sh`. Окружение жило в scratchpad и не сохранилось; чекпоинт 1,2 ГБ качается с HF заново.
@@ -217,6 +219,9 @@ Sfx="*res://scripts/autoload/sfx.gd"
 
 window/size/viewport_width=1280
 window/size/viewport_height=720
+window/size/mode=2
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
 
 [editor_plugins]
 
@@ -565,19 +570,17 @@ script = ExtResource("1")
 [node name="Status" type="PanelContainer" parent="."]
 offset_left = 20.0
 offset_top = 16.0
-offset_right = 280.0
-offset_bottom = 130.0
+offset_right = 300.0
+offset_bottom = 140.0
 
 [node name="VBox" type="VBoxContainer" parent="Status"]
 layout_mode = 2
 theme_override_constants/separation = 4
 
-[node name="Hearts" type="Label" parent="Status/VBox"]
+[node name="Hearts" type="HBoxContainer" parent="Status/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.961, 0.455, 0.522, 1)
-theme_override_font_sizes/font_size = 30
-text = "♥♥♥"
+theme_override_constants/separation = 4
 
 [node name="SatietyRow" type="HBoxContainer" parent="Status/VBox"]
 layout_mode = 2
@@ -597,11 +600,22 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 16
 text = "Сытость 0/10"
 
-[node name="Yarn" type="Label" parent="Status/VBox"]
+[node name="YarnRow" type="HBoxContainer" parent="Status/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="YarnIcon" type="TextureRect" parent="Status/VBox/YarnRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(30, 30)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Yarn" type="Label" parent="Status/VBox/YarnRow"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 22
-text = "◎ 0"
+theme_override_font_sizes/font_size = 24
+text = "0"
 
 [node name="Mouth" type="HBoxContainer" parent="."]
 unique_name_in_owner = true
@@ -721,7 +735,7 @@ anchor_left = 1.0
 anchor_top = 0.5
 anchor_right = 1.0
 anchor_bottom = 0.5
-offset_left = -420.0
+offset_left = -460.0
 offset_top = -260.0
 offset_right = -24.0
 offset_bottom = 260.0
@@ -746,7 +760,7 @@ text = "Магазин пряжи"
 [node name="Yarn" type="Label" parent="Panel/Margin/VBox"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "◎ 0"
+text = "Клубочков: 0"
 
 [node name="List" type="VBoxContainer" parent="Panel/Margin/VBox"]
 layout_mode = 2
@@ -3281,11 +3295,13 @@ class_name Hud
 extends CanvasLayer
 ## HUD на белых плашках темы: сердечки, сытость, слоты зубов, клубочки, цель сессии, вспышка звонка (спек 2.6).
 
-const HEART_FULL := "♥"
-const HEART_EMPTY := "♡"
+const HEART_ICON := "res://assets/images/ui/heart.png"
+const YARN_ICON := "res://assets/images/ui/yarn.png"
+const HEART_LOST_ALPHA := 0.3
 const MAX_MOUTH := 5   # максимум после улучшений магазина
 
-@onready var _hearts: Label = %Hearts
+@onready var _hearts: HBoxContainer = %Hearts
+@onready var _yarn_icon: TextureRect = %YarnIcon
 @onready var _satiety: ProgressBar = %Satiety
 @onready var _satiety_label: Label = %SatietyLabel
 @onready var _yarn: Label = %Yarn
@@ -3297,6 +3313,7 @@ const MAX_MOUTH := 5   # максимум после улучшений мага
 
 func _ready() -> void:
 	_satiety.max_value = GameState.SATIETY_GATE
+	_yarn_icon.texture = _icon(YARN_ICON)
 	_bell_panel.visible = false
 	for i in MAX_MOUTH:
 		var panel := PanelContainer.new()
@@ -3330,7 +3347,16 @@ func _ready() -> void:
 
 
 func hearts_text() -> String:
-	return _hearts.text
+	## Состояние сердечек для тестов: «осталось/всего» (на экране — иконки).
+	var full := 0
+	for h in _hearts.get_children():
+		if (h as TextureRect).modulate.a > 0.9:
+			full += 1
+	return "%d/%d" % [full, _hearts.get_child_count()]
+
+
+static func _icon(path: String) -> Texture2D:
+	return load(path) as Texture2D if ResourceLoader.exists(path) else null
 
 
 func mouth_names() -> Array[String]:
@@ -3352,7 +3378,7 @@ func yarn_text() -> String:
 
 
 func _on_yarn(count: int) -> void:
-	_yarn.text = "◎ %d" % count
+	_yarn.text = "%d" % count
 
 
 func flash_bell(text := "🔔 Велосипед!", seconds := 2.0) -> void:
@@ -3362,7 +3388,19 @@ func flash_bell(text := "🔔 Велосипед!", seconds := 2.0) -> void:
 
 
 func _on_hearts(hearts: int, max_hearts: int) -> void:
-	_hearts.text = HEART_FULL.repeat(hearts) + HEART_EMPTY.repeat(max_hearts - hearts)
+	while _hearts.get_child_count() < max_hearts:
+		var t := TextureRect.new()
+		t.custom_minimum_size = Vector2(34, 34)
+		t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		t.texture = _icon(HEART_ICON)
+		_hearts.add_child(t)
+	while _hearts.get_child_count() > max_hearts:
+		var last := _hearts.get_child(_hearts.get_child_count() - 1)
+		_hearts.remove_child(last)
+		last.free()
+	for i in _hearts.get_child_count():
+		(_hearts.get_child(i) as TextureRect).modulate.a = 1.0 if i < hearts else HEART_LOST_ALPHA
 
 
 func _on_mouth(items: Array) -> void:
@@ -3469,6 +3507,7 @@ signal closed
 
 var is_open := false
 var _buttons: Array[Button] = []
+var _yarn_icon: Texture2D = load("res://assets/images/ui/yarn.png") if ResourceLoader.exists("res://assets/images/ui/yarn.png") else null
 
 @onready var _list: VBoxContainer = $Panel/Margin/VBox/List
 @onready var _yarn: Label = $Panel/Margin/VBox/Yarn
@@ -3482,6 +3521,9 @@ func _ready() -> void:
 		var b := Button.new()
 		b.name = String(item.id)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.icon_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		b.expand_icon = true
+		b.custom_minimum_size = Vector2(0, 44)
 		b.pressed.connect(_on_buy.bind(item))
 		_list.add_child(b)
 		_buttons.append(b)
@@ -3517,7 +3559,7 @@ func yarn_text() -> String:
 
 
 func refresh() -> void:
-	_yarn.text = "◎ %d" % GameState.yarn
+	_yarn.text = "Клубочков: %d" % GameState.yarn
 	var items := ShopCatalog.all()
 	for i in _buttons.size():
 		var item := items[i]
@@ -3525,10 +3567,12 @@ func refresh() -> void:
 		if item.kind == "skin" and owned:
 			# Купленный скин можно переодевать бесплатно.
 			var worn := GameState.skin == item.skin_id
-			_buttons[i].text = "%s — %s" % [item.display_name, "✓ надет" if worn else "надеть"]
+			_buttons[i].text = "%s — %s" % [item.display_name, "надет" if worn else "надеть"]
+			_buttons[i].icon = null
 			_buttons[i].disabled = worn
 			continue
-		_buttons[i].text = "%s — %d ◎%s" % [item.display_name, item.price, " ✓" if owned else ""]
+		_buttons[i].text = "%s — куплено" % item.display_name if owned else "%s — %d" % [item.display_name, item.price]
+		_buttons[i].icon = null if owned else _yarn_icon   # цена в клубочках: иконка справа от числа
 		_buttons[i].disabled = owned or not GameState.can_buy(item)
 
 
@@ -5360,9 +5404,9 @@ func before_each() -> void:
 	await wait_process_frames(1)
 
 func test_hearts_reflect_state() -> void:
-	assert_eq(hud.hearts_text(), "♥♥♥")
+	assert_eq(hud.hearts_text(), "3/3")
 	GameState.take_hit()
-	assert_eq(hud.hearts_text(), "♥♥♡")
+	assert_eq(hud.hearts_text(), "2/3")
 
 func test_mouth_slots_show_names() -> void:
 	GameState.pick_up(FoodCatalog.get_by_id(&"pizza"))
@@ -5410,6 +5454,17 @@ func test_hud_elements_sit_on_white_panels() -> void:
 			p = p.get_parent() as Control
 		assert_not_null(p, "%s лежит на PanelContainer" % path)
 	assert_eq((hud.get_node("%Yarn") as Label).get_theme_color("font_color").to_html(false), "394151", "счётчик клубочков графитовый, читается на любом фоне")
+
+func test_hearts_and_yarn_are_icons() -> void:
+	var hearts := hud.get_node("%Hearts") as HBoxContainer
+	assert_eq(hearts.get_child_count(), GameState.max_hearts, "по иконке на сердечко")
+	for h in hearts.get_children():
+		assert_not_null((h as TextureRect).texture, "иконка сердечка из сгенерированной картинки")
+	GameState.take_hit()
+	assert_lt((hearts.get_child(2) as TextureRect).modulate.a, 0.6, "потерянное сердечко блёклое")
+	assert_gt((hearts.get_child(0) as TextureRect).modulate.a, 0.9)
+	assert_not_null((hud.get_node("%YarnIcon") as TextureRect).texture, "иконка клубочка")
+	assert_eq(hud.yarn_text(), "0")
 ```
 
 ## `tests/integration/test_lighting.gd`
@@ -5782,8 +5837,8 @@ func test_buttons_reflect_affordability_and_buy_works() -> void:
 	speed_btn.pressed.emit()
 	assert_true(GameState.owns(&"speed"))
 	assert_eq(GameState.yarn, 0)
-	assert_eq(main.shop_menu.yarn_text(), "◎ 0")
-	assert_true(speed_btn.text.ends_with("✓"))
+	assert_eq(main.shop_menu.yarn_text(), "Клубочков: 0")
+	assert_true(speed_btn.text.ends_with("куплено"))
 	assert_true(speed_btn.disabled, "куплено")
 	main.close_shop()
 
@@ -5819,7 +5874,7 @@ func test_owned_skins_can_be_reselected() -> void:
 	black_btn.pressed.emit()
 	assert_eq(GameState.skin, &"black")
 	assert_eq(GameState.yarn, 0, "повторный выбор бесплатен")
-	assert_true(black_btn.text.ends_with("✓ надет"))
+	assert_true(black_btn.text.ends_with("— надет"))
 	main.close_shop()
 ```
 
@@ -7016,7 +7071,13 @@ func test_project_theme_uses_nunito_and_rounded_panels() -> void:
 	if theme == null:
 		return
 	assert_not_null(theme.default_font, "шрифт по умолчанию задан")
-	assert_eq(theme.default_font.resource_path, "res://assets/fonts/Nunito.ttf")
+	# Nunito — вариативный шрифт, без явного веса берётся ExtraLight 200: тонкий и плохо читается.
+	var fv := theme.default_font as FontVariation
+	assert_not_null(fv, "шрифт темы — FontVariation с заданным весом")
+	if fv:
+		assert_eq(fv.base_font.resource_path, "res://assets/fonts/Nunito.ttf")
+		assert_gte(int(fv.variation_opentype.get(TextServerManager.get_primary_interface().name_to_tag("wght"), 0)), 600, "вес не тоньше SemiBold")
+	assert_gte(theme.default_font_size, 22, "базовый кегль читается на видео")
 	var panel := theme.get_stylebox("panel", "PanelContainer") as StyleBoxFlat
 	assert_not_null(panel, "плашка PanelContainer — StyleBoxFlat")
 	if panel == null:
@@ -7024,6 +7085,21 @@ func test_project_theme_uses_nunito_and_rounded_panels() -> void:
 	assert_gt(panel.corner_radius_top_left, 8, "округлые углы")
 	assert_gt(panel.shadow_size, 0, "мягкая тень")
 	assert_eq(theme.get_color("font_color", "Label").to_html(false), "394151", "графитовый текст")
+
+func test_window_scales_with_screen() -> void:
+	# Retina: окно 1280×720 физических пикселей выходило вдвое меньше; интерфейс должен масштабироваться вместе с окном.
+	assert_eq(ProjectSettings.get_setting("display/window/stretch/mode"), "canvas_items")
+	assert_eq(ProjectSettings.get_setting("display/window/stretch/aspect"), "expand")
+	assert_eq(int(ProjectSettings.get_setting("display/window/size/mode")), DisplayServer.WINDOW_MODE_MAXIMIZED)
+
+func test_ui_uses_only_glyphs_the_font_has() -> void:
+	# Символов ♥ ♡ ◎ ✓ в Nunito нет: подстановка из системного шрифта выглядит чужой.
+	var font := load("res://assets/fonts/Nunito.ttf") as FontFile
+	for path in ["res://scripts/ui/hud.gd", "res://scripts/ui/shop_menu.gd", "res://scenes/ui/hud.tscn", "res://scenes/ui/shop_menu.tscn"]:
+		var text := FileAccess.get_file_as_string(path)
+		for ch in ["♥", "♡", "◎", "✓"]:
+			assert_false(text.contains(ch), "%s содержит «%s», которого нет в шрифте" % [path, ch])
+	assert_false(font.has_char("♥".unicode_at(0)), "проверка выше осмысленна: ♥ в шрифте действительно нет")
 ```
 
 ## `tests/unit/test_toon.gd`
@@ -10248,7 +10324,9 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
   `load` с фолбэком, скин-фолбэк после вспышки; тест «настенные декали и плющ висят на стене».
 - Закрыто: PNG мира и сердечко импортируются со сжатием VRAM и мипмапами; mac-билд пересобран
   (71 МБ, запуск — код 0).
-- Отложено: щёчные кисточки спорны по вкусу; HUD-иконки сердечка/клубочка остались текстом;
+- Закрыто: окно развёрнуто и масштабирует интерфейс (Retina), шрифт Nunito Bold, сердечки и
+  клубочек в HUD — иконки, в магазине нет символов вне шрифта.
+- Отложено: щёчные кисточки спорны по вкусу;
   `clouds.png` и `title_bg.png` — жёсткие зависимости сцен; сквош держит объём (1,118/0,93 вместо 1,2/0,85 спека); жетон ошейника не виден
   спереди.
 
@@ -10600,6 +10678,12 @@ if __name__ == "__main__":
       "prompt": "Game icon of a simple glossy heart, coral pink (#F57485) with a white highlight, centered, transparent background"
     },
     {
+      "file": "assets/images/ui/yarn.png",
+      "note": "клубочек для HUD и магазина",
+      "background": "transparent",
+      "prompt": "Game icon of a round ball of yarn with a loose thread, lilac (#B46DB5) with lighter highlights, centered, transparent background"
+    },
+    {
       "file": "assets/images/title/title_bg.png",
       "note": "фон заставки",
       "size": "1536x1024",
@@ -10654,12 +10738,24 @@ if __name__ == "__main__":
 }
 ```
 
+## `assets/ui/nunito_bold.tres`
+
+```
+[gd_resource type="FontVariation" load_steps=2 format=3]
+
+[ext_resource type="FontFile" path="res://assets/fonts/Nunito.ttf" id="1"]
+
+[resource]
+base_font = ExtResource("1")
+variation_opentype = {2003265652: 700}
+```
+
 ## `assets/ui/theme.tres`
 
 ```
 [gd_resource type="Theme" load_steps=8 format=3]
 
-[ext_resource type="FontFile" path="res://assets/fonts/Nunito.ttf" id="1"]
+[ext_resource type="FontVariation" path="res://assets/ui/nunito_bold.tres" id="1"]
 
 [sub_resource type="StyleBoxFlat" id="panel"]
 content_margin_left = 14.0
@@ -10724,7 +10820,7 @@ corner_radius_bottom_left = 8
 
 [resource]
 default_font = ExtResource("1")
-default_font_size = 20
+default_font_size = 24
 Button/colors/font_color = Color(0.224, 0.255, 0.318, 1)
 Button/colors/font_disabled_color = Color(0.5, 0.5, 0.5, 1)
 Button/colors/font_focus_color = Color(1, 1, 1, 1)

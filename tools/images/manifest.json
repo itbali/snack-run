@@ -56,6 +56,12 @@
       "prompt": "Game icon of a simple glossy heart, coral pink (#F57485) with a white highlight, centered, transparent background"
     },
     {
+      "file": "assets/images/ui/yarn.png",
+      "note": "клубочек для HUD и магазина",
+      "background": "transparent",
+      "prompt": "Game icon of a round ball of yarn with a loose thread, lilac (#B46DB5) with lighter highlights, centered, transparent background"
+    },
+    {
       "file": "assets/images/title/title_bg.png",
       "note": "фон заставки",
       "size": "1536x1024",

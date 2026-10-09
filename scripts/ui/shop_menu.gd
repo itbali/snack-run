@@ -6,6 +6,7 @@ signal closed
 
 var is_open := false
 var _buttons: Array[Button] = []
+var _yarn_icon: Texture2D = load("res://assets/images/ui/yarn.png") if ResourceLoader.exists("res://assets/images/ui/yarn.png") else null
 
 @onready var _list: VBoxContainer = $Panel/Margin/VBox/List
 @onready var _yarn: Label = $Panel/Margin/VBox/Yarn
@@ -19,6 +20,9 @@ func _ready() -> void:
 		var b := Button.new()
 		b.name = String(item.id)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.icon_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		b.expand_icon = true
+		b.custom_minimum_size = Vector2(0, 44)
 		b.pressed.connect(_on_buy.bind(item))
 		_list.add_child(b)
 		_buttons.append(b)
@@ -54,7 +58,7 @@ func yarn_text() -> String:
 
 
 func refresh() -> void:
-	_yarn.text = "◎ %d" % GameState.yarn
+	_yarn.text = "Клубочков: %d" % GameState.yarn
 	var items := ShopCatalog.all()
 	for i in _buttons.size():
 		var item := items[i]
@@ -62,10 +66,12 @@ func refresh() -> void:
 		if item.kind == "skin" and owned:
 			# Купленный скин можно переодевать бесплатно.
 			var worn := GameState.skin == item.skin_id
-			_buttons[i].text = "%s — %s" % [item.display_name, "✓ надет" if worn else "надеть"]
+			_buttons[i].text = "%s — %s" % [item.display_name, "надет" if worn else "надеть"]
+			_buttons[i].icon = null
 			_buttons[i].disabled = worn
 			continue
-		_buttons[i].text = "%s — %d ◎%s" % [item.display_name, item.price, " ✓" if owned else ""]
+		_buttons[i].text = "%s — куплено" % item.display_name if owned else "%s — %d" % [item.display_name, item.price]
+		_buttons[i].icon = null if owned else _yarn_icon   # цена в клубочках: иконка справа от числа
 		_buttons[i].disabled = owned or not GameState.can_buy(item)
 
 
