@@ -164,6 +164,32 @@ class Primitives(unittest.TestCase):
 		layout, _ = lg.generate(d)
 		self.assertFalse(any(-2.4 < p["pos"][0] < 2.4 for p in layout["props"]), "в полосе пусто")
 
+	def test_decor_fills_area_avoiding_props(self):
+		# План 16: мелкие украшения — отдельный список decor (MultiMesh), густо, не в пропсах и не в закрытых полосах.
+		d = {"name": "t", "terrain": DESC["terrain"], "zones": [{"name": "z", "ops": [
+			{"type": "place", "props": [{"model": "garage", "pos": [0, 0, 0], "rot": 0}]},
+			{"type": "block", "rect": [5, -10, 10, 10]},
+			{"type": "decor", "model": "decor_grass", "rect": [-10, -10, 10, 10], "count": 200}]}]}
+		layout, _ = lg.generate(d)
+		dec = layout["decor"]
+		self.assertGreater(len(dec), 150)
+		for it in dec:
+			x, _, z = it["pos"]
+			self.assertFalse(-1.6 < x < 1.6 and -2.9 < z < 2.9, "не в гараже")
+			self.assertFalse(5 < x < 10, "не в закрытой полосе")
+			self.assertEqual(it["model"], "decor_grass")
+			self.assertTrue(0.7 <= it["scale"] <= 1.3)
+
+	def test_non_solid_props_inside_buildings_are_pruned(self):
+		# План 16: трава и плющ ядра, оказавшиеся внутри нового дома, убираются.
+		d = {"name": "t", "terrain": DESC["terrain"], "zones": [{"name": "z", "ops": [
+			{"type": "place", "props": [{"model": "house_a", "pos": [0, 0, 0], "rot": 0},
+				{"model": "grass", "pos": [0, 0, -3], "rot": 0, "solid": False},
+				{"model": "grass", "pos": [0, 0, 2], "rot": 0, "solid": False}]}]}]}
+		layout, _ = lg.generate(d)
+		grass = [p["pos"] for p in layout["props"] if p["model"] == "grass"]
+		self.assertEqual(grass, [[0, 0, 2]], "трава внутри дома убрана, перед фасадом осталась")
+
 	def test_kit_constants_match_world_builder(self):
 		src = (ROOT / "scripts/world/world_builder.gd").read_text()
 		for name, val in (("KIT_STEP_RISE", lg.KIT_RISE), ("KIT_STEP_TREAD", lg.KIT_TREAD), ("KIT_RAMP_DEG", lg.KIT_RAMP_DEG), ("KIT_WIDTH", lg.KIT_WIDTH)):

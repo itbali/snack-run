@@ -25,6 +25,9 @@ FOOTPRINTS = {
 	"retaining_wall1": (4.0, WALL_THICK, 1.0), "retaining_wall2": (4.0, WALL_THICK, 2.0), "retaining_wall3": (4.0, WALL_THICK, 3.0),
 	"stairs": (1.2, 3.2, 1.0), "arch": (3.4, 0.6, 2.6), "chair": (0.5, 0.5, 0.9), "umbrella": (0.2, 0.2, 2.2),
 	"bush": (1.0, 1.0, 0.8), "flowerbed": (2.0, 1.0, 0.4), "door": (1.0, 0.2, 2.0),
+	# дома (план 16): фасад в плоскости прежней стены, корпус уходит назад — 4-е число — сдвиг центра по локальной Z
+	"house_a": (6.0, 6.0, 7.8, -2.8), "house_b": (6.0, 6.0, 9.55, -2.8), "house_c": (6.0, 6.0, 6.45, -2.8),
+	"house_shallow": (6.0, 1.8, 4.7, -0.7),
 }
 
 
@@ -37,13 +40,15 @@ def footprint(p):
 	fp = FOOTPRINTS.get(p["model"])
 	if fp is None or p.get("solid", True) is False:
 		return None
-	sx, sz, top = fp
+	sx, sz, top = fp[:3]
+	x, y, z = p["pos"]
+	if len(fp) > 3:
+		x, z = _local((x, z), float(p.get("rot", 0)), 0, fp[3])   # центр корпуса позади фасада
 	rot = float(p.get("rot", 0)) % 180
 	if abs(rot - 90) < 1:
 		sx, sz = sz, sx
 	elif rot > 1:
 		sx = sz = max(sx, sz)
-	x, y, z = p["pos"]
 	base = y if p.get("snap", True) else 0.0   # у стен со snap false y — абсолютная высота подножия
 	return (x - sx / 2, z - sz / 2, x + sx / 2, z + sz / 2, base + top)
 
@@ -172,6 +177,26 @@ def garage_row(origin, count, rot=0, step=3.2, foods=None):
 	return {"props": props, "yarn": yarn, "spawn_points": spawns}
 
 
+def decor(rng, model, rect, count, blocked, min_dist=0.35, margin=0.15, scale=(0.7, 1.3)):
+	"""Мелкие украшения (трава, цветы, камешки) — сколько поместится из count, без исключения; отдельный список decor."""
+	out = []
+	pts = []
+	x0, z0, x1, z1 = rect
+	cell = {}
+	for _ in range(count * 6):
+		if len(out) >= count:
+			break
+		x, z = round(rng.uniform(x0, x1), 2), round(rng.uniform(z0, z1), 2)
+		if any(f[0] - margin < x < f[2] + margin and f[1] - margin < z < f[3] + margin for f in blocked):
+			continue
+		key = (int(x // min_dist), int(z // min_dist))
+		if any((x - a) ** 2 + (z - b) ** 2 < min_dist ** 2 for dx in (-1, 0, 1) for dz in (-1, 0, 1) for a, b in cell.get((key[0] + dx, key[1] + dz), [])):
+			continue
+		cell.setdefault(key, []).append((x, z))
+		out.append({"model": model, "pos": [x, 0, z], "rot": rng.randrange(0, 360, 10), "scale": round(rng.uniform(*scale), 2)})
+	return out
+
+
 def pond(center, radius, depth, level):
 	"""Пруд: котловина рельефа, зона воды (поверхность level, абсолютная), 8 маркеров берега на radius + 1,5,
 	прямоугольник, закрытый для россыпи. Возвращает (feature, water, shore, blocked)."""
@@ -230,7 +255,7 @@ def model_defaults(props):
 	return d
 
 
-LISTS = ("props", "hideouts", "spawn_points", "yarn", "hazards", "decals", "gates", "water_zones", "shore", "floaters")
+LISTS = ("props", "hideouts", "spawn_points", "yarn", "hazards", "decals", "gates", "water_zones", "shore", "floaters", "decor")
 
 
 def generate(desc):
@@ -250,6 +275,7 @@ def generate(desc):
 	defaults = model_defaults(sample)
 	gen = {k: [] for k in LISTS}
 	blocked = [f for p in out["props"] for f in footprints(p)]
+	wet = []
 
 	def add(kind, items):
 		for it in items:
@@ -283,6 +309,9 @@ def generate(desc):
 			add("water_zones", [water])
 			add("shore", shore)
 			blocked.append(bl)
+		elif t == "decor":
+			solid = blocked + wet
+			add("decor", decor(rng, op["model"], op["rect"], op["count"], solid, op.get("min_dist", 0.35)))
 		elif t == "block":
 			blocked.append(tuple(op["rect"]) + (0.0,))   # полоса без россыпи (маршрут погрузчика)
 		elif t == "flat":
@@ -291,6 +320,7 @@ def generate(desc):
 			x0, z0, x1, z1 = op["rect"]
 			add("water_zones", [{"pos": [(x0 + x1) / 2, op["level"], (z0 + z1) / 2], "size": [x1 - x0, op.get("depth", 2.0), z1 - z0]}])
 			add("shore", [dict(m) if isinstance(m, dict) else {"pos": list(m)} for m in op.get("shore", [])])   # словарь — с флагами (snap)
+			wet.append((x0, z0, x1, z1, 0.0))   # украшения в воду не кладутся
 			# Прямоугольник воды не закрывается для россыпи: над ним бывает суша (причал); россыпи задаются по суше.
 		elif t == "hill":
 			terrain["features"].append({"type": "hill", "center": op["center"], "radius": op["radius"], "height": op["height"]})
@@ -328,6 +358,14 @@ def generate(desc):
 					add("props", [{"model": op["model"], "pos": [x, 0, z], "rot": rot}])
 		else:
 			raise ValueError(f"неизвестная операция {t}")
+	# Несплошное (трава, плющ, лужи) внутри зданий — убрать: после замены стен домами оно оказалось в корпусе (план 16).
+	buildings = [f for p in out["props"] for f in footprints(p) if f[4] > 2.5]
+	def inside_building(p):
+		x, _, z = p["pos"]
+		return p.get("solid", True) is False and any(f[0] < x < f[2] and f[1] < z < f[3] for f in buildings)
+	out["props"] = [p for p in out["props"] if not inside_building(p)]
+	out["decals"] = [d for d in out["decals"] if not any(f[0] < d["pos"][0] < f[2] and f[1] < d["pos"][2] < f[3] for f in buildings)
+		or d.get("wall", False)]
 	for k, n in desc.get("counts", {}).items():
 		if len(out[k]) < n:
 			raise ValueError(f"{k}: {len(out[k])} < {n}")
