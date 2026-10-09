@@ -180,32 +180,39 @@ func test_blink_only_over_normal_and_releases() -> void:
 	await wait_physics_frames(2)
 	assert_eq(cat.face.expression, &"scared", "испуг не перебивается морганием")
 
-var _foot_y := {}
-var _hip_y := {}
+const FEET := ["Bone.016", "Bone.019", "Bone.010", "Bone.013"]
+var _world := {}   # ключ -> {кость: мировая позиция}
 
-func _capture(skel: Skeleton3D, key: String) -> void:
-	var foot := skel.find_bone("Bone.016")
-	var hip := skel.find_bone("Bone")
+func _capture_world(skel: Skeleton3D, key: String) -> void:
 	skel.skeleton_updated.connect(func() -> void:
-		_foot_y[key] = skel.get_bone_global_pose(foot).origin.y
-		_hip_y[key] = skel.get_bone_global_pose(hip).origin.y)
+		var d := {}
+		for b in FEET + ["Bone"]:
+			d[b] = skel.global_transform * skel.get_bone_global_pose(skel.find_bone(b)).origin
+		_world[key] = d)
 
 func test_short_legs_keep_feet_on_the_ground() -> void:
-	# Review Focus 3: два экземпляра cat.glb на одном кадре клипа idle, с LegScaler и без.
+	# Review Focus 3 (ревью плана 5): мерить в мировых координатах — ось Y скелета кота идёт вдоль тела, верх — +Z скелета.
 	var plain := (load("res://assets/models/cat.glb") as PackedScene).instantiate()
 	var short := (load("res://assets/models/cat.glb") as PackedScene).instantiate()
 	add_child_autofree(plain)
 	add_child_autofree(short)
 	var ls := LegScaler.new()
 	short.find_child("Skeleton3D", true, false).add_child(ls)
-	for n in [plain, short]:
-		(n.find_child("AnimationPlayer", true, false) as AnimationPlayer).play("idle")
-	_capture(plain.find_child("Skeleton3D", true, false), "plain")
-	_capture(short.find_child("Skeleton3D", true, false), "short")
-	await wait_process_frames(3)
-	assert_gt(ls.drop, 0.0, "просадка корня посчитана из rest-позы")
-	assert_almost_eq(_foot_y["short"], _foot_y["plain"], 0.15, "стопа на той же высоте (единицы скелета ≈ 3 см)")
-	assert_lt(_hip_y["short"], _hip_y["plain"] - ls.drop * 0.8, "таз опустился примерно на drop")
+	_capture_world(plain.find_child("Skeleton3D", true, false), "plain")
+	_capture_world(short.find_child("Skeleton3D", true, false), "short")
+	var scale: float = (short.find_child("Skeleton3D", true, false) as Skeleton3D).global_transform.basis.get_scale().y
+	for clip in ["idle", "walk", "run"]:
+		for n in [plain, short]:
+			(n.find_child("AnimationPlayer", true, false) as AnimationPlayer).play(clip)
+			(n.find_child("AnimationPlayer", true, false) as AnimationPlayer).seek(0.3, true)
+		await wait_process_frames(3)
+		assert_gt(ls.drop, 0.0, "просадка корня посчитана из rest-позы")
+		for b in FEET:
+			var dy: float = (_world["short"][b] as Vector3).y - (_world["plain"][b] as Vector3).y
+			assert_almost_eq(dy, 0.0, 0.012, "%s: стопа %s на той же высоте (м)" % [clip, b])
+		var root_d: Vector3 = (_world["short"]["Bone"] as Vector3) - (_world["plain"]["Bone"] as Vector3)
+		assert_almost_eq(root_d.y, -ls.drop * scale, 0.006, "%s: корень опустился вниз на drop в метрах" % clip)
+		assert_lt(Vector2(root_d.x, root_d.z).length(), 0.006, "%s: корень не уехал по горизонтали" % clip)
 
 var _tail_basis := {}
 

@@ -126,7 +126,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 
 **План 4:** одиночный прогон GUT — `-gselect=`, не `-gtest=`; пары Area3D фиксируются по позициям в момент `add_child` (в тестах `position` ставить **до** `add_child`, иначе кот в точке собаки ловит удар на первом кадре); скрипт `-s` (SceneTree) без автозагрузок — `cat.tscn` там не компилируется, рендерить `cat.glb`; в `_init()` такого скрипта `global_position`/`look_at` не применяются — задавать `transform`; в Blender при записи клипа позу ставить при снятом action (иначе `view_layer.update()` возвращает уже записанные кадры); `GameState.reset()` рядом с `Main` тут же автосохраняется — файл стирать после сброса или выключать `autosave`; эмоции — меши на кости головы (материалы не из ролей скина, обводку с глаз снимать).
 
-**План 5:** импортированный glb-меш перед subdivision сваривать (`remove_doubles`), иначе мозаика; subdivision на триангулированном меше ×6; `CPUParticles3D`, созданные в физическом шаге, получают `finished` сразу — эмиссию включать после `add_child`, удалять по таймеру; `ambient_light_source`: 1 = DISABLED, 3 = SKY; внешний `velocity.y` у кота гасится шагом на полу (в тестах прыгать через `Input.action_press("jump")`); с нетипизированным `main` в тестах писать `var x: Тип = main.f()`; `yard.json` многострочный — правки скриптом по строкам; служебный рендер `-s` к `cat.glb` добавляет модификаторы скелета вручную; веки над утопленными глазами читаются как брови — не делать.
+**План 5:** **ось Y скелета кота идёт вдоль тела, верх — +Z скелета** (модификаторы берут верх из `skel.global_transform.basis.inverse() * Vector3.UP`, тесты модификаторов меряют мировые координаты); у мешей из Blender-скриптов нет UV — шейдеры берут шум по `VERTEX_ID`; импортированный glb-меш перед subdivision сваривать (`remove_doubles`), иначе мозаика; subdivision на триангулированном меше ×6; `CPUParticles3D`, созданные в физическом шаге, получают `finished` сразу — эмиссию включать после `add_child`, удалять по таймеру; `ambient_light_source`: 1 = DISABLED, 3 = SKY; внешний `velocity.y` у кота гасится шагом на полу (в тестах прыгать через `Input.action_press("jump")`); с нетипизированным `main` в тестах писать `var x: Тип = main.f()`; `yard.json` многострочный — правки скриптом по строкам; служебный рендер `-s` к `cat.glb` добавляет модификаторы скелета вручную; веки над утопленными глазами читаются как брови — не делать.
 
 **UniMate на Mac** (подробно в заметке): venv Python 3.10 через `uv`, requirements без `+cu124`, `sampling.device = cpu` в `config.json` чекпоинта (MPS не умеет float64), ручная `annotation.json` (авторазметка путает спину и хвост), шим `blender` → venv-python с pip-`bpy` для `run_animate_motion.sh`. Окружение жило в scratchpad и не сохранилось; чекпоинт 1,2 ГБ качается с HF заново.
 
@@ -3097,33 +3097,36 @@ func _process_modification() -> void:
 class_name LegScaler
 extends SkeletonModifier3D
 ## «Чиби»-лапы поверх любого клипа (спек 2.8): верхние кости лап равномерно в 0,8, корень
-## опускается на 20 % высоты ноги, посчитанной из rest-позы, чтобы стопы остались на земле.
+## опускается на 20 % высоты ноги (из rest-позы), чтобы стопы остались на земле.
+## Ось «вверх» берётся из трансформа скелета: у кота локальная Y скелета идёт вдоль тела, верх — +Z.
 
 @export var upper_bones: Array[StringName] = [&"Bone.014", &"Bone.017", &"Bone.008", &"Bone.011"]
 @export var foot_bones: Array[StringName] = [&"Bone.016", &"Bone.019", &"Bone.010", &"Bone.013"]
 @export var root_bone: StringName = &"Bone"
 @export var leg_scale := 0.8
-var drop := 0.0   # единицы скелета
+var drop := 0.0            # единицы скелета, вдоль up_local
+var up_local := Vector3.UP  # мировой верх в локальных осях скелета
 
 
 func _ready() -> void:
 	var skel := get_skeleton()
 	if skel == null:
 		return
-	var hip_y := 0.0   # среднее начало верхних костей лап: таз (Bone) выше суставов, его брать нельзя
+	up_local = (skel.global_transform.basis.inverse() * Vector3.UP).normalized()
+	var hip := 0.0   # среднее начало верхних костей лап: таз (Bone) выше суставов, его брать нельзя
 	var n := 0
 	for b in upper_bones:
 		var i := skel.find_bone(b)
 		if i >= 0:
-			hip_y += skel.get_bone_global_rest(i).origin.y
+			hip += skel.get_bone_global_rest(i).origin.dot(up_local)
 			n += 1
-	var foot_y := INF
+	var foot := INF
 	for b in foot_bones:
 		var i := skel.find_bone(b)
 		if i >= 0:
-			foot_y = minf(foot_y, skel.get_bone_global_rest(i).origin.y)
-	if foot_y < INF and n > 0:
-		drop = (hip_y / n - foot_y) * (1.0 - leg_scale)
+			foot = minf(foot, skel.get_bone_global_rest(i).origin.dot(up_local))
+	if foot < INF and n > 0:
+		drop = (hip / n - foot) * (1.0 - leg_scale)
 
 
 func _process_modification() -> void:
@@ -3136,7 +3139,7 @@ func _process_modification() -> void:
 			skel.set_bone_pose_scale(i, Vector3.ONE * leg_scale)
 	var root := skel.find_bone(root_bone)
 	if root >= 0:
-		skel.set_bone_pose_position(root, skel.get_bone_pose_position(root) - Vector3(0.0, drop, 0.0))
+		skel.set_bone_pose_position(root, skel.get_bone_pose_position(root) - up_local * drop)
 ```
 
 ## `scripts/player/tail_wiggle.gd`
@@ -4553,32 +4556,39 @@ func test_blink_only_over_normal_and_releases() -> void:
 	await wait_physics_frames(2)
 	assert_eq(cat.face.expression, &"scared", "испуг не перебивается морганием")
 
-var _foot_y := {}
-var _hip_y := {}
+const FEET := ["Bone.016", "Bone.019", "Bone.010", "Bone.013"]
+var _world := {}   # ключ -> {кость: мировая позиция}
 
-func _capture(skel: Skeleton3D, key: String) -> void:
-	var foot := skel.find_bone("Bone.016")
-	var hip := skel.find_bone("Bone")
+func _capture_world(skel: Skeleton3D, key: String) -> void:
 	skel.skeleton_updated.connect(func() -> void:
-		_foot_y[key] = skel.get_bone_global_pose(foot).origin.y
-		_hip_y[key] = skel.get_bone_global_pose(hip).origin.y)
+		var d := {}
+		for b in FEET + ["Bone"]:
+			d[b] = skel.global_transform * skel.get_bone_global_pose(skel.find_bone(b)).origin
+		_world[key] = d)
 
 func test_short_legs_keep_feet_on_the_ground() -> void:
-	# Review Focus 3: два экземпляра cat.glb на одном кадре клипа idle, с LegScaler и без.
+	# Review Focus 3 (ревью плана 5): мерить в мировых координатах — ось Y скелета кота идёт вдоль тела, верх — +Z скелета.
 	var plain := (load("res://assets/models/cat.glb") as PackedScene).instantiate()
 	var short := (load("res://assets/models/cat.glb") as PackedScene).instantiate()
 	add_child_autofree(plain)
 	add_child_autofree(short)
 	var ls := LegScaler.new()
 	short.find_child("Skeleton3D", true, false).add_child(ls)
-	for n in [plain, short]:
-		(n.find_child("AnimationPlayer", true, false) as AnimationPlayer).play("idle")
-	_capture(plain.find_child("Skeleton3D", true, false), "plain")
-	_capture(short.find_child("Skeleton3D", true, false), "short")
-	await wait_process_frames(3)
-	assert_gt(ls.drop, 0.0, "просадка корня посчитана из rest-позы")
-	assert_almost_eq(_foot_y["short"], _foot_y["plain"], 0.15, "стопа на той же высоте (единицы скелета ≈ 3 см)")
-	assert_lt(_hip_y["short"], _hip_y["plain"] - ls.drop * 0.8, "таз опустился примерно на drop")
+	_capture_world(plain.find_child("Skeleton3D", true, false), "plain")
+	_capture_world(short.find_child("Skeleton3D", true, false), "short")
+	var scale: float = (short.find_child("Skeleton3D", true, false) as Skeleton3D).global_transform.basis.get_scale().y
+	for clip in ["idle", "walk", "run"]:
+		for n in [plain, short]:
+			(n.find_child("AnimationPlayer", true, false) as AnimationPlayer).play(clip)
+			(n.find_child("AnimationPlayer", true, false) as AnimationPlayer).seek(0.3, true)
+		await wait_process_frames(3)
+		assert_gt(ls.drop, 0.0, "просадка корня посчитана из rest-позы")
+		for b in FEET:
+			var dy: float = (_world["short"][b] as Vector3).y - (_world["plain"][b] as Vector3).y
+			assert_almost_eq(dy, 0.0, 0.012, "%s: стопа %s на той же высоте (м)" % [clip, b])
+		var root_d: Vector3 = (_world["short"]["Bone"] as Vector3) - (_world["plain"]["Bone"] as Vector3)
+		assert_almost_eq(root_d.y, -ls.drop * scale, 0.006, "%s: корень опустился вниз на drop в метрах" % clip)
+		assert_lt(Vector2(root_d.x, root_d.z).length(), 0.006, "%s: корень не уехал по горизонтали" % clip)
 
 var _tail_basis := {}
 
@@ -7298,11 +7308,40 @@ def head_bbox(mesh):
 	return group_bbox(mesh, HEAD_GROUP)
 
 
-def eye_centers(lo, hi):
-	"""Центры левого и правого глаза: верхняя треть морды, чуть утоплены в переднюю грань (+Y)."""
+def _head_points(mesh):
+	bpy.context.view_layer.update()
+	gi = mesh.vertex_groups[HEAD_GROUP].index
+	return [mesh.matrix_world @ v.co for v in mesh.data.vertices
+	        if any(g.group == gi and g.weight > 0.5 for g in v.groups)]
+
+
+def local_front(mesh, x, z, window=0.012):
+	"""Передняя поверхность морды (max y) в XZ-окрестности точки: у глаз морда отступает от кончика носа."""
+	pts = [p for p in _head_points(mesh) if abs(p.x - x) < window and abs(p.z - z) < window]
+	return max(p.y for p in pts) if pts else max(p.y for p in _head_points(mesh))
+
+
+def local_halfwidth(mesh, y, z, window=0.012):
+	"""Полуширина головы (max |x|) на высоте z в окрестности глубины y."""
+	pts = [p for p in _head_points(mesh) if abs(p.y - y) < window and abs(p.z - z) < window]
+	return max(abs(p.x) for p in pts) if pts else max(abs(p.x) for p in _head_points(mesh))
+
+
+WHITE_R = 0.013
+SINK = 0.5   # доля радиуса белка внутри головы
+
+
+def eye_centers(lo, hi, mesh=None):
+	"""Центры левого и правого глаза: верхняя треть морды; глубина и ширина — по локальной поверхности
+	морды у глаза (ревью плана 5: относительно кончика носа белки выпирали сбоку и вперёд)."""
+	z = lo.z + (hi.z - lo.z) * 0.68
 	x = (hi.x - lo.x) * 0.22
 	y = hi.y - 0.012
-	z = lo.z + (hi.z - lo.z) * 0.68
+	if mesh is not None:
+		front = local_front(mesh, x, z)
+		half = local_halfwidth(mesh, front - 0.006, z)
+		x = max(0.008, half - WHITE_R * 0.95)                       # наружный край белка ≈ на профиле головы
+		y = front - WHITE_R * 0.55 * (1.0 - SINK) + 0.0005          # перед белка = front + 0,5 мм; зрачок и блик ещё на 3 мм
 	return Vector((-x, y, z)), Vector((x, y, z))
 
 
@@ -7321,7 +7360,7 @@ def _eyeball(p, c, white_r, iris_r, pupil_r, pop):
 	fwd = Vector((0.0, 1.0, 0.0))
 	w = lib.sphere(p + "_w", white_r, material="eye_white", **SPHERE)
 	w.scale = (1.0, 0.55, 1.0)
-	w.location = c - fwd * (white_r * 0.4 - pop)
+	w.location = c - fwd * (white_r * 0.55 * SINK - pop)   # центр белка утоплен в голову на SINK радиуса (по сплюснутой оси)
 	front = w.location + fwd * (white_r * 0.55)
 	iris = lib.sphere(p + "_i", iris_r, material="eye_green", **SPHERE)
 	iris.scale = (1.0, 0.35, 1.0)
@@ -7338,9 +7377,9 @@ def _parts(kind, side, c):
 	p = f"eye_{kind}_{side}"
 	fwd = Vector((0.0, 1.0, 0.0))
 	if kind == "normal":
-		return _eyeball(p, c, 0.014, 0.0085, 0.0045, 0.0)
+		return _eyeball(p, c, WHITE_R, 0.008, 0.0042, 0.0)
 	if kind == "scared":
-		return _eyeball(p, c, 0.016, 0.006, 0.0025, 0.004)   # белок выпучен на 4 мм, зрачок точкой
+		return _eyeball(p, c, WHITE_R + 0.002, 0.0055, 0.0023, 0.003)   # белок выпучен на 3 мм, зрачок точкой
 	if kind == "happy":   # «^»: левый штрих поднимается к центру, правый — от центра вниз
 		a = _line(p + "_a", c + Vector((-0.006, 0.006, -0.002)), -35, 0.016, 0.0025, "ink")
 		b = _line(p + "_b", c + Vector((0.006, 0.006, -0.002)), 35, 0.016, 0.0025, "ink")
@@ -7397,7 +7436,7 @@ def _attach(obj, arm, bone=HEAD_GROUP):
 def build_eyes(arm, mesh):
 	"""Четыре объекта eyes_<набор>, дети арматуры. Звать после face_forward и rescale."""
 	lo, hi = head_bbox(mesh)
-	left, right = eye_centers(lo, hi)
+	left, right = eye_centers(lo, hi, mesh)
 	out = []
 	for kind in EYE_SETS:
 		parts = _parts(kind, "l", left) + _parts(kind, "r", right)
@@ -8931,10 +8970,17 @@ class TestCatEyes(unittest.TestCase):
         self.assertGreater(sum(apex) / len(apex), sum(ends) / len(ends), "довольные глаза «^», а не «v»")
 
     def test_eyes_are_sunk_into_the_head(self):
-        lo, hi = cat_eyes.head_bbox(self.mesh)
-        ys = [p.y for p in self._world(self.eyes["eyes_normal"])]
-        self.assertLess(max(ys), hi.y + 0.004, "белок выступает из морды не больше чем на 4 мм")
-        self.assertGreater(max(ys), hi.y - 0.010, "но не утоплен целиком (глаза выше носа, где морда отступает)")
+        # Ревью плана 5: опора — локальная поверхность морды у глаза, а не кончик носа; боковой выступ тоже ограничен.
+        pts = self._world(self.eyes["eyes_normal"])
+        for side in (-1, 1):
+            eye = [p for p in pts if p.x * side > 0]
+            cx = sum(p.x for p in eye) / len(eye)
+            cz = sum(p.z for p in eye) / len(eye)
+            front = cat_eyes.local_front(self.mesh, cx, cz)
+            self.assertLess(max(p.y for p in eye), front + 0.004, "белок, зрачок и блик выступают из морды не больше чем на 4 мм")
+            self.assertGreater(max(p.y for p in eye), front - 0.006, "но глаз виден, а не утоплен целиком")
+            half = cat_eyes.local_halfwidth(self.mesh, front - 0.006, cz)
+            self.assertLess(max(abs(p.x) for p in eye), half + 0.003, "сбоку белок не торчит из профиля головы")
 
     def test_normal_eyes_have_green_iris_and_no_lids(self):
         mats = {m.name for m in self.eyes["eyes_normal"].data.materials}
@@ -10158,8 +10204,17 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
   еды, шлейфы осы и велосипеда, листья по ветру, «z» у спящей собаки.
 - Мир: кусты, плющ, трава, декали и плакаты.
 - Сознательно не сделано: веки (читались как брови), hit-stop, настоящая шерсть.
-- Отложено из плана 5: облака на небе крупноваты (масштаб `sky_cover`); щёчные
-  кисточки спорны по вкусу; HUD-иконки сердечка/клубочка остались текстом.
+- Отложено из плана 5 и его ревью: облака на небе крупноваты (масштаб `sky_cover`);
+  щёчные кисточки спорны по вкусу; HUD-иконки сердечка/клубочка остались текстом;
+  три PNG — жёсткие зависимости (`heart.png` через `preload`, `clouds.png`, `title_bg.png`
+  в сценах); PNG без мипмапов и сжатия (шиммер декалей); сквош держит объём
+  (1,118/0,93 вместо 1,2/0,85 спека); листья рождаются и под землёй (бокс y 2±3);
+  таймер одноразовых частиц не учитывает `explosiveness`; обводка поверх
+  полупрозрачного кота у стены (depth draw); `mesh == null` в не-solid пропсах не
+  защищён; `gen.py` ловит только `HTTPError`; после вспышки кот останется белым,
+  если `SkinCatalog.get_by_id` вернёт null; плакаты частично за кустами, плющ читается
+  как конфетти, плашка заставки задевает глаз кота на арте, линии моргания висят перед
+  мордой, жетон ошейника не виден спереди.
 
 ## Отложено сознательно
 
@@ -10581,15 +10636,17 @@ render_mode cull_front, unshaded, blend_mix, depth_draw_always;
 uniform vec4 color : source_color = vec4(0.224, 0.255, 0.318, 1.0);
 uniform float width = 0.006;      // в единицах модели (Toon пересчитывает метры под масштаб узла)
 uniform float jitter = 0.0;       // доля width: 0 — ровная обводка, 0.25 — шерсть
-uniform float frequency = 40.0;   // частота шума по UV
+uniform float frequency = 40.0;   // не используется с хэшем по вершинам; оставлен для совместимости параметров
 uniform float alpha = 1.0;
 
-float hash2(vec2 p) {
-	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+float hash1(float x) {
+	return fract(sin(x * 127.1 + 311.7) * 43758.5453);
 }
 
 void vertex() {
-	float n = hash2(floor(UV * frequency)) * 2.0 - 1.0;   // UV стабильны по вершинам, обводка не «кипит» в движении
+	// Хэш по номеру вершины: стабилен в движении и не требует UV (у мешей из Blender-скриптов их нет).
+	// При jitter = 0 шум не применяется, ширина ровно width.
+	float n = jitter > 0.0 ? hash1(float(VERTEX_ID)) * 2.0 - 1.0 : 0.0;
 	VERTEX += NORMAL * width * (1.0 + jitter * n);
 }
 

@@ -52,10 +52,17 @@ class TestCatEyes(unittest.TestCase):
         self.assertGreater(sum(apex) / len(apex), sum(ends) / len(ends), "довольные глаза «^», а не «v»")
 
     def test_eyes_are_sunk_into_the_head(self):
-        lo, hi = cat_eyes.head_bbox(self.mesh)
-        ys = [p.y for p in self._world(self.eyes["eyes_normal"])]
-        self.assertLess(max(ys), hi.y + 0.004, "белок выступает из морды не больше чем на 4 мм")
-        self.assertGreater(max(ys), hi.y - 0.010, "но не утоплен целиком (глаза выше носа, где морда отступает)")
+        # Ревью плана 5: опора — локальная поверхность морды у глаза, а не кончик носа; боковой выступ тоже ограничен.
+        pts = self._world(self.eyes["eyes_normal"])
+        for side in (-1, 1):
+            eye = [p for p in pts if p.x * side > 0]
+            cx = sum(p.x for p in eye) / len(eye)
+            cz = sum(p.z for p in eye) / len(eye)
+            front = cat_eyes.local_front(self.mesh, cx, cz)
+            self.assertLess(max(p.y for p in eye), front + 0.004, "белок, зрачок и блик выступают из морды не больше чем на 4 мм")
+            self.assertGreater(max(p.y for p in eye), front - 0.006, "но глаз виден, а не утоплен целиком")
+            half = cat_eyes.local_halfwidth(self.mesh, front - 0.006, cz)
+            self.assertLess(max(abs(p.x) for p in eye), half + 0.003, "сбоку белок не торчит из профиля головы")
 
     def test_normal_eyes_have_green_iris_and_no_lids(self):
         mats = {m.name for m in self.eyes["eyes_normal"].data.materials}

@@ -37,11 +37,40 @@ def head_bbox(mesh):
 	return group_bbox(mesh, HEAD_GROUP)
 
 
-def eye_centers(lo, hi):
-	"""Центры левого и правого глаза: верхняя треть морды, чуть утоплены в переднюю грань (+Y)."""
+def _head_points(mesh):
+	bpy.context.view_layer.update()
+	gi = mesh.vertex_groups[HEAD_GROUP].index
+	return [mesh.matrix_world @ v.co for v in mesh.data.vertices
+	        if any(g.group == gi and g.weight > 0.5 for g in v.groups)]
+
+
+def local_front(mesh, x, z, window=0.012):
+	"""Передняя поверхность морды (max y) в XZ-окрестности точки: у глаз морда отступает от кончика носа."""
+	pts = [p for p in _head_points(mesh) if abs(p.x - x) < window and abs(p.z - z) < window]
+	return max(p.y for p in pts) if pts else max(p.y for p in _head_points(mesh))
+
+
+def local_halfwidth(mesh, y, z, window=0.012):
+	"""Полуширина головы (max |x|) на высоте z в окрестности глубины y."""
+	pts = [p for p in _head_points(mesh) if abs(p.y - y) < window and abs(p.z - z) < window]
+	return max(abs(p.x) for p in pts) if pts else max(abs(p.x) for p in _head_points(mesh))
+
+
+WHITE_R = 0.013
+SINK = 0.5   # доля радиуса белка внутри головы
+
+
+def eye_centers(lo, hi, mesh=None):
+	"""Центры левого и правого глаза: верхняя треть морды; глубина и ширина — по локальной поверхности
+	морды у глаза (ревью плана 5: относительно кончика носа белки выпирали сбоку и вперёд)."""
+	z = lo.z + (hi.z - lo.z) * 0.68
 	x = (hi.x - lo.x) * 0.22
 	y = hi.y - 0.012
-	z = lo.z + (hi.z - lo.z) * 0.68
+	if mesh is not None:
+		front = local_front(mesh, x, z)
+		half = local_halfwidth(mesh, front - 0.006, z)
+		x = max(0.008, half - WHITE_R * 0.95)                       # наружный край белка ≈ на профиле головы
+		y = front - WHITE_R * 0.55 * (1.0 - SINK) + 0.0005          # перед белка = front + 0,5 мм; зрачок и блик ещё на 3 мм
 	return Vector((-x, y, z)), Vector((x, y, z))
 
 
@@ -60,7 +89,7 @@ def _eyeball(p, c, white_r, iris_r, pupil_r, pop):
 	fwd = Vector((0.0, 1.0, 0.0))
 	w = lib.sphere(p + "_w", white_r, material="eye_white", **SPHERE)
 	w.scale = (1.0, 0.55, 1.0)
-	w.location = c - fwd * (white_r * 0.4 - pop)
+	w.location = c - fwd * (white_r * 0.55 * SINK - pop)   # центр белка утоплен в голову на SINK радиуса (по сплюснутой оси)
 	front = w.location + fwd * (white_r * 0.55)
 	iris = lib.sphere(p + "_i", iris_r, material="eye_green", **SPHERE)
 	iris.scale = (1.0, 0.35, 1.0)
@@ -77,9 +106,9 @@ def _parts(kind, side, c):
 	p = f"eye_{kind}_{side}"
 	fwd = Vector((0.0, 1.0, 0.0))
 	if kind == "normal":
-		return _eyeball(p, c, 0.014, 0.0085, 0.0045, 0.0)
+		return _eyeball(p, c, WHITE_R, 0.008, 0.0042, 0.0)
 	if kind == "scared":
-		return _eyeball(p, c, 0.016, 0.006, 0.0025, 0.004)   # белок выпучен на 4 мм, зрачок точкой
+		return _eyeball(p, c, WHITE_R + 0.002, 0.0055, 0.0023, 0.003)   # белок выпучен на 3 мм, зрачок точкой
 	if kind == "happy":   # «^»: левый штрих поднимается к центру, правый — от центра вниз
 		a = _line(p + "_a", c + Vector((-0.006, 0.006, -0.002)), -35, 0.016, 0.0025, "ink")
 		b = _line(p + "_b", c + Vector((0.006, 0.006, -0.002)), 35, 0.016, 0.0025, "ink")
@@ -136,7 +165,7 @@ def _attach(obj, arm, bone=HEAD_GROUP):
 def build_eyes(arm, mesh):
 	"""Четыре объекта eyes_<набор>, дети арматуры. Звать после face_forward и rescale."""
 	lo, hi = head_bbox(mesh)
-	left, right = eye_centers(lo, hi)
+	left, right = eye_centers(lo, hi, mesh)
 	out = []
 	for kind in EYE_SETS:
 		parts = _parts(kind, "l", left) + _parts(kind, "r", right)
