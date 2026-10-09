@@ -18,3 +18,90 @@ static func decide(state: StringName, dist: float, cat_above: bool, chase_t: flo
 		&"hide":
 			return &"hide" if hide_left > 0.0 else &"burrow"
 	return state
+
+const SPEED := 2.4
+const ABOVE := 0.25
+
+var state: StringName = &"burrow"
+var night_only := false
+var _chase_t := 0.0
+var _hide_left := 0.0
+
+@onready var _model: Node3D = $Model
+@onready var _burrow: Node3D = $Burrow
+@onready var _anim: AnimationPlayer = $Model.find_child("AnimationPlayer", true, false)
+
+
+func configure(hz: Dictionary, _builder: Node3D) -> void:
+	night_only = bool(hz.get("night_only", false))
+
+
+func _ready() -> void:
+	super()
+	walk_speed = SPEED
+	Toon.apply(_model, Toon.OUTLINE_CHARACTER, true)
+	for clip in ["idle", "walk"]:
+		if _anim and _anim.has_animation(clip):
+			_anim.get_animation(clip).loop_mode = Animation.LOOP_LINEAR
+	_set_out(false)
+
+
+func _set_out(out: bool) -> void:
+	## В норке краба не видно и он не мешает и не щиплет.
+	_model.visible = out
+	collision_layer = 0   # маленький краб не твёрдый: иначе он толкает кота телом (щипок — через HitZone)
+	hit_zone.monitoring = out
+
+
+func _physics_process(delta: float) -> void:
+	_ensure_home()
+	_burrow.global_position = home
+	var night := DayNight.is_night(get_tree())
+	var c := _find_cat()
+	var dist := 99.0
+	var above := false
+	if c and not bool(c.get("hidden")) and not bool(c.get("in_safe_zone")):
+		var d := c.global_position - global_position
+		dist = Vector2(d.x, d.z).length()
+		above = d.y > ABOVE and dist < 0.5
+	if night_only and not night and state == &"burrow":
+		return   # ночной краб днём сидит в норке
+	var watch := dist   # из норки краб сторожит округу норки, в погоне — меряет до кота
+	if state == &"burrow" and c:
+		watch = Vector2(c.global_position.x - home.x, c.global_position.z - home.z).length()
+	var next := decide(state, watch, above, _chase_t, _hide_left, night)
+	if next != state:
+		if next == &"chase":
+			_chase_t = 0.0
+			_set_out(true)
+		elif next == &"hide":
+			_hide_left = HIDE_TIME
+		elif next == &"burrow":
+			global_position = home
+			_set_out(false)
+		state = next
+	match state:
+		&"burrow":
+			velocity = Vector3.ZERO
+		&"chase":
+			_chase_t += delta
+			_run_to(c.global_position, delta)
+			for b in hit_zone.get_overlapping_bodies():
+				_on_hit_body(b)
+		&"hide":
+			_hide_left = maxf(_hide_left - delta, 0.0)
+			if _run_to(home, delta) < 0.15 and _model.visible:
+				_set_out(false)   # забрался в норку; ждёт, пока выйдет время
+
+
+func _run_to(target: Vector3, delta: float) -> float:
+	var left := move_towards_point(target, SPEED, delta)
+	_model.rotation.y = PI / 2.0   # бежит боком: клешни смотрят в сторону, ход — вдоль корпуса
+	if _anim and _anim.has_animation("walk") and _anim.current_animation != "walk":
+		_anim.play("walk", 0.15)
+	return left
+
+
+func _on_hit_body(body: Node3D) -> void:
+	if state == &"chase":
+		super(body)

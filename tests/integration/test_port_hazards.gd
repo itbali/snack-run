@@ -179,3 +179,60 @@ func test_forklift_hits_cat_already_standing_at_its_forks() -> void:
 	_cat(Vector3(0, 0.05, -4.9))
 	await wait_seconds(3.0)
 	assert_eq(GameState.hearts, 2)
+
+const CrabScene := preload("res://scenes/hazards/crab.tscn")
+
+func _crab(pos: Vector3, hz := {}) -> Node3D:
+	var c := CrabScene.instantiate() as Node3D
+	c.position = pos
+	c.call("configure", hz, null)
+	world.add_child(c)
+	return c
+
+func test_crab_waits_in_burrow_unseen() -> void:
+	_floor()
+	var c := _crab(Vector3(0, 0.05, 0))
+	_cat(Vector3(4, 0.05, 0))
+	await wait_physics_frames(20)
+	assert_eq(c.get("state"), &"burrow")
+	assert_false((c.get_node("Model") as Node3D).visible, "в норке не видно")
+
+func test_crab_runs_out_and_pinches_cat_closer_than_3m() -> void:
+	_floor()
+	var c := _crab(Vector3(0, 0.05, 0))
+	_cat(Vector3(2.5, 0.05, 0))
+	await wait_seconds(2.0)
+	assert_eq(GameState.hearts, 2, "щипок")
+	assert_true((c.get_node("Model") as Node3D).visible)
+
+func test_crab_hides_after_5s_chase_and_comes_back_after_6s() -> void:
+	_floor()
+	var c := _crab(Vector3(0, 0.05, 0))
+	var cat = _cat(Vector3(2.5, 0.05, 0))
+	await wait_physics_frames(3)
+	cat.invulnerable_left = 99.0   # не мешаем погоне ударами
+	await wait_seconds(5.5)
+	assert_eq(c.get("state"), &"hide", "5 с погони — прячется")
+	cat.global_position = Vector3(10, 0.05, 0)
+	await wait_seconds(7.0)
+	assert_eq(c.get("state"), &"burrow", "через 6 с снова сторожит")
+	assert_lt(Vector2(c.global_position.x, c.global_position.z).length(), 0.4, "вернулся в норку")
+
+func test_crab_hides_when_cat_jumps_over_it() -> void:
+	_floor()
+	var c := _crab(Vector3(0, 0.05, 0))
+	var cat = _cat(Vector3(2.5, 0.05, 0))
+	await wait_physics_frames(10)
+	assert_eq(c.get("state"), &"chase")
+	cat.invulnerable_left = 99.0
+	cat.global_position = c.global_position + Vector3(0, 0.7, 0)   # кот над крабом в прыжке
+	await wait_physics_frames(2)
+	assert_eq(c.get("state"), &"hide")
+
+func test_night_crab_sits_in_burrow_by_day() -> void:
+	_floor()
+	var c := _crab(Vector3(0, 0.05, 0), {"night_only": true})
+	_cat(Vector3(1, 0.05, 0))
+	await wait_seconds(1.0)
+	assert_eq(c.get("state"), &"burrow")
+	assert_eq(GameState.hearts, 3)
