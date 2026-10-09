@@ -60,3 +60,48 @@ class Primitives(unittest.TestCase):
 		for name, val in (("KIT_STEP_RISE", lg.KIT_RISE), ("KIT_STEP_TREAD", lg.KIT_TREAD), ("KIT_RAMP_DEG", lg.KIT_RAMP_DEG), ("KIT_WIDTH", lg.KIT_WIDTH)):
 			m = re.search(rf"const {name} := ([0-9.]+)", src)
 			self.assertAlmostEqual(float(m.group(1)), val, 6, name)
+
+
+DESC = {
+	"name": "t", "seed": 5,
+	"terrain": {"size": [40, 40], "origin": [-20, -20], "cell": 1.0, "base": 0.0,
+		"channels": ["asphalt", "paving", "grass", "gravel"], "default": "asphalt", "features": [], "paint": []},
+	"counts": {"spawn_points": 6, "yarn": 3, "hideouts": 2},
+	"zones": [{"name": "z", "ops": [
+		{"type": "garage_row", "origin": [-10, -10], "count": 2, "rot": 0},
+		{"type": "scatter", "what": "spawn", "rect": [-18, 0, 18, 18], "count": 4, "allowed": [0]},
+		{"type": "scatter", "what": "hideout", "kind": "box", "rect": [-18, 0, 18, 18], "count": 2},
+		{"type": "scatter", "what": "yarn", "rect": [-18, 0, 18, 18], "count": 1},
+	]}],
+}
+
+
+class Generate(unittest.TestCase):
+	def test_generate_is_deterministic_and_clean(self):
+		a, ta = lg.generate(DESC)
+		b, tb = lg.generate(DESC)
+		self.assertEqual(lg.dump_layout(a), lg.dump_layout(b))
+		self.assertEqual(len(a["spawn_points"]), 6)
+		self.assertEqual(len(a["hideouts"]), 2)
+		self.assertEqual(sum(1 for p in a["props"] if p["model"] == "box"), 2 + 2, "ящик у каждого укрытия + два в цепочке")
+		self.assertEqual(ta["size"], [40, 40])
+
+	def test_check_reports_floating_and_buried_items(self):
+		layout, _ = lg.generate(DESC)
+		layout["yarn"].append({"pos": [15.0, 1.5, 15.0]})                # висит в воздухе
+		layout["spawn_points"].append({"pos": [-10.0, 0, -10.0], "allowed": [0]})   # внутри гаража
+		errs = lg.check(layout, {"yarn": [layout["yarn"][-1]], "spawn_points": [layout["spawn_points"][-1]]})
+		self.assertEqual(len(errs), 2, errs)
+
+	def test_counts_are_enforced(self):
+		import copy
+		d = copy.deepcopy(DESC)
+		d["counts"]["yarn"] = 99
+		with self.assertRaises(ValueError):
+			lg.generate(d)
+
+	def test_core_yarn_keys_preserved(self):
+		core = json.loads((ROOT / "data/layout_src/yard_core.json").read_text())
+		layout, _ = lg.generate(json.loads((ROOT / "data/layout_src/yard.json").read_text()))
+		keys = {tuple(y["pos"]) for y in layout["yarn"]}
+		self.assertTrue(all(tuple(y["pos"]) in keys for y in core["yarn"]), "клубочки ядра на прежних местах")

@@ -175,3 +175,142 @@ def model_defaults(props):
 	for p in props:
 		d.setdefault(p["model"], {k: v for k, v in p.items() if k not in ("model", "pos", "rot")})
 	return d
+
+
+LISTS = ("props", "hideouts", "spawn_points", "yarn", "hazards", "decals", "gates")
+
+
+def generate(desc):
+	rng = random.Random(desc.get("seed", 1))
+	core = json.loads((ROOT / desc["core"]).read_text()) if "core" in desc else {}
+	out = {k: [dict(it) for it in core.get(k, [])] for k in LISTS}
+	if "shop" in core:
+		out["shop"] = core["shop"]
+	if desc.get("road") or core.get("road"):
+		out["road"] = desc.get("road") or core["road"]
+	terrain = json.loads(json.dumps(desc["terrain"]))
+	terrain.setdefault("features", [])
+	terrain.setdefault("paint", [])
+	defaults = model_defaults(core.get("props", []))
+	gen = {k: [] for k in LISTS}
+	blocked = [f for f in map(footprint, out["props"]) if f]
+
+	def add(kind, items):
+		for it in items:
+			if kind == "props":
+				it = {**defaults.get(it["model"], {}), **it}
+				f = footprint(it)
+				if f:
+					blocked.append(f)
+			out[kind].append(it)
+			gen[kind].append(it)
+
+	taken = [(s["pos"][0], s["pos"][2]) for k in ("spawn_points", "yarn", "hideouts") for s in out[k]]
+	for zone in desc.get("zones", []):
+		for op in zone["ops"]:
+			t = op["type"]
+			if t == "perimeter":
+				add("props", perimeter(op["rect"], op.get("model", "wall"), op.get("length", 6.0), op.get("sides", "nswe"), [tuple(g) for g in op.get("gaps", [])]))
+			elif t == "terrace":
+				feature, props, bl = terrace(op["rect"], op["height"], [tuple(a) for a in op.get("access", [])])
+				terrain["features"].append(feature)
+				add("props", props)
+				blocked.extend(bl)
+			elif t == "garage_row":
+				row = garage_row(tuple(op["origin"]), op["count"], op.get("rot", 0), op.get("step", 3.2))
+				for k, v in row.items():
+					add(k, v)
+			elif t == "hill":
+				terrain["features"].append({"type": "hill", "center": op["center"], "radius": op["radius"], "height": op["height"]})
+			elif t == "paint":
+				terrain["paint"].append({k: v for k, v in op.items() if k != "type"})
+			elif t == "place":
+				for k in LISTS:
+					add(k, [dict(it) for it in op.get(k, [])])
+			elif t == "scatter":
+				pts = scatter(rng, op["rect"], op["count"], blocked, op.get("min_dist", 2.0), op.get("margin", 0.4), taken)
+				taken.extend(pts)
+				for x, z in pts:
+					w = op["what"]
+					if w == "spawn":
+						s = {"pos": [x, 0, z], "allowed": op.get("allowed", [0])}
+						if "foods" in op:
+							s["foods"] = op["foods"]
+						add("spawn_points", [s])
+					elif w == "yarn":
+						add("yarn", [{"pos": [x, 0, z]}])
+					elif w == "hideout" and op.get("kind", "box") == "box":
+						add("props", [{"model": "box", "pos": [x, 0, z], "rot": rng.randrange(0, 360, 15), "outline": True}])
+						add("hideouts", [{"kind": "box", "pos": [x, 0.2, round(z + 0.65, 2)], "size": [0.6, 0.4, 0.6]}])
+					elif w == "hideout":
+						r = rng.choice((0, 90, 180, 270))
+						add("props", [{"model": "bench", "pos": [x, 0, z], "rot": r}])
+						add("hideouts", [{"kind": "bench", "pos": [x, 0.2, z], "rot": r, "size": [1.3, 0.4, 0.4]}])
+					elif w == "prop":
+						rot = rng.randrange(0, 360, 15) if op.get("rot") == "random" else op.get("rot", 0)
+						add("props", [{"model": op["model"], "pos": [x, 0, z], "rot": rot}])
+			else:
+				raise ValueError(f"неизвестная операция {t}")
+	for k, n in desc.get("counts", {}).items():
+		if len(out[k]) < n:
+			raise ValueError(f"{k}: {len(out[k])} < {n}")
+	errs = check(out, gen, terrain)
+	if errs:
+		raise ValueError("инварианты раскладки:\n" + "\n".join(errs))
+	return out, terrain
+
+
+def check(layout, generated, terrain=None):
+	"""Нарушения для созданных генератором точек: еда и клубочки не внутри пропсов, приподнятые — на достижимой опоре."""
+	fps = [f for f in map(footprint, layout["props"]) if f]
+	reach = reachable(fps)
+	errs = []
+	for kind in ("spawn_points", "yarn"):
+		for it in generated.get(kind, []):
+			x, y, z = it["pos"]
+			under = [(i, f) for i, f in enumerate(fps) if f[0] < x < f[2] and f[1] < z < f[3]]
+			if terrain:
+				ox, oz = terrain["origin"]
+				sx, sz = terrain["size"]
+				if not (ox + 1 <= x <= ox + sx - 1 and oz + 1 <= z <= oz + sz - 1):
+					errs.append(f"{kind} {it['pos']}: за краем района")
+			if y < 0.3:
+				if any(f[4] > y + 0.1 for _, f in under):
+					errs.append(f"{kind} {it['pos']}: внутри пропса")
+			elif not any(abs(f[4] - y) <= 0.15 and i in reach for i, f in under):
+				errs.append(f"{kind} {it['pos']}: нет достижимой опоры на высоте {y}")
+	keys = [tuple(y["pos"]) for y in layout["yarn"]]
+	if len(keys) != len(set(keys)):
+		errs.append("клубочки с одинаковыми позициями (ключи сохранений)")
+	return errs
+
+
+def dump_layout(d):
+	"""JSON по элементу в строке: дифф раскладки читается."""
+	lines = ["{"]
+	keys = list(d)
+	for n, k in enumerate(keys):
+		comma = "," if n < len(keys) - 1 else ""
+		v = d[k]
+		if isinstance(v, list):
+			lines.append(f'  "{k}": [')
+			lines += ["    " + json.dumps(it, ensure_ascii=False) + ("," if i < len(v) - 1 else "") for i, it in enumerate(v)]
+			lines.append("  ]" + comma)
+		else:
+			lines.append(f'  "{k}": ' + json.dumps(v, ensure_ascii=False) + comma)
+	lines.append("}")
+	return "\n".join(lines) + "\n"
+
+
+def main(argv):
+	src = Path(argv[1])
+	desc = json.loads(src.read_text())
+	layout, terrain = generate(desc)
+	name = desc.get("name", src.stem)
+	(ROOT / f"data/layout/{name}.json").write_text(dump_layout(layout))
+	(ROOT / f"data/terrain_src/{name}.json").write_text(json.dumps(terrain, ensure_ascii=False, indent=2) + "\n")
+	print(f"{name}: пропсов {len(layout['props'])}, еды {len(layout['spawn_points'])}, клубочков {len(layout['yarn'])}, укрытий {len(layout['hideouts'])}")
+
+
+if __name__ == "__main__":
+	main(sys.argv)
