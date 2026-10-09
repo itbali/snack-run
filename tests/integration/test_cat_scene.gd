@@ -172,3 +172,49 @@ func test_blink_only_over_normal_and_releases() -> void:
 	cat.face.blink_in = 0.0
 	await wait_physics_frames(2)
 	assert_eq(cat.face.expression, &"scared", "испуг не перебивается морганием")
+
+var _foot_y := {}
+var _hip_y := {}
+
+func _capture(skel: Skeleton3D, key: String) -> void:
+	var foot := skel.find_bone("Bone.016")
+	var hip := skel.find_bone("Bone")
+	skel.skeleton_updated.connect(func() -> void:
+		_foot_y[key] = skel.get_bone_global_pose(foot).origin.y
+		_hip_y[key] = skel.get_bone_global_pose(hip).origin.y)
+
+func test_short_legs_keep_feet_on_the_ground() -> void:
+	# Review Focus 3: два экземпляра cat.glb на одном кадре клипа idle, с LegScaler и без.
+	var plain := (load("res://assets/models/cat.glb") as PackedScene).instantiate()
+	var short := (load("res://assets/models/cat.glb") as PackedScene).instantiate()
+	add_child_autofree(plain)
+	add_child_autofree(short)
+	var ls := LegScaler.new()
+	short.find_child("Skeleton3D", true, false).add_child(ls)
+	for n in [plain, short]:
+		(n.find_child("AnimationPlayer", true, false) as AnimationPlayer).play("idle")
+	_capture(plain.find_child("Skeleton3D", true, false), "plain")
+	_capture(short.find_child("Skeleton3D", true, false), "short")
+	await wait_process_frames(3)
+	assert_gt(ls.drop, 0.0, "просадка корня посчитана из rest-позы")
+	assert_almost_eq(_foot_y["short"], _foot_y["plain"], 0.15, "стопа на той же высоте (единицы скелета ≈ 3 см)")
+	assert_lt(_hip_y["short"], _hip_y["plain"] - ls.drop * 0.8, "таз опустился примерно на drop")
+
+var _tail_basis := {}
+
+func test_tail_wiggle_adds_motion_on_top_of_the_clip() -> void:
+	# Два экземпляра на одном кадре idle: с TailWiggle и без; итог модификатора виден только в skeleton_updated.
+	var plain := (load("res://assets/models/cat.glb") as PackedScene).instantiate()
+	var wig := (load("res://assets/models/cat.glb") as PackedScene).instantiate()
+	add_child_autofree(plain)
+	add_child_autofree(wig)
+	wig.find_child("Skeleton3D", true, false).add_child(TailWiggle.new())
+	var pair := {"plain": plain, "wig": wig}
+	for key in pair:
+		var n: Node = pair[key]
+		(n.find_child("AnimationPlayer", true, false) as AnimationPlayer).play("idle")
+		var skel := n.find_child("Skeleton3D", true, false) as Skeleton3D
+		var idx := skel.find_bone("Bone.006")
+		skel.skeleton_updated.connect(func() -> void: _tail_basis[key] = skel.get_bone_global_pose(idx).basis)
+	await wait_seconds(0.15)
+	assert_false((_tail_basis["wig"] as Basis).is_equal_approx(_tail_basis["plain"]), "хвост с модификатором отличается от клипа на том же кадре")

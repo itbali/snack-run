@@ -54,6 +54,12 @@ func _ready() -> void:
 		var hs := HeadScaler.new()
 		hs.name = "HeadScaler"
 		skel.add_child(hs)
+		var ls := LegScaler.new()
+		ls.name = "LegScaler"
+		skel.add_child(ls)
+		var tw := TailWiggle.new()
+		tw.name = "TailWiggle"
+		skel.add_child(tw)
 	if camera_rig:
 		(camera_rig.get_node("SpringArm3D") as SpringArm3D).add_excluded_object(get_rid())
 	play_clip(&"idle")
