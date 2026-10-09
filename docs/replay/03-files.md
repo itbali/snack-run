@@ -5,7 +5,7 @@
 Отступы в GDScript и Makefile — табы; в Python проекта — тоже табы, кроме
 `palette.py` и тестов Blender (пробелы). Копировать как есть.
 
-Файлов: 263
+Файлов: 278
 
 ## `CLAUDE.md`
 
@@ -3667,6 +3667,8 @@ func _physics_process(delta: float) -> void:
 		global_position += velocity * delta
 		if drowning_left == 0.0:
 			teleport(_shore)
+			if camera_rig:
+				camera_rig.global_position = global_position + Vector3(0, CameraRig.HEIGHT, 0)   # камера не летит через воду
 		return
 	if stunned_left > 0.0 or petted_left > 0.0:
 		velocity = CatMotion.step(velocity, Vector3.ZERO, false, is_on_floor(), false, delta)
@@ -3790,6 +3792,8 @@ func try_eat() -> bool:
 
 
 func take_hit(from: Vector3) -> void:
+	if drowning_left > 0.0:
+		return   # в воде сердечко не снимается (спек порта, раздел 2)
 	if invulnerable_left > 0.0 or stunned_left > 0.0 or hidden or in_safe_zone:
 		return
 	Sfx.play(&"hit")   # один вызов на реальный удар: повторные касания блокирует неуязвимость
@@ -3838,6 +3842,8 @@ func _fade_material(mat: StandardMaterial3D) -> void:
 
 
 func pet(seconds: float) -> bool:
+	if drowning_left > 0.0:
+		return false
 	## Поймал ребёнок: 2 с стоим довольные, еда выпала, сердечко цело; потом неуязвимость, как после удара.
 	if petted_left > 0.0 or invulnerable_left > 0.0 or hidden or in_safe_zone:
 		return false
@@ -3886,6 +3892,7 @@ func drown(shore: Vector3) -> bool:
 	Sfx.play(&"splash")
 	Effects.burst(get_parent(), global_position + Vector3(0, 0.2, 0), Color("#2F9CCF"), 28, 0.06, 2.5)
 	squash(0.6, 0.2)
+	state = &"idle"   # не продолжать клип бега под водой
 	return true
 
 
@@ -5139,6 +5146,42 @@ static func is_night(tree: SceneTree) -> bool:
 	return current_phase(tree) == &"night"
 ```
 
+## `scripts/world/floater.gd`
+
+```gdscript
+class_name Floater
+extends AnimatableBody3D
+## Качающаяся опора в воде — лодка или бочка (спек порта, раздел 2): подъём ±amp, крен ±roll_deg вокруг продольной оси,
+## период period, сдвиг фазы phase. Кот стоит на ней: AnimatableBody3D с sync_to_physics переносит его вместе с собой.
+
+@export var amp := 0.12
+@export var roll_deg := 6.0
+@export var period := 3.5
+@export var phase := 0.0
+var base: Transform3D
+var _t := 0.0
+
+
+static func offset_at(t: float, a: float, roll: float, p: float, ph: float) -> Vector2:
+	## (подъём в метрах, крен в градусах) в момент t; крен опережает подъём на четверть периода.
+	var w := TAU * t / p + ph
+	return Vector2(a * sin(w), roll * cos(w))
+
+
+func _ready() -> void:
+	add_to_group("floaters")
+	collision_layer = Layers.WORLD
+	collision_mask = 0
+	sync_to_physics = true
+	base = transform
+
+
+func _physics_process(delta: float) -> void:
+	_t += delta
+	var o := offset_at(_t, amp, roll_deg, period, phase)
+	transform = Transform3D(base.basis * Basis(Vector3.BACK, deg_to_rad(o.y)), base.origin + Vector3(0, o.x, 0))
+```
+
 ## `scripts/world/gate.gd`
 
 ```gdscript
@@ -5651,6 +5694,40 @@ func build(data: Dictionary) -> void:
 		_build_water(w)
 	for m in data.get("shore", []):
 		_build_shore(m)
+	for f in data.get("floaters", []):
+		_build_floater(f)
+
+
+func _build_floater(f: Dictionary) -> void:
+	## Лодка или бочка на воде (план 13): pos — абсолютный (y — опора по ватерлинии), коллайдеры — явные или по модели.
+	var model_path := "%s/%s.glb" % [MODELS_DIR, f["model"]]
+	if not ResourceLoader.exists(model_path):
+		push_warning("нет модели " + model_path)
+		return
+	var body := Floater.new()
+	body.name = String(f["model"])
+	body.amp = float(f.get("amp", body.amp))
+	body.roll_deg = float(f.get("roll", body.roll_deg))
+	body.period = float(f.get("period", body.period))
+	body.phase = float(f.get("phase", 0.0))
+	var model := (load(model_path) as PackedScene).instantiate() as Node3D
+	model.name = "Model"
+	body.add_child(model)
+	var colliders: Array = f.get("colliders", [])
+	if colliders.is_empty():
+		var aabb := _model_aabb(model)
+		colliders = [{"size": [aabb.size.x, aabb.size.y, aabb.size.z],
+			"offset": [aabb.position.x + aabb.size.x / 2, aabb.position.y + aabb.size.y / 2, aabb.position.z + aabb.size.z / 2]}]
+	for i in colliders.size():
+		var c: Dictionary = colliders[i]
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = _v3(c["size"])
+		shape.shape = box
+		shape.position = _v3(c.get("offset", [0, 0, 0]))
+		body.add_child(shape)
+	_add_at(_container("Floaters"), body, _v3(f["pos"]), float(f.get("rot", 0)))
+	Toon.apply(model, Toon.OUTLINE_NONE)
 
 
 func _build_water(w: Dictionary) -> void:
@@ -6813,6 +6890,50 @@ func test_dust_hearts_sparkles_trail_leaves_zzz_factories() -> void:
 	assert_eq(l.amount, 40)
 	assert_false(l.one_shot)
 	assert_gte(l.position.y - l.emission_box_extents.y, 0.0, "листья рождаются над землёй, не под ней")
+```
+
+## `tests/integration/test_floater.gd`
+
+```gdscript
+extends GutTest
+## План 13: кот стоит на качающейся лодке (спек порта, раздел 2).
+
+const CatScene := preload("res://scenes/player/cat.tscn")
+const DECK := [{"size": [1.6, 0.75, 4.2], "offset": [0, 0.075, 0]}]
+
+var world: Node3D
+
+func before_each() -> void:
+	GameState.reset()
+	world = Node3D.new()
+	add_child_autofree(world)
+
+func test_cat_rides_bobbing_boat() -> void:
+	var b := WorldBuilder.new()
+	world.add_child(b)
+	b.build({"floaters": [{"model": "boat", "pos": [0, -2.3, 0], "rot": 0, "period": 3.0, "phase": 0.0, "colliders": DECK}]})
+	var cat = CatScene.instantiate()
+	cat.position = Vector3(0, -1.8, 0.5)
+	world.add_child(cat)
+	var lo := 99.0
+	var hi := -99.0
+	for i in 240:
+		await wait_physics_frames(1)
+		if i > 30:
+			lo = minf(lo, cat.global_position.y)
+			hi = maxf(hi, cat.global_position.y)
+	assert_gt(lo, -2.0, "кот не провалился сквозь лодку")
+	assert_gt(hi - lo, 0.1, "кот качается вместе с лодкой")
+
+func test_builder_builds_floaters_with_their_phases() -> void:
+	var b := WorldBuilder.new()
+	world.add_child(b)
+	b.build({"floaters": [{"model": "barrel", "pos": [0, -2.7, 0], "phase": 0.5}, {"model": "barrel", "pos": [2, -2.7, 0], "phase": 2.0}]})
+	var f := b.find_children("*", "Floater", true, false)
+	assert_eq(f.size(), 2)
+	if f.size() == 2:
+		assert_ne((f[0] as Floater).phase, (f[1] as Floater).phase)
+		assert_not_null((f[0] as Floater).get_node_or_null("Model"), "у опоры есть модель")
 ```
 
 ## `tests/integration/test_food.gd`
@@ -8760,6 +8881,42 @@ func test_builder_builds_water_zones_and_shore() -> void:
 	if w.size() == 1:
 		assert_almost_eq((w[0] as Water).level, -0.5, 0.001)
 	assert_eq(get_tree().get_nodes_in_group("shore").size(), 1)
+
+func test_drowning_cat_cannot_be_hit_or_petted() -> void:
+	# Ревью плана 12: сторож догонял тонущего кота и снимал сердечко (спек: в воде сердечко не снимается).
+	_floor(-1.5)
+	_water(-0.5)
+	_shore(Vector3(8, 1.0, 0))
+	var cat = CatScene.instantiate()
+	cat.position = Vector3(0, -1.4, 0)
+	world.add_child(cat)
+	await wait_physics_frames(5)
+	assert_gt(cat.drowning_left, 0.0)
+	cat.invulnerable_left = 0.0
+	cat.take_hit(Vector3(1, -1.4, 0))
+	assert_eq(GameState.hearts, 3, "удар по тонущему не проходит")
+	assert_false(cat.pet(2.0), "тонущего не гладят")
+
+func test_water_is_opaque_for_reflections() -> void:
+	# Ревью плана 12: с ALPHA вода шла прозрачным проходом, а SSR на прозрачное не действует (спек: зеркальная вода).
+	var w := _water(-0.5)
+	var mat := (w.get_node("Surface") as MeshInstance3D).material_override as ShaderMaterial
+	assert_false(mat.shader.code.contains("ALPHA"), "вода непрозрачная — отражения SSR")
+
+func test_camera_follows_cat_back_to_shore() -> void:
+	# Ревью плана 12: после возврата из воды камера плыла через весь пруд (в порту — через море).
+	SaveGame.path = "user://test_save.json"
+	SaveGame.clear()
+	var main := (load("res://scenes/main.tscn") as PackedScene).instantiate()
+	add_child_autofree(main)
+	await wait_physics_frames(5)
+	var cat = main.find_child("Cat", true, false)
+	cat.global_position = Vector3(-28, -1.2, 66)   # дно пруда парка
+	await wait_seconds(1.3)
+	assert_eq(cat.drowning_left, 0.0, "вернулся на берег")
+	var rig: Node3D = main.get("_rig")
+	assert_lt(Vector2(rig.global_position.x - cat.global_position.x, rig.global_position.z - cat.global_position.z).length(), 0.5, "камера сразу у кота")
+	SaveGame.clear()
 ```
 
 ## `tests/integration/test_world_builder.gd`
@@ -9564,6 +9721,28 @@ func test_lamps_on_from_dusk_to_dawn() -> void:
 	assert_true(DayCycle.lamps_on(170.0))
 	assert_true(DayCycle.lamps_on(250.0))
 	assert_false(DayCycle.lamps_on(290.0))
+```
+
+## `tests/unit/test_floater_math.gd`
+
+```gdscript
+extends GutTest
+## План 13: качание лодок и бочек — подъём ±amp, крен ±roll, период, фаза (спек порта, раздел 2).
+
+func test_offset_is_periodic_and_bounded() -> void:
+	for i in 40:
+		var t := i * 0.173
+		var o := Floater.offset_at(t, 0.12, 6.0, 3.5, 1.0)
+		assert_between(o.x, -0.1201, 0.1201)
+		assert_between(o.y, -6.001, 6.001)
+		var o2 := Floater.offset_at(t + 3.5, 0.12, 6.0, 3.5, 1.0)
+		assert_almost_eq(o2.x, o.x, 0.0001, "период по подъёму")
+		assert_almost_eq(o2.y, o.y, 0.0001, "период по крену")
+
+func test_phase_shifts_motion() -> void:
+	var a := Floater.offset_at(0.5, 0.12, 6.0, 3.5, 0.0)
+	var b := Floater.offset_at(0.5, 0.12, 6.0, 3.5, 2.0)
+	assert_gt(absf(a.x - b.x), 0.02, "разные фазы — разное положение")
 ```
 
 ## `tests/unit/test_game_state.gd`
@@ -10998,6 +11177,29 @@ def build():
 	return lib.group([bag, knot])
 ```
 
+## `tools/blender/gen/barrel.py`
+
+```python
+"""Бочка (порт): r 0,35, высота 0,7, обручи. На набережной — укрытие, в воде — качающаяся опора (Floater)."""
+import lib
+
+SPEC = {"max_tris": 900, "max_dim": 0.8}
+
+
+def build():
+	body = lib.cylinder("barrel", radius=0.35, depth=0.7, segments=12, material="brick")
+	body.location.z = 0.35
+	parts = [body]
+	for i, z in enumerate((0.12, 0.58)):
+		h = lib.cylinder(f"barrel_hoop{i}", radius=0.365, depth=0.05, segments=12, material="ink")
+		h.location.z = z
+		parts.append(h)
+	lid = lib.cylinder("barrel_lid", radius=0.3, depth=0.02, segments=12, material="sand")
+	lid.location.z = 0.71
+	parts.append(lid)
+	return lib.group(parts)
+```
+
 ## `tools/blender/gen/bench.py`
 
 ```python
@@ -11045,6 +11247,70 @@ def build():
 	return parts
 ```
 
+## `tools/blender/gen/boat.py`
+
+```python
+"""Лодка у причала (порт): корпус 1,6×4,2 м, палуба на 0,45 м над ватерлинией (origin), нос-клин, банка. Качается (Floater)."""
+import math
+
+import lib
+
+SPEC = {"max_tris": 1500, "max_dim": 5.2}
+
+
+def build():
+	hull = lib.rounded_box("boat", (1.6, 4.2, 0.75), bevel=0.06, material="brick")
+	hull.location.z = 0.075
+	deck = lib.rounded_box("boat_deck", (1.4, 4.0, 0.06), bevel=0.01, segments=1, material="sand")
+	deck.location.z = 0.45
+	bow = lib.wedge("boat_bow", width=1.6, length=0.8, height=0.75, material="brick")
+	bow.location = (0, 2.1, -0.3)
+	seat = lib.rounded_box("boat_seat", (1.4, 0.3, 0.08), bevel=0.01, segments=1, material="cream")
+	seat.location = (0, -0.8, 0.62)
+	rim = lib.rounded_box("boat_rim", (1.7, 4.3, 0.06), bevel=0.01, segments=1, material="cream")
+	rim.location.z = 0.48
+	return lib.group([hull, deck, bow, seat, rim])
+```
+
+## `tools/blender/gen/boat_upturned.py`
+
+```python
+"""Перевёрнутая лодка на пляже (укрытие «под лодкой»): днище сверху, борта до песка, концы открыты."""
+import lib
+
+SPEC = {"max_tris": 1200, "max_dim": 4.4}
+
+
+def build():
+	top = lib.rounded_box("boat_upturned", (1.6, 4.2, 0.12), bevel=0.04, material="brick")
+	top.location.z = 0.6
+	keel = lib.rounded_box("boat_upturned_keel", (0.12, 4.0, 0.1), bevel=0.01, segments=1, material="cream")
+	keel.location.z = 0.7
+	parts = [top, keel]
+	for side, x in (("l", -0.74), ("r", 0.74)):
+		s = lib.rounded_box(f"boat_upturned_side_{side}", (0.12, 4.2, 0.6), bevel=0.02, segments=1, material="brick")
+		s.location = (x, 0, 0.3)
+		parts.append(s)
+	return lib.group(parts)
+```
+
+## `tools/blender/gen/bollard.py`
+
+```python
+"""Швартовая тумба причала."""
+import lib
+
+SPEC = {"max_tris": 400, "max_dim": 0.5}
+
+
+def build():
+	post = lib.cylinder("bollard", radius=0.15, depth=0.45, segments=10, material="ink")
+	post.location.z = 0.225
+	cap = lib.cylinder("bollard_cap", radius=0.2, depth=0.08, segments=10, material="ink")
+	cap.location.z = 0.47
+	return lib.group([post, cap])
+```
+
 ## `tools/blender/gen/box.py`
 
 ```python
@@ -11058,6 +11324,23 @@ def build():
 	body = lib.rounded_box("box", (0.45, 0.35, 0.30), bevel=0.015, segments=2, material="sand")
 	body.location.z = 0.15
 	return [body]
+```
+
+## `tools/blender/gen/buoy.py`
+
+```python
+"""Буёк в море: шар с полосой."""
+import lib
+
+SPEC = {"max_tris": 500, "max_dim": 0.7}
+
+
+def build():
+	ball = lib.sphere("buoy", radius=0.3, material="coral")
+	ball.location.z = 0.1
+	band = lib.cylinder("buoy_band", radius=0.31, depth=0.1, segments=12, material="cream")
+	band.location.z = 0.1
+	return lib.group([ball, band])
 ```
 
 ## `tools/blender/gen/bush.py`
@@ -11215,6 +11498,31 @@ def build():
 	for name, x in (("cyclist_leg_l", 0.12), ("cyclist_leg_r", -0.12)):
 		leg = lib.rounded_box(name, (0.1, 0.12, 0.5), bevel=0.03, material="asphalt")
 		leg.location = (x, 0.05, 0.75)
+		parts.append(leg)
+	return lib.group(parts)
+```
+
+## `tools/blender/gen/deckchair.py`
+
+```python
+"""Шезлонг на пляже: рама и полосатая ткань под наклоном."""
+import math
+
+import lib
+
+SPEC = {"max_tris": 600, "max_dim": 1.7}
+
+
+def build():
+	seat = lib.rounded_box("deckchair", (0.6, 1.0, 0.05), bevel=0.01, segments=1, material="sea_light")
+	seat.location = (0, -0.3, 0.3)
+	back = lib.rounded_box("deckchair_back", (0.6, 0.8, 0.05), bevel=0.01, segments=1, material="cream")
+	back.rotation_euler = (math.radians(-55), 0, 0)
+	back.location = (0, 0.45, 0.55)
+	parts = [seat, back]
+	for i, (x, y) in enumerate(((-0.28, -0.75), (0.28, -0.75), (-0.28, 0.15), (0.28, 0.15))):
+		leg = lib.rounded_box(f"deckchair_leg{i}", (0.04, 0.04, 0.3), bevel=0.0, segments=1, material="sand")
+		leg.location = (x, y, 0.15)
 		parts.append(leg)
 	return lib.group(parts)
 ```
@@ -11460,6 +11768,69 @@ def build():
 	return lib.group([body, tail])
 ```
 
+## `tools/blender/gen/food_fish_sandwich.py`
+
+```python
+"""Рыбный сэндвич: булка, золотистое филе, лист салата."""
+import lib
+
+SPEC = {"max_tris": 500, "max_dim": 0.3}
+
+
+def build():
+	bottom = lib.cylinder("food_fish_sandwich", radius=0.08, depth=0.03, segments=10, material="sand")
+	bottom.location.z = 0.015
+	lettuce = lib.cylinder("food_fish_sandwich_leaf", radius=0.085, depth=0.012, segments=10, material="leaf")
+	lettuce.location.z = 0.036
+	fish = lib.rounded_box("food_fish_sandwich_fish", (0.17, 0.09, 0.025), bevel=0.01, segments=1, material="cat_orange")
+	fish.location.z = 0.055
+	top = lib.sphere("food_fish_sandwich_top", 0.08, material="sand", segments=10, rings=6)
+	top.scale = (1, 1, 0.45)
+	top.location.z = 0.07
+	return lib.group([bottom, lettuce, fish, top])
+```
+
+## `tools/blender/gen/food_fries.py`
+
+```python
+"""Картошка фри: красный стаканчик и палочки."""
+import lib
+
+SPEC = {"max_tris": 500, "max_dim": 0.3}
+
+
+def build():
+	cup = lib.rounded_box("food_fries", (0.11, 0.07, 0.11), bevel=0.01, segments=1, material="brick")
+	cup.location.z = 0.055
+	parts = [cup]
+	for i, (x, y, h) in enumerate(((-0.03, 0, 0.17), (0, 0.01, 0.19), (0.03, -0.01, 0.16), (-0.015, -0.015, 0.18), (0.02, 0.02, 0.175))):
+		f = lib.rounded_box(f"food_fries_f{i}", (0.016, 0.016, h - 0.06), bevel=0.0, segments=1, material="rarity_legendary")
+		f.location = (x, y, 0.06 + (h - 0.06) / 2)
+		parts.append(f)
+	return lib.group(parts)
+```
+
+## `tools/blender/gen/food_golden_fish.py`
+
+```python
+"""Золотая рыбка (легендарная, только из ведра рыбака): золотое тельце, хвост, плавник."""
+import lib
+
+SPEC = {"max_tris": 400, "max_dim": 0.3}
+
+
+def build():
+	body = lib.sphere("food_golden_fish", radius=0.06, material="rarity_legendary")
+	body.scale = (1.0, 1.8, 0.6)
+	body.location.z = 0.036
+	tail = lib.wedge("food_golden_fish_tail", width=0.09, length=0.06, height=0.015, material="cat_orange")
+	tail.rotation_euler = (0, 0, 3.14159)
+	tail.location = (0, -0.1, 0.036)
+	fin = lib.wedge("food_golden_fish_fin", width=0.015, length=0.05, height=0.03, material="cat_orange")
+	fin.location = (0, 0, 0.06)
+	return lib.group([body, tail, fin])
+```
+
 ## `tools/blender/gen/food_hotdog.py`
 
 ```python
@@ -11574,6 +11945,72 @@ def build():
 	body.rotation_euler = (1.5708, 0, 0)
 	body.location.z = 0.03
 	return [body]
+```
+
+## `tools/blender/gen/food_shrimp.py`
+
+```python
+"""Креветка: изогнутое тельце из сегментов и хвостик."""
+import math
+
+import lib
+
+SPEC = {"max_tris": 400, "max_dim": 0.3}
+
+
+def build():
+	parts = []
+	for i in range(5):
+		a = math.radians(-40 + i * 45)
+		s = lib.sphere(f"food_shrimp" if i == 0 else f"food_shrimp_s{i}", 0.035 - i * 0.004, material="coral", segments=8, rings=5)
+		s.location = (0.06 * math.cos(a), 0.06 * math.sin(a), 0.035)
+		parts.append(s)
+	tail = lib.wedge("food_shrimp_tail", width=0.05, length=0.04, height=0.01, material="cream")
+	tail.location = (-0.05, 0.05, 0.03)
+	parts.append(tail)
+	return lib.group(parts)
+```
+
+## `tools/blender/gen/food_squid.py`
+
+```python
+"""Кальмар: сиреневая мантия-конус и щупальца."""
+import lib
+
+SPEC = {"max_tris": 500, "max_dim": 0.3}
+
+
+def build():
+	body = lib.cone("food_squid", radius=0.05, depth=0.14, segments=8, material="lilac")
+	body.location.z = 0.13
+	parts = [body]
+	for i, (x, y) in enumerate(((-0.03, 0), (0.03, 0), (0, 0.03), (0, -0.03))):
+		t = lib.cylinder(f"food_squid_t{i}", radius=0.01, depth=0.06, segments=6, material="cream")
+		t.location = (x, y, 0.03)
+		parts.append(t)
+	return lib.group(parts)
+```
+
+## `tools/blender/gen/food_sushi.py`
+
+```python
+"""Суши: два нигири — рис, лосось, полоска нори."""
+import lib
+
+SPEC = {"max_tris": 500, "max_dim": 0.3}
+
+
+def build():
+	parts = []
+	for i, x in enumerate((-0.045, 0.045)):
+		rice = lib.rounded_box("food_sushi" if i == 0 else f"food_sushi_r{i}", (0.07, 0.12, 0.04), bevel=0.012, segments=2, material="eye_white")
+		rice.location = (x, 0, 0.02)
+		fish = lib.rounded_box(f"food_sushi_f{i}", (0.075, 0.13, 0.02), bevel=0.008, segments=2, material="coral")
+		fish.location = (x, 0, 0.05)
+		nori = lib.rounded_box(f"food_sushi_n{i}", (0.08, 0.025, 0.065), bevel=0.0, segments=1, material="ink")
+		nori.location = (x, 0, 0.032)
+		parts += [rice, fish, nori]
+	return lib.group(parts)
 ```
 
 ## `tools/blender/gen/fountain.py`
@@ -14659,6 +15096,10 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
   обходят по улице — решение владельца.
 - План 12. Парк ×3, вода и арка кафе (`2026-10-09-snack-run-12-park-x3.md`) — ВЫПОЛНЕН 2026-10-09: парк 90×96 с холмом
   и беседкой, прудом (вода: кот тонет и возвращается на берег), рощей и лугом; забор вдоль улицы — в кафе только через арку.
+- Отложено из ревью плана 12: без маркеров берега кот тонет повторно (запасная точка над той же водой); кот под водой
+  движется сквозь склон котловины; тест «на берегу не тонет» слабый, маршруты проверяются по вершинам, лучи края шагом 6 м;
+  стая голубей на склоне холма (птицы в земле или в воздухе); пол беседки на 0,15 м шире коллайдера; люди в погоне ходят по
+  дну пруда; линейный поиск маркера берега; маршруты ядра парка через фонтан и качели (с плана 9).
 - Планы 13–15. Этап 3: порт 120×102 (район и вода, опасности, рыбалка) по спеку `2026-10-09-snack-run-stage3-port-design.md`.
 ```
 
@@ -15183,6 +15624,54 @@ if __name__ == "__main__":
       "note": "бесшовный камень (обрывы, подпорные стены)",
       "model": "gpt-image-2.5-sunburst",
       "prompt": "Seamless tileable texture of a stylized cartoon stone retaining wall seen straight on, irregular rounded stones in sand (#D3AB87), cream (#FCD3A1) and soft grey tones with darker mortar lines, flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly on all four sides, no text"
+    },
+    {
+      "file": "assets/images/textures/sand.png",
+      "note": "бесшовный песок пляжа порта",
+      "prompt": "Seamless tileable texture of stylized cartoon beach sand seen straight from above, warm sand (#D3AB87) and cream (#FCD3A1) with tiny painted grains, a few small shells and soft ripples, flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly on all four sides, no objects, no text",
+      "model": "gpt-image-2.5-sunburst"
+    },
+    {
+      "file": "assets/images/textures/planks.png",
+      "note": "бесшовные доски причала",
+      "prompt": "Seamless tileable texture of stylized cartoon wooden pier planks seen straight from above, parallel boards in sand (#D3AB87) with warm brick-brown (#BD4045) tint and dark graphite (#394151) gaps and nail dots, flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly on all four sides, no text",
+      "model": "gpt-image-2.5-sunburst"
+    },
+    {
+      "file": "assets/images/ui/food_shrimp.png",
+      "note": "иконка shrimp",
+      "background": "transparent",
+      "prompt": "Game icon of a curled pink shrimp, coral (#F57485) with cream (#FCD3A1) segments, centered, transparent background"
+    },
+    {
+      "file": "assets/images/ui/food_fries.png",
+      "note": "иконка fries",
+      "background": "transparent",
+      "prompt": "Game icon of a red paper cup (#BD4045) of golden french fries (#FABE32), centered, transparent background"
+    },
+    {
+      "file": "assets/images/ui/food_squid.png",
+      "note": "иконка squid",
+      "background": "transparent",
+      "prompt": "Game icon of a cute small squid, lilac (#B46DB5) with cream suckers, centered, transparent background"
+    },
+    {
+      "file": "assets/images/ui/food_fish_sandwich.png",
+      "note": "иконка fish_sandwich",
+      "background": "transparent",
+      "prompt": "Game icon of a fish sandwich: bun #D3AB87, golden fried fish fillet #FAAE45, green lettuce #458B59, centered, transparent background"
+    },
+    {
+      "file": "assets/images/ui/food_sushi.png",
+      "note": "иконка sushi",
+      "background": "transparent",
+      "prompt": "Game icon of two pieces of nigiri sushi with salmon (#F57485) on white rice and a nori band (#394151), centered, transparent background"
+    },
+    {
+      "file": "assets/images/ui/food_golden_fish.png",
+      "note": "иконка golden_fish",
+      "background": "transparent",
+      "prompt": "Game icon of a shiny golden cartoon fish (#FABE32) with sparkles and a cute eye, centered, transparent background"
     }
   ]
 }
@@ -15379,10 +15868,11 @@ void fragment() {
 
 ```glsl
 shader_type spatial;
-// Вода пруда и моря (спек порта, раздел 2): цвет палитры sea_light, прозрачность, рябь нормалью; отражения — SSR окружения.
+// Вода пруда и моря (спек порта, раздел 2): цвет палитры sea_light, рябь нормалью; непрозрачная — так её отражает SSR окружения
+// (прозрачный проход Godot SSR не получает, ревью плана 12).
 render_mode diffuse_toon, specular_toon, cull_disabled;
 
-uniform vec4 tint : source_color = vec4(0.184, 0.612, 0.812, 0.85);
+uniform vec4 tint : source_color = vec4(0.184, 0.612, 0.812, 1.0);
 uniform vec4 deep : source_color = vec4(0.114, 0.498, 0.769, 1.0);
 uniform float ripple = 0.08;
 
@@ -15399,7 +15889,6 @@ void fragment() {
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
 	float f = 0.5 + 0.25 * (a + b) * 0.25;
 	ALBEDO = mix(deep.rgb, tint.rgb, clamp(f, 0.0, 1.0));
-	ALPHA = tint.a;
 	ROUGHNESS = 0.05;
 	METALLIC = 0.0;
 	SPECULAR = 0.6;
