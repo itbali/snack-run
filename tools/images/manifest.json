@@ -201,6 +201,54 @@
       "note": "бесшовный камень (обрывы, подпорные стены)",
       "model": "gpt-image-2.5-sunburst",
       "prompt": "Seamless tileable texture of a stylized cartoon stone retaining wall seen straight on, irregular rounded stones in sand (#D3AB87), cream (#FCD3A1) and soft grey tones with darker mortar lines, flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly on all four sides, no text"
+    },
+    {
+      "file": "assets/images/textures/sand.png",
+      "note": "бесшовный песок пляжа порта",
+      "prompt": "Seamless tileable texture of stylized cartoon beach sand seen straight from above, warm sand (#D3AB87) and cream (#FCD3A1) with tiny painted grains, a few small shells and soft ripples, flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly on all four sides, no objects, no text",
+      "model": "gpt-image-2.5-sunburst"
+    },
+    {
+      "file": "assets/images/textures/planks.png",
+      "note": "бесшовные доски причала",
+      "prompt": "Seamless tileable texture of stylized cartoon wooden pier planks seen straight from above, parallel boards in sand (#D3AB87) with warm brick-brown (#BD4045) tint and dark graphite (#394151) gaps and nail dots, flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly on all four sides, no text",
+      "model": "gpt-image-2.5-sunburst"
+    },
+    {
+      "file": "assets/images/ui/food_shrimp.png",
+      "note": "иконка shrimp",
+      "background": "transparent",
+      "prompt": "Game icon of a curled pink shrimp, coral (#F57485) with cream (#FCD3A1) segments, centered, transparent background"
+    },
+    {
+      "file": "assets/images/ui/food_fries.png",
+      "note": "иконка fries",
+      "background": "transparent",
+      "prompt": "Game icon of a red paper cup (#BD4045) of golden french fries (#FABE32), centered, transparent background"
+    },
+    {
+      "file": "assets/images/ui/food_squid.png",
+      "note": "иконка squid",
+      "background": "transparent",
+      "prompt": "Game icon of a cute small squid, lilac (#B46DB5) with cream suckers, centered, transparent background"
+    },
+    {
+      "file": "assets/images/ui/food_fish_sandwich.png",
+      "note": "иконка fish_sandwich",
+      "background": "transparent",
+      "prompt": "Game icon of a fish sandwich: bun #D3AB87, golden fried fish fillet #FAAE45, green lettuce #458B59, centered, transparent background"
+    },
+    {
+      "file": "assets/images/ui/food_sushi.png",
+      "note": "иконка sushi",
+      "background": "transparent",
+      "prompt": "Game icon of two pieces of nigiri sushi with salmon (#F57485) on white rice and a nori band (#394151), centered, transparent background"
+    },
+    {
+      "file": "assets/images/ui/food_golden_fish.png",
+      "note": "иконка golden_fish",
+      "background": "transparent",
+      "prompt": "Game icon of a shiny golden cartoon fish (#FABE32) with sparkles and a cute eye, centered, transparent background"
     }
   ]
 }
