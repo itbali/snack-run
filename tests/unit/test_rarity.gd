@@ -39,3 +39,18 @@ func test_catalog_has_eight_foods_two_per_tier() -> void:
 	assert_true(donut.sweet)
 	assert_eq(donut.satiety(), 15)
 	assert_eq(donut.display_name, "Пончик")
+
+func test_night_weights_favor_rare_food() -> void:
+	assert_eq(Rarity.NIGHT_WEIGHTS[Rarity.Tier.COMMON], 40)
+	assert_eq(Rarity.NIGHT_WEIGHTS[Rarity.Tier.LEGENDARY], 10)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 3
+	var all := [Rarity.Tier.COMMON, Rarity.Tier.RARE, Rarity.Tier.VERY_RARE, Rarity.Tier.LEGENDARY]
+	var legend_day := 0
+	var legend_night := 0
+	for i in 2000:
+		if Rarity.pick_weighted(all, rng) == Rarity.Tier.LEGENDARY:
+			legend_day += 1
+		if Rarity.pick_weighted(all, rng, Rarity.NIGHT_WEIGHTS) == Rarity.Tier.LEGENDARY:
+			legend_night += 1
+	assert_gt(legend_night, legend_day * 2, "ночью легендарная еда выпадает заметно чаще")

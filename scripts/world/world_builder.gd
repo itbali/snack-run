@@ -103,6 +103,10 @@ func _build_prop(p: Dictionary) -> void:
 	body.global_position = _v3(p["pos"])
 	body.rotation_degrees.y = float(p.get("rot", 0))
 	Toon.apply(model, Toon.OUTLINE_FOOD if p.get("outline", false) else Toon.OUTLINE_NONE)
+	if p["model"] == "lamp":
+		body.add_child(_night_light())
+	for mi in model.find_children("wall_glass*", "MeshInstance3D", true, false):
+		mi.add_to_group("night_windows")   # ночью окна светятся тёплым (DayNight)
 	if not solid:
 		for mi in model.find_children("*", "MeshInstance3D", true, false):   # листья и трава видны с обеих сторон
 			if (mi as MeshInstance3D).mesh == null:
@@ -115,6 +119,22 @@ func _build_prop(p: Dictionary) -> void:
 		_make_water(model)
 		water_built += 1
 	props_built += 1
+
+
+func _night_light() -> SpotLight3D:
+	## Свет фонаря: горит с заката до рассвета, переключает DayNight по группе night_lights.
+	var l := SpotLight3D.new()
+	l.name = "NightLight"
+	l.add_to_group("night_lights")
+	l.position = Vector3(0, 2.45, 0)
+	l.rotation_degrees = Vector3(-90, 0, 0)
+	l.spot_angle = 50.0
+	l.spot_range = 6.0
+	l.light_color = Color("#FFD9A0")
+	l.light_energy = 2.0
+	l.shadow_enabled = false
+	l.visible = false
+	return l
 
 
 func _make_water(model: Node3D) -> void:

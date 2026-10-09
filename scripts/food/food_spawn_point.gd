@@ -19,7 +19,8 @@ func _ready() -> void:
 
 
 func pick_def() -> FoodDef:
-	var tier := Rarity.pick_weighted(allowed, rng)
+	var night := is_inside_tree() and DayNight.is_night(get_tree())
+	var tier := Rarity.pick_weighted(allowed, rng, Rarity.NIGHT_WEIGHTS if night else Rarity.WEIGHTS)
 	var pool := FoodCatalog.by_tier(tier)
 	if pool.is_empty():
 		pool = FoodCatalog.all()

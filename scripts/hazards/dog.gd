@@ -32,6 +32,8 @@ func sees_cat() -> bool:
 	var c := _find_cat()
 	if c == null or c.get("hidden") or c.get("in_safe_zone"):
 		return false
+	if DayNight.is_night(get_tree()):
+		return false   # ночью собака двора спит и не просыпается от кота (этап 2)
 	var forward := -global_transform.basis.z
 	return Perception.in_cone(global_position, forward, c.global_position, VISION_HALF_ANGLE * GameState.stealth_mult, VISION_RANGE)
 

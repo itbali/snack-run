@@ -5,6 +5,7 @@ extends CanvasLayer
 const HEART_ICON := "res://assets/images/ui/heart.png"
 const YARN_ICON := "res://assets/images/ui/yarn.png"
 const HEART_LOST_ALPHA := 0.3
+const PHASE_ICONS := {&"day": "res://assets/images/ui/sun.png", &"evening": "res://assets/images/ui/sunset.png", &"night": "res://assets/images/ui/moon.png", &"morning": "res://assets/images/ui/sunset.png"}
 const MAX_MOUTH := 5   # максимум после улучшений магазина
 
 @onready var _hearts: HBoxContainer = %Hearts
@@ -16,6 +17,9 @@ const MAX_MOUTH := 5   # максимум после улучшений мага
 @onready var _goal: Label = %Goal
 @onready var _bell: Label = %Bell
 @onready var _bell_panel: PanelContainer = %BellPanel
+@onready var _phase_icon: TextureRect = %PhaseIcon
+@onready var _phase_bar: ProgressBar = %PhaseBar
+var _day_night: DayNight
 
 
 func _ready() -> void:
@@ -51,6 +55,28 @@ func _ready() -> void:
 	_on_mouth(GameState.mouth)
 	_on_satiety(GameState.satiety)
 	_on_goal(GameState.goal_done, GameState.goal_target)
+	_on_phase(&"day")
+	_bind_day_night()
+
+
+func _bind_day_night() -> void:
+	_day_night = get_tree().get_first_node_in_group("day_night") as DayNight
+	if _day_night and not _day_night.phase_changed.is_connected(_on_phase):
+		_day_night.phase_changed.connect(_on_phase)
+		_on_phase(_day_night.phase)
+	(_phase_icon.get_parent().get_parent() as Control).visible = _day_night != null
+
+
+func _process(_delta: float) -> void:
+	if _day_night == null or not is_instance_valid(_day_night):
+		return
+	_phase_bar.value = DayCycle.phase_progress(_day_night.time)
+	if _phase_icon.texture == null or _phase_icon.texture.resource_path != PHASE_ICONS[_day_night.phase]:
+		_on_phase(_day_night.phase)
+
+
+func _on_phase(phase: StringName) -> void:
+	_phase_icon.texture = _icon(PHASE_ICONS.get(phase, PHASE_ICONS[&"day"]))
 
 
 func hearts_text() -> String:

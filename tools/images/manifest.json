@@ -129,6 +129,24 @@
       "note": "бесшовная штукатурка с кирпичом (стены домов)",
       "model": "gpt-image-2.5-sunburst",
       "prompt": "Seamless tileable texture of a stylized cartoon plastered building wall seen straight on, warm sand stucco #D3AB87 with soft painterly variation and a few small patches where orange-red bricks (#BD4045) peek through the plaster, flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly on all sides, no windows, no text"
+    },
+    {
+      "file": "assets/images/ui/sun.png",
+      "note": "иконка фазы суток: sun",
+      "background": "transparent",
+      "prompt": "Game icon of a smiling cartoon sun with rounded rays, warm yellow (#FABE32), centered, transparent background"
+    },
+    {
+      "file": "assets/images/ui/sunset.png",
+      "note": "иконка фазы суток: sunset",
+      "background": "transparent",
+      "prompt": "Game icon of a cartoon sun half below a horizon line with soft orange (#FFB36B) and coral (#F57485) glow, centered, transparent background"
+    },
+    {
+      "file": "assets/images/ui/moon.png",
+      "note": "иконка фазы суток: moon",
+      "background": "transparent",
+      "prompt": "Game icon of a cute crescent moon with two small stars, pale blue (#9FB8FF), centered, transparent background"
     }
   ]
 }

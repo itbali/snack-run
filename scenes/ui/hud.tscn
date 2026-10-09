@@ -102,3 +102,33 @@ layout_mode = 2
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 26
 text = "🔔 Велосипед!"
+
+[node name="PhasePanel" type="PanelContainer" parent="."]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -150.0
+offset_top = 96.0
+offset_right = -20.0
+offset_bottom = 156.0
+grow_horizontal = 0
+
+[node name="Row" type="HBoxContainer" parent="PhasePanel"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="PhaseIcon" type="TextureRect" parent="PhasePanel/Row"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="PhaseBar" type="ProgressBar" parent="PhasePanel/Row"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 10)
+layout_mode = 2
+size_flags_vertical = 4
+max_value = 1.0
+step = 0.001
+show_percentage = false
