@@ -66,10 +66,13 @@ func _physics_process(delta: float) -> void:
 		above = d.y > ABOVE and dist < 0.5
 	if night_only and not night and state == &"burrow":
 		return   # ночной краб днём сидит в норке
+	var sees: bool = c != null and not bool(c.get("hidden")) and not bool(c.get("in_safe_zone"))
 	var watch := dist   # из норки краб сторожит округу норки, в погоне — меряет до кота
-	if state == &"burrow" and c:
-		watch = Vector2(c.global_position.x - home.x, c.global_position.z - home.z).length()
+	if state == &"burrow":
+		watch = Vector2(c.global_position.x - home.x, c.global_position.z - home.z).length() if sees else 99.0
 	var next := decide(state, watch, above, _chase_t, _hide_left, night)
+	if state == &"chase" and not sees:
+		next = &"hide"   # кот спрятался или ушёл в будку — краб уходит (ревью плана 14)
 	if next != state:
 		if next == &"chase":
 			_chase_t = 0.0
@@ -85,7 +88,8 @@ func _physics_process(delta: float) -> void:
 			velocity = Vector3.ZERO
 		&"chase":
 			_chase_t += delta
-			_run_to(c.global_position, delta)
+			if c:
+				_run_to(c.global_position, delta)
 			for b in hit_zone.get_overlapping_bodies():
 				_on_hit_body(b)
 		&"hide":
@@ -103,5 +107,7 @@ func _run_to(target: Vector3, delta: float) -> float:
 
 
 func _on_hit_body(body: Node3D) -> void:
-	if state == &"chase":
+	if state == &"chase" and body.is_in_group("cat"):
 		super(body)
+		state = &"hide"   # ущипнул — уходит: один краб — одно сердечко за погоню
+		_hide_left = HIDE_TIME

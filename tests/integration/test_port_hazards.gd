@@ -201,9 +201,10 @@ func test_crab_runs_out_and_pinches_cat_closer_than_3m() -> void:
 	_floor()
 	var c := _crab(Vector3(0, 0.05, 0))
 	_cat(Vector3(2.5, 0.05, 0))
+	await wait_physics_frames(10)
+	assert_true((c.get_node("Model") as Node3D).visible, "вылез из норки")
 	await wait_seconds(2.0)
 	assert_eq(GameState.hearts, 2, "щипок")
-	assert_true((c.get_node("Model") as Node3D).visible)
 
 func test_crab_hides_after_5s_chase_and_comes_back_after_6s() -> void:
 	_floor()
@@ -236,3 +237,58 @@ func test_night_crab_sits_in_burrow_by_day() -> void:
 	await wait_seconds(1.0)
 	assert_eq(c.get("state"), &"burrow")
 	assert_eq(GameState.hearts, 3)
+
+func test_crab_ignores_hidden_cat_near_burrow() -> void:
+	# Ревью плана 14: краб «видел» кота в укрытии у норки и ходил кругами, а при выходе щипал сразу.
+	_floor()
+	var c := _crab(Vector3(0, 0.05, 0))
+	var cat = _cat(Vector3(1.5, 0.05, 0))
+	cat.hidden = true
+	await wait_physics_frames(20)
+	assert_eq(c.get("state"), &"burrow", "спрятанного не видит")
+
+func test_crab_gives_up_when_cat_hides_mid_chase() -> void:
+	_floor()
+	var c := _crab(Vector3(0, 0.05, 0))
+	var cat = _cat(Vector3(2.5, 0.05, 0))
+	await wait_physics_frames(10)
+	assert_eq(c.get("state"), &"chase")
+	cat.hidden = true
+	await wait_physics_frames(2)
+	assert_eq(c.get("state"), &"hide", "кот спрятался — краб уходит в норку")
+
+func test_crab_hides_after_pinch() -> void:
+	# Один краб — одно сердечко за погоню.
+	_floor()
+	var c := _crab(Vector3(0, 0.05, 0))
+	_cat(Vector3(2.5, 0.05, 0))
+	await wait_seconds(2.0)
+	assert_eq(GameState.hearts, 2)
+	assert_eq(c.get("state"), &"hide")
+
+func test_gull_sleeps_on_its_post() -> void:
+	# Ревью плана 14: спек — ночью чайки спят на столбах (тумба, фонарь), а не на земле.
+	_floor()
+	var light = (load("res://scenes/world/lighting.tscn") as PackedScene).instantiate()
+	world.add_child(light)
+	light.get_node("DayNight").set_time(220.0)
+	light.get_node("DayNight").set("time_scale", 0.0)
+	var g := GullScene.instantiate() as Node3D
+	g.call("configure", {"perch_h": 0.55}, null)
+	g.position = Vector3(2, 0, 2)
+	world.add_child(g)
+	await wait_physics_frames(10)
+	assert_eq(g.mode, &"sleep")
+	assert_almost_eq(g.global_position.y, 0.55, 0.05, "на верхушке тумбы")
+
+func test_gull_does_not_strike_cat_who_lost_food() -> void:
+	_floor()
+	var g := _gull(Vector3(0, 0, 0))
+	var cat = _cat(Vector3(1, 0.05, 1))
+	await wait_physics_frames(5)
+	GameState.pick_up(FoodCatalog.get_by_id(&"shrimp"))
+	await wait_physics_frames(3)
+	assert_eq(g.mode, &"warn")
+	GameState.spill()   # за секунду предупреждения еда пропала (съел, отняли)
+	await wait_seconds(1.8)
+	assert_eq(GameState.hearts, 3, "красть нечего — не бьёт")

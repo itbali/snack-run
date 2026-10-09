@@ -20,6 +20,7 @@ const STRIKE := 0.9
 
 var mode: StringName = &"circle"   # circle | warn | dive | rise | sleep
 var cooldown_left := 0.0
+var perch_h := 0.0   # высота насеста над якорем (тумба, фонарь): ночью спит там (спек: на столбах)
 var anchor: Vector3
 var ground := 0.0
 var _anchored := false
@@ -35,6 +36,7 @@ var _from := Vector3.ZERO
 
 func configure(hz: Dictionary, _builder: Node3D) -> void:
 	_angle = float(hz.get("phase", 0.0))
+	perch_h = float(hz.get("perch_h", 0.0))
 
 
 func _ready() -> void:
@@ -73,7 +75,7 @@ func _physics_process(delta: float) -> void:
 		&"circle":
 			if night:
 				mode = &"sleep"
-				global_position = anchor
+				global_position = anchor + Vector3(0, perch_h, 0)
 				_shadow.visible = false
 				_play(&"idle")
 				return
@@ -118,6 +120,8 @@ func _strike(c: Node3D) -> void:
 	## Бросок в точку, где был кот: попал — удар и последняя еда унесена (остальное в зубах).
 	if c == null or not c.has_method("take_peck"):
 		return
+	if GameState.mouth.is_empty() or DayNight.is_night(get_tree()):
+		return   # за секунду предупреждения еда пропала или наступила ночь — красть нечего
 	var d := c.global_position - _target
 	if Vector2(d.x, d.z).length() <= STRIKE and absf(d.y) < 1.2:
 		c.call("take_peck", global_position)

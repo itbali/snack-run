@@ -155,6 +155,7 @@
     {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 193.0], "rot": 90},
     {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-59.95, 0, 194.0], "rot": 90},
     {"model": "boat_upturned", "pos": [-8, 0, 170], "rot": 30, "colliders": [{"size": [1.6, 0.12, 4.2], "offset": [0, 0.6, 0]}, {"size": [0.12, 0.6, 4.2], "offset": [-0.74, 0.3, 0]}, {"size": [0.12, 0.6, 4.2], "offset": [0.74, 0.3, 0]}]},
+    {"colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}], "model": "lamp", "pos": [-30, 0, 172], "rot": 0},
     {"outline": true, "model": "box", "pos": [20.7, 0, 191.1], "rot": 255},
     {"outline": true, "model": "box", "pos": [28.3, 0, 201.0], "rot": 90},
     {"outline": true, "model": "box", "pos": [19.3, 0, 163.8], "rot": 345},
@@ -267,8 +268,8 @@
   ],
   "hazards": [
     {"type": "forklift", "pos": [25, 0, 153], "rot": 0, "path": [[25, 153], [25, 207]]},
-    {"type": "gull", "pos": [30, 0, 192], "phase": 0.0},
-    {"type": "gull", "pos": [-30, 0, 170], "phase": 2.0},
+    {"type": "gull", "pos": [34, 0, 200], "phase": 0.0, "perch_h": 0.55},
+    {"type": "gull", "pos": [-30, 0, 172], "phase": 2.0, "perch_h": 2.65},
     {"type": "wave", "pos": [-25, -2.0, 194.2], "snap": false, "width": 68, "inland": -1},
     {"type": "crab", "pos": [-50, 0, 175]},
     {"type": "crab", "pos": [-35, 0, 186]},

@@ -152,3 +152,16 @@ func test_forklift_lane_is_clear() -> void:
 	var space := world.get_world_3d().direct_space_state
 	var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(25, -0.5, 152), Vector3(25, -0.5, 208.5), Layers.WORLD))
 	assert_true(hit.is_empty(), "полоса свободна: %s" % [hit.get("collider")])
+
+func test_gulls_have_posts_to_sleep_on() -> void:
+	# Ревью плана 14: ночью чайки спят на столбах — под якорем каждой чайки твёрдый столб высотой perch_h.
+	var space := world.get_world_3d().direct_space_state
+	for h in WorldBuilder.load_layout(LAYOUT)["hazards"]:
+		if h["type"] != "gull":
+			continue
+		var x := float(h["pos"][0])
+		var z := float(h["pos"][2])
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(x, 10, z), Vector3(x, -5, z), Layers.WORLD))
+		assert_false(hit.is_empty())
+		if not hit.is_empty():
+			assert_almost_eq((hit["position"] as Vector3).y - t.height_at(x, z), float(h.get("perch_h", 0.0)), 0.1, "насест чайки у %s" % [h["pos"]])
