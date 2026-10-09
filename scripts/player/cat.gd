@@ -14,6 +14,8 @@ const KNOCKBACK_SPEED := 6.5      # √(2·ACCEL·1,5 м) — отброс на 
 const KNOCKBACK_UP := 2.0
 const STUN_TIME := 1.0
 const INVULNERABLE_TIME := 2.0
+const RUN_DUST_EVERY := 0.25
+const FLASH_COLOR := Color.WHITE
 
 var camera_rig: CameraRig
 var current_hideout: Area3D
@@ -24,6 +26,10 @@ var stunned_left := 0.0
 var invulnerable_left := 0.0
 var face := CatFace.new()   # выражения глаз, переключает меши eyes_* модели
 var fade := 1.0   # 1 = непрозрачен; значением владеет камера (set_fade), скин его не трогает
+var was_on_floor := true
+var flashing := false
+var _run_dust_t := 0.0
+var _squash: Tween
 var state: StringName = &"idle":
 	set(value):
 		if value != state:
@@ -77,6 +83,7 @@ func _physics_process(delta: float) -> void:
 		velocity = CatMotion.step(velocity, Vector3.ZERO, false, is_on_floor(), false, delta)
 		move_and_slide()
 		state = CatMotion.pick_state(velocity, is_on_floor(), false)
+		_after_move(delta)
 		return
 	if Input.is_action_just_pressed("hide"):
 		if hidden:
@@ -103,11 +110,55 @@ func _physics_process(delta: float) -> void:
 		var target_yaw := atan2(-dir.x, -dir.z)
 		_model.rotation.y = lerp_angle(_model.rotation.y, target_yaw, TURN_SPEED * delta)
 	state = CatMotion.pick_state(velocity, is_on_floor(), running, GameState.speed_mult)
+	_after_move(delta)
+
+
+func _after_move(delta: float) -> void:
+	## Приземление: сплющить и пыль; прыжок: вытянуться; бег: пыль каждые 0,25 с.
+	var on_floor := is_on_floor()
+	if on_floor and not was_on_floor:
+		squash(0.8, 0.12)
+		Effects.dust(get_parent(), global_position)
+	elif not on_floor and was_on_floor and velocity.y > 1.0:
+		squash(1.15, 0.1)
+	was_on_floor = on_floor
+	if state == &"run" and on_floor:
+		_run_dust_t += delta
+		if _run_dust_t >= RUN_DUST_EVERY:
+			_run_dust_t = 0.0
+			Effects.dust(get_parent(), global_position, 6)
+	else:
+		_run_dust_t = 0.0
+
+
+func squash(scale_y: float, duration := 0.12) -> void:
+	## Сквош-стретч модели твином, объём сохраняется (спек 2.8).
+	if _squash:
+		_squash.kill()
+	_model.scale = Vector3(1.0 / sqrt(scale_y), scale_y, 1.0 / sqrt(scale_y))
+	_squash = create_tween()
+	_squash.tween_property(_model, "scale", Vector3.ONE, duration * 2.0).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+func flash(seconds := 0.1) -> void:
+	## Вспышка белым при ударе: только три материала скина; после — цвета надетого скина и текущая прозрачность.
+	flashing = true
+	for mi in _model.find_children("*", "MeshInstance3D", true, false):
+		var m3 := mi as MeshInstance3D
+		if m3.mesh == null:
+			continue
+		for i in m3.mesh.get_surface_count():
+			var m := m3.get_surface_override_material(i) as StandardMaterial3D
+			if m and CatSkin.ROLE_BY_MATERIAL.has(m.resource_name):
+				m.albedo_color = Color(FLASH_COLOR, m.albedo_color.a)
+	get_tree().create_timer(seconds, false).timeout.connect(func() -> void:
+		flashing = false
+		_apply_skin(GameState.skin))
 
 
 func _apply_skin(id: StringName) -> void:
 	var skin := SkinCatalog.get_by_id(id)
-	if skin:
+	if skin and not flashing:   # во время вспышки скин перекрасится по её концу
 		CatSkin.apply(_model, skin)
 		if fade < 1.0:
 			_apply_fade()   # перекраска сбрасывает альфу, прозрачность у стены должна остаться
@@ -148,6 +199,9 @@ func take_hit(from: Vector3) -> void:
 		return
 	Sfx.play(&"hit")   # один вызов на реальный удар: повторные касания блокирует неуязвимость
 	Sfx.play(&"meow", 0.12)
+	flash()
+	if camera_rig:
+		camera_rig.shake()
 	var away := global_position - from
 	away.y = 0.0
 	if away.length() < 0.01:

@@ -9,6 +9,7 @@ const HOME_RADIUS := 0.4
 
 var brain := ChaseBrain.new()
 var _last_state: int = ChaseBrain.State.IDLE
+var _zzz_t := 0.0
 
 @onready var _model: Node3D = $Model
 @onready var _anim: AnimationPlayer = $Model.find_child("AnimationPlayer", true, false)
@@ -55,7 +56,12 @@ func _physics_process(delta: float) -> void:
 			_apply_gravity(delta)
 			move_and_slide()
 			play_clip(&"sleep")
+			_zzz_t += delta
+			if _zzz_t >= 1.2:
+				_zzz_t = 0.0
+				Effects.zzz(get_parent(), global_position + Vector3(0, 0.45, 0))
 		ChaseBrain.State.ALERT:
+			_zzz_t = 0.0
 			if c:
 				var to := c.global_position - global_position
 				rotation.y = lerp_angle(rotation.y, atan2(-to.x, -to.z), 10.0 * delta)

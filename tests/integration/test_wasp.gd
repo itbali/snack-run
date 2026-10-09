@@ -98,3 +98,8 @@ func test_wasp_over_table_stings_cat_standing_on_table() -> void:
 	cat.global_position = Vector3(0.4, 0.8, 0)
 	await wait_seconds(2.5)
 	assert_eq(GameState.hearts, 2, "кот на краю стола получает укус за один оборот")
+
+func test_wasp_has_a_trail() -> void:
+	var w = WaspScene.instantiate()
+	world.add_child(w)
+	assert_not_null(w.find_child("Trail", false, false), "за осой серый шлейф")

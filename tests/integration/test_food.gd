@@ -96,3 +96,15 @@ func test_spawn_point_picks_allowed_and_respawns() -> void:
 	first.queue_free()
 	await wait_seconds(0.3)
 	assert_true(is_instance_valid(sp.current) and sp.current != first, "появилась новая еда")
+
+func test_rare_food_sparkles_common_does_not() -> void:
+	var rare := PickupScene.instantiate() as FoodPickup
+	rare.setup(FoodCatalog.get_by_id(&"pizza"))
+	add_child_autofree(rare)
+	var plain := PickupScene.instantiate() as FoodPickup
+	plain.setup(FoodCatalog.get_by_id(&"cookie"))
+	add_child_autofree(plain)
+	assert_not_null(rare.find_child("Sparkles", false, false), "редкая еда искрится")
+	if rare.find_child("Sparkles", false, false):
+		assert_eq((rare.find_child("Sparkles", false, false) as CPUParticles3D).color, Rarity.COLORS[Rarity.Tier.RARE])
+	assert_null(plain.find_child("Sparkles", false, false), "обычная — нет")

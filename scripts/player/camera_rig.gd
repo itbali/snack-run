@@ -20,6 +20,9 @@ var shop_view := false
 var shop_view_point := Vector3.ZERO   # если use_shop_point, камера едет сюда, иначе target + SHOP_OFFSET
 var use_shop_point := false
 var _yaw := 0.0
+var shake_left := 0.0
+var _shake_amp := 0.05
+var _shake_time := 0.2
 @onready var _arm: SpringArm3D = $SpringArm3D
 
 
@@ -34,6 +37,12 @@ func _physics_process(delta: float) -> void:
 	var axis := Input.get_axis("cam_left", "cam_right")
 	_yaw -= axis * YAW_SPEED * delta
 	rotation.y = _yaw
+	if shake_left > 0.0:
+		shake_left = maxf(shake_left - delta, 0.0)
+		var k := _shake_amp * (shake_left / _shake_time)
+		_arm.position = Vector3(randf_range(-k, k), randf_range(-k, k), 0.0)
+	else:
+		_arm.position = Vector3.ZERO
 	if shop_view:
 		target.visible = true   # витрина: кот виден, даже если пружина до этого прятала его у стены
 		_set_target_fade(1.0)
@@ -52,6 +61,13 @@ func _physics_process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		turn_by_pixels((event as InputEventMouseMotion).relative.x)
+
+
+func shake(amplitude := 0.05, seconds := 0.2) -> void:
+	## Тряска камеры при ударе: смещение пружины шумом, затухает за seconds.
+	_shake_amp = amplitude
+	_shake_time = seconds
+	shake_left = seconds
 
 
 func turn_by_pixels(dx: float) -> void:

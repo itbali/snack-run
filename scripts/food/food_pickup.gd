@@ -55,6 +55,8 @@ func _build_visual() -> void:
 	ring_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	ring_mat.albedo_color = Rarity.COLORS[food.tier]
 	_ring.set_surface_override_material(0, ring_mat)
+	if food.tier >= Rarity.Tier.RARE:
+		Effects.sparkles(self, Rarity.COLORS[food.tier])
 
 
 func _process(delta: float) -> void:

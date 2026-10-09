@@ -28,6 +28,7 @@ func _ready() -> void:
 	_hit.monitorable = false
 	_hit.body_entered.connect(_on_body)
 	Toon.apply(_model, Toon.OUTLINE_CHARACTER, true)
+	Effects.trail(self, Color("#5A5C6B"), 8)
 
 
 func _physics_process(delta: float) -> void:

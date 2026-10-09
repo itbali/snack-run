@@ -225,3 +225,68 @@ func test_tail_wiggle_adds_motion_on_top_of_the_clip() -> void:
 		skel.skeleton_updated.connect(func() -> void: _tail_basis[key] = skel.get_bone_global_pose(idx).basis)
 	await wait_seconds(0.15)
 	assert_false((_tail_basis["wig"] as Basis).is_equal_approx(_tail_basis["plain"]), "хвост с модификатором отличается от клипа на том же кадре")
+
+func _spawn_on_floor() -> Node:
+	var world := Node3D.new()
+	add_child_autofree(world)
+	var body := StaticBody3D.new()
+	body.collision_layer = Layers.WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(20, 0.2, 20)
+	shape.shape = box
+	shape.position.y = -0.1
+	body.add_child(shape)
+	world.add_child(body)
+	var cat = (load(CAT_SCENE) as PackedScene).instantiate()
+	cat.position = Vector3(0, 0.05, 0)
+	world.add_child(cat)
+	return cat
+
+func test_landing_squashes_and_puffs_dust() -> void:
+	var cat = _spawn_on_floor()
+	await wait_physics_frames(10)
+	Input.action_press("jump")   # velocity.y снаружи гасится шагом на полу: прыгаем по-настоящему
+	await wait_physics_frames(3)
+	Input.action_release("jump")
+	assert_false(cat.is_on_floor())
+	var before := get_tree().get_nodes_in_group("dust")
+	var frames := 0
+	while not cat.is_on_floor() and frames < 90:   # ждём сам момент приземления: твин сквоша живёт 0,24 с
+		await wait_physics_frames(1)
+		frames += 1
+	assert_true(cat.is_on_floor(), "приземлился")
+	var fresh := get_tree().get_nodes_in_group("dust").filter(func(n): return not before.has(n))
+	assert_gt(fresh.size(), 0, "пыль при приземлении (новый узел, не стартовый)")
+	var model := cat.get_node("Model") as Node3D
+	assert_lt(model.scale.y, 0.95, "сплющен сразу после приземления")
+	await wait_seconds(0.4)
+	assert_almost_eq(model.scale.y, 1.0, 0.02, "форма вернулась")
+
+func test_flash_turns_white_then_restores_skin() -> void:
+	# Review Focus 1
+	GameState.reset()
+	GameState.add_yarn(12)
+	var cat = _spawn()
+	GameState.buy(ShopCatalog.get_by_id(&"skin_black"))
+	await wait_process_frames(1)
+	cat.flash(0.1)
+	assert_true(cat.flashing)
+	assert_eq(_body_material(cat).albedo_color.to_html(false), "ffffff", "вспышка белым")
+	await wait_seconds(0.25)
+	assert_false(cat.flashing)
+	assert_eq(_body_material(cat).albedo_color.to_html(false), "394151", "после вспышки — цвет надетого скина, не базовый рыжий")
+	GameState.reset()
+
+func test_hit_flashes_and_shakes_camera() -> void:
+	var cat = _spawn()
+	var rig = (load(RIG_SCENE) as PackedScene).instantiate()
+	rig.target = cat
+	cat.camera_rig = rig
+	add_child_autofree(rig)
+	await wait_physics_frames(2)
+	cat.take_hit(cat.global_position + Vector3(1, 0, 0))
+	assert_true(cat.flashing)
+	assert_gt(rig.shake_left, 0.0, "камера трясётся")
+	await wait_physics_frames(2)
+	assert_gt((rig.get_node("SpringArm3D") as SpringArm3D).position.length(), 0.001, "пружина смещена шумом")

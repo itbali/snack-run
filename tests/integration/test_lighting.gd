@@ -45,3 +45,6 @@ func test_environment_has_ao_ssr_glow_and_clouds() -> void:
 	assert_not_null(sky.sky_cover, "слой облаков из сгенерированной картинки")
 	if sky.sky_cover:
 		assert_eq(sky.sky_cover.resource_path, "res://assets/images/world/clouds.png")
+
+func test_leaves_drift_over_the_yard() -> void:
+	assert_not_null(light.get_node_or_null("Leaves"), "листья по ветру")

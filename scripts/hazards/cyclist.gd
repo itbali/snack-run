@@ -12,6 +12,7 @@ var path: Path3D
 var riding := false
 var _progress := 0.0
 var _rng := RandomNumberGenerator.new()
+var _dust: CPUParticles3D
 
 @onready var _hit: Area3D = $HitZone
 @onready var _model: Node3D = $Model
@@ -38,6 +39,10 @@ func _ready() -> void:
 	_hit.monitoring = false
 	_hit.body_entered.connect(_on_body)
 	Toon.apply(_model, Toon.OUTLINE_CHARACTER, true)
+	_dust = Effects.trail(self, Effects.DUST_COLOR, 12)
+	_dust.name = "Dust"
+	_dust.emitting = false
+	_dust.position = Vector3(0, 0.1, 0.4)
 	visible = false
 	if path:
 		start_cycle()
@@ -61,6 +66,7 @@ func _depart() -> void:
 	riding = true
 	_progress = 0.0
 	visible = true
+	_dust.emitting = true
 	_hit.set_deferred("monitoring", true)
 
 
@@ -72,6 +78,7 @@ func _physics_process(delta: float) -> void:
 	if _progress >= length:
 		riding = false
 		visible = false
+		_dust.emitting = false
 		_hit.set_deferred("monitoring", false)
 		start_cycle()
 		return

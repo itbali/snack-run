@@ -73,3 +73,14 @@ func test_cyclist_model_faces_direction_of_motion() -> void:
 	var wheel_b := model.find_child("cyclist_wheel_b", true, false) as Node3D
 	var front_dir: Vector3 = (wheel_f.global_position - wheel_b.global_position).normalized()
 	assert_gt(motion.dot(front_dir), 0.9, "переднее колесо впереди по ходу движения")
+
+func test_cyclist_dust_only_while_riding() -> void:
+	var c = _cyclist(0.2, 0.2)
+	var dust := c.find_child("Dust", false, false) as CPUParticles3D
+	assert_not_null(dust, "пыль за колесом")
+	if dust == null:
+		return
+	assert_false(dust.emitting, "до выезда пыли нет")
+	await wait_seconds(0.6)
+	assert_true(c.riding)
+	assert_true(dust.emitting, "в пути пылит")

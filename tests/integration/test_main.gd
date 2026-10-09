@@ -78,17 +78,18 @@ func test_eating_spawns_burst_in_rarity_color() -> void:
 	await wait_physics_frames(2)
 	GameState.pick_up(FoodCatalog.get_by_id(&"pizza"))   # редкая, синяя
 	GameState.eat_all()
-	var fx := get_tree().get_nodes_in_group("fx")
-	assert_eq(fx.size(), 1, "один всплеск на съедание")
-	if fx.size() == 1:
-		assert_eq((fx[0] as CPUParticles3D).color, Rarity.COLORS[Rarity.Tier.RARE])
+	var bursts := get_tree().get_nodes_in_group("burst")
+	assert_eq(bursts.size(), 1, "один всплеск на съедание")
+	assert_eq(get_tree().get_nodes_in_group("hearts").size(), 1, "и сердечки")
+	if bursts.size() == 1:
+		assert_eq((bursts[0] as CPUParticles3D).color, Rarity.COLORS[Rarity.Tier.RARE])
 
 func test_hit_spawns_star_burst() -> void:
 	var main := _spawn_main()
 	var cat = main.find_child("Cat", true, false)
 	await wait_physics_frames(30)
 	cat.take_hit(cat.global_position + Vector3(1, 0, 0))
-	var fx := get_tree().get_nodes_in_group("fx")
+	var fx := get_tree().get_nodes_in_group("burst")
 	assert_eq(fx.size(), 1)
 	if fx.size() == 1:
 		assert_eq((fx[0] as CPUParticles3D).color, Effects.HIT_COLOR)

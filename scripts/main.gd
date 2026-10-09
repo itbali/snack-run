@@ -100,6 +100,7 @@ func _on_food_eaten(items: Array) -> void:
 	for f in items:
 		top = maxi(top, f.tier)
 	Effects.burst(self, _cat.global_position + Vector3(0, 0.25, 0), Rarity.COLORS[top])
+	Effects.hearts(self, _cat.global_position + Vector3(0, 0.35, 0))
 
 
 func _on_cat_hit(spilled: Array) -> void:

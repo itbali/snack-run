@@ -121,3 +121,12 @@ func test_dog_contact_plays_hit_once_and_barks_on_alert() -> void:
 	assert_eq(Sfx.counts.get(&"hit", 0), 1, "один удар — один звук, не по кадрам")
 	assert_eq(Sfx.counts.get(&"meow", 0), 1)
 	assert_eq(Sfx.counts.get(&"bark", 0), 1, "лай при входе в ALERT, один раз за настороженность")
+
+func test_sleeping_dog_emits_zzz() -> void:
+	await wait_seconds(1.5)
+	assert_eq(dog.brain.state, ChaseBrain.State.IDLE)
+	var zs := 0
+	for n in get_tree().get_nodes_in_group("fx"):
+		if n is Label3D and n.text == "z":
+			zs += 1
+	assert_gt(zs, 0, "над спящей собакой всплывает «z»")
