@@ -38,7 +38,10 @@ func test_collected_yarn_does_not_return_after_relaunch() -> void:
 	add_child_autofree(main)
 	await wait_physics_frames(5)
 	var before := get_tree().get_nodes_in_group("yarn").size()
-	assert_eq(before, 24, "12 клубочков двора и 12 парка")
+	var expected := 0
+	for path in ["res://data/layout/yard.json", "res://data/layout/park.json"]:
+		expected += (WorldBuilder.load_layout(path)["yarn"] as Array).size()
+	assert_eq(before, expected, "все клубочки двора и парка")
 	var first = get_tree().get_nodes_in_group("yarn")[0]
 	var key: String = first.key
 	GameState.take_yarn(key)
@@ -49,6 +52,6 @@ func test_collected_yarn_does_not_return_after_relaunch() -> void:
 	var main2 := (load("res://scenes/main.tscn") as PackedScene).instantiate()
 	add_child_autofree(main2)
 	await wait_physics_frames(5)
-	assert_eq(get_tree().get_nodes_in_group("yarn").size(), 23, "собранный клубочек не вернулся")
+	assert_eq(get_tree().get_nodes_in_group("yarn").size(), before - 1, "собранный клубочек не вернулся")
 	assert_eq(GameState.yarn, 1)
 	SaveGame.clear()

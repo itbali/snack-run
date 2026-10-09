@@ -177,11 +177,11 @@ func test_cat_cannot_walk_up_a_one_metre_terrace() -> void:
 func test_flat_tiles_are_two_triangles() -> void:
 	# План 11: плоский тайл 30×30 — 2 треугольника вместо 1800 (спек: ≤ 40 000 на район).
 	var flat := Terrain.new()
-	flat.data_path = "res://data/terrain/yard.json"
+	flat.data_path = "res://data/terrain/park.json"   # плоский район
 	add_child_autofree(flat)
 	await wait_physics_frames(1)
 	var tiles := flat.find_children("Tile*", "MeshInstance3D", false, false)
-	assert_eq(flat.triangle_count(), tiles.size() * 2, "плоский двор — по 2 треугольника на тайл")
+	assert_eq(flat.triangle_count(), tiles.size() * 2, "плоский парк — по 2 треугольника на тайл")
 
 func test_terrain_without_data_answers_zero() -> void:
 	var bad := Terrain.new()

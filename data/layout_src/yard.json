@@ -1,0 +1,1618 @@
+{
+ "name": "yard",
+ "seed": 11,
+ "core": "data/layout_src/yard_core.json",
+ "note": "Двор ×3 (спек «Масштаб ×3 и рельеф»): ядро — прежний двор с улицей и кафе; зоны — гаражи, площадка на террасе, сквер с холмом, верхний двор, веранда, окраины.",
+ "terrain": {
+  "size": [
+   180,
+   180
+  ],
+  "origin": [
+   -90,
+   -150
+  ],
+  "cell": 1.0,
+  "base": 0.0,
+  "channels": [
+   "asphalt",
+   "paving",
+   "grass",
+   "gravel"
+  ],
+  "default": "asphalt",
+  "features": [],
+  "paint": [
+   {
+    "rect": [
+     -25,
+     -25,
+     5,
+     5
+    ],
+    "type": "paving"
+   }
+  ]
+ },
+ "road": {
+  "points": [
+   [
+    -88,
+    0,
+    12
+   ],
+   [
+    88,
+    0,
+    12
+   ]
+  ]
+ },
+ "counts": {
+  "spawn_points": 60,
+  "yarn": 40,
+  "hideouts": 25
+ },
+ "zones": [
+  {
+   "name": "край района",
+   "ops": [
+    {
+     "type": "perimeter",
+     "rect": [
+      -90,
+      -150,
+      90,
+      30
+     ],
+     "sides": "nwe"
+    },
+    {
+     "type": "perimeter",
+     "rect": [
+      -90,
+      0,
+      -15,
+      30
+     ],
+     "sides": "s"
+    },
+    {
+     "type": "perimeter",
+     "rect": [
+      15,
+      0,
+      90,
+      30
+     ],
+     "sides": "s"
+    }
+   ]
+  },
+  {
+   "name": "улица",
+   "ops": [
+    {
+     "type": "place",
+     "props": [
+      {
+       "model": "car",
+       "pos": [
+        -30,
+        0,
+        8.5
+       ],
+       "rot": 90
+      },
+      {
+       "model": "car",
+       "pos": [
+        -48,
+        0,
+        8.5
+       ],
+       "rot": 90
+      },
+      {
+       "model": "car",
+       "pos": [
+        32,
+        0,
+        8.5
+       ],
+       "rot": 90
+      },
+      {
+       "model": "car",
+       "pos": [
+        56,
+        0,
+        15.5
+       ],
+       "rot": 90
+      },
+      {
+       "model": "car",
+       "pos": [
+        -66,
+        0,
+        15.5
+       ],
+       "rot": 90
+      },
+      {
+       "model": "bin",
+       "pos": [
+        -36,
+        0,
+        8
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bin",
+       "pos": [
+        -35,
+        0,
+        8
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bin",
+       "pos": [
+        44,
+        0,
+        8
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        -40,
+        0,
+        9
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        40,
+        0,
+        9
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        70,
+        0,
+        15
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        -75,
+        0,
+        15
+       ],
+       "rot": 0
+      }
+     ],
+     "hazards": [
+      {
+       "type": "cyclist",
+       "pos": [
+        -40,
+        0,
+        12
+       ]
+      }
+     ]
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      -86,
+      4,
+      -16,
+      9
+     ],
+     "count": 2,
+     "allowed": [
+      0,
+      1
+     ],
+     "foods": [
+      "sausage",
+      "cookie",
+      "pizza",
+      "hotdog"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      16,
+      4,
+      86,
+      9
+     ],
+     "count": 2,
+     "allowed": [
+      0,
+      1
+     ],
+     "foods": [
+      "sausage",
+      "cookie",
+      "pizza",
+      "hotdog"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "bench",
+     "rect": [
+      -86,
+      15,
+      -30,
+      27
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "bench",
+     "rect": [
+      30,
+      15,
+      86,
+      27
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "гаражи",
+   "ops": [
+    {
+     "type": "garage_row",
+     "origin": [
+      -58,
+      -30
+     ],
+     "count": 8,
+     "rot": 0,
+     "foods": [
+      "croissant",
+      "fish",
+      "donut",
+      "ice_cream"
+     ]
+    },
+    {
+     "type": "garage_row",
+     "origin": [
+      -35.6,
+      -36
+     ],
+     "count": 8,
+     "rot": 180,
+     "foods": [
+      "croissant",
+      "fish",
+      "donut",
+      "ice_cream"
+     ]
+    },
+    {
+     "type": "place",
+     "hazards": [
+      {
+       "type": "dog",
+       "pos": [
+        -40,
+        0,
+        -22
+       ],
+       "rot": 90
+      }
+     ],
+     "props": [
+      {
+       "model": "lamp",
+       "pos": [
+        -46,
+        0,
+        -24
+       ],
+       "rot": 0
+      }
+     ]
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bin",
+     "rect": [
+      -62,
+      -26,
+      -22,
+      -8
+     ],
+     "count": 3,
+     "rot": "random",
+     "min_dist": 2.5
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "box",
+     "rect": [
+      -62,
+      -26,
+      -22,
+      -8
+     ],
+     "count": 3,
+     "rot": "random",
+     "min_dist": 2.5
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      -62,
+      -26,
+      -22,
+      -8
+     ],
+     "count": 6,
+     "allowed": [
+      0,
+      1
+     ],
+     "foods": [
+      "sausage",
+      "cookie",
+      "pizza",
+      "hotdog"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      -62,
+      -26,
+      -22,
+      -8
+     ],
+     "count": 3,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "box",
+     "rect": [
+      -62,
+      -26,
+      -22,
+      -8
+     ],
+     "count": 3,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "площадка",
+   "ops": [
+    {
+     "type": "terrace",
+     "rect": [
+      22,
+      -40,
+      52,
+      -14
+     ],
+     "height": 2,
+     "access": [
+      [
+       "s",
+       30,
+       "stairs"
+      ],
+      [
+       "w",
+       -27,
+       "ramp"
+      ]
+     ]
+    },
+    {
+     "type": "paint",
+     "rect": [
+      22,
+      -40,
+      52,
+      -14
+     ],
+     "surface": "gravel"
+    },
+    {
+     "type": "place",
+     "props": [
+      {
+       "model": "sandbox",
+       "pos": [
+        32,
+        0,
+        -31
+       ],
+       "rot": 0
+      },
+      {
+       "model": "swings",
+       "pos": [
+        42,
+        0,
+        -22
+       ],
+       "rot": 0
+      },
+      {
+       "model": "slide",
+       "pos": [
+        45,
+        0,
+        -33
+       ],
+       "rot": 90
+      },
+      {
+       "model": "bench",
+       "pos": [
+        27,
+        0,
+        -22
+       ],
+       "rot": 90
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        36,
+        0,
+        -17
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        49,
+        0,
+        -37
+       ],
+       "rot": 0
+      }
+     ],
+     "hazards": [
+      {
+       "type": "wasp",
+       "pos": [
+        45,
+        0.5,
+        -33
+       ],
+       "radius": 2.0
+      }
+     ]
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush",
+     "rect": [
+      24,
+      -38,
+      50,
+      -16
+     ],
+     "count": 4,
+     "rot": "random",
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      24,
+      -38,
+      50,
+      -16
+     ],
+     "count": 6,
+     "allowed": [
+      0,
+      1,
+      2
+     ],
+     "foods": [
+      "sausage",
+      "cookie",
+      "pizza",
+      "hotdog",
+      "croissant",
+      "fish"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      24,
+      -38,
+      50,
+      -16
+     ],
+     "count": 4,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "bench",
+     "rect": [
+      24,
+      -38,
+      50,
+      -16
+     ],
+     "count": 2,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "сквер",
+   "ops": [
+    {
+     "type": "hill",
+     "center": [
+      0,
+      -45
+     ],
+     "radius": 12,
+     "height": 3
+    },
+    {
+     "type": "paint",
+     "circle": [
+      0,
+      -45,
+      16
+     ],
+     "surface": "grass",
+     "soft": 3
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree",
+     "rect": [
+      -20,
+      -70,
+      20,
+      -18
+     ],
+     "count": 6,
+     "rot": "random",
+     "min_dist": 4.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush",
+     "rect": [
+      -20,
+      -70,
+      20,
+      -18
+     ],
+     "count": 6,
+     "rot": "random",
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "grass",
+     "rect": [
+      -20,
+      -70,
+      20,
+      -18
+     ],
+     "count": 10,
+     "rot": "random",
+     "min_dist": 2.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      -20,
+      -70,
+      20,
+      -18
+     ],
+     "count": 6,
+     "allowed": [
+      0,
+      1
+     ],
+     "foods": [
+      "sausage",
+      "cookie",
+      "pizza",
+      "hotdog"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      -20,
+      -70,
+      20,
+      -18
+     ],
+     "count": 4,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "bench",
+     "rect": [
+      -20,
+      -70,
+      20,
+      -18
+     ],
+     "count": 2,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "верхний двор",
+   "ops": [
+    {
+     "type": "terrace",
+     "rect": [
+      -40,
+      -118,
+      40,
+      -72
+     ],
+     "height": 2,
+     "access": [
+      [
+       "s",
+       -12,
+       "stairs"
+      ],
+      [
+       "s",
+       18,
+       "stairs"
+      ],
+      [
+       "e",
+       -95,
+       "ramp"
+      ]
+     ]
+    },
+    {
+     "type": "paint",
+     "rect": [
+      -40,
+      -118,
+      40,
+      -72
+     ],
+     "surface": "paving"
+    },
+    {
+     "type": "perimeter",
+     "rect": [
+      -38,
+      -116,
+      38,
+      -72
+     ],
+     "sides": "n"
+    },
+    {
+     "type": "place",
+     "props": [
+      {
+       "model": "stairs",
+       "pos": [
+        -25,
+        0,
+        -113.5
+       ],
+       "rot": 0
+      },
+      {
+       "model": "stairs",
+       "pos": [
+        0,
+        0,
+        -113.5
+       ],
+       "rot": 0
+      },
+      {
+       "model": "stairs",
+       "pos": [
+        25,
+        0,
+        -113.5
+       ],
+       "rot": 0
+      },
+      {
+       "model": "flowerbed",
+       "pos": [
+        -22,
+        0,
+        -100
+       ],
+       "rot": 0
+      },
+      {
+       "model": "flowerbed",
+       "pos": [
+        -18,
+        0,
+        -100
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        -10,
+        0,
+        -85
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        20,
+        0,
+        -85
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bench",
+       "pos": [
+        5,
+        0,
+        -100
+       ],
+       "rot": 0
+      }
+     ],
+     "spawn_points": [
+      {
+       "pos": [
+        -25,
+        1.0,
+        -110.95
+       ],
+       "allowed": [
+        1,
+        2
+       ],
+       "foods": [
+        "pizza",
+        "hotdog",
+        "croissant",
+        "fish"
+       ]
+      },
+      {
+       "pos": [
+        0,
+        1.0,
+        -110.95
+       ],
+       "allowed": [
+        1,
+        2
+       ],
+       "foods": [
+        "pizza",
+        "hotdog",
+        "croissant",
+        "fish"
+       ]
+      },
+      {
+       "pos": [
+        25,
+        1.0,
+        -110.95
+       ],
+       "allowed": [
+        1,
+        2
+       ],
+       "foods": [
+        "pizza",
+        "hotdog",
+        "croissant",
+        "fish"
+       ]
+      }
+     ],
+     "yarn": [
+      {
+       "pos": [
+        -24.6,
+        0.5,
+        -113.0
+       ]
+      },
+      {
+       "pos": [
+        0.4,
+        0.5,
+        -113.0
+       ]
+      },
+      {
+       "pos": [
+        25.4,
+        0.5,
+        -113.0
+       ]
+      }
+     ],
+     "hazards": [
+      {
+       "type": "dog",
+       "pos": [
+        10,
+        0,
+        -90
+       ],
+       "rot": 0
+      },
+      {
+       "type": "wasp",
+       "pos": [
+        -20,
+        0.5,
+        -100
+       ],
+       "radius": 2.0
+      }
+     ]
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree",
+     "rect": [
+      -36,
+      -110,
+      36,
+      -76
+     ],
+     "count": 4,
+     "rot": "random",
+     "min_dist": 5.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush",
+     "rect": [
+      -36,
+      -110,
+      36,
+      -76
+     ],
+     "count": 6,
+     "rot": "random",
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      -36,
+      -110,
+      36,
+      -76
+     ],
+     "count": 8,
+     "allowed": [
+      0,
+      1,
+      2,
+      3
+     ],
+     "foods": [
+      "sausage",
+      "cookie",
+      "pizza",
+      "hotdog",
+      "croissant",
+      "fish",
+      "donut",
+      "ice_cream"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      -36,
+      -110,
+      36,
+      -76
+     ],
+     "count": 6,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "box",
+     "rect": [
+      -36,
+      -110,
+      36,
+      -76
+     ],
+     "count": 4,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "bench",
+     "rect": [
+      -36,
+      -110,
+      36,
+      -76
+     ],
+     "count": 2,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "веранда кафе",
+   "ops": [
+    {
+     "type": "terrace",
+     "rect": [
+      -27,
+      15,
+      -13,
+      26
+     ],
+     "height": 1,
+     "access": [
+      [
+       "e",
+       20,
+       "stairs"
+      ]
+     ]
+    },
+    {
+     "type": "paint",
+     "rect": [
+      -27,
+      15,
+      -13,
+      26
+     ],
+     "surface": "paving"
+    },
+    {
+     "type": "place",
+     "props": [
+      {
+       "model": "cafe_table",
+       "pos": [
+        -23,
+        0,
+        18
+       ]
+      },
+      {
+       "model": "cafe_table",
+       "pos": [
+        -19,
+        0,
+        22
+       ]
+      },
+      {
+       "model": "cafe_table",
+       "pos": [
+        -23,
+        0,
+        23
+       ]
+      },
+      {
+       "model": "umbrella",
+       "pos": [
+        -22.3,
+        0,
+        18.7
+       ]
+      },
+      {
+       "model": "umbrella",
+       "pos": [
+        -18.3,
+        0,
+        22.7
+       ]
+      },
+      {
+       "model": "chair",
+       "pos": [
+        -23,
+        0,
+        17.2
+       ],
+       "rot": 180
+      },
+      {
+       "model": "chair",
+       "pos": [
+        -19,
+        0,
+        21.2
+       ],
+       "rot": 180
+      },
+      {
+       "model": "chair",
+       "pos": [
+        -23,
+        0,
+        22.2
+       ],
+       "rot": 180
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        -26,
+        0,
+        25
+       ],
+       "rot": 0
+      }
+     ],
+     "spawn_points": [
+      {
+       "pos": [
+        -23,
+        0.75,
+        18
+       ],
+       "allowed": [
+        2
+       ],
+       "foods": [
+        "croissant",
+        "fish"
+       ]
+      },
+      {
+       "pos": [
+        -19,
+        0.75,
+        22
+       ],
+       "allowed": [
+        3
+       ],
+       "foods": [
+        "donut",
+        "ice_cream"
+       ]
+      },
+      {
+       "pos": [
+        -23,
+        0.75,
+        23
+       ],
+       "allowed": [
+        1
+       ],
+       "foods": [
+        "pizza",
+        "hotdog"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "окраина запад",
+   "ops": [
+    {
+     "type": "paint",
+     "rect": [
+      -88,
+      -146,
+      -66,
+      -46
+     ],
+     "surface": "grass",
+     "soft": 2
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree",
+     "rect": [
+      -88,
+      -146,
+      -66,
+      -46
+     ],
+     "count": 5,
+     "rot": "random",
+     "min_dist": 5.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush",
+     "rect": [
+      -88,
+      -146,
+      -66,
+      -46
+     ],
+     "count": 6,
+     "rot": "random",
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "grass",
+     "rect": [
+      -88,
+      -146,
+      -66,
+      -46
+     ],
+     "count": 8,
+     "rot": "random",
+     "min_dist": 2.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      -88,
+      -146,
+      -66,
+      -46
+     ],
+     "count": 2,
+     "allowed": [
+      1,
+      2,
+      3
+     ],
+     "foods": [
+      "pizza",
+      "hotdog",
+      "croissant",
+      "fish",
+      "donut",
+      "ice_cream"
+     ],
+     "min_dist": 5.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      -88,
+      -146,
+      -66,
+      -46
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "box",
+     "rect": [
+      -88,
+      -146,
+      -66,
+      -46
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "окраина восток",
+   "ops": [
+    {
+     "type": "paint",
+     "rect": [
+      56,
+      -146,
+      88,
+      -46
+     ],
+     "surface": "grass",
+     "soft": 2
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree",
+     "rect": [
+      56,
+      -146,
+      88,
+      -46
+     ],
+     "count": 5,
+     "rot": "random",
+     "min_dist": 5.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush",
+     "rect": [
+      56,
+      -146,
+      88,
+      -46
+     ],
+     "count": 6,
+     "rot": "random",
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "grass",
+     "rect": [
+      56,
+      -146,
+      88,
+      -46
+     ],
+     "count": 8,
+     "rot": "random",
+     "min_dist": 2.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      56,
+      -146,
+      88,
+      -46
+     ],
+     "count": 2,
+     "allowed": [
+      1,
+      2,
+      3
+     ],
+     "foods": [
+      "pizza",
+      "hotdog",
+      "croissant",
+      "fish",
+      "donut",
+      "ice_cream"
+     ],
+     "min_dist": 5.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      56,
+      -146,
+      88,
+      -46
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "box",
+     "rect": [
+      56,
+      -146,
+      88,
+      -46
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "окраина север",
+   "ops": [
+    {
+     "type": "paint",
+     "rect": [
+      -60,
+      -146,
+      52,
+      -124
+     ],
+     "surface": "grass",
+     "soft": 2
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree",
+     "rect": [
+      -60,
+      -146,
+      52,
+      -124
+     ],
+     "count": 5,
+     "rot": "random",
+     "min_dist": 5.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush",
+     "rect": [
+      -60,
+      -146,
+      52,
+      -124
+     ],
+     "count": 6,
+     "rot": "random",
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "grass",
+     "rect": [
+      -60,
+      -146,
+      52,
+      -124
+     ],
+     "count": 8,
+     "rot": "random",
+     "min_dist": 2.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      -60,
+      -146,
+      52,
+      -124
+     ],
+     "count": 2,
+     "allowed": [
+      1,
+      2,
+      3
+     ],
+     "foods": [
+      "pizza",
+      "hotdog",
+      "croissant",
+      "fish",
+      "donut",
+      "ice_cream"
+     ],
+     "min_dist": 5.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      -60,
+      -146,
+      52,
+      -124
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "box",
+     "rect": [
+      -60,
+      -146,
+      52,
+      -124
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "окраина юго-восток",
+   "ops": [
+    {
+     "type": "paint",
+     "rect": [
+      56,
+      -40,
+      88,
+      4
+     ],
+     "surface": "grass",
+     "soft": 2
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree",
+     "rect": [
+      56,
+      -40,
+      88,
+      4
+     ],
+     "count": 5,
+     "rot": "random",
+     "min_dist": 5.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush",
+     "rect": [
+      56,
+      -40,
+      88,
+      4
+     ],
+     "count": 6,
+     "rot": "random",
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "grass",
+     "rect": [
+      56,
+      -40,
+      88,
+      4
+     ],
+     "count": 8,
+     "rot": "random",
+     "min_dist": 2.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      56,
+      -40,
+      88,
+      4
+     ],
+     "count": 2,
+     "allowed": [
+      1,
+      2,
+      3
+     ],
+     "foods": [
+      "pizza",
+      "hotdog",
+      "croissant",
+      "fish",
+      "donut",
+      "ice_cream"
+     ],
+     "min_dist": 5.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      56,
+      -40,
+      88,
+      4
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "box",
+     "rect": [
+      56,
+      -40,
+      88,
+      4
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    }
+   ]
+  }
+ ]
+}

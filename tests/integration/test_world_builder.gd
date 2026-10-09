@@ -65,7 +65,7 @@ func test_real_yard_layout_loads() -> void:
 			elevated_spawns += 1
 	assert_gte(tables, 4)
 	assert_gte(elevated_spawns, 3, "еда на столах и балконе")
-	assert_eq(data["hazards"].size(), 4, "две осы, собака, велосипедист")
+	assert_eq(data["hazards"].size(), 9, "двор ×3: 3 собаки, 4 осы, 2 велосипедиста")
 	var b = _builder()
 	b.build(data)
 	assert_eq(b.props_built, data["props"].size(), "все модели существуют")
@@ -75,17 +75,11 @@ func test_real_yard_layout_loads() -> void:
 func _yard_with_floor() -> Node3D:
 	var world := Node3D.new()
 	add_child_autofree(world)
-	var floor_body := StaticBody3D.new()
-	floor_body.name = "Floor"
-	floor_body.collision_layer = Layers.WORLD
-	var shape := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = Vector3(60, 0.2, 60)
-	shape.shape = box
-	shape.position.y = -0.1
-	floor_body.add_child(shape)
-	world.add_child(floor_body)
+	var t := Terrain.new()
+	t.data_path = "res://data/terrain/yard.json"   # пол двора — рельеф (планы 10–11)
+	world.add_child(t)
 	var b: Node3D = BuilderScript.new()
+	b.terrain = t
 	world.add_child(b)
 	b.build(BuilderScript.load_layout("res://data/layout/yard.json"))
 	return world
@@ -105,9 +99,10 @@ func test_elevated_spawn_points_stand_on_props_not_air() -> void:
 	var world := _yard_with_floor()
 	await wait_physics_frames(3)
 	var space := world.get_world_3d().direct_space_state
+	var t := world.find_children("*", "Terrain", true, false)[0] as Terrain
 	for sp in world.find_children("*", "FoodSpawnPoint", true, false):
 		var pos: Vector3 = (sp as Node3D).global_position
-		if pos.y < 0.5:
+		if pos.y - t.height_at(pos.x, pos.z) < 0.5:   # приподнятая — над рельефом, а не над нулём (террасы, холм)
 			continue
 		var ray := PhysicsRayQueryParameters3D.create(pos + Vector3(0, 0.1, 0), pos + Vector3(0, -3, 0), Layers.WORLD)
 		var hit := space.intersect_ray(ray)
@@ -140,7 +135,7 @@ func test_yarn_balls_in_layout_stand_on_something() -> void:
 	var world := _yard_with_floor()
 	await wait_physics_frames(3)
 	var data := BuilderScript.load_layout("res://data/layout/yard.json")
-	assert_between(data["yarn"].size(), 10, 15, "10–15 клубочков на район (спек 3.4)")
+	assert_gte(data["yarn"].size(), 40, "двор ×3: не меньше 40 клубочков (спек «Масштаб», раздел 2)")
 	var space := world.get_world_3d().direct_space_state
 	for y in world.find_children("*", "YarnPickup", true, false):
 		var pos: Vector3 = (y as Node3D).global_position

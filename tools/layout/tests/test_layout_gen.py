@@ -15,6 +15,30 @@ class Primitives(unittest.TestCase):
 		self.assertNotIn((9.0, 12), rots, "проход на юге")
 		self.assertIn((15.0, 12), rots)
 
+	def test_perimeter_side_not_multiple_of_module_has_no_slits(self):
+		# Сторона 75 м: 12 модулей по 6 м встык и последний, прижатый к концу (сдвиг 5 см внутрь от мерцания).
+		walls = lg.perimeter([-90, 0, -15, 30], sides="s")
+		xs = sorted(w["pos"][0] for w in walls)
+		self.assertEqual(len(xs), 13)
+		self.assertAlmostEqual(xs[0], -87.0)
+		self.assertAlmostEqual(xs[-1], -18.0)
+		for a, b in zip(xs, xs[1:]):
+			self.assertLessEqual(b - a, 6.0 + 1e-6, "без щелей")
+		self.assertAlmostEqual(next(w for w in walls if w["pos"][0] == -18.0)["pos"][2], 29.95)
+
+	def test_footprints_follow_explicit_colliders(self):
+		# Балкон ядра: площадка на смещении z 2,55 на высоте 1,0 — пятно по коллайдерам, а не по таблице.
+		core = json.loads((ROOT / "data/layout_src/yard_core.json").read_text())
+		stairs = next(p for p in core["props"] if p["model"] == "stairs")
+		fps = lg.footprints(stairs)
+		self.assertEqual(len(fps), len(stairs["colliders"]))
+		x, _, z = stairs["pos"]
+		self.assertTrue(any(f[0] < x < f[2] and f[1] < z + 2.55 < f[3] and abs(f[4] - 1.0) < 0.01 for f in fps))
+		bench = {"model": "bench", "pos": [0, 0, 0], "rot": 90, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}]}
+		f = lg.footprints(bench)[0]
+		self.assertAlmostEqual(f[3] - f[1], 1.5, 3, "rot 90 меняет оси")
+		self.assertEqual(lg.footprints({"model": "grass", "pos": [0, 0, 0], "solid": False}), [])
+
 	def test_terrace_stairs_land_on_edge_and_walls_cover_cliff(self):
 		feature, props, blocked = lg.terrace([10, -20, 30, -10], 2, access=[("s", 20.0, "stairs"), ("w", -15.0, "ramp")])
 		self.assertEqual(feature, {"type": "terrace", "rect": [10, -20, 30, -10], "height": 2.0})
@@ -24,7 +48,7 @@ class Primitives(unittest.TestCase):
 		self.assertEqual(ramp["rot"], -90)
 		walls = [p for p in props if p["model"] == "retaining_wall2"]
 		self.assertTrue(all(w["snap"] is False for w in walls))
-		self.assertIn([11.6, -9.5], [[w["pos"][0], w["pos"][2]] for w in walls], "стена на ячейке обрыва: кромка + 0,5")
+		self.assertIn([11.5, -9.5], [[w["pos"][0], w["pos"][2]] for w in walls], "стена на ячейке обрыва: кромка + 0,5")
 		self.assertFalse(any(abs(w["pos"][0] - 20.0) < 1.5 and w["pos"][2] > -10 for w in walls), "проход под лестницу")
 		self.assertTrue(blocked, "полосы обрыва закрыты для россыпи")
 
@@ -36,6 +60,8 @@ class Primitives(unittest.TestCase):
 		self.assertTrue(all(i in reach for i in garages))
 		self.assertEqual(len(row["yarn"]), 3)
 		self.assertTrue(all(abs(y["pos"][1] - 2.28) < 0.01 for y in row["yarn"]))
+		fed = lg.garage_row((0, 0), 2, foods=["donut"])
+		self.assertTrue(all(s["foods"] == ["donut"] for s in fed["spawn_points"]), "список еды района доходит до крыш")
 
 	def test_scatter_avoids_props_and_keeps_distance(self):
 		blocked = [(4, 4, 6, 6, 1.0)]
@@ -83,7 +109,7 @@ class Generate(unittest.TestCase):
 		self.assertEqual(lg.dump_layout(a), lg.dump_layout(b))
 		self.assertEqual(len(a["spawn_points"]), 6)
 		self.assertEqual(len(a["hideouts"]), 2)
-		self.assertEqual(sum(1 for p in a["props"] if p["model"] == "box"), 2 + 2, "ящик у каждого укрытия + два в цепочке")
+		self.assertEqual(sum(1 for p in a["props"] if p["model"] == "box"), 2 + 4, "ящик у каждого укрытия + четыре в цепочке ряда")
 		self.assertEqual(ta["size"], [40, 40])
 
 	def test_check_reports_floating_and_buried_items(self):

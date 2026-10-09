@@ -18,12 +18,13 @@ WALL_THICK = 1.0   # подпорная стена закрывает ячейк
 
 # Пятна моделей при rot 0: ширина по X, глубина по Z, высота верха над землёй.
 FOOTPRINTS = {
-	"wall": (6.0, 0.4, 3.2), "garage": (3.1, 5.6, 2.28), "bin": (0.74, 0.84, 1.12), "box": (0.6, 0.6, 0.6),
+	"wall": (6.0, 0.4, 3.2), "garage": (3.1, 5.6, 2.28), "bin": (0.74, 0.84, 1.12), "box": (0.6, 0.6, 0.3),
 	"car": (1.7, 3.6, 1.5), "bench": (1.5, 0.45, 0.5), "fence": (2.0, 0.12, 1.0), "kiosk": (2.4, 2.0, 2.6),
 	"shed": (2.0, 2.0, 2.3), "cafe_table": (0.9, 0.9, 0.75), "sandbox": (2.0, 2.0, 0.3), "slide": (1.0, 3.0, 1.6),
 	"swings": (2.5, 1.2, 2.2), "tree": (0.3, 0.3, 1.6), "lamp": (0.3, 0.3, 3.0), "fountain": (3.0, 3.0, 1.0),
 	"retaining_wall1": (4.0, WALL_THICK, 1.0), "retaining_wall2": (4.0, WALL_THICK, 2.0), "retaining_wall3": (4.0, WALL_THICK, 3.0),
 	"stairs": (1.2, 3.2, 1.0), "arch": (3.4, 0.6, 2.6), "chair": (0.5, 0.5, 0.9), "umbrella": (0.2, 0.2, 2.2),
+	"bush": (1.0, 1.0, 0.8), "flowerbed": (2.0, 1.0, 0.4), "door": (1.0, 0.2, 2.0),
 }
 
 
@@ -47,6 +48,29 @@ def footprint(p):
 	return (x - sx / 2, z - sz / 2, x + sx / 2, z + sz / 2, base + top)
 
 
+def footprints(p):
+	"""Пятна пропса: по явным коллайдерам (как их строит WorldBuilder), иначе по таблице; несплошной — []."""
+	if p.get("solid", True) is False:
+		return []
+	if "colliders" not in p:
+		f = footprint(p)
+		return [f] if f else []
+	x, y, z = p["pos"]
+	base = y if p.get("snap", True) else 0.0
+	rot = float(p.get("rot", 0)) % 360
+	out = []
+	for c in p["colliders"]:
+		sx, sy, sz = c["size"]
+		ox, oy, oz = c.get("offset", [0, 0, 0])
+		cx, cz = _local((x, z), rot, ox, oz)
+		if abs(rot % 180 - 90) < 1:
+			sx, sz = sz, sx
+		elif rot % 180 > 1:
+			sx = sz = max(sx, sz)
+		out.append((cx - sx / 2, cz - sz / 2, cx + sx / 2, cz + sz / 2, base + oy + sy / 2))
+	return out
+
+
 def _local(origin, rot, dx, dz):
 	"""Смещение (dx, dz) в осях объекта с поворотом rot (как Basis(UP, rot) в Godot) → мировые x, z."""
 	a = math.radians(rot)
@@ -63,13 +87,21 @@ def perimeter(rect, model="wall", length=6.0, sides="nswe", gaps=()):
 	for side in sides:
 		horiz = side in "ns"
 		a, b = (x0, x1) if horiz else (z0, z1)
-		n = max(1, round((b - a) / length))
-		step = (b - a) / n
+		span = b - a
+		whole = abs(span / length - round(span / length)) < 1e-6
+		n = max(1, round(span / length)) if whole else math.ceil(span / length)
+		step = length if not whole else span / n
+		inward = {"n": 1, "s": -1, "w": 1, "e": -1}[side] * 0.05
 		for k in range(n):
 			c = round(a + step * (k + 0.5), 3)
+			shift = 0.0
+			if not whole and k == n - 1:   # сторона не кратна модулю: последний прижат к концу, чуть внутрь (без мерцания)
+				c, shift = round(b - length / 2, 3), inward
 			if any(g[0] == side and abs(c - g[1]) < (g[2] + step) / 2 for g in gaps):
 				continue
-			pos = [c, 0, z0 if side == "n" else z1] if horiz else [x0 if side == "w" else x1, 0, c]
+			line = (z0 if side == "n" else z1) if horiz else (x0 if side == "w" else x1)
+			line = round(line + shift, 3)
+			pos = [c, 0, line] if horiz else [line, 0, c]
 			out.append({"model": model, "pos": pos, "rot": SIDES[side]})
 	return out
 
@@ -112,9 +144,9 @@ def terrace(rect, height, access=()):
 	return feature, props, blocked
 
 
-def garage_row(origin, count, rot=0, step=3.2):
+def garage_row(origin, count, rot=0, step=3.2, foods=None):
 	"""Ряд гаражей вдоль локальной X; у первого — цепочка прыжков на крышу:
-	ящик 0,6 → бак 1,12 → бак с ящиком 1,72 → крыша 2,28. На каждой крыше клубочек, на крайних — редкая еда."""
+	стопка ящиков 0,6 → бак 1,12 → бак с двумя ящиками 1,72 → крыша 2,28. На каждой крыше клубочек, на крайних — редкая еда."""
 	props, yarn, spawns = [], [], []
 	for k in range(count):
 		gx, gz = _local(origin, rot, k * step, 0)
@@ -122,12 +154,16 @@ def garage_row(origin, count, rot=0, step=3.2):
 		yarn.append({"pos": [gx, 2.28, round(gz, 3)]})
 		if k in (0, count - 1):
 			sx, sz = _local(origin, rot, k * step, 1.6)
-			spawns.append({"pos": [sx, 2.28, sz], "allowed": [2, 3]})
+			sp = {"pos": [sx, 2.28, sz], "allowed": [2, 3]}
+			if foods:
+				sp["foods"] = foods   # без списка точка берёт еду любого района (парк во дворе)
+			spawns.append(sp)
 	edge = -1.55 - 0.05
 	b2 = edge - 0.37
 	b1 = b2 - 0.74 - 0.1
 	bx = b1 - 0.37 - 0.3 - 0.1
-	for dx, model, y in ((b2, "bin", 0), (b2, "box", 1.12), (b1, "bin", 0), (bx, "box", 0)):
+	# ящик 0,3 м: стопка из двух — 0,6; бак 1,12; бак с двумя ящиками — 1,72; крыша 2,28 (шаги ≤ 0,6 м)
+	for dx, model, y in ((b2, "bin", 0), (b2, "box", 1.12), (b2, "box", 1.42), (b1, "bin", 0), (bx, "box", 0), (bx, "box", 0.3)):
 		x, z = _local(origin, rot, dx, 1.8)
 		props.append({"model": model, "pos": [x, y, z], "rot": rot})
 	return {"props": props, "yarn": yarn, "spawn_points": spawns}
@@ -193,15 +229,13 @@ def generate(desc):
 	terrain.setdefault("paint", [])
 	defaults = model_defaults(core.get("props", []))
 	gen = {k: [] for k in LISTS}
-	blocked = [f for f in map(footprint, out["props"]) if f]
+	blocked = [f for p in out["props"] for f in footprints(p)]
 
 	def add(kind, items):
 		for it in items:
 			if kind == "props":
 				it = {**defaults.get(it["model"], {}), **it}
-				f = footprint(it)
-				if f:
-					blocked.append(f)
+				blocked.extend(footprints(it))
 			out[kind].append(it)
 			gen[kind].append(it)
 
@@ -217,13 +251,15 @@ def generate(desc):
 				add("props", props)
 				blocked.extend(bl)
 			elif t == "garage_row":
-				row = garage_row(tuple(op["origin"]), op["count"], op.get("rot", 0), op.get("step", 3.2))
+				row = garage_row(tuple(op["origin"]), op["count"], op.get("rot", 0), op.get("step", 3.2), op.get("foods"))
 				for k, v in row.items():
 					add(k, v)
 			elif t == "hill":
 				terrain["features"].append({"type": "hill", "center": op["center"], "radius": op["radius"], "height": op["height"]})
 			elif t == "paint":
-				terrain["paint"].append({k: v for k, v in op.items() if k != "type"})
+				pt = {k: v for k, v in op.items() if k not in ("type", "surface")}
+				pt["type"] = op["surface"]   # ключ type занят самой операцией
+				terrain["paint"].append(pt)
 			elif t == "place":
 				for k in LISTS:
 					add(k, [dict(it) for it in op.get(k, [])])
@@ -262,7 +298,7 @@ def generate(desc):
 
 def check(layout, generated, terrain=None):
 	"""Нарушения для созданных генератором точек: еда и клубочки не внутри пропсов, приподнятые — на достижимой опоре."""
-	fps = [f for f in map(footprint, layout["props"]) if f]
+	fps = [f for p in layout["props"] for f in footprints(p)]
 	reach = reachable(fps)
 	errs = []
 	for kind in ("spawn_points", "yarn"):
