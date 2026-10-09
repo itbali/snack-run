@@ -81,6 +81,14 @@ class Primitives(unittest.TestCase):
 			near_edge = (9 <= x <= 11 or 29 <= x <= 31) and -21 <= z <= -9 or (-21 <= z <= -19 or -11 <= z <= -9) and 9 <= x <= 31
 			self.assertFalse(near_edge, f"{x},{z} у обрыва")
 
+	def test_scatter_keeps_approach_to_stairs_free(self):
+		# Кадр плана 11: дерево из россыпи встало прямо у подножия лестницы верхнего двора.
+		_, props, blocked = lg.terrace([10, -20, 30, -10], 2, access=[("s", 20.0, "stairs")])
+		start = next(p for p in props if p["model"] == "terrace_stairs2")["pos"]
+		pts = lg.scatter(random.Random(2), [10, -10, 30, 0], 60, blocked, min_dist=0.8)
+		for x, z in pts:
+			self.assertFalse(abs(x - 20.0) < 1.5 and start[2] <= z <= start[2] + 3.0, f"{x},{z} перед лестницей")
+
 	def test_kit_constants_match_world_builder(self):
 		src = (ROOT / "scripts/world/world_builder.gd").read_text()
 		for name, val in (("KIT_STEP_RISE", lg.KIT_RISE), ("KIT_STEP_TREAD", lg.KIT_TREAD), ("KIT_RAMP_DEG", lg.KIT_RAMP_DEG), ("KIT_WIDTH", lg.KIT_WIDTH)):
@@ -118,6 +126,20 @@ class Generate(unittest.TestCase):
 		layout["spawn_points"].append({"pos": [-10.0, 0, -10.0], "allowed": [0]})   # внутри гаража
 		errs = lg.check(layout, {"yarn": [layout["yarn"][-1]], "spawn_points": [layout["spawn_points"][-1]]})
 		self.assertEqual(len(errs), 2, errs)
+
+	def test_scatter_respects_structure_of_later_zones(self):
+		# Россыпь ранней зоны не должна вставать перед лестницей террасы из более поздней зоны.
+		import copy
+		d = copy.deepcopy(DESC)
+		d["counts"] = {}
+		d["zones"] = [
+			{"name": "a", "ops": [{"type": "scatter", "what": "prop", "model": "tree", "rect": [-8, -4, 8, 0], "count": 40, "min_dist": 0.6}]},
+			{"name": "b", "ops": [{"type": "terrace", "rect": [-10, -15, 10, -5], "height": 1, "access": [["s", 0, "stairs"]]}]},
+		]
+		layout, _ = lg.generate(d)
+		trees = [p["pos"] for p in layout["props"] if p["model"] == "tree"]
+		self.assertTrue(trees)
+		self.assertFalse(any(abs(x) < 1.5 and z > -5 for x, _, z in trees), "подход к лестнице свободен")
 
 	def test_counts_are_enforced(self):
 		import copy

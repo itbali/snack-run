@@ -20,9 +20,38 @@
    "grass",
    "gravel"
   ],
-  "default": "asphalt",
+  "default": "grass",
   "features": [],
   "paint": [
+   {
+    "rect": [
+     -30,
+     -16,
+     30,
+     30
+    ],
+    "type": "asphalt",
+    "soft": 2
+   },
+   {
+    "rect": [
+     -90,
+     7,
+     90,
+     17
+    ],
+    "type": "asphalt"
+   },
+   {
+    "rect": [
+     -64,
+     -44,
+     -20,
+     -4
+    ],
+    "type": "asphalt",
+    "soft": 2
+   },
    {
     "rect": [
      -25,

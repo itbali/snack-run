@@ -140,7 +140,8 @@ def terrace(rect, height, access=()):
 			run = kit_run("stairs" if "stairs" in p["model"] else "ramp", h)
 			x, _, z = p["pos"]
 			ex, ez = _local((x, z), p["rot"], 0, -run)
-			blocked.append((min(x, ex) - 1.2, min(z, ez) - 1.2, max(x, ex) + 1.2, max(z, ez) + 1.2, h))
+			ax, az = _local((x, z), p["rot"], 0, 3.0)   # свободный подход 3 м к подножию
+			blocked.append((min(ax, ex) - 1.2, min(az, ez) - 1.2, max(ax, ex) + 1.2, max(az, ez) + 1.2, h))
 	return feature, props, blocked
 
 
@@ -240,53 +241,55 @@ def generate(desc):
 			gen[kind].append(it)
 
 	taken = [(s["pos"][0], s["pos"][2]) for k in ("spawn_points", "yarn", "hideouts") for s in out[k]]
-	for zone in desc.get("zones", []):
-		for op in zone["ops"]:
-			t = op["type"]
-			if t == "perimeter":
-				add("props", perimeter(op["rect"], op.get("model", "wall"), op.get("length", 6.0), op.get("sides", "nswe"), [tuple(g) for g in op.get("gaps", [])]))
-			elif t == "terrace":
-				feature, props, bl = terrace(op["rect"], op["height"], [tuple(a) for a in op.get("access", [])])
-				terrain["features"].append(feature)
-				add("props", props)
-				blocked.extend(bl)
-			elif t == "garage_row":
-				row = garage_row(tuple(op["origin"]), op["count"], op.get("rot", 0), op.get("step", 3.2), op.get("foods"))
-				for k, v in row.items():
-					add(k, v)
-			elif t == "hill":
-				terrain["features"].append({"type": "hill", "center": op["center"], "radius": op["radius"], "height": op["height"]})
-			elif t == "paint":
-				pt = {k: v for k, v in op.items() if k not in ("type", "surface")}
-				pt["type"] = op["surface"]   # ключ type занят самой операцией
-				terrain["paint"].append(pt)
-			elif t == "place":
-				for k in LISTS:
-					add(k, [dict(it) for it in op.get(k, [])])
-			elif t == "scatter":
-				pts = scatter(rng, op["rect"], op["count"], blocked, op.get("min_dist", 2.0), op.get("margin", 0.4), taken)
-				taken.extend(pts)
-				for x, z in pts:
-					w = op["what"]
-					if w == "spawn":
-						s = {"pos": [x, 0, z], "allowed": op.get("allowed", [0])}
-						if "foods" in op:
-							s["foods"] = op["foods"]
-						add("spawn_points", [s])
-					elif w == "yarn":
-						add("yarn", [{"pos": [x, 0, z]}])
-					elif w == "hideout" and op.get("kind", "box") == "box":
-						add("props", [{"model": "box", "pos": [x, 0, z], "rot": rng.randrange(0, 360, 15), "outline": True}])
-						add("hideouts", [{"kind": "box", "pos": [x, 0.2, round(z + 0.65, 2)], "size": [0.6, 0.4, 0.6]}])
-					elif w == "hideout":
-						r = rng.choice((0, 90, 180, 270))
-						add("props", [{"model": "bench", "pos": [x, 0, z], "rot": r}])
-						add("hideouts", [{"kind": "bench", "pos": [x, 0.2, z], "rot": r, "size": [1.3, 0.4, 0.4]}])
-					elif w == "prop":
-						rot = rng.randrange(0, 360, 15) if op.get("rot") == "random" else op.get("rot", 0)
-						add("props", [{"model": op["model"], "pos": [x, 0, z], "rot": rot}])
-			else:
-				raise ValueError(f"неизвестная операция {t}")
+	# Два прохода: сначала структура всех зон (стены, террасы, гаражи, ручные места), потом россыпь —
+	# иначе россыпь ранней зоны не знает о лестницах и стенах поздней.
+	ops = [op for z in desc.get("zones", []) for op in z["ops"]]
+	for op in [o for o in ops if o["type"] != "scatter"] + [o for o in ops if o["type"] == "scatter"]:
+		t = op["type"]
+		if t == "perimeter":
+			add("props", perimeter(op["rect"], op.get("model", "wall"), op.get("length", 6.0), op.get("sides", "nswe"), [tuple(g) for g in op.get("gaps", [])]))
+		elif t == "terrace":
+			feature, props, bl = terrace(op["rect"], op["height"], [tuple(a) for a in op.get("access", [])])
+			terrain["features"].append(feature)
+			add("props", props)
+			blocked.extend(bl)
+		elif t == "garage_row":
+			row = garage_row(tuple(op["origin"]), op["count"], op.get("rot", 0), op.get("step", 3.2), op.get("foods"))
+			for k, v in row.items():
+				add(k, v)
+		elif t == "hill":
+			terrain["features"].append({"type": "hill", "center": op["center"], "radius": op["radius"], "height": op["height"]})
+		elif t == "paint":
+			pt = {k: v for k, v in op.items() if k not in ("type", "surface")}
+			pt["type"] = op["surface"]   # ключ type занят самой операцией
+			terrain["paint"].append(pt)
+		elif t == "place":
+			for k in LISTS:
+				add(k, [dict(it) for it in op.get(k, [])])
+		elif t == "scatter":
+			pts = scatter(rng, op["rect"], op["count"], blocked, op.get("min_dist", 2.0), op.get("margin", 0.4), taken)
+			taken.extend(pts)
+			for x, z in pts:
+				w = op["what"]
+				if w == "spawn":
+					s = {"pos": [x, 0, z], "allowed": op.get("allowed", [0])}
+					if "foods" in op:
+						s["foods"] = op["foods"]
+					add("spawn_points", [s])
+				elif w == "yarn":
+					add("yarn", [{"pos": [x, 0, z]}])
+				elif w == "hideout" and op.get("kind", "box") == "box":
+					add("props", [{"model": "box", "pos": [x, 0, z], "rot": rng.randrange(0, 360, 15), "outline": True}])
+					add("hideouts", [{"kind": "box", "pos": [x, 0.2, round(z + 0.65, 2)], "size": [0.6, 0.4, 0.6]}])
+				elif w == "hideout":
+					r = rng.choice((0, 90, 180, 270))
+					add("props", [{"model": "bench", "pos": [x, 0, z], "rot": r}])
+					add("hideouts", [{"kind": "bench", "pos": [x, 0.2, z], "rot": r, "size": [1.3, 0.4, 0.4]}])
+				elif w == "prop":
+					rot = rng.randrange(0, 360, 15) if op.get("rot") == "random" else op.get("rot", 0)
+					add("props", [{"model": op["model"], "pos": [x, 0, z], "rot": rot}])
+		else:
+			raise ValueError(f"неизвестная операция {t}")
 	for k, n in desc.get("counts", {}).items():
 		if len(out[k]) < n:
 			raise ValueError(f"{k}: {len(out[k])} < {n}")
