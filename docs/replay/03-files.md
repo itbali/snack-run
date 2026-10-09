@@ -5,7 +5,7 @@
 Отступы в GDScript и Makefile — табы; в Python проекта — тоже табы, кроме
 `palette.py` и тестов Blender (пробелы). Копировать как есть.
 
-Файлов: 278
+Файлов: 282
 
 ## `CLAUDE.md`
 
@@ -89,6 +89,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 - `scripts/autoload/input_setup.gd` (InputMap в коде), `dev_tools.gd` (`++ --screenshot=path`).
 - `tools/blender/`: `palette.py`, `lib.py` (rounded_box, world_extent, tri_count, check_asset), `export.py`, `build.py`, `cat.py` (сварка + subdivision) + `cat_eyes.py` (глаза) + `cat_fluff.py` (пучки, усы, ошейник), `dog.py` + `dog_sleep.py` (поза «спит»), `gen/*.py` (каждый: `SPEC` + `build()`); `tools/audio/gen_sfx.py`; `tools/images/gen.py` + `manifest.json`; `export_presets.cfg`.
 - `scripts/world/terrain.gd` (`Terrain`: меш тайлами, `HeightMapShape3D` «Floor», шейдер `terrain.gdshader` со сплатом, `height_at`); `WorldBuilder.terrain_path` — раскладка привязывается к высоте (`"snap": false` — абсолютно); набор террас `tools/blender/terrace_kit.py`; демо `scenes/dev/terrain_demo.tscn`.
+- `scripts/world/floater.gd` (`Floater`: лодки и бочки качаются, раскладка `floaters`); порт — `PortTerrain` + `PortBuilder` в `district_yard.tscn`, `data/layout_src/port.json`.
 - `scripts/world/water.gd` (`Water`: зона воды и поверхность-шейдер; кот `drown()` → ближайший маркер группы `shore`).
 - `tools/layout/layout_gen.py` — генератор раскладки: описание района `data/layout_src/<район>.json` (ядро `*_core.json` + зоны) → `data/layout/<район>.json` и `data/terrain_src/<район>.json`; двор правится только через описание.
 - `scripts/visual/surface_textures.gd` — текстуры крупных поверхностей по имени меша (`wall` и др.; пол — каналы рельефа), трипланар по мировым координатам (спек 2.9).
@@ -147,9 +148,11 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 
 **План 12:** у `perimeter` сторона «n» — меньший z, «s» — больший; парк правится только через `data/layout_src/park.json` + `make layout`.
 
+**План 13:** высота террасы в `terrain_gen` абсолютная (в генераторе раскладки — `level`); имена одинаковых узлов давать с номером; кадр альбома — `++ --album`.
+
 ## Статус и что дальше
 
-- Планы 10 «Рельеф», 11 «Двор ×3» и 12 «Парк ×3, вода» выполнены 2026-10-09 (спек `2026-10-09-snack-run-scale-terrain-design.md`). Дальше порт — планы 13–15 (владелец: делать подряд, не ждать его оценки).
+- Планы 10 «Рельеф», 11 «Двор ×3», 12 «Парк ×3, вода» и 13 «Порт» выполнены 2026-10-09 (спек `2026-10-09-snack-run-scale-terrain-design.md`). Дальше планы 14 (опасности порта) и 15 (рыбалка); владелец: делать подряд, не ждать его оценки.
 - Планы 1–9 выполнены и слиты в `main`: фундамент, игровой цикл, хаб и прогрессия, полировка, визуальная полировка, текстуры крупных поверхностей, этап 2 (сутки, парк, опасности парка). Отложенные мелочи — в дорожной карте.
 - Отложено по просьбе владельца: текстуры пропсов («потом вернёмся к текстурам»).
 - Открытый вопрос владельцу: лицензия весов UniMate для сгенерированных движений (код MIT, для весов явной лицензии не найдено).
@@ -733,7 +736,7 @@ text = "Альбом вкусняшек"
 
 [node name="Grid" type="GridContainer" parent="Panel/Margin/VBox"]
 layout_mode = 2
-columns = 4
+columns = 5
 
 [node name="Close" type="Button" parent="Panel/Margin/VBox"]
 layout_mode = 2
@@ -1083,6 +1086,10 @@ data_path = "res://data/terrain/yard.json"
 script = ExtResource("1")
 data_path = "res://data/terrain/park.json"
 
+[node name="PortTerrain" type="Node3D" parent="."]
+script = ExtResource("1")
+data_path = "res://data/terrain/port.json"
+
 [node name="WorldBuilder" type="Node3D" parent="."]
 script = ExtResource("2")
 layout_path = "res://data/layout/yard.json"
@@ -1092,6 +1099,11 @@ terrain_path = NodePath("../YardTerrain")
 script = ExtResource("2")
 layout_path = "res://data/layout/park.json"
 terrain_path = NodePath("../ParkTerrain")
+
+[node name="PortBuilder" type="Node3D" parent="."]
+script = ExtResource("2")
+layout_path = "res://data/layout/port.json"
+terrain_path = NodePath("../PortTerrain")
 
 [node name="Spawn" type="Marker3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 0)
@@ -1255,6 +1267,8 @@ func _ready() -> void:
 			var v := arg.trim_prefix("--at=").split_floats(",")
 			if v.size() >= 3:
 				_teleport_later(Vector3(v[0], v[1], v[2]), deg_to_rad(v[3]) if v.size() > 3 else 0.0)
+		if arg == "--album":
+			_open_album_later()
 		if arg.begins_with("--screenshot="):
 			_screenshot_and_quit(arg.trim_prefix("--screenshot="))
 
@@ -1280,6 +1294,20 @@ func _teleport_later(pos: Vector3, yaw := 0.0) -> void:
 		if rig:
 			rig.global_position = pos + Vector3(0, 0.6, 0)
 			rig.set("_yaw", yaw)
+
+
+func _open_album_later() -> void:
+	## Кадр альбома: ++ --album открывает альбом со всеми карточками (план 13: 20 вкусняшек).
+	for i in 6:
+		await get_tree().process_frame
+	for f in FoodCatalog.all():
+		GameState.album[f.id] = GameState.album.get(f.id, 0) + 1
+	GameState.album_changed.emit(GameState.album)
+	var main := get_tree().get_first_node_in_group("main")
+	if main == null:
+		main = get_tree().current_scene
+	if main and main.has_method("toggle_album"):
+		main.call("toggle_album")
 
 
 func _screenshot_and_quit(path: String) -> void:
@@ -4196,7 +4224,7 @@ func _make_card(f: FoodDef) -> Control:
 	card.add_child(strip)
 	var icon := TextureRect.new()
 	icon.name = "Icon"
-	icon.custom_minimum_size = Vector2(96, 96)
+	icon.custom_minimum_size = Vector2(64, 64)   # 20 карточек (план 13) — 5 колонок по 4 ряда в окне 720
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.texture = f.icon()
@@ -4204,10 +4232,12 @@ func _make_card(f: FoodDef) -> Control:
 	var name_label := Label.new()
 	name_label.name = "Name"
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.add_theme_font_size_override("font_size", 17)
 	card.add_child(name_label)
 	var count := Label.new()
 	count.name = "Count"
 	count.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	count.add_theme_font_size_override("font_size", 15)
 	card.add_child(count)
 	card.set_meta("food", f)
 	_cards.append(card)
@@ -5314,8 +5344,8 @@ extends Node3D
 const TILE := 30
 const TEX_DIR := "res://assets/images/textures/"
 const DEFAULT_TEXTURES := {"asphalt": "asphalt.png", "paving": "paving.png", "grass": "grass.png", "gravel": "gravel.png",
-	"sand": "paving.png", "stone": "stone.png"}
-const DEFAULT_TILES := {"asphalt": 4.0, "paving": 1.2, "grass": 2.0, "gravel": 0.8, "sand": 2.0, "stone": 3.0}
+	"sand": "sand.png", "stone": "stone.png", "planks": "planks.png"}   # песок и доски — порт (план 13)
+const DEFAULT_TILES := {"asphalt": 4.0, "paving": 1.2, "grass": 2.0, "gravel": 0.8, "sand": 3.0, "stone": 3.0, "planks": 2.0}
 const TerrainShader := preload("res://assets/shaders/terrain.gdshader")
 
 @export_file("*.json") var data_path := ""
@@ -5705,7 +5735,7 @@ func _build_floater(f: Dictionary) -> void:
 		push_warning("нет модели " + model_path)
 		return
 	var body := Floater.new()
-	body.name = String(f["model"])
+	body.name = "%s%d" % [f["model"], _container("Floaters").get_child_count()]   # уникальное имя: иначе Godot даёт @Floater@N
 	body.amp = float(f.get("amp", body.amp))
 	body.roll_deg = float(f.get("roll", body.roll_deg))
 	body.period = float(f.get("period", body.period))
@@ -7620,7 +7650,7 @@ func test_album_shows_cards_locked_and_unlocked() -> void:
 	assert_true(main.album_menu.is_open)
 	assert_true(get_tree().paused)
 	var cards: Array = main.album_menu.cards()
-	assert_eq(cards.size(), 14, "8 карточек двора и 6 парка")
+	assert_eq(cards.size(), 20, "8 карточек двора, 6 парка и 6 порта")
 	var pizza: Control = null
 	var donut: Control = null
 	for c in cards:
@@ -7703,6 +7733,21 @@ func test_ui_cancel_closes_shop_and_album() -> void:
 	Input.action_release("ui_cancel")
 	assert_false(main.album_menu.is_open, "и альбом")
 	assert_false(get_tree().paused)
+
+func test_album_with_twenty_cards_fits_the_window() -> void:
+	# План 13: 20 карточек (двор, парк, порт) — панель альбома целиком в окне 1280×720.
+	var m := (load("res://scenes/main.tscn") as PackedScene).instantiate()
+	add_child_autofree(m)
+	await wait_process_frames(3)
+	m.toggle_album()
+	await wait_process_frames(3)
+	var panel := m.album_menu.get_node("Panel") as Control
+	var view := Rect2(Vector2.ZERO, panel.get_viewport_rect().size)
+	var need := panel.get_combined_minimum_size()
+	# Окно игры 1280×720 (stretch canvas_items): в headless окно другое, поэтому меряем минимальный размер панели.
+	assert_lte(need.y, 700.0, "альбом по высоте влезает в 720: %s" % need)
+	assert_lte(need.x, 1260.0, "альбом по ширине влезает в 1280: %s" % need)
+	m.toggle_album()
 ```
 
 ## `tests/integration/test_park.gd`
@@ -7776,9 +7821,9 @@ func test_spawn_point_respects_food_list() -> void:
 	for i in 30:
 		assert_true(sp.pick_def().id in [&"popcorn", &"sandwich"])
 
-func test_catalog_has_fourteen_foods_with_models_and_icons() -> void:
+func test_catalog_foods_have_models_and_icons() -> void:
 	# Review Focus 3
-	assert_eq(FoodCatalog.all().size(), 14)
+	assert_eq(FoodCatalog.all().size(), 20, "двор, парк и порт")
 	for f in FoodCatalog.all():
 		assert_true(ResourceLoader.exists(f.model_path), "модель %s" % f.id)
 		assert_not_null(f.icon(), "иконка %s" % f.id)
@@ -8137,6 +8182,14 @@ func test_people_routes_stay_on_dry_land() -> void:
 	for h in WorldBuilder.load_layout(LAYOUT)["hazards"]:
 		for p in h.get("path", []):
 			assert_gt(t.height_at(float(p[0]), float(p[1])), -0.3, "%s: точка %s на суше" % [h["type"], p])
+
+func test_port_gate_needs_satiety_50() -> void:
+	# План 13: ворота в порт в северном заборе парка при x −6, порог 50.
+	var gates := get_tree().get_nodes_in_group("gates").filter(func(g): return absf(g.global_position.x + 6) < 0.1)
+	assert_eq(gates.size(), 1)
+	if gates.size() == 1:
+		assert_eq(gates[0].satiety_required, 50)
+		assert_almost_eq(gates[0].global_position.z, 125.0, 0.01)
 ```
 
 ## `tests/integration/test_pigeons.gd`
@@ -8223,6 +8276,98 @@ func test_flock_steals_again_after_cooldown() -> void:
 	flock.cooldown_left = 0.0   # перерыв 10 с истёк
 	await wait_physics_frames(4)
 	assert_eq(GameState.mouth.size(), 0, "после перерыва стая снова крадёт")
+```
+
+## `tests/integration/test_port.gd`
+
+```gdscript
+extends GutTest
+## План 13: район «Порт» (спек порта, разделы 1, 2, 5, 6; размеры — спек масштаба).
+
+const LAYOUT := "res://data/layout/port.json"
+const PORT_FOOD := [&"shrimp", &"fries", &"squid", &"fish_sandwich", &"sushi"]
+var world: Node3D
+var b: WorldBuilder
+var t: Terrain
+
+func before_all() -> void:
+	world = Node3D.new()
+	add_child(world)
+	t = Terrain.new()
+	t.data_path = "res://data/terrain/port.json"
+	world.add_child(t)
+	b = WorldBuilder.new()
+	b.terrain = t
+	world.add_child(b)
+	b.build(WorldBuilder.load_layout(LAYOUT))
+	await wait_physics_frames(2)
+
+func after_all() -> void:
+	world.free()
+
+func test_port_size_levels_and_counts() -> void:
+	assert_almost_eq(t.width, 120.0, 0.01)
+	assert_almost_eq(t.depth, 102.0, 0.01)
+	assert_almost_eq(t.height_at(0, 136), 0.0, 0.05, "набережная вровень с парком")
+	assert_almost_eq(t.height_at(25, 180), -1.0, 0.05, "причал ниже набережной")
+	assert_almost_eq(t.height_at(-30, 175), -2.0, 0.05, "пляж")
+	assert_lt(t.height_at(0, 210), -3.0, "дно моря")
+	var d := WorldBuilder.load_layout(LAYOUT)
+	assert_gte(d["spawn_points"].size(), 35)
+	assert_gte(d["yarn"].size(), 25)
+	assert_gte(d["hideouts"].size(), 14)
+	assert_lte(t.triangle_count(), 40000)
+
+func test_water_and_dry_shore() -> void:
+	# Review Focus 1: каждый маркер берега на суше, выше воды.
+	var w := b.find_children("*", "Water", true, false)
+	assert_eq(w.size(), 2, "море и гавань")
+	for m in get_tree().get_nodes_in_group("shore"):
+		var p: Vector3 = (m as Node3D).global_position
+		assert_gt(t.height_at(p.x, p.z), -2.2, "берег %s выше воды" % p)
+
+func test_boats_and_barrels_float_reachably() -> void:
+	# Review Focus 2: 3 лодки и 5 бочек; палуба лодки в прыжке от причала (−1), верх бочки на 0,3 над водой.
+	var boats := 0
+	var barrels := 0
+	for f in b.find_children("*", "Floater", true, false):
+		var fl := f as Floater
+		if String(fl.name).begins_with("boat"):
+			boats += 1
+			assert_lte(-1.0 - (fl.base.origin.y + 0.45 - fl.amp), 0.8, "с палубы на причал допрыгнуть")
+		elif String(fl.name).begins_with("barrel"):
+			barrels += 1
+			assert_almost_eq(fl.base.origin.y + 0.7, -2.0, 0.01, "верх бочки на 0,3 над водой")
+	assert_eq(boats, 3)
+	assert_eq(barrels, 5)
+
+func test_only_port_food_and_no_golden_fish_in_spawns() -> void:
+	# Review Focus 4.
+	for sp in WorldBuilder.load_layout(LAYOUT)["spawn_points"]:
+		assert_false(sp.get("foods", []).is_empty(), "у точки %s список еды" % [sp["pos"]])
+		for f in sp.get("foods", []):
+			assert_true(StringName(f) in PORT_FOOD, "%s — еда порта" % f)
+
+func test_port_land_edges_are_closed() -> void:
+	# Review Focus 3: по суше за x ±60 не выйти (набережная и пляж).
+	var space := world.get_world_3d().direct_space_state
+	for z in range(128, 192, 6):
+		var x := -58.0
+		var from := Vector3(x, t.height_at(x, z) + 0.3, z)
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(from, from + Vector3(-4, 0, 0), Layers.WORLD))
+		assert_false(hit.is_empty(), "забор на западе у z %d" % z)
+	for z in range(128, 146, 6):
+		var from := Vector3(58, 0.3, z)
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(from, from + Vector3(4, 0, 0), Layers.WORLD))
+		assert_false(hit.is_empty(), "забор на востоке у z %d" % z)
+
+func test_generated_items_stand_on_surface() -> void:
+	for s in b.get_node("Spawns").get_children() + b.get_node("Yarn").get_children():
+		var p: Vector3 = s.global_position
+		var hit := world.get_world_3d().direct_space_state.intersect_ray(
+			PhysicsRayQueryParameters3D.create(p + Vector3.UP * 0.3, p + Vector3.DOWN * 0.7, Layers.WORLD))
+		assert_false(hit.is_empty(), "%s в %s на опоре" % [s.name, p])
+		assert_gt(p.y, -2.3, "%s в %s не под водой" % [s.name, p])
 ```
 
 ## `tests/integration/test_shop_menu.gd`
@@ -8668,6 +8813,22 @@ func test_terrain_without_data_answers_zero() -> void:
 	bad.data_path = "res://data/terrain/none.json"
 	add_child_autofree(bad)
 	assert_eq(bad.height_at(3, 3), 0.0)
+
+func test_port_terrain_channels_use_sand_and_planks() -> void:
+	# План 13: песок пляжа и доски причала — каналы карты покрытий.
+	var n := 3
+	var rows := [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+	var splat := PackedByteArray()
+	splat.resize(n * n * 4)
+	var f := FileAccess.open("user://port_channels.json", FileAccess.WRITE)
+	f.store_string(JSON.stringify({"nx": n, "nz": n, "cell": 1.0, "origin": [0, 0], "size": [2, 2], "heights": rows,
+		"splat": Marshalls.raw_to_base64(splat), "channels": ["paving", "sand", "planks", "grass"]}))
+	f.close()
+	var pt := Terrain.new()
+	pt.data_path = "user://port_channels.json"
+	add_child_autofree(pt)
+	assert_eq((pt.material.get_shader_parameter("tex_g") as Texture2D).resource_path, "res://assets/images/textures/sand.png")
+	assert_eq((pt.material.get_shader_parameter("tex_b") as Texture2D).resource_path, "res://assets/images/textures/planks.png")
 ```
 
 ## `tests/integration/test_wasp.gd`
@@ -9347,9 +9508,9 @@ func test_collected_yarn_does_not_return_after_relaunch() -> void:
 	await wait_physics_frames(5)
 	var before := get_tree().get_nodes_in_group("yarn").size()
 	var expected := 0
-	for path in ["res://data/layout/yard.json", "res://data/layout/park.json"]:
+	for path in ["res://data/layout/yard.json", "res://data/layout/park.json", "res://data/layout/port.json"]:
 		expected += (WorldBuilder.load_layout(path)["yarn"] as Array).size()
-	assert_eq(before, expected, "все клубочки двора и парка")
+	assert_eq(before, expected, "все клубочки двора, парка и порта")
 	var first = get_tree().get_nodes_in_group("yarn")[0]
 	var key: String = first.key
 	GameState.take_yarn(key)
@@ -9993,10 +10154,10 @@ func test_pick_weighted_respects_allowed() -> void:
 func test_pick_weighted_empty_gives_common() -> void:
 	assert_eq(Rarity.pick_weighted([], _rng(1)), Rarity.Tier.COMMON)
 
-func test_catalog_has_fourteen_foods_in_every_tier() -> void:
-	# Двор — по две еды в редкости, парк (этап 2) добавил ещё шесть: 4/4/3/3.
-	assert_eq(FoodCatalog.all().size(), 14)
-	var expected := {0: 4, 1: 4, 2: 3, 3: 3}
+func test_catalog_has_twenty_foods_in_every_tier() -> void:
+	# Двор — по две еды в редкости, парк (этап 2) — ещё шесть, порт (этап 3) — ещё шесть: 6/6/4/4.
+	assert_eq(FoodCatalog.all().size(), 20)
+	var expected := {0: 6, 1: 6, 2: 4, 3: 4}
 	for t in 4:
 		assert_eq(FoodCatalog.by_tier(t).size(), expected[t], "еды в редкости %d" % t)
 	var donut := FoodCatalog.get_by_id(&"donut")
@@ -10020,6 +10181,18 @@ func test_night_weights_favor_rare_food() -> void:
 		if Rarity.pick_weighted(all, rng, Rarity.NIGHT_WEIGHTS) == Rarity.Tier.LEGENDARY:
 			legend_night += 1
 	assert_gt(legend_night, legend_day * 2, "ночью легендарная еда выпадает заметно чаще")
+
+func test_port_foods_follow_spec() -> void:
+	# Спек порта, раздел 5.
+	var expected := {&"shrimp": [0, "Креветка"], &"fries": [0, "Картошка фри"], &"squid": [1, "Кальмар"],
+		&"fish_sandwich": [1, "Рыбный сэндвич"], &"sushi": [2, "Суши"], &"golden_fish": [3, "Золотая рыбка"]}
+	for id in expected:
+		var f := FoodCatalog.get_by_id(id)
+		assert_not_null(f, "есть %s" % id)
+		if f:
+			assert_eq(f.tier, expected[id][0])
+			assert_eq(f.display_name, expected[id][1])
+			assert_true(ResourceLoader.exists(f.model_path), "модель %s" % id)
 ```
 
 ## `tests/unit/test_save.gd`
@@ -15100,6 +15273,8 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
   движется сквозь склон котловины; тест «на берегу не тонет» слабый, маршруты проверяются по вершинам, лучи края шагом 6 м;
   стая голубей на склоне холма (птицы в земле или в воздухе); пол беседки на 0,15 м шире коллайдера; люди в погоне ходят по
   дну пруда; линейный поиск маркера берега; маршруты ядра парка через фонтан и качели (с плана 9).
+- План 13. Район «Порт» и вода (`2026-10-09-snack-run-13-port.md`) — ВЫПОЛНЕН 2026-10-09: набережная, причал, пляж, море,
+  качающиеся лодки и бочки, ворота 50, шесть вкусняшек, альбом 20.
 - Планы 13–15. Этап 3: порт 120×102 (район и вода, опасности, рыбалка) по спеку `2026-10-09-snack-run-stage3-port-design.md`.
 ```
 
@@ -16431,6 +16606,119 @@ if __name__ == "__main__":
 }
 ```
 
+## `data/terrain_src/port.json`
+
+```json
+{
+  "size": [
+    120,
+    102
+  ],
+  "origin": [
+    -60,
+    125
+  ],
+  "cell": 1.0,
+  "base": -2.0,
+  "channels": [
+    "stone",
+    "sand",
+    "planks",
+    "grass"
+  ],
+  "default": "sand",
+  "features": [
+    {
+      "type": "flat",
+      "rect": [
+        -60,
+        195,
+        60,
+        227
+      ],
+      "height": -3.5
+    },
+    {
+      "type": "flat",
+      "rect": [
+        10,
+        148,
+        60,
+        195
+      ],
+      "height": -3.5
+    },
+    {
+      "type": "terrace",
+      "rect": [
+        15,
+        148,
+        35,
+        212
+      ],
+      "height": -1.0
+    },
+    {
+      "type": "terrace",
+      "rect": [
+        -60,
+        125,
+        60,
+        148
+      ],
+      "height": 0.0
+    },
+    {
+      "type": "hill",
+      "center": [
+        -45,
+        160
+      ],
+      "radius": 5,
+      "height": 0.8
+    },
+    {
+      "type": "hill",
+      "center": [
+        -20,
+        158
+      ],
+      "radius": 4,
+      "height": 0.6
+    },
+    {
+      "type": "hill",
+      "center": [
+        -52,
+        182
+      ],
+      "radius": 5,
+      "height": 0.7
+    }
+  ],
+  "paint": [
+    {
+      "rect": [
+        15,
+        148,
+        35,
+        212
+      ],
+      "type": "planks"
+    },
+    {
+      "rect": [
+        -60,
+        125,
+        60,
+        148.5
+      ],
+      "type": "stone"
+    }
+  ]
+}
+```
+
 ## `data/terrain_src/yard.json`
 
 ```json
@@ -16694,7 +16982,6 @@ if __name__ == "__main__":
     {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-12.0, 0, 125.0], "rot": 180},
     {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-10.0, 0, 125.0], "rot": 180},
     {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-8.0, 0, 125.0], "rot": 180},
-    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-6.0, 0, 125.0], "rot": 180},
     {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-4.0, 0, 125.0], "rot": 180},
     {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-2.0, 0, 125.0], "rot": 180},
     {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [0.0, 0, 125.0], "rot": 180},
@@ -17026,7 +17313,8 @@ if __name__ == "__main__":
   "decals": [
   ],
   "gates": [
-    {"pos": [12, 0, 29.9], "rot": 0, "size": [2.2, 2.6, 0.3], "satiety": 25, "label": "Ворота в парк открыты!"}
+    {"pos": [12, 0, 29.9], "rot": 0, "size": [2.2, 2.6, 0.3], "satiety": 25, "label": "Ворота в парк открыты!"},
+    {"pos": [-6, 0, 125], "rot": 0, "size": [2.2, 2.6, 0.3], "satiety": 50, "label": "Ворота в порт открыты!"}
   ],
   "water_zones": [
     {"pos": [-28, -0.5, 66], "size": [22, 2.0, 22]}
@@ -17040,6 +17328,301 @@ if __name__ == "__main__":
     {"pos": [-36.84, 0, 57.16]},
     {"pos": [-28.0, 0, 53.5]},
     {"pos": [-19.16, 0, 57.16]}
+  ],
+  "floaters": [
+  ]
+}
+```
+
+## `data/layout/port.json`
+
+```json
+{
+  "props": [
+    {"model": "retaining_wall2", "pos": [16.5, -2.3, 212.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [20.5, -2.3, 212.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [24.5, -2.3, 212.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [28.5, -2.3, 212.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [32.5, -2.3, 212.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [33.5, -2.3, 212.45], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [14.5, -2.3, 149.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [14.5, -2.3, 153.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [14.5, -2.3, 157.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [14.5, -2.3, 161.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [14.5, -2.3, 165.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [14.5, -2.3, 169.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [14.5, -2.3, 173.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [14.5, -2.3, 181.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [14.5, -2.3, 185.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [14.5, -2.3, 189.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [14.5, -2.3, 193.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [14.5, -2.3, 197.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [14.5, -2.3, 201.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [14.5, -2.3, 205.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [14.5, -2.3, 209.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [14.55, -2.3, 210.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [35.5, -2.3, 149.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [35.5, -2.3, 153.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [35.5, -2.3, 157.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [35.5, -2.3, 161.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [35.5, -2.3, 169.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [35.5, -2.3, 173.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [35.5, -2.3, 177.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [35.5, -2.3, 181.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [35.5, -2.3, 189.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [35.5, -2.3, 193.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [35.5, -2.3, 197.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [35.5, -2.3, 201.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [35.5, -2.3, 205.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [35.5, -2.3, 209.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [35.45, -2.3, 210.5], "rot": 90, "snap": false},
+    {"model": "terrace_stairs1", "pos": [25, 0, 149.5], "rot": 0},
+    {"model": "bollard", "pos": [16, 0, 160], "rot": 0},
+    {"model": "bollard", "pos": [16, 0, 180], "rot": 0},
+    {"model": "bollard", "pos": [16, 0, 200], "rot": 0},
+    {"model": "bollard", "pos": [34, 0, 160], "rot": 0},
+    {"model": "bollard", "pos": [34, 0, 180], "rot": 0},
+    {"model": "bollard", "pos": [34, 0, 200], "rot": 0},
+    {"model": "retaining_wall3", "pos": [-58.5, -2.3, 148.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall3", "pos": [-54.5, -2.3, 148.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall3", "pos": [-50.5, -2.3, 148.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall3", "pos": [-46.5, -2.3, 148.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall3", "pos": [-34.5, -2.3, 148.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall3", "pos": [-30.5, -2.3, 148.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall3", "pos": [-26.5, -2.3, 148.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall3", "pos": [-22.5, -2.3, 148.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall3", "pos": [-18.5, -2.3, 148.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall3", "pos": [-10.5, -2.3, 148.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall3", "pos": [-6.5, -2.3, 148.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall3", "pos": [-2.5, -2.3, 148.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall3", "pos": [5.5, -2.3, 148.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall3", "pos": [9.5, -2.3, 148.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall3", "pos": [13.5, -2.3, 148.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall3", "pos": [17.5, -2.3, 148.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall3", "pos": [21.5, -2.3, 148.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall3", "pos": [29.5, -2.3, 148.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall3", "pos": [33.5, -2.3, 148.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall3", "pos": [37.5, -2.3, 148.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall3", "pos": [41.5, -2.3, 148.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall3", "pos": [45.5, -2.3, 148.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall3", "pos": [49.5, -2.3, 148.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall3", "pos": [53.5, -2.3, 148.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall3", "pos": [57.5, -2.3, 148.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall3", "pos": [58.5, -2.3, 148.45], "rot": 0, "snap": false},
+    {"model": "terrace_stairs2", "pos": [-40, 0, 151.0], "rot": 0},
+    {"model": "terrace_stairs2", "pos": [-15, 0, 151.0], "rot": 0},
+    {"model": "ramp2", "pos": [2, 0, 152.289], "rot": 0},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 126.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 128.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 130.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 132.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 134.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 136.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 138.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 140.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 142.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 144.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 146.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-59.95, 0, 147.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [60.0, 0, 126.0], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [60.0, 0, 128.0], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [60.0, 0, 130.0], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [60.0, 0, 132.0], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [60.0, 0, 134.0], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [60.0, 0, 136.0], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [60.0, 0, 138.0], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [60.0, 0, 140.0], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [60.0, 0, 142.0], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [60.0, 0, 144.0], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [60.0, 0, 146.0], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [59.95, 0, 147.0], "rot": -90},
+    {"colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}], "model": "lamp", "pos": [-50, 0, 146], "rot": 0},
+    {"colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}], "model": "lamp", "pos": [-30, 0, 146], "rot": 0},
+    {"colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}], "model": "lamp", "pos": [-10, 0, 146], "rot": 0},
+    {"colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}], "model": "lamp", "pos": [10, 0, 146], "rot": 0},
+    {"colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}], "model": "lamp", "pos": [30, 0, 146], "rot": 0},
+    {"colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}], "model": "lamp", "pos": [50, 0, 146], "rot": 0},
+    {"model": "kiosk", "pos": [-30, 0, 131], "rot": 0},
+    {"colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}], "model": "bin", "pos": [-27, 0, 131], "rot": 0},
+    {"colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}], "model": "bin", "pos": [12, 0, 131], "rot": 0},
+    {"model": "barrel", "pos": [44, 0, 132], "rot": 0, "colliders": [{"size": [0.7, 0.7, 0.7], "offset": [0, 0.35, 0]}]},
+    {"model": "barrel", "pos": [-48, 0, 140], "rot": 0, "colliders": [{"size": [0.7, 0.7, 0.7], "offset": [0, 0.35, 0]}]},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 149.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 151.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 153.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 155.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 157.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 159.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 161.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 163.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 165.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 167.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 169.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 171.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 173.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 175.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 177.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 179.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 181.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 183.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 185.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 187.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 189.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 191.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 193.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-59.95, 0, 194.0], "rot": 90},
+    {"model": "boat_upturned", "pos": [-8, 0, 170], "rot": 30, "colliders": [{"size": [1.6, 0.12, 4.2], "offset": [0, 0.6, 0]}, {"size": [0.12, 0.6, 4.2], "offset": [-0.74, 0.3, 0]}, {"size": [0.12, 0.6, 4.2], "offset": [0.74, 0.3, 0]}]},
+    {"outline": true, "model": "box", "pos": [20.7, 0, 191.1], "rot": 255},
+    {"outline": true, "model": "box", "pos": [28.3, 0, 201.0], "rot": 90},
+    {"outline": true, "model": "box", "pos": [19.3, 0, 163.8], "rot": 345},
+    {"outline": true, "model": "box", "pos": [29.2, 0, 157.8], "rot": 135},
+    {"outline": true, "model": "box", "pos": [19.2, 0, 171.4], "rot": 210},
+    {"outline": true, "model": "box", "pos": [26.4, 0, 183.0], "rot": 180},
+    {"outline": true, "model": "box", "pos": [26.2, 0, 203.2], "rot": 0},
+    {"outline": true, "model": "box", "pos": [23.7, 0, 187.7], "rot": 345},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-8.8, 0, 142.6], "rot": 0},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-31.9, 0, 136.0], "rot": 0},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [23.0, 0, 135.0], "rot": 0},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [30.2, 0, 133.3], "rot": 0},
+    {"outline": true, "model": "box", "pos": [37.6, 0, 131.0], "rot": 75},
+    {"outline": true, "model": "box", "pos": [-34.0, 0, 141.4], "rot": 345},
+    {"outline": true, "model": "box", "pos": [-14.4, 0, 139.9], "rot": 60},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-28.0, 0, 139.3], "rot": 90},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [10.2, 0, 133.4], "rot": 180},
+    {"model": "deckchair", "pos": [-29.8, 0, 178.0], "rot": 180},
+    {"model": "deckchair", "pos": [-29.9, 0, 165.4], "rot": 150},
+    {"model": "deckchair", "pos": [-27.6, 0, 155.7], "rot": 15},
+    {"model": "deckchair", "pos": [-55.0, 0, 188.9], "rot": 135},
+    {"model": "deckchair", "pos": [-14.9, 0, 164.9], "rot": 240},
+    {"model": "deckchair", "pos": [-28.3, 0, 191.7], "rot": 195},
+    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [4.8, 0, 158.8], "rot": 225},
+    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [-54.5, 0, 167.4], "rot": 210},
+    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [-47.7, 0, 165.0], "rot": 270},
+    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [-35.1, 0, 156.9], "rot": 270},
+    {"outline": true, "model": "box", "pos": [-10.7, 0, 164.3], "rot": 135},
+    {"outline": true, "model": "box", "pos": [-7.7, 0, 157.3], "rot": 180}
+  ],
+  "hideouts": [
+    {"kind": "barrel", "pos": [44, 0.2, 132.75], "size": [0.6, 0.4, 0.6]},
+    {"kind": "barrel", "pos": [-48, 0.2, 140.75], "size": [0.6, 0.4, 0.6]},
+    {"kind": "boat", "pos": [-8, 0.2, 170], "rot": 30, "size": [1.2, 0.4, 3.6]},
+    {"kind": "box", "pos": [19.2, 0.2, 172.05], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [26.4, 0.2, 183.65], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [26.2, 0.2, 203.85], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [23.7, 0.2, 188.35], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [37.6, 0.2, 131.65], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [-34.0, 0.2, 142.05], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [-14.4, 0.2, 140.55], "size": [0.6, 0.4, 0.6]},
+    {"kind": "bench", "pos": [-28.0, 0.2, 139.3], "rot": 90, "size": [1.3, 0.4, 0.4]},
+    {"kind": "bench", "pos": [10.2, 0.2, 133.4], "rot": 180, "size": [1.3, 0.4, 0.4]},
+    {"kind": "box", "pos": [-10.7, 0.2, 164.95], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [-7.7, 0.2, 157.95], "size": [0.6, 0.4, 0.6]}
+  ],
+  "spawn_points": [
+    {"pos": [37.5, -1.55, 164], "allowed": [1], "foods": ["squid"], "snap": false},
+    {"pos": [12.5, -1.55, 177], "allowed": [1], "foods": ["squid", "fish_sandwich"], "snap": false},
+    {"pos": [37.5, -1.55, 187], "allowed": [2], "foods": ["sushi"], "snap": false},
+    {"pos": [-30, 0, 133.6], "allowed": [0], "foods": ["fries"]},
+    {"pos": [16.5, 0, 157.6], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
+    {"pos": [28.3, 0, 209.9], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
+    {"pos": [17.5, 0, 197.6], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
+    {"pos": [32.0, 0, 165.7], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
+    {"pos": [24.1, 0, 176.2], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
+    {"pos": [18.5, 0, 202.6], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
+    {"pos": [22.4, 0, 164.0], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
+    {"pos": [32.2, 0, 183.0], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
+    {"pos": [23.8, 0, 138.3], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [2.4, 0, 138.8], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [46.6, 0, 139.7], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [41.9, 0, 127.8], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [23.4, 0, 127.7], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [9.6, 0, 137.3], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-36.9, 0, 130.5], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [33.3, 0, 137.0], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [46.5, 0, 130.0], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-8.2, 0, 137.7], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [35.6, 0, 139.5], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [7.3, 0, 154.7], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-22.7, 0, 158.0], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-5.0, 0, 165.6], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [0.9, 0, 174.3], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-49.7, 0, 153.2], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-41.6, 0, 186.9], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-48.1, 0, 171.7], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-33.5, 0, 166.5], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-5.1, 0, 161.3], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-10.6, 0, 179.0], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [2.7, 0, 170.2], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-20.2, 0, 177.2], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]}
+  ],
+  "yarn": [
+    {"pos": [37.5, -1.55, 166.5], "snap": false},
+    {"pos": [12.5, -1.55, 174.5], "snap": false},
+    {"pos": [32.0, 0, 188.3]},
+    {"pos": [27.8, 0, 170.8]},
+    {"pos": [26.7, 0, 188.0]},
+    {"pos": [20.7, 0, 176.9]},
+    {"pos": [23.9, 0, 193.7]},
+    {"pos": [25.6, 0, 167.6]},
+    {"pos": [54.6, 0, 141.9]},
+    {"pos": [16.8, 0, 136.5]},
+    {"pos": [-43.3, 0, 132.6]},
+    {"pos": [7.5, 0, 139.6]},
+    {"pos": [50.9, 0, 136.4]},
+    {"pos": [-20.9, 0, 129.8]},
+    {"pos": [-2.6, 0, 188.0]},
+    {"pos": [-50.4, 0, 158.3]},
+    {"pos": [-22.8, 0, 184.7]},
+    {"pos": [-22.8, 0, 164.7]},
+    {"pos": [5.5, 0, 164.6]},
+    {"pos": [-52.3, 0, 155.0]},
+    {"pos": [-56.0, 0, 181.4]},
+    {"pos": [-50.9, 0, 180.9]},
+    {"pos": [-0.8, 0, 192.0]},
+    {"pos": [-4.6, 0, 169.5]},
+    {"pos": [-16.9, 0, 185.5]}
+  ],
+  "hazards": [
+  ],
+  "decals": [
+  ],
+  "gates": [
+  ],
+  "water_zones": [
+    {"pos": [0.0, -2.3, 211.0], "size": [120, 2.0, 32]},
+    {"pos": [35.0, -2.3, 171.5], "size": [50, 2.0, 47]}
+  ],
+  "shore": [
+    {"pos": [-55, 0, 192]},
+    {"pos": [-45, 0, 192]},
+    {"pos": [-35, 0, 192]},
+    {"pos": [-25, 0, 192]},
+    {"pos": [-15, 0, 192]},
+    {"pos": [-5, 0, 192]},
+    {"pos": [5, 0, 192]},
+    {"pos": [25, 0, 155]},
+    {"pos": [25, 0, 165]},
+    {"pos": [25, 0, 175]},
+    {"pos": [25, 0, 185]},
+    {"pos": [25, 0, 195]},
+    {"pos": [25, 0, 205]},
+    {"pos": [40, 0, 145]},
+    {"pos": [50, 0, 145]},
+    {"pos": [57, 0, 145]}
+  ],
+  "floaters": [
+    {"model": "boat", "pos": [37.5, -2.1, 165], "rot": 0, "period": 3.4, "phase": 0.0, "colliders": [{"size": [1.6, 0.75, 4.2], "offset": [0, 0.075, 0]}]},
+    {"model": "boat", "pos": [37.5, -2.1, 186], "rot": 0, "period": 3.8, "phase": 1.7, "colliders": [{"size": [1.6, 0.75, 4.2], "offset": [0, 0.075, 0]}]},
+    {"model": "boat", "pos": [12.5, -2.1, 176], "rot": 0, "period": 3.1, "phase": 3.1, "colliders": [{"size": [1.6, 0.75, 4.2], "offset": [0, 0.075, 0]}]},
+    {"model": "barrel", "pos": [38.5, -2.6999999999999997, 169.5], "rot": 0, "amp": 0.06, "roll": 4.0, "period": 2.6, "phase": 0.0, "colliders": [{"size": [0.7, 0.7, 0.7], "offset": [0, 0.35, 0]}]},
+    {"model": "barrel", "pos": [38.5, -2.6999999999999997, 172.5], "rot": 0, "amp": 0.06, "roll": 4.0, "period": 2.8000000000000003, "phase": 1.1, "colliders": [{"size": [0.7, 0.7, 0.7], "offset": [0, 0.35, 0]}]},
+    {"model": "barrel", "pos": [38.5, -2.6999999999999997, 175.5], "rot": 0, "amp": 0.06, "roll": 4.0, "period": 3.0, "phase": 2.2, "colliders": [{"size": [0.7, 0.7, 0.7], "offset": [0, 0.35, 0]}]},
+    {"model": "barrel", "pos": [38.5, -2.6999999999999997, 178.5], "rot": 0, "amp": 0.06, "roll": 4.0, "period": 3.2, "phase": 3.3000000000000003, "colliders": [{"size": [0.7, 0.7, 0.7], "offset": [0, 0.35, 0]}]},
+    {"model": "barrel", "pos": [38.5, -2.6999999999999997, 181.5], "rot": 0, "amp": 0.06, "roll": 4.0, "period": 3.4000000000000004, "phase": 4.4, "colliders": [{"size": [0.7, 0.7, 0.7], "offset": [0, 0.35, 0]}]},
+    {"model": "buoy", "pos": [-40, -2.3, 215], "rot": 0, "amp": 0.08, "period": 2.9, "phase": -4.0},
+    {"model": "buoy", "pos": [-10, -2.3, 215], "rot": 0, "amp": 0.08, "period": 2.9, "phase": -1.0},
+    {"model": "buoy", "pos": [20, -2.3, 215], "rot": 0, "amp": 0.08, "period": 2.9, "phase": 2.0},
+    {"model": "buoy", "pos": [50, -2.3, 215], "rot": 0, "amp": 0.08, "period": 2.9, "phase": 5.0}
   ]
 }
 ```
@@ -17453,33 +18036,33 @@ if __name__ == "__main__":
     {"outline": true, "model": "box", "pos": [-32.02, 0, -37.8], "rot": 180},
     {"outline": true, "model": "box", "pos": [-32.02, 0.3, -37.8], "rot": 180},
     {"model": "lamp", "pos": [-46, 0, -24], "rot": 0},
-    {"model": "retaining_wall2", "pos": [23.5, 0, -40.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [27.5, 0, -40.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [31.5, 0, -40.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [35.5, 0, -40.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [39.5, 0, -40.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [43.5, 0, -40.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [47.5, 0, -40.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [50.5, 0, -40.45], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [23.5, 0, -13.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [35.5, 0, -13.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [39.5, 0, -13.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [43.5, 0, -13.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [47.5, 0, -13.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [50.5, 0, -13.55], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [21.5, 0, -38.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [21.5, 0, -34.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [21.5, 0, -30.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [21.5, 0, -22.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [21.5, 0, -18.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [21.55, 0, -15.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [52.5, 0, -38.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [52.5, 0, -34.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [52.5, 0, -30.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [52.5, 0, -26.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [52.5, 0, -22.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [52.5, 0, -18.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [52.45, 0, -15.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [23.5, 0.0, -40.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [27.5, 0.0, -40.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [31.5, 0.0, -40.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [35.5, 0.0, -40.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [39.5, 0.0, -40.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [43.5, 0.0, -40.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [47.5, 0.0, -40.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [50.5, 0.0, -40.45], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [23.5, 0.0, -13.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [35.5, 0.0, -13.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [39.5, 0.0, -13.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [43.5, 0.0, -13.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [47.5, 0.0, -13.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [50.5, 0.0, -13.55], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [21.5, 0.0, -38.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [21.5, 0.0, -34.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [21.5, 0.0, -30.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [21.5, 0.0, -22.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [21.5, 0.0, -18.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [21.55, 0.0, -15.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [52.5, 0.0, -38.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [52.5, 0.0, -34.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [52.5, 0.0, -30.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [52.5, 0.0, -26.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [52.5, 0.0, -22.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [52.5, 0.0, -18.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [52.45, 0.0, -15.5], "rot": 90, "snap": false},
     {"model": "terrace_stairs2", "pos": [30, 0, -11.0], "rot": 0},
     {"model": "ramp2", "pos": [17.711, 0, -27], "rot": -90},
     {"model": "sandbox", "pos": [32, 0, -31], "rot": 0},
@@ -17488,67 +18071,67 @@ if __name__ == "__main__":
     {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [27, 0, -22], "rot": 90},
     {"model": "lamp", "pos": [36, 0, -17], "rot": 0},
     {"model": "lamp", "pos": [49, 0, -37], "rot": 0},
-    {"model": "retaining_wall2", "pos": [-38.5, 0, -118.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [-34.5, 0, -118.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [-30.5, 0, -118.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [-26.5, 0, -118.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [-22.5, 0, -118.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [-18.5, 0, -118.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [-14.5, 0, -118.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [-10.5, 0, -118.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [-6.5, 0, -118.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [-2.5, 0, -118.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [1.5, 0, -118.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [5.5, 0, -118.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [9.5, 0, -118.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [13.5, 0, -118.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [17.5, 0, -118.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [21.5, 0, -118.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [25.5, 0, -118.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [29.5, 0, -118.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [33.5, 0, -118.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [37.5, 0, -118.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [38.5, 0, -118.45], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [-38.5, 0, -71.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [-34.5, 0, -71.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [-30.5, 0, -71.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [-26.5, 0, -71.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [-22.5, 0, -71.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [-18.5, 0, -71.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [-6.5, 0, -71.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [-2.5, 0, -71.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [1.5, 0, -71.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [5.5, 0, -71.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [9.5, 0, -71.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [13.5, 0, -71.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [21.5, 0, -71.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [25.5, 0, -71.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [29.5, 0, -71.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [33.5, 0, -71.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [37.5, 0, -71.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [38.5, 0, -71.55], "rot": 0, "snap": false},
-    {"model": "retaining_wall2", "pos": [-40.5, 0, -116.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [-40.5, 0, -112.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [-40.5, 0, -108.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [-40.5, 0, -104.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [-40.5, 0, -100.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [-40.5, 0, -96.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [-40.5, 0, -92.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [-40.5, 0, -88.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [-40.5, 0, -84.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [-40.5, 0, -80.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [-40.5, 0, -76.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [-40.45, 0, -73.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [40.5, 0, -116.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [40.5, 0, -112.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [40.5, 0, -108.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [40.5, 0, -104.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [40.5, 0, -100.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [40.5, 0, -88.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [40.5, 0, -84.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [40.5, 0, -80.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [40.5, 0, -76.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall2", "pos": [40.45, 0, -73.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [-38.5, 0.0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-34.5, 0.0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-30.5, 0.0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-26.5, 0.0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-22.5, 0.0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-18.5, 0.0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-14.5, 0.0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-10.5, 0.0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-6.5, 0.0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-2.5, 0.0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [1.5, 0.0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [5.5, 0.0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [9.5, 0.0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [13.5, 0.0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [17.5, 0.0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [21.5, 0.0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [25.5, 0.0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [29.5, 0.0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [33.5, 0.0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [37.5, 0.0, -118.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [38.5, 0.0, -118.45], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-38.5, 0.0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-34.5, 0.0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-30.5, 0.0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-26.5, 0.0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-22.5, 0.0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-18.5, 0.0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-6.5, 0.0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-2.5, 0.0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [1.5, 0.0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [5.5, 0.0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [9.5, 0.0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [13.5, 0.0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [21.5, 0.0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [25.5, 0.0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [29.5, 0.0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [33.5, 0.0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [37.5, 0.0, -71.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [38.5, 0.0, -71.55], "rot": 0, "snap": false},
+    {"model": "retaining_wall2", "pos": [-40.5, 0.0, -116.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [-40.5, 0.0, -112.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [-40.5, 0.0, -108.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [-40.5, 0.0, -104.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [-40.5, 0.0, -100.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [-40.5, 0.0, -96.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [-40.5, 0.0, -92.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [-40.5, 0.0, -88.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [-40.5, 0.0, -84.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [-40.5, 0.0, -80.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [-40.5, 0.0, -76.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [-40.45, 0.0, -73.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [40.5, 0.0, -116.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [40.5, 0.0, -112.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [40.5, 0.0, -108.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [40.5, 0.0, -104.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [40.5, 0.0, -100.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [40.5, 0.0, -88.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [40.5, 0.0, -84.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [40.5, 0.0, -80.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [40.5, 0.0, -76.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall2", "pos": [40.45, 0.0, -73.5], "rot": 90, "snap": false},
     {"model": "terrace_stairs2", "pos": [-12, 0, -69.0], "rot": 0},
     {"model": "terrace_stairs2", "pos": [18, 0, -69.0], "rot": 0},
     {"model": "ramp2", "pos": [44.289, 0, -95], "rot": 90},
@@ -17573,19 +18156,19 @@ if __name__ == "__main__":
     {"model": "lamp", "pos": [-10, 0, -85], "rot": 0},
     {"model": "lamp", "pos": [20, 0, -85], "rot": 0},
     {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [5, 0, -100], "rot": 0},
-    {"model": "retaining_wall1", "pos": [-25.5, 0, 14.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall1", "pos": [-21.5, 0, 14.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall1", "pos": [-17.5, 0, 14.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall1", "pos": [-14.5, 0, 14.55], "rot": 0, "snap": false},
-    {"model": "retaining_wall1", "pos": [-25.5, 0, 26.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall1", "pos": [-21.5, 0, 26.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall1", "pos": [-17.5, 0, 26.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall1", "pos": [-14.5, 0, 26.45], "rot": 0, "snap": false},
-    {"model": "retaining_wall1", "pos": [-27.5, 0, 16.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall1", "pos": [-27.5, 0, 20.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall1", "pos": [-27.5, 0, 24.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall1", "pos": [-12.5, 0, 16.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall1", "pos": [-12.5, 0, 24.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall1", "pos": [-25.5, 0.0, 14.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall1", "pos": [-21.5, 0.0, 14.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall1", "pos": [-17.5, 0.0, 14.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall1", "pos": [-14.5, 0.0, 14.55], "rot": 0, "snap": false},
+    {"model": "retaining_wall1", "pos": [-25.5, 0.0, 26.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall1", "pos": [-21.5, 0.0, 26.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall1", "pos": [-17.5, 0.0, 26.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall1", "pos": [-14.5, 0.0, 26.45], "rot": 0, "snap": false},
+    {"model": "retaining_wall1", "pos": [-27.5, 0.0, 16.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall1", "pos": [-27.5, 0.0, 20.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall1", "pos": [-27.5, 0.0, 24.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall1", "pos": [-12.5, 0.0, 16.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall1", "pos": [-12.5, 0.0, 24.5], "rot": 90, "snap": false},
     {"model": "terrace_stairs1", "pos": [-11.5, 0, 20], "rot": 90},
     {"colliders": [{"size": [0.9, 0.06, 0.9], "offset": [0, 0.72, 0]}, {"size": [0.5, 0.72, 0.5], "offset": [0, 0.36, 0]}], "model": "cafe_table", "pos": [-23, 0, 18]},
     {"colliders": [{"size": [0.9, 0.06, 0.9], "offset": [0, 0.72, 0]}, {"size": [0.5, 0.72, 0.5], "offset": [0, 0.36, 0]}], "model": "cafe_table", "pos": [-19, 0, 22]},
@@ -17911,6 +18494,8 @@ if __name__ == "__main__":
   ],
   "shore": [
   ],
+  "floaters": [
+  ],
   "shop": {"pos": [-4.5, 0, -1.5], "rot": 180},
   "road": {"points": [[-88, 0, 12], [88, 0, 12]]}
 }
@@ -18027,17 +18612,19 @@ def perimeter(rect, model="wall", length=6.0, sides="nswe", gaps=(), extra=None)
 	return out
 
 
-def terrace(rect, height, access=()):
+def terrace(rect, height, access=(), sides="nswe", gaps=(), ground=0.0, wall_h=None, level=None):
 	"""Терраса: элемент рельефа, подпорные стены на ячейке обрыва (снаружи rect), лестницы и пандусы.
 	access — [(сторона, центр вдоль стороны, "stairs" | "ramp")]. Возвращает (feature, props, blocked)."""
 	h = int(height)
 	assert h in (1, 2, 3) and all(float(v).is_integer() for v in rect), "терраса: высота 1–3 м, углы в целых метрах"
 	x0, z0, x1, z1 = rect
-	feature = {"type": "terrace", "rect": list(rect), "height": float(h)}
-	gaps = [(s, c, KIT_WIDTH + 0.8) for s, c, _ in access]
+	# height — подъём над окружением (стены, лестницы); level — абсолютная высота плато в terrain_gen (по умолчанию = height).
+	feature = {"type": "terrace", "rect": list(rect), "height": float(h if level is None else level)}
+	gaps = [(s, c, KIT_WIDTH + 0.8) for s, c, _ in access] + [tuple(g) for g in gaps]
 	props = []
 	half = WALL_THICK / 2
-	for w in perimeter([x0 - half, z0 - half, x1 + half, z1 + half], f"retaining_wall{h}", 4.0, "nswe", gaps):
+	for w in perimeter([x0 - half, z0 - half, x1 + half, z1 + half], f"retaining_wall{int(wall_h or h)}", 4.0, sides, gaps):
+		w["pos"][1] = ground   # подножие стены — абсолютная высота (у порта база рельефа −2)
 		w["rot"] = 0 if w["rot"] in (0, 180) else 90   # подпорная стена симметрична
 		w["snap"] = False
 		props.append(w)
@@ -18149,7 +18736,7 @@ def model_defaults(props):
 	return d
 
 
-LISTS = ("props", "hideouts", "spawn_points", "yarn", "hazards", "decals", "gates", "water_zones", "shore")
+LISTS = ("props", "hideouts", "spawn_points", "yarn", "hazards", "decals", "gates", "water_zones", "shore", "floaters")
 
 
 def generate(desc):
@@ -18163,7 +18750,10 @@ def generate(desc):
 	terrain = json.loads(json.dumps(desc["terrain"]))
 	terrain.setdefault("features", [])
 	terrain.setdefault("paint", [])
-	defaults = model_defaults(core.get("props", []))
+	sample = list(core.get("props", []))
+	for path in desc.get("defaults", []):   # районы без ядра берут флаги моделей из ядер других районов
+		sample += json.loads((ROOT / path).read_text()).get("props", [])
+	defaults = model_defaults(sample)
 	gen = {k: [] for k in LISTS}
 	blocked = [f for p in out["props"] for f in footprints(p)]
 
@@ -18184,7 +18774,8 @@ def generate(desc):
 		if t == "perimeter":
 			add("props", perimeter(op["rect"], op.get("model", "wall"), op.get("length", 6.0), op.get("sides", "nswe"), [tuple(g) for g in op.get("gaps", [])], op.get("extra")))
 		elif t == "terrace":
-			feature, props, bl = terrace(op["rect"], op["height"], [tuple(a) for a in op.get("access", [])])
+			feature, props, bl = terrace(op["rect"], op["height"], [tuple(a) for a in op.get("access", [])],
+				op.get("sides", "nswe"), [tuple(g) for g in op.get("gaps", [])], op.get("ground", 0.0), op.get("wall_h"), op.get("level"))
 			terrain["features"].append(feature)
 			add("props", props)
 			blocked.extend(bl)
@@ -18198,6 +18789,13 @@ def generate(desc):
 			add("water_zones", [water])
 			add("shore", shore)
 			blocked.append(bl)
+		elif t == "flat":
+			terrain["features"].append({"type": "flat", "rect": op["rect"], "height": op["height"]})
+		elif t == "water":
+			x0, z0, x1, z1 = op["rect"]
+			add("water_zones", [{"pos": [(x0 + x1) / 2, op["level"], (z0 + z1) / 2], "size": [x1 - x0, op.get("depth", 2.0), z1 - z0]}])
+			add("shore", [dict(m) if isinstance(m, dict) else {"pos": list(m)} for m in op.get("shore", [])])   # словарь — с флагами (snap)
+			# Прямоугольник воды не закрывается для россыпи: над ним бывает суша (причал); россыпи задаются по суше.
 		elif t == "hill":
 			terrain["features"].append({"type": "hill", "center": op["center"], "radius": op["radius"], "height": op["height"]})
 		elif t == "paint":
@@ -18427,6 +19025,39 @@ class Primitives(unittest.TestCase):
 		self.assertEqual(len(layout["shore"]), 8)
 		self.assertEqual(terrain["features"][0]["type"], "basin")
 
+	def test_terrace_walls_only_on_given_sides(self):
+		# План 13: набережная — стена только к пляжу (сторона «s»), проём под причал.
+		_, props, _ = lg.terrace([0, 0, 40, 20], 2, sides="s", gaps=[("s", 30, 10)])
+		walls = [p for p in props if p["model"] == "retaining_wall2"]
+		self.assertTrue(walls)
+		self.assertTrue(all(abs(w["pos"][2] - 20.5) < 0.1 for w in walls), "только сторона s")
+		self.assertFalse(any(25 < w["pos"][0] < 35 for w in walls), "проём под причал")
+
+	def test_flat_and_water_ops(self):
+		d = {"name": "t", "terrain": DESC["terrain"], "zones": [{"name": "z", "ops": [
+			{"type": "flat", "rect": [-10, 0, 10, 20], "height": -3.5},
+			{"type": "water", "rect": [-10, 0, 10, 20], "level": -2.3, "shore": [[0, 0, -2], [5, 0, -2]]}]}]}
+		layout, terrain = lg.generate(d)
+		self.assertEqual(terrain["features"][0], {"type": "flat", "rect": [-10, 0, 10, 20], "height": -3.5})
+		self.assertEqual(layout["water_zones"], [{"pos": [0.0, -2.3, 10.0], "size": [20, 2.0, 20]}])
+		self.assertEqual([m["pos"] for m in layout["shore"]], [[0, 0, -2], [5, 0, -2]])
+
+	def test_terrace_wall_ground_and_height(self):
+		# Порт: база рельефа −2, набережная +2 — стены от −2,3 высотой 3 дают парапет 0,7 над набережной.
+		_, props, _ = lg.terrace([0, 0, 8, 8], 2, sides="s", ground=-2.3, wall_h=3)
+		walls = [p for p in props if p["model"].startswith("retaining_wall")]
+		self.assertTrue(walls)
+		self.assertTrue(all(w["model"] == "retaining_wall3" and w["pos"][1] == -2.3 for w in walls))
+		feature, _, _ = lg.terrace([0, 0, 8, 8], 2, sides="s", ground=-2.3, wall_h=3, level=0.0)
+		self.assertEqual(feature["height"], 0.0, "плато на абсолютной высоте 0 при базе −2")
+
+	def test_defaults_from_other_cores(self):
+		# У порта нет ядра — флаги моделей (коллайдеры скамьи, бака, зонта) берутся из ядер двора и парка.
+		d = {"name": "t", "terrain": DESC["terrain"], "defaults": ["data/layout_src/park_core.json", "data/layout_src/yard_core.json"],
+			"zones": [{"name": "z", "ops": [{"type": "place", "props": [{"model": "bin", "pos": [0, 0, 0]}, {"model": "umbrella", "pos": [5, 0, 5]}]}]}]}
+		layout, _ = lg.generate(d)
+		self.assertTrue(all("colliders" in p for p in layout["props"]))
+
 	def test_kit_constants_match_world_builder(self):
 		src = (ROOT / "scripts/world/world_builder.gd").read_text()
 		for name, val in (("KIT_STEP_RISE", lg.KIT_RISE), ("KIT_STEP_TREAD", lg.KIT_TREAD), ("KIT_RAMP_DEG", lg.KIT_RAMP_DEG), ("KIT_WIDTH", lg.KIT_WIDTH)):
@@ -18609,7 +19240,34 @@ class Generate(unittest.TestCase):
         ]
        }
       ]
-     }
+     },
+     "gaps": [
+      [
+       "s",
+       -6,
+       1.0
+      ]
+     ]
+    },
+    {
+     "type": "place",
+     "gates": [
+      {
+       "pos": [
+        -6,
+        0,
+        125
+       ],
+       "rot": 0,
+       "size": [
+        2.2,
+        2.6,
+        0.3
+       ],
+       "satiety": 50,
+       "label": "Ворота в порт открыты!"
+      }
+     ]
     }
    ]
   },
@@ -21132,6 +21790,1213 @@ class Generate(unittest.TestCase):
   }
  ],
  "note": "Ядро парка ×3: прежний парк 30×32 без боковых и северного заборов (план 12)."
+}
+```
+
+## `data/layout_src/port.json`
+
+```json
+{
+ "name": "port",
+ "seed": 13,
+ "defaults": [
+  "data/layout_src/park_core.json",
+  "data/layout_src/yard_core.json"
+ ],
+ "note": "Порт (этап 3, спек порта и масштаба): набережная на террасе, причал ниже, пляж с дюнами, море и гавань, лодки и бочки.",
+ "terrain": {
+  "size": [
+   120,
+   102
+  ],
+  "origin": [
+   -60,
+   125
+  ],
+  "cell": 1.0,
+  "base": -2.0,
+  "channels": [
+   "stone",
+   "sand",
+   "planks",
+   "grass"
+  ],
+  "default": "sand",
+  "features": [],
+  "paint": []
+ },
+ "counts": {
+  "spawn_points": 35,
+  "yarn": 25,
+  "hideouts": 14
+ },
+ "zones": [
+  {
+   "name": "море и гавань",
+   "ops": [
+    {
+     "type": "flat",
+     "rect": [
+      -60,
+      195,
+      60,
+      227
+     ],
+     "height": -3.5
+    },
+    {
+     "type": "flat",
+     "rect": [
+      10,
+      148,
+      60,
+      195
+     ],
+     "height": -3.5
+    },
+    {
+     "type": "water",
+     "rect": [
+      -60,
+      195,
+      60,
+      227
+     ],
+     "level": -2.3,
+     "shore": [
+      [
+       -55,
+       0,
+       192
+      ],
+      [
+       -45,
+       0,
+       192
+      ],
+      [
+       -35,
+       0,
+       192
+      ],
+      [
+       -25,
+       0,
+       192
+      ],
+      [
+       -15,
+       0,
+       192
+      ],
+      [
+       -5,
+       0,
+       192
+      ],
+      [
+       5,
+       0,
+       192
+      ]
+     ]
+    },
+    {
+     "type": "water",
+     "rect": [
+      10,
+      148,
+      60,
+      195
+     ],
+     "level": -2.3,
+     "shore": [
+      [
+       25,
+       0,
+       155
+      ],
+      [
+       25,
+       0,
+       165
+      ],
+      [
+       25,
+       0,
+       175
+      ],
+      [
+       25,
+       0,
+       185
+      ],
+      [
+       25,
+       0,
+       195
+      ],
+      [
+       25,
+       0,
+       205
+      ],
+      [
+       40,
+       0,
+       145
+      ],
+      [
+       50,
+       0,
+       145
+      ],
+      [
+       57,
+       0,
+       145
+      ]
+     ]
+    },
+    {
+     "type": "place",
+     "floaters": [
+      {
+       "model": "boat",
+       "pos": [
+        37.5,
+        -2.1,
+        165
+       ],
+       "rot": 0,
+       "period": 3.4,
+       "phase": 0.0,
+       "colliders": [
+        {
+         "size": [
+          1.6,
+          0.75,
+          4.2
+         ],
+         "offset": [
+          0,
+          0.075,
+          0
+         ]
+        }
+       ]
+      },
+      {
+       "model": "boat",
+       "pos": [
+        37.5,
+        -2.1,
+        186
+       ],
+       "rot": 0,
+       "period": 3.8,
+       "phase": 1.7,
+       "colliders": [
+        {
+         "size": [
+          1.6,
+          0.75,
+          4.2
+         ],
+         "offset": [
+          0,
+          0.075,
+          0
+         ]
+        }
+       ]
+      },
+      {
+       "model": "boat",
+       "pos": [
+        12.5,
+        -2.1,
+        176
+       ],
+       "rot": 0,
+       "period": 3.1,
+       "phase": 3.1,
+       "colliders": [
+        {
+         "size": [
+          1.6,
+          0.75,
+          4.2
+         ],
+         "offset": [
+          0,
+          0.075,
+          0
+         ]
+        }
+       ]
+      },
+      {
+       "model": "barrel",
+       "pos": [
+        38.5,
+        -2.6999999999999997,
+        169.5
+       ],
+       "rot": 0,
+       "amp": 0.06,
+       "roll": 4.0,
+       "period": 2.6,
+       "phase": 0.0,
+       "colliders": [
+        {
+         "size": [
+          0.7,
+          0.7,
+          0.7
+         ],
+         "offset": [
+          0,
+          0.35,
+          0
+         ]
+        }
+       ]
+      },
+      {
+       "model": "barrel",
+       "pos": [
+        38.5,
+        -2.6999999999999997,
+        172.5
+       ],
+       "rot": 0,
+       "amp": 0.06,
+       "roll": 4.0,
+       "period": 2.8000000000000003,
+       "phase": 1.1,
+       "colliders": [
+        {
+         "size": [
+          0.7,
+          0.7,
+          0.7
+         ],
+         "offset": [
+          0,
+          0.35,
+          0
+         ]
+        }
+       ]
+      },
+      {
+       "model": "barrel",
+       "pos": [
+        38.5,
+        -2.6999999999999997,
+        175.5
+       ],
+       "rot": 0,
+       "amp": 0.06,
+       "roll": 4.0,
+       "period": 3.0,
+       "phase": 2.2,
+       "colliders": [
+        {
+         "size": [
+          0.7,
+          0.7,
+          0.7
+         ],
+         "offset": [
+          0,
+          0.35,
+          0
+         ]
+        }
+       ]
+      },
+      {
+       "model": "barrel",
+       "pos": [
+        38.5,
+        -2.6999999999999997,
+        178.5
+       ],
+       "rot": 0,
+       "amp": 0.06,
+       "roll": 4.0,
+       "period": 3.2,
+       "phase": 3.3000000000000003,
+       "colliders": [
+        {
+         "size": [
+          0.7,
+          0.7,
+          0.7
+         ],
+         "offset": [
+          0,
+          0.35,
+          0
+         ]
+        }
+       ]
+      },
+      {
+       "model": "barrel",
+       "pos": [
+        38.5,
+        -2.6999999999999997,
+        181.5
+       ],
+       "rot": 0,
+       "amp": 0.06,
+       "roll": 4.0,
+       "period": 3.4000000000000004,
+       "phase": 4.4,
+       "colliders": [
+        {
+         "size": [
+          0.7,
+          0.7,
+          0.7
+         ],
+         "offset": [
+          0,
+          0.35,
+          0
+         ]
+        }
+       ]
+      },
+      {
+       "model": "buoy",
+       "pos": [
+        -40,
+        -2.3,
+        215
+       ],
+       "rot": 0,
+       "amp": 0.08,
+       "period": 2.9,
+       "phase": -4.0
+      },
+      {
+       "model": "buoy",
+       "pos": [
+        -10,
+        -2.3,
+        215
+       ],
+       "rot": 0,
+       "amp": 0.08,
+       "period": 2.9,
+       "phase": -1.0
+      },
+      {
+       "model": "buoy",
+       "pos": [
+        20,
+        -2.3,
+        215
+       ],
+       "rot": 0,
+       "amp": 0.08,
+       "period": 2.9,
+       "phase": 2.0
+      },
+      {
+       "model": "buoy",
+       "pos": [
+        50,
+        -2.3,
+        215
+       ],
+       "rot": 0,
+       "amp": 0.08,
+       "period": 2.9,
+       "phase": 5.0
+      }
+     ],
+     "spawn_points": [
+      {
+       "pos": [
+        37.5,
+        -1.55,
+        164
+       ],
+       "allowed": [
+        1
+       ],
+       "foods": [
+        "squid"
+       ],
+       "snap": false
+      },
+      {
+       "pos": [
+        12.5,
+        -1.55,
+        177
+       ],
+       "allowed": [
+        1
+       ],
+       "foods": [
+        "squid",
+        "fish_sandwich"
+       ],
+       "snap": false
+      },
+      {
+       "pos": [
+        37.5,
+        -1.55,
+        187
+       ],
+       "allowed": [
+        2
+       ],
+       "foods": [
+        "sushi"
+       ],
+       "snap": false
+      }
+     ],
+     "yarn": [
+      {
+       "pos": [
+        37.5,
+        -1.55,
+        166.5
+       ],
+       "snap": false
+      },
+      {
+       "pos": [
+        12.5,
+        -1.55,
+        174.5
+       ],
+       "snap": false
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "причал",
+   "ops": [
+    {
+     "type": "terrace",
+     "rect": [
+      15,
+      148,
+      35,
+      212
+     ],
+     "height": 1,
+     "sides": "swe",
+     "ground": -2.3,
+     "wall_h": 2,
+     "gaps": [
+      [
+       "e",
+       165,
+       1.0
+      ],
+      [
+       "e",
+       186,
+       1.0
+      ],
+      [
+       "w",
+       176,
+       1.0
+      ]
+     ],
+     "level": -1.0
+    },
+    {
+     "type": "paint",
+     "rect": [
+      15,
+      148,
+      35,
+      212
+     ],
+     "surface": "planks"
+    },
+    {
+     "type": "place",
+     "props": [
+      {
+       "model": "terrace_stairs1",
+       "pos": [
+        25,
+        0,
+        149.5
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bollard",
+       "pos": [
+        16,
+        0,
+        160
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bollard",
+       "pos": [
+        16,
+        0,
+        180
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bollard",
+       "pos": [
+        16,
+        0,
+        200
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bollard",
+       "pos": [
+        34,
+        0,
+        160
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bollard",
+       "pos": [
+        34,
+        0,
+        180
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bollard",
+       "pos": [
+        34,
+        0,
+        200
+       ],
+       "rot": 0
+      }
+     ]
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "box",
+     "rect": [
+      16,
+      150,
+      34,
+      210
+     ],
+     "count": 4,
+     "rot": "random",
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      16,
+      150,
+      34,
+      210
+     ],
+     "count": 8,
+     "allowed": [
+      0,
+      1,
+      2
+     ],
+     "foods": [
+      "shrimp",
+      "fries",
+      "squid",
+      "fish_sandwich",
+      "sushi"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      16,
+      150,
+      34,
+      210
+     ],
+     "count": 6,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "box",
+     "rect": [
+      16,
+      150,
+      34,
+      210
+     ],
+     "count": 4,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "набережная",
+   "ops": [
+    {
+     "type": "terrace",
+     "rect": [
+      -60,
+      125,
+      60,
+      148
+     ],
+     "height": 2,
+     "sides": "s",
+     "ground": -2.3,
+     "wall_h": 3,
+     "gaps": [
+      [
+       "s",
+       25,
+       1.0
+      ]
+     ],
+     "access": [
+      [
+       "s",
+       -40,
+       "stairs"
+      ],
+      [
+       "s",
+       -15,
+       "stairs"
+      ],
+      [
+       "s",
+       2,
+       "ramp"
+      ]
+     ],
+     "level": 0.0
+    },
+    {
+     "type": "paint",
+     "rect": [
+      -60,
+      125,
+      60,
+      148.5
+     ],
+     "surface": "stone"
+    },
+    {
+     "type": "perimeter",
+     "rect": [
+      -60,
+      125,
+      60,
+      148
+     ],
+     "model": "fence",
+     "length": 2.0,
+     "sides": "we",
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         2.0,
+         1.8,
+         0.12
+        ],
+        "offset": [
+         0,
+         0.9,
+         0
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "type": "place",
+     "props": [
+      {
+       "model": "lamp",
+       "pos": [
+        -50,
+        0,
+        146
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        -30,
+        0,
+        146
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        -10,
+        0,
+        146
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        10,
+        0,
+        146
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        30,
+        0,
+        146
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        50,
+        0,
+        146
+       ],
+       "rot": 0
+      },
+      {
+       "model": "kiosk",
+       "pos": [
+        -30,
+        0,
+        131
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bin",
+       "pos": [
+        -27,
+        0,
+        131
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bin",
+       "pos": [
+        12,
+        0,
+        131
+       ],
+       "rot": 0
+      },
+      {
+       "model": "barrel",
+       "pos": [
+        44,
+        0,
+        132
+       ],
+       "rot": 0,
+       "colliders": [
+        {
+         "size": [
+          0.7,
+          0.7,
+          0.7
+         ],
+         "offset": [
+          0,
+          0.35,
+          0
+         ]
+        }
+       ]
+      },
+      {
+       "model": "barrel",
+       "pos": [
+        -48,
+        0,
+        140
+       ],
+       "rot": 0,
+       "colliders": [
+        {
+         "size": [
+          0.7,
+          0.7,
+          0.7
+         ],
+         "offset": [
+          0,
+          0.35,
+          0
+         ]
+        }
+       ]
+      }
+     ],
+     "hideouts": [
+      {
+       "kind": "barrel",
+       "pos": [
+        44,
+        0.2,
+        132.75
+       ],
+       "size": [
+        0.6,
+        0.4,
+        0.6
+       ]
+      },
+      {
+       "kind": "barrel",
+       "pos": [
+        -48,
+        0.2,
+        140.75
+       ],
+       "size": [
+        0.6,
+        0.4,
+        0.6
+       ]
+      }
+     ],
+     "spawn_points": [
+      {
+       "pos": [
+        -30,
+        0,
+        133.6
+       ],
+       "allowed": [
+        0
+       ],
+       "foods": [
+        "fries"
+       ]
+      }
+     ]
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bench",
+     "rect": [
+      -58,
+      127,
+      58,
+      145
+     ],
+     "count": 4,
+     "rot": 0,
+     "min_dist": 6.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      -58,
+      127,
+      58,
+      145
+     ],
+     "count": 11,
+     "allowed": [
+      0,
+      1
+     ],
+     "foods": [
+      "shrimp",
+      "fries",
+      "squid",
+      "fish_sandwich"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      -58,
+      127,
+      58,
+      145
+     ],
+     "count": 6,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "box",
+     "rect": [
+      -58,
+      127,
+      58,
+      145
+     ],
+     "count": 3,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "bench",
+     "rect": [
+      -58,
+      127,
+      58,
+      145
+     ],
+     "count": 2,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "пляж",
+   "ops": [
+    {
+     "type": "hill",
+     "center": [
+      -45,
+      160
+     ],
+     "radius": 5,
+     "height": 0.8
+    },
+    {
+     "type": "hill",
+     "center": [
+      -20,
+      158
+     ],
+     "radius": 4,
+     "height": 0.6
+    },
+    {
+     "type": "hill",
+     "center": [
+      -52,
+      182
+     ],
+     "radius": 5,
+     "height": 0.7
+    },
+    {
+     "type": "perimeter",
+     "rect": [
+      -60,
+      148,
+      60,
+      195
+     ],
+     "model": "fence",
+     "length": 2.0,
+     "sides": "w",
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         2.0,
+         1.8,
+         0.12
+        ],
+        "offset": [
+         0,
+         0.9,
+         0
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "type": "place",
+     "props": [
+      {
+       "model": "boat_upturned",
+       "pos": [
+        -8,
+        0,
+        170
+       ],
+       "rot": 30,
+       "colliders": [
+        {
+         "size": [
+          1.6,
+          0.12,
+          4.2
+         ],
+         "offset": [
+          0,
+          0.6,
+          0
+         ]
+        },
+        {
+         "size": [
+          0.12,
+          0.6,
+          4.2
+         ],
+         "offset": [
+          -0.74,
+          0.3,
+          0
+         ]
+        },
+        {
+         "size": [
+          0.12,
+          0.6,
+          4.2
+         ],
+         "offset": [
+          0.74,
+          0.3,
+          0
+         ]
+        }
+       ]
+      }
+     ],
+     "hideouts": [
+      {
+       "kind": "boat",
+       "pos": [
+        -8,
+        0.2,
+        170
+       ],
+       "rot": 30,
+       "size": [
+        1.2,
+        0.4,
+        3.6
+       ]
+      }
+     ]
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "deckchair",
+     "rect": [
+      -58,
+      153,
+      8,
+      192
+     ],
+     "count": 6,
+     "rot": "random",
+     "min_dist": 4.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "umbrella",
+     "rect": [
+      -58,
+      153,
+      8,
+      192
+     ],
+     "count": 4,
+     "rot": "random",
+     "min_dist": 5.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      -58,
+      153,
+      8,
+      192
+     ],
+     "count": 12,
+     "allowed": [
+      0,
+      1
+     ],
+     "foods": [
+      "shrimp",
+      "fries",
+      "squid",
+      "fish_sandwich"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      -58,
+      153,
+      8,
+      192
+     ],
+     "count": 11,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "box",
+     "rect": [
+      -58,
+      153,
+      8,
+      192
+     ],
+     "count": 2,
+     "min_dist": 3.0
+    }
+   ]
+  }
+ ]
 }
 ```
 
