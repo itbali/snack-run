@@ -5,7 +5,7 @@
 Отступы в GDScript и Makefile — табы; в Python проекта — тоже табы, кроме
 `palette.py` и тестов Blender (пробелы). Копировать как есть.
 
-Файлов: 283
+Файлов: 300
 
 ## `CLAUDE.md`
 
@@ -79,7 +79,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 - `scripts/autoload/game_state.gd` — сердечки, зубы (3), сытость, альбом, цель сессии; сигналы `cat_hit`, `cat_fainted` и др. В тестах `GameState.reset()` в `before_each`.
 - `scripts/core/` (`Layers`, `Rarity`), `scripts/food/` (`FoodDef`, `FoodCatalog`, `FoodPickup`, `FoodSpawnPoint`), `data/food/*.tres`.
 - `scripts/hideouts/hideout.gd`, `scripts/world/world_builder.gd` (двор из `data/layout/yard.json`), `scripts/world/spill_spawner.gd`.
-- `scripts/hazards/`: `perception.gd`, `chase_brain.gd` (чистые), `hazard_base.gd`, `dog.gd`, `wasp.gd`, `cyclist.gd`; парк: `sprinkler.gd`, `pigeon_flock.gd`, `park_person.gd` → `gardener.gd`, `kid.gd`, `guard.gd`; модели людей `tools/blender/human.py`, голубя `pigeon.py`.
+- `scripts/hazards/`: `perception.gd`, `chase_brain.gd` (чистые), `hazard_base.gd`, `dog.gd`, `wasp.gd`, `cyclist.gd`; парк: `sprinkler.gd`, `pigeon_flock.gd`, `park_person.gd` → `gardener.gd`, `kid.gd`, `guard.gd`; порт: `gull.gd`, `wave.gd`, `forklift.gd`, `crab.gd` (`third_party/crab_methodicalpixel/`); модели людей `tools/blender/human.py`, голубя `pigeon.py`.
 - `scripts/ui/hud.gd` + `scenes/ui/hud.tscn`; экраны `shop_menu.gd`, `album_menu.gd`, `pause_menu.gd`, `title.gd` (главная сцена `scenes/ui/title.tscn`), `menu_input.gd` (опрос клавиш меню, работает на паузе).
 - `scripts/core/shop_item.gd`, `shop_catalog.gd`, `cat_skin.gd`, `skin_catalog.gd`; данные `data/shop/*.tres`, `data/skins/*.tres`.
 - `scripts/autoload/save_game.gd` — JSON в `user://save.json`, пишет только по `save_now()` из `Main`; в тестах с `Main` путь переопределяется.
@@ -150,9 +150,11 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 
 **План 13:** высота террасы в `terrain_gen` абсолютная (в генераторе раскладки — `level`); имена одинаковых узлов давать с номером; кадр альбома — `++ --album`.
 
+**План 14:** отладочные ключи (`--screenshot/--at/--phase/--album`) включают `SaveGame.read_only` — кадры не трогают сохранение; маленькие опасности (краб) без слоя столкновений; у Area3D проверять `get_overlapping_bodies` при старте движения.
+
 ## Статус и что дальше
 
-- Планы 10 «Рельеф», 11 «Двор ×3», 12 «Парк ×3, вода» и 13 «Порт» выполнены 2026-10-09 (спек `2026-10-09-snack-run-scale-terrain-design.md`). Дальше планы 14 (опасности порта) и 15 (рыбалка); владелец: делать подряд, не ждать его оценки.
+- Планы 10 «Рельеф», 11 «Двор ×3», 12 «Парк ×3, вода», 13 «Порт» и 14 «Опасности порта» выполнены 2026-10-09 (спек `2026-10-09-snack-run-scale-terrain-design.md`). Дальше план 15 (рыбалка); владелец: делать подряд, не ждать его оценки.
 - Планы 1–9 выполнены и слиты в `main`: фундамент, игровой цикл, хаб и прогрессия, полировка, визуальная полировка, текстуры крупных поверхностей, этап 2 (сутки, парк, опасности парка). Отложенные мелочи — в дорожной карте.
 - Отложено по просьбе владельца: текстуры пропсов («потом вернёмся к текстурам»).
 - Открытый вопрос владельцу: лицензия весов UniMate для сгенерированных движений (код MIT, для весов явной лицензии не найдено).
@@ -388,6 +390,40 @@ shape = SubResource("shape")
 [node name="Visual" type="Node3D" parent="."]
 ```
 
+## `scenes/hazards/crab.tscn`
+
+```
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/hazards/crab.gd" id="1"]
+[ext_resource type="PackedScene" path="res://assets/models/crab.glb" id="2"]
+[ext_resource type="PackedScene" path="res://assets/models/burrow.glb" id="3"]
+
+[sub_resource type="SphereShape3D" id="body"]
+radius = 0.15
+
+[sub_resource type="BoxShape3D" id="hit"]
+size = Vector3(0.5, 0.4, 0.5)
+
+[node name="Crab" type="CharacterBody3D"]
+script = ExtResource("1")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0)
+shape = SubResource("body")
+
+[node name="Model" parent="." instance=ExtResource("2")]
+
+[node name="Burrow" parent="." instance=ExtResource("3")]
+top_level = true
+
+[node name="HitZone" type="Area3D" parent="."]
+
+[node name="Shape" type="CollisionShape3D" parent="HitZone"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+shape = SubResource("hit")
+```
+
 ## `scenes/hazards/cyclist.tscn`
 
 ```
@@ -438,6 +474,29 @@ shape = SubResource("body")
 
 [node name="Shape" type="CollisionShape3D" parent="HitZone"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+shape = SubResource("hit")
+```
+
+## `scenes/hazards/forklift.tscn`
+
+```
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/hazards/forklift.gd" id="1"]
+[ext_resource type="PackedScene" path="res://assets/models/forklift.glb" id="2"]
+
+[sub_resource type="BoxShape3D" id="hit"]
+size = Vector3(1.3, 1.2, 3.0)
+
+[node name="Forklift" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Model" parent="." instance=ExtResource("2")]
+
+[node name="HitZone" type="Area3D" parent="."]
+
+[node name="Shape" type="CollisionShape3D" parent="HitZone"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0.2)
 shape = SubResource("hit")
 ```
 
@@ -501,6 +560,37 @@ shape = SubResource("body")
 [node name="Shape" type="CollisionShape3D" parent="HitZone"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
 shape = SubResource("hit")
+```
+
+## `scenes/hazards/gull.tscn`
+
+```
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/hazards/gull.gd" id="1"]
+[ext_resource type="PackedScene" path="res://assets/models/gull.glb" id="2"]
+
+[sub_resource type="CylinderMesh" id="shadow"]
+top_radius = 0.5
+bottom_radius = 0.5
+height = 0.02
+radial_segments = 16
+
+[sub_resource type="StandardMaterial3D" id="shadow_mat"]
+transparency = 1
+shading_mode = 0
+albedo_color = Color(0.22, 0.25, 0.32, 0.55)
+
+[node name="Gull" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Model" parent="." instance=ExtResource("2")]
+
+[node name="Shadow" type="MeshInstance3D" parent="."]
+top_level = true
+visible = false
+mesh = SubResource("shadow")
+surface_material_override/0 = SubResource("shadow_mat")
 ```
 
 ## `scenes/hazards/kid.tscn`
@@ -590,6 +680,17 @@ script = ExtResource("1")
 [node name="Shape" type="CollisionShape3D" parent="HitZone"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.25, 0)
 shape = SubResource("hit")
+```
+
+## `scenes/hazards/wave.tscn`
+
+```
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/hazards/wave.gd" id="1"]
+
+[node name="Wave" type="Node3D"]
+script = ExtResource("1")
 ```
 
 ## `scenes/hideouts/hideout.tscn`
@@ -1259,7 +1360,21 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, -0.2)
 extends Node
 ## Инструменты разработчика. Запуск: godot --path . ++ --screenshot=build/shot.png
 
+const DEV_ARGS := ["--screenshot=", "--at=", "--phase=", "--album"]
+
+
+static func is_dev_run(args: PackedStringArray) -> bool:
+	## Отладочный запуск: кадры и перенос кота не должны собирать клубочки в настоящее сохранение владельца.
+	for a in args:
+		for d in DEV_ARGS:
+			if a.begins_with(d):
+				return true
+	return false
+
+
 func _ready() -> void:
+	if is_dev_run(OS.get_cmdline_user_args()):
+		SaveGame.read_only = true
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--phase="):
 			_set_phase_later(DayCycle.parse_time(arg.trim_prefix("--phase=")))
@@ -1471,6 +1586,18 @@ func take_hit() -> bool:
 	hearts = maxi(hearts - 1, 0)
 	hearts_changed.emit(hearts, max_hearts)
 	cat_hit.emit(spilled)
+	if hearts == 0:
+		cat_fainted.emit()
+		return true
+	return false
+
+
+func peck() -> bool:
+	## Чайка: сердечко минус одно, последняя еда унесена (food_stolen), остальное в зубах не рассыпается (спек порта).
+	steal_last()
+	hearts = maxi(hearts - 1, 0)
+	hearts_changed.emit(hearts, max_hearts)
+	cat_hit.emit([] as Array[FoodDef])
 	if hearts == 0:
 		cat_fainted.emit()
 		return true
@@ -1707,9 +1834,12 @@ extends Node
 const VERSION := 1
 
 var path := "user://save.json"
+var read_only := false   # отладочные запуски (кадры, --at) не трогают настоящее сохранение (план 14)
 
 
 func save_now() -> bool:
+	if read_only:
+		return false
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f == null:
 		push_warning("не удалось открыть %s для записи" % path)
@@ -1757,9 +1887,12 @@ const STREAMS := {
 	&"sprinkle": "res://assets/sfx/sprinkle.wav",
 	&"coo": "res://assets/sfx/coo.wav",
 	&"splash": "res://assets/sfx/splash.wav",
+	&"gull": "res://assets/sfx/gull.wav",
+	&"wave": "res://assets/sfx/wave.wav",
+	&"horn": "res://assets/sfx/horn.wav",
 }
 const POOL := 6
-const VOLUME_DB := {&"bark": -4.0, &"bell": -2.0, &"meow": -3.0, &"hiss": -6.0, &"sprinkle": -6.0, &"coo": -4.0, &"splash": -3.0}
+const VOLUME_DB := {&"bark": -4.0, &"bell": -2.0, &"meow": -3.0, &"hiss": -6.0, &"sprinkle": -6.0, &"coo": -4.0, &"splash": -3.0, &"gull": -5.0, &"wave": -6.0, &"horn": -6.0}
 
 var enabled := true
 var last_played: StringName = &""
@@ -2332,6 +2465,118 @@ func update(delta: float, sees_cat: bool, cat_hidden: bool, at_home: bool, cat_s
 	return state
 ```
 
+## `scripts/hazards/crab.gd`
+
+```gdscript
+class_name Crab
+extends HazardBase
+## Краб (спек порта, раздел 3): сидит в норке; кот ближе 3 м (ночью 4 м) — вылезает и бежит боком 2,4 м/с; прыжок кота над
+## ним или 5 с погони — прячется в норку на 6 с. Касание — щипок (удар).
+
+const NOTICE := 3.0
+const NOTICE_NIGHT := 4.0
+const CHASE_MAX := 5.0
+const HIDE_TIME := 6.0
+
+
+static func decide(state: StringName, dist: float, cat_above: bool, chase_t: float, hide_left: float, night: bool) -> StringName:
+	match state:
+		&"burrow":
+			return &"chase" if dist < (NOTICE_NIGHT if night else NOTICE) else &"burrow"
+		&"chase":
+			return &"hide" if cat_above or chase_t >= CHASE_MAX else &"chase"
+		&"hide":
+			return &"hide" if hide_left > 0.0 else &"burrow"
+	return state
+
+const SPEED := 2.4
+const ABOVE := 0.25
+
+var state: StringName = &"burrow"
+var night_only := false
+var _chase_t := 0.0
+var _hide_left := 0.0
+
+@onready var _model: Node3D = $Model
+@onready var _burrow: Node3D = $Burrow
+@onready var _anim: AnimationPlayer = $Model.find_child("AnimationPlayer", true, false)
+
+
+func configure(hz: Dictionary, _builder: Node3D) -> void:
+	night_only = bool(hz.get("night_only", false))
+
+
+func _ready() -> void:
+	super()
+	walk_speed = SPEED
+	Toon.apply(_model, Toon.OUTLINE_CHARACTER, true)
+	for clip in ["idle", "walk"]:
+		if _anim and _anim.has_animation(clip):
+			_anim.get_animation(clip).loop_mode = Animation.LOOP_LINEAR
+	_set_out(false)
+
+
+func _set_out(out: bool) -> void:
+	## В норке краба не видно и он не мешает и не щиплет.
+	_model.visible = out
+	collision_layer = 0   # маленький краб не твёрдый: иначе он толкает кота телом (щипок — через HitZone)
+	hit_zone.monitoring = out
+
+
+func _physics_process(delta: float) -> void:
+	_ensure_home()
+	_burrow.global_position = home
+	var night := DayNight.is_night(get_tree())
+	var c := _find_cat()
+	var dist := 99.0
+	var above := false
+	if c and not bool(c.get("hidden")) and not bool(c.get("in_safe_zone")):
+		var d := c.global_position - global_position
+		dist = Vector2(d.x, d.z).length()
+		above = d.y > ABOVE and dist < 0.5
+	if night_only and not night and state == &"burrow":
+		return   # ночной краб днём сидит в норке
+	var watch := dist   # из норки краб сторожит округу норки, в погоне — меряет до кота
+	if state == &"burrow" and c:
+		watch = Vector2(c.global_position.x - home.x, c.global_position.z - home.z).length()
+	var next := decide(state, watch, above, _chase_t, _hide_left, night)
+	if next != state:
+		if next == &"chase":
+			_chase_t = 0.0
+			_set_out(true)
+		elif next == &"hide":
+			_hide_left = HIDE_TIME
+		elif next == &"burrow":
+			global_position = home
+			_set_out(false)
+		state = next
+	match state:
+		&"burrow":
+			velocity = Vector3.ZERO
+		&"chase":
+			_chase_t += delta
+			_run_to(c.global_position, delta)
+			for b in hit_zone.get_overlapping_bodies():
+				_on_hit_body(b)
+		&"hide":
+			_hide_left = maxf(_hide_left - delta, 0.0)
+			if _run_to(home, delta) < 0.15 and _model.visible:
+				_set_out(false)   # забрался в норку; ждёт, пока выйдет время
+
+
+func _run_to(target: Vector3, delta: float) -> float:
+	var left := move_towards_point(target, SPEED, delta)
+	_model.rotation.y = PI / 2.0   # бежит боком: клешни смотрят в сторону, ход — вдоль корпуса
+	if _anim and _anim.has_animation("walk") and _anim.current_animation != "walk":
+		_anim.play("walk", 0.15)
+	return left
+
+
+func _on_hit_body(body: Node3D) -> void:
+	if state == &"chase":
+		super(body)
+```
+
 ## `scripts/hazards/cyclist.gd`
 
 ```gdscript
@@ -2548,6 +2793,103 @@ func play_clip(name: StringName) -> void:
 		_anim.play(clip, 0.2)
 ```
 
+## `scripts/hazards/forklift.gd`
+
+```gdscript
+class_name Forklift
+extends Node3D
+## Погрузчик на причале (спек порта, раздел 3): стоит у штабеля 4–6 с, 1,5 с гудит, едет 3 м/с с ящиком к следующей точке
+## маршрута; ночью стоит. Касание — удар, как у велосипедиста.
+
+const SPEED := 3.0
+const HORN := 1.5
+
+
+static func next_state(state: StringName, t_in_state: float, wait: float, night: bool) -> StringName:
+	## drive → wait по прибытии решает узел; здесь — переходы по времени и ночь.
+	if night:
+		return &"wait"
+	match state:
+		&"wait":
+			return &"horn" if t_in_state >= wait else &"wait"
+		&"horn":
+			return &"drive" if t_in_state >= HORN else &"horn"
+	return state
+
+var state: StringName = &"wait"
+var path: Array[Vector3] = []
+var wait_range := Vector2(4.0, 6.0)
+var _i := 0             # текущая точка маршрута (стоит у неё)
+var _dir := 1
+var _t := 0.0
+var _wait := 5.0
+var _rng := RandomNumberGenerator.new()
+
+@onready var _hit: Area3D = $HitZone
+
+
+func configure(hz: Dictionary, _builder: Node3D) -> void:
+	path.clear()
+	for p in hz.get("path", []):
+		path.append(Vector3(float(p[0]), 0.0, float(p[1])))
+	var w: Array = hz.get("wait", [4.0, 6.0])
+	wait_range = Vector2(float(w[0]), float(w[1]))
+
+
+func _ready() -> void:
+	add_to_group("hazards")
+	_rng.randomize()
+	_hit.collision_layer = Layers.AREA
+	_hit.collision_mask = Layers.CAT
+	_hit.monitorable = false
+	_hit.body_entered.connect(_on_body)
+	Toon.apply($Model, Toon.OUTLINE_NONE)
+	_wait = _rng.randf_range(wait_range.x, wait_range.y)
+
+
+func _ground(p: Vector3) -> Vector3:
+	return Vector3(p.x, Terrain.surface_height(get_tree(), p.x, p.z, global_position.y), p.z)
+
+
+func _physics_process(delta: float) -> void:
+	if path.size() < 2:
+		return
+	_t += delta
+	var night := DayNight.is_night(get_tree())
+	if state == &"drive" and not night:
+		for b in _hit.get_overlapping_bodies():   # кот мог стоять у вил ещё до старта — body_entered не повторится
+			_on_body(b)
+		var target := _ground(path[_i + _dir])
+		var to := target - global_position
+		to.y = 0.0
+		var step := SPEED * delta
+		if to.length() <= step:
+			global_position = target
+			_i += _dir
+			if _i == 0 or _i == path.size() - 1:
+				_dir = -_dir   # туда-обратно по маршруту
+			state = &"wait"
+			_t = 0.0
+			_wait = _rng.randf_range(wait_range.x, wait_range.y)
+		else:
+			var d := to.normalized()
+			global_position += d * step
+			global_position.y = target.y
+			rotation.y = atan2(d.x, d.z)   # вилы (+Z модели) — по ходу
+		return
+	var next := next_state(state, _t, _wait, night)
+	if next != state:
+		state = next
+		_t = 0.0
+		if state == &"horn":
+			Sfx.play(&"horn")
+
+
+func _on_body(body: Node3D) -> void:
+	if state == &"drive" and body.is_in_group("cat") and body.has_method("take_hit"):
+		body.call("take_hit", global_position)
+```
+
 ## `scripts/hazards/gardener.gd`
 
 ```gdscript
@@ -2726,6 +3068,140 @@ func _physics_process(delta: float) -> void:
 			play(&"walk")
 		_:
 			walk_patrol(delta)
+```
+
+## `scripts/hazards/gull.gd`
+
+```gdscript
+class_name Gull
+extends Node3D
+## Чайка (спек порта, раздел 3): кружит на 4 м радиусом 3–4 м; кот с едой ближе 6 м по горизонтали — 1 с тень и крик,
+## затем бросок в точку, где был кот: удар и последняя еда унесена; перерыв 8 с; ночью спит на насесте.
+
+const DIVE_DIST := 6.0
+const COOLDOWN := 8.0
+
+
+static func decide(dist_h: float, has_food: bool, hidden: bool, safe: bool, cooldown: float, night: bool) -> bool:
+	return not night and not hidden and not safe and has_food and cooldown <= 0.0 and dist_h < DIVE_DIST
+
+const HEIGHT := 4.0
+const RADIUS := 3.5
+const ANGULAR := 0.9
+const WARN := 1.0
+const DIVE := 0.45
+const RISE := 1.2
+const STRIKE := 0.9
+
+var mode: StringName = &"circle"   # circle | warn | dive | rise | sleep
+var cooldown_left := 0.0
+var anchor: Vector3
+var ground := 0.0
+var _anchored := false
+var _angle := 0.0
+var _t := 0.0
+var _target := Vector3.ZERO
+var _from := Vector3.ZERO
+
+@onready var _model: Node3D = $Model
+@onready var _shadow: MeshInstance3D = $Shadow
+@onready var _anim: AnimationPlayer = $Model.find_child("AnimationPlayer", true, false)
+
+
+func configure(hz: Dictionary, _builder: Node3D) -> void:
+	_angle = float(hz.get("phase", 0.0))
+
+
+func _ready() -> void:
+	add_to_group("hazards")
+	Toon.apply(_model, Toon.OUTLINE_CHARACTER, true)
+	for clip in ["flap", "idle"]:
+		if _anim and _anim.has_animation(clip):
+			_anim.get_animation(clip).loop_mode = Animation.LOOP_LINEAR
+	_play(&"flap")
+
+
+func _play(clip: StringName) -> void:
+	if _anim and _anim.has_animation(clip) and _anim.current_animation != clip:
+		_anim.play(clip, 0.2)
+
+
+func _cat() -> Node3D:
+	return get_tree().get_first_node_in_group("cat") as Node3D
+
+
+func _physics_process(delta: float) -> void:
+	if not _anchored:
+		anchor = global_position   # насест: позицию ставит WorldBuilder до add_child, тест — до add_child
+		ground = Terrain.surface_height(get_tree(), anchor.x, anchor.z, anchor.y)
+		_anchored = true
+	cooldown_left = maxf(cooldown_left - delta, 0.0)
+	_t += delta
+	var night := DayNight.is_night(get_tree())
+	var c := _cat()
+	match mode:
+		&"sleep":
+			if not night:
+				mode = &"circle"
+				_play(&"flap")
+			return
+		&"circle":
+			if night:
+				mode = &"sleep"
+				global_position = anchor
+				_shadow.visible = false
+				_play(&"idle")
+				return
+			_angle += ANGULAR * delta
+			var p := Vector3(anchor.x + cos(_angle) * RADIUS, ground + HEIGHT + sin(_t * 2.0) * 0.1, anchor.z + sin(_angle) * RADIUS)
+			_face(p - global_position)
+			global_position = p
+			if c and decide(Vector2(c.global_position.x - p.x, c.global_position.z - p.z).length(), not GameState.mouth.is_empty(),
+					bool(c.get("hidden")), bool(c.get("in_safe_zone")), cooldown_left, night):
+				mode = &"warn"
+				_t = 0.0
+				_target = c.global_position
+				_shadow.global_position = _target + Vector3(0, 0.03, 0)
+				_shadow.scale = Vector3.ONE * 0.2
+				_shadow.visible = true
+				Sfx.play(&"gull")
+		&"warn":
+			_shadow.scale = Vector3.ONE * lerpf(0.2, 1.0, clampf(_t / WARN, 0.0, 1.0))   # тень растёт
+			if _t >= WARN:
+				mode = &"dive"
+				_t = 0.0
+				_from = global_position
+		&"dive":
+			var k := clampf(_t / DIVE, 0.0, 1.0)
+			var p := _from.lerp(_target + Vector3(0, 0.3, 0), k)
+			_face(p - global_position)
+			global_position = p
+			if k >= 1.0:
+				_strike(c)
+				mode = &"rise"
+				_t = 0.0
+				_shadow.visible = false
+				cooldown_left = COOLDOWN
+		&"rise":
+			var back := Vector3(anchor.x + cos(_angle) * RADIUS, ground + HEIGHT, anchor.z + sin(_angle) * RADIUS)
+			global_position = global_position.lerp(back, clampf(delta * 3.0, 0.0, 1.0))
+			if _t >= RISE:
+				mode = &"circle"
+
+
+func _strike(c: Node3D) -> void:
+	## Бросок в точку, где был кот: попал — удар и последняя еда унесена (остальное в зубах).
+	if c == null or not c.has_method("take_peck"):
+		return
+	var d := c.global_position - _target
+	if Vector2(d.x, d.z).length() <= STRIKE and absf(d.y) < 1.2:
+		c.call("take_peck", global_position)
+
+
+func _face(dir: Vector3) -> void:
+	dir.y = 0.0
+	if dir.length() > 0.001:
+		rotation.y = atan2(-dir.x, -dir.z)
 ```
 
 ## `scripts/hazards/hazard_base.gd`
@@ -3247,6 +3723,138 @@ func _place() -> void:
 func _on_body(body: Node3D) -> void:
 	if body.is_in_group("cat") and body.has_method("take_hit"):
 		body.call("take_hit", global_position)
+```
+
+## `scripts/hazards/wave.gd`
+
+```gdscript
+class_name Wave
+extends Node3D
+## Волна на пляже (спек порта, раздел 3): каждые 14 с накат на 5 м за 3 с и откат за 3 с; за 1,5 с — пена и шум.
+
+const PERIOD := 14.0
+const RUN := 3.0
+const REACH := 5.0
+const FOAM_LEAD := 1.5
+
+
+static func front_at(t: float) -> float:
+	## Насколько вглубь пляжа дошла вода (метры от линии воды).
+	var u := fposmod(t, PERIOD)
+	if u <= RUN:
+		return REACH * u / RUN   # линейно: игроку легко прочитать, докуда дойдёт вода
+	if u <= 2.0 * RUN:
+		return REACH * (1.0 - (u - RUN) / RUN)
+	return 0.0
+
+
+static func foam(t: float) -> bool:
+	return fposmod(t, PERIOD) >= PERIOD - FOAM_LEAD
+
+const THROW := 1.5
+const WET := 4.0
+const WaterShader := preload("res://assets/shaders/water.gdshader")
+
+@export var width := 20.0          # вдоль линии воды (ось X)
+@export var inland := -1.0         # куда суша от линии воды по оси Z: −1 — к −Z
+@export var offset := 0.0          # сдвиг фазы, с
+var hits := 0
+var ground := 0.0
+var _t := 0.0
+var _hit_this_roll := false
+var _foam_sounded := false
+var _strip: MeshInstance3D
+var _foam: CPUParticles3D
+
+
+func configure(hz: Dictionary, _builder: Node3D) -> void:
+	width = float(hz.get("width", width))
+	inland = float(hz.get("inland", inland))
+	offset = float(hz.get("offset", offset))
+
+
+func _ready() -> void:
+	add_to_group("hazards")
+	_strip = MeshInstance3D.new()
+	_strip.name = "Strip"
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(1, 1)
+	_strip.mesh = plane
+	var mat := ShaderMaterial.new()
+	mat.shader = WaterShader
+	_strip.material_override = mat
+	_strip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_strip)
+	_foam = CPUParticles3D.new()
+	_foam.name = "Foam"
+	_foam.emitting = false
+	_foam.amount = 40
+	_foam.lifetime = 0.8
+	_foam.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	_foam.emission_box_extents = Vector3(width / 2.0, 0.02, 0.3)
+	_foam.direction = Vector3.UP
+	_foam.spread = 30.0
+	_foam.initial_velocity_min = 0.3
+	_foam.initial_velocity_max = 0.8
+	_foam.gravity = Vector3(0, -2, 0)
+	var dot := SphereMesh.new()
+	dot.radius = 0.06
+	dot.height = 0.12
+	var fm := StandardMaterial3D.new()
+	fm.albedo_color = Color("#F4F1E8")
+	fm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	dot.material = fm
+	_foam.mesh = dot
+	add_child(_foam)
+	ground = global_position.y
+	_update_strip(0.0)
+
+
+func _physics_process(delta: float) -> void:
+	_t += delta
+	var t := _t + offset
+	var u := fposmod(t, PERIOD)
+	var front := front_at(t)
+	_update_strip(front)
+	var foaming := foam(t)
+	_foam.emitting = foaming or front > 0.0
+	_foam.position = Vector3(0, 0.05, inland * front)
+	if foaming and not _foam_sounded:
+		Sfx.play(&"wave")
+		_foam_sounded = true
+	if u < RUN:
+		_check_cat(front)
+	else:
+		_hit_this_roll = false
+		if not foaming:
+			_foam_sounded = false
+
+
+func _update_strip(front: float) -> void:
+	_strip.visible = front > 0.05
+	_strip.scale = Vector3(width, 1.0, maxf(front, 0.01))
+	_strip.position = Vector3(0, 0.04, inland * front / 2.0)
+
+
+func _check_cat(front: float) -> void:
+	## Накат: кот на мокрой полосе отброшен вглубь пляжа на 1,5 м и мокрый — один раз за накат (спек порта, раздел 3).
+	if _hit_this_roll:
+		return
+	var c := get_tree().get_first_node_in_group("cat") as Node3D
+	if c == null or bool(c.get("hidden")):
+		return
+	var local := c.global_position - global_position
+	var depth := local.z * inland   # насколько кот вглубь суши от линии воды
+	if absf(local.x) > width / 2.0 or depth < -0.5 or depth > front or absf(local.y) > 0.8:
+		return
+	_hit_this_roll = true
+	hits += 1
+	c.global_position += Vector3(0, 0.1, inland * THROW)
+	c.set("velocity", Vector3.ZERO)
+	if c.has_method("wet"):
+		c.call("wet", WET)
+	if c.has_method("squash"):
+		c.call("squash", 0.8, 0.15)
 ```
 
 ## `scripts/hideouts/hideout.gd`
@@ -3829,8 +4437,24 @@ func try_eat() -> bool:
 func take_hit(from: Vector3) -> void:
 	if drowning_left > 0.0:
 		return   # в воде сердечко не снимается (спек порта, раздел 2)
-	if invulnerable_left > 0.0 or stunned_left > 0.0 or hidden or in_safe_zone:
+	if not _hit_reaction(from):
 		return
+	GameState.take_hit()
+
+
+func take_peck(from: Vector3) -> void:
+	## Чайка (спек порта, раздел 3): удар, последняя еда унесена, остальное остаётся в зубах.
+	if drowning_left > 0.0:
+		return
+	if not _hit_reaction(from):
+		return
+	GameState.peck()
+
+
+func _hit_reaction(from: Vector3) -> bool:
+	## Общая реакция на удар; false — удар не прошёл (неуязвим, оглушён, спрятан, в будке).
+	if invulnerable_left > 0.0 or stunned_left > 0.0 or hidden or in_safe_zone:
+		return false
 	Sfx.play(&"hit")   # один вызов на реальный удар: повторные касания блокирует неуязвимость
 	Sfx.play(&"meow", 0.12)
 	flash()
@@ -3845,7 +4469,7 @@ func take_hit(from: Vector3) -> void:
 	invulnerable_left = INVULNERABLE_TIME
 	state = &"hit"
 	hit_taken.emit(from)
-	GameState.take_hit()
+	return true
 
 
 func set_fade(alpha: float) -> void:
@@ -5613,6 +6237,10 @@ const HAZARD_SCENES := {
 	"gardener": "res://scenes/hazards/gardener.tscn",
 	"kid": "res://scenes/hazards/kid.tscn",
 	"guard": "res://scenes/hazards/guard.tscn",
+	"gull": "res://scenes/hazards/gull.tscn",
+	"wave": "res://scenes/hazards/wave.tscn",
+	"forklift": "res://scenes/hazards/forklift.tscn",
+	"crab": "res://scenes/hazards/crab.tscn",
 }
 const HideoutScene := preload("res://scenes/hideouts/hideout.tscn")
 const SpawnScene := preload("res://scenes/food/food_spawn_point.tscn")
@@ -8434,6 +9062,266 @@ func test_cat_jumps_from_boat_back_onto_pier() -> void:
 	assert_lt(cat.global_position.x, 34.5, "кот на причале, а не в воде")
 	assert_gt(cat.global_position.y, -1.1, "на высоте настила")
 	cat.free()
+
+func test_port_hazards_are_placed() -> void:
+	# План 14: 2 чайки, волна вдоль пляжа, погрузчик на полосе причала, 4 краба днём и ещё 2 ночью.
+	var n := {}
+	var night_crabs := 0
+	for h in WorldBuilder.load_layout(LAYOUT)["hazards"]:
+		n[h["type"]] = n.get(h["type"], 0) + 1
+		if h["type"] == "crab" and h.get("night_only", false):
+			night_crabs += 1
+	assert_eq(n, {"forklift": 1, "gull": 2, "wave": 1, "crab": 6})
+	assert_eq(night_crabs, 2)
+
+func test_forklift_lane_is_clear() -> void:
+	# Review Focus 3 плана 14: по полосе погрузчика нет твёрдых пропсов.
+	var space := world.get_world_3d().direct_space_state
+	var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(25, -0.5, 152), Vector3(25, -0.5, 208.5), Layers.WORLD))
+	assert_true(hit.is_empty(), "полоса свободна: %s" % [hit.get("collider")])
+```
+
+## `tests/integration/test_port_hazards.gd`
+
+```gdscript
+extends GutTest
+## План 14: опасности порта — чайки, волны, погрузчик, крабы (спек порта, раздел 3).
+
+const CatScene := preload("res://scenes/player/cat.tscn")
+
+var world: Node3D
+
+func before_each() -> void:
+	GameState.reset()
+	world = Node3D.new()
+	add_child_autofree(world)
+
+func _floor(y := 0.0, size := 40.0) -> void:
+	var body := StaticBody3D.new()
+	body.collision_layer = Layers.WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(size, 0.2, size)
+	shape.shape = box
+	shape.position.y = y - 0.1
+	body.add_child(shape)
+	world.add_child(body)
+
+func _cat(pos: Vector3) -> Node:
+	var cat = CatScene.instantiate()
+	cat.position = pos
+	world.add_child(cat)
+	return cat
+
+func test_port_sounds_and_models_exist() -> void:
+	for s in [&"gull", &"wave", &"horn"]:
+		assert_true(Sfx.has(s), "звук %s" % s)
+	for m in ["gull", "crab", "forklift", "burrow"]:
+		assert_true(ResourceLoader.exists("res://assets/models/%s.glb" % m), "модель %s" % m)
+
+const GullScene := preload("res://scenes/hazards/gull.tscn")
+
+func _gull(pos: Vector3) -> Node3D:
+	var g := GullScene.instantiate() as Node3D
+	g.position = pos
+	world.add_child(g)
+	return g
+
+func test_gull_circles_4m_above_its_perch() -> void:
+	_floor()
+	var g := _gull(Vector3(0, 0, 0))
+	await wait_physics_frames(10)
+	assert_almost_eq(g.global_position.y, 4.0, 0.3, "кружит на 4 м")
+	var flat := Vector2(g.global_position.x, g.global_position.z).length()
+	assert_between(flat, 2.9, 4.1, "радиус 3–4 м")
+
+func test_gull_dives_on_cat_with_food_and_steals_last() -> void:
+	# Спек: тень и крик 1 с, бросок; удар и последняя еда унесена, остальное в зубах.
+	_floor()
+	var g := _gull(Vector3(0, 0, 0))
+	var cat = _cat(Vector3(1, 0.05, 1))
+	await wait_physics_frames(5)
+	GameState.pick_up(FoodCatalog.get_by_id(&"shrimp"))
+	GameState.pick_up(FoodCatalog.get_by_id(&"fries"))
+	await wait_physics_frames(3)
+	assert_eq(g.mode, &"warn", "заметила кота с едой")
+	assert_true((g.get_node("Shadow") as Node3D).visible, "тень на земле")
+	await wait_seconds(1.8)
+	assert_eq(GameState.hearts, 2, "удар")
+	assert_eq(GameState.mouth.size(), 1, "унесла одну")
+	assert_eq(GameState.mouth[0].id, &"shrimp", "последнюю — картошку")
+	assert_gt(g.cooldown_left, 6.0, "перерыв 8 с")
+
+func test_gull_ignores_cat_without_food_or_hidden() -> void:
+	_floor()
+	var g := _gull(Vector3(0, 0, 0))
+	var cat = _cat(Vector3(1, 0.05, 1))
+	await wait_physics_frames(20)
+	assert_eq(g.mode, &"circle", "без еды — кружит")
+	GameState.pick_up(FoodCatalog.get_by_id(&"shrimp"))
+	cat.hidden = true
+	await wait_physics_frames(10)
+	assert_eq(g.mode, &"circle", "спрятанного не видит")
+
+func test_gull_sleeps_on_perch_at_night() -> void:
+	_floor()
+	var light = (load("res://scenes/world/lighting.tscn") as PackedScene).instantiate()
+	world.add_child(light)
+	light.get_node("DayNight").set_time(220.0)
+	light.get_node("DayNight").set("time_scale", 0.0)
+	var g := _gull(Vector3(2, 0, 2))
+	var cat = _cat(Vector3(2.5, 0.05, 2.5))
+	GameState.pick_up(FoodCatalog.get_by_id(&"shrimp"))
+	await wait_physics_frames(15)
+	assert_eq(g.mode, &"sleep")
+	assert_lt(g.global_position.y, 1.0, "сидит на насесте")
+	assert_eq(GameState.hearts, 3)
+
+const WaveScene := preload("res://scenes/hazards/wave.tscn")
+
+func _wave() -> Node3D:
+	var w := WaveScene.instantiate() as Node3D
+	w.set("width", 20.0)
+	w.set("inland", -1.0)   # суша — в сторону −Z от линии воды z 0
+	world.add_child(w)
+	return w
+
+func test_wave_throws_cat_inland_and_wets_once() -> void:
+	# Спек: кот отброшен к берегу на 1,5 м и мокрый 4 с; без урона, еда не теряется; один раз за накат.
+	_floor()
+	var w := _wave()
+	var cat = _cat(Vector3(0, 0.05, -2.0))
+	GameState.pick_up(FoodCatalog.get_by_id(&"shrimp"))
+	await wait_seconds(2.0)
+	assert_lt(cat.global_position.z, -3.2, "отброшен вглубь пляжа на 1,5 м")
+	assert_gt(cat.wet_left, 0.0, "мокрый")
+	assert_eq(GameState.hearts, 3)
+	assert_eq(GameState.mouth.size(), 1, "еда в зубах")
+	assert_eq(w.get("hits"), 1)
+	await wait_seconds(3.0)
+	assert_eq(w.get("hits"), 1, "за один накат — один раз")
+
+func test_wave_does_not_reach_cat_far_inland() -> void:
+	_floor()
+	var w := _wave()
+	var cat = _cat(Vector3(0, 0.05, -6.0))
+	await wait_seconds(4.0)
+	assert_eq(w.get("hits"), 0)
+	assert_eq(cat.wet_left, 0.0)
+
+func test_wave_foam_warns_before_roll() -> void:
+	_floor()
+	var w := _wave()
+	w.set("offset", Wave.PERIOD - 1.0)   # за 1 с до наката
+	await wait_physics_frames(3)
+	assert_true((w.get_node("Foam") as CPUParticles3D).emitting, "пена у кромки")
+
+const ForkliftScene := preload("res://scenes/hazards/forklift.tscn")
+
+func _forklift(path: Array) -> Node3D:
+	var f := ForkliftScene.instantiate() as Node3D
+	f.position = Vector3(path[0][0], 0, path[0][1])
+	f.call("configure", {"path": path, "wait": [0.5, 0.5]}, null)
+	world.add_child(f)
+	return f
+
+func test_forklift_honks_then_drives_3mps() -> void:
+	_floor()
+	Sfx.reset_counters()
+	var f := _forklift([[0, -10], [0, 10]])
+	await wait_seconds(0.7)
+	assert_eq(f.get("state"), &"horn", "сначала гудок")
+	assert_eq(Sfx.last_played, &"horn")
+	var z0: float = f.global_position.z
+	await wait_seconds(1.5)
+	assert_eq(f.get("state"), &"drive", "через 1,5 с едет")
+	var z1: float = f.global_position.z
+	await wait_seconds(1.0)
+	assert_almost_eq(f.global_position.z - z1, 3.0, 0.4, "3 м/с")
+	assert_almost_eq(z0, -10.0, 0.05, "до гудка стоял")
+
+func test_forklift_hits_cat_on_its_lane() -> void:
+	_floor()
+	var f := _forklift([[0, -6], [0, 6]])
+	_cat(Vector3(0, 0.05, 0))
+	await wait_seconds(5.0)
+	assert_eq(GameState.hearts, 2, "удар погрузчиком")
+
+func test_forklift_stands_at_night() -> void:
+	_floor()
+	var light = (load("res://scenes/world/lighting.tscn") as PackedScene).instantiate()
+	world.add_child(light)
+	light.get_node("DayNight").set_time(220.0)
+	light.get_node("DayNight").set("time_scale", 0.0)
+	var f := _forklift([[0, -6], [0, 6]])
+	await wait_seconds(3.0)
+	assert_eq(f.get("state"), &"wait")
+	assert_almost_eq(f.global_position.z, -6.0, 0.05, "ночью стоит")
+
+func test_forklift_hits_cat_already_standing_at_its_forks() -> void:
+	# Кот стоял у вил, пока погрузчик ждал: при старте удар всё равно проходит.
+	_floor()
+	var f := _forklift([[0, -6], [0, 6]])
+	_cat(Vector3(0, 0.05, -4.9))
+	await wait_seconds(3.0)
+	assert_eq(GameState.hearts, 2)
+
+const CrabScene := preload("res://scenes/hazards/crab.tscn")
+
+func _crab(pos: Vector3, hz := {}) -> Node3D:
+	var c := CrabScene.instantiate() as Node3D
+	c.position = pos
+	c.call("configure", hz, null)
+	world.add_child(c)
+	return c
+
+func test_crab_waits_in_burrow_unseen() -> void:
+	_floor()
+	var c := _crab(Vector3(0, 0.05, 0))
+	_cat(Vector3(4, 0.05, 0))
+	await wait_physics_frames(20)
+	assert_eq(c.get("state"), &"burrow")
+	assert_false((c.get_node("Model") as Node3D).visible, "в норке не видно")
+
+func test_crab_runs_out_and_pinches_cat_closer_than_3m() -> void:
+	_floor()
+	var c := _crab(Vector3(0, 0.05, 0))
+	_cat(Vector3(2.5, 0.05, 0))
+	await wait_seconds(2.0)
+	assert_eq(GameState.hearts, 2, "щипок")
+	assert_true((c.get_node("Model") as Node3D).visible)
+
+func test_crab_hides_after_5s_chase_and_comes_back_after_6s() -> void:
+	_floor()
+	var c := _crab(Vector3(0, 0.05, 0))
+	var cat = _cat(Vector3(2.5, 0.05, 0))
+	await wait_physics_frames(3)
+	cat.invulnerable_left = 99.0   # не мешаем погоне ударами
+	await wait_seconds(5.5)
+	assert_eq(c.get("state"), &"hide", "5 с погони — прячется")
+	cat.global_position = Vector3(10, 0.05, 0)
+	await wait_seconds(7.0)
+	assert_eq(c.get("state"), &"burrow", "через 6 с снова сторожит")
+	assert_lt(Vector2(c.global_position.x, c.global_position.z).length(), 0.4, "вернулся в норку")
+
+func test_crab_hides_when_cat_jumps_over_it() -> void:
+	_floor()
+	var c := _crab(Vector3(0, 0.05, 0))
+	var cat = _cat(Vector3(2.5, 0.05, 0))
+	await wait_physics_frames(10)
+	assert_eq(c.get("state"), &"chase")
+	cat.invulnerable_left = 99.0
+	cat.global_position = c.global_position + Vector3(0, 0.7, 0)   # кот над крабом в прыжке
+	await wait_physics_frames(2)
+	assert_eq(c.get("state"), &"hide")
+
+func test_night_crab_sits_in_burrow_by_day() -> void:
+	_floor()
+	var c := _crab(Vector3(0, 0.05, 0), {"night_only": true})
+	_cat(Vector3(1, 0.05, 0))
+	await wait_seconds(1.0)
+	assert_eq(c.get("state"), &"burrow")
+	assert_eq(GameState.hearts, 3)
 ```
 
 ## `tests/integration/test_shop_menu.gd`
@@ -10186,6 +11074,51 @@ func test_no_theft_from_hidden_or_safe_cat_on_cooldown_or_at_night() -> void:
 	assert_eq(PigeonFlock.decide(1.0, false, 2, false, false, 0.0, true), &"none", "ночью спят")
 ```
 
+## `tests/unit/test_port_hazard_logic.gd`
+
+```gdscript
+extends GutTest
+## План 14: чистая логика опасностей порта (спек порта, раздел 3).
+
+func test_gull_dives_only_on_cat_with_food_below() -> void:
+	assert_true(Gull.decide(4.0, true, false, false, 0.0, false), "кот с едой в 4 м — пикирует")
+	assert_false(Gull.decide(7.0, true, false, false, 0.0, false), "дальше 6 м — нет")
+	assert_false(Gull.decide(4.0, false, false, false, 0.0, false), "без еды — нет")
+	assert_false(Gull.decide(4.0, true, true, false, 0.0, false), "спрятан — нет")
+	assert_false(Gull.decide(4.0, true, false, true, 0.0, false), "в безопасной зоне — нет")
+	assert_false(Gull.decide(4.0, true, false, false, 3.0, false), "перерыв — нет")
+	assert_false(Gull.decide(4.0, true, false, false, 0.0, true), "ночью спит")
+
+func test_wave_cycle_14s() -> void:
+	# 0…3 накат, 3…6 откат, 6…12,5 тихо, 12,5…14 пена перед следующим накатом.
+	assert_almost_eq(Wave.front_at(0.0), 0.0, 0.01)
+	assert_almost_eq(Wave.front_at(3.0), 5.0, 0.01, "дальше всего через 3 с")
+	assert_almost_eq(Wave.front_at(1.5), 2.5, 0.6, "накат идёт")
+	assert_almost_eq(Wave.front_at(6.0), 0.0, 0.01, "откатилась")
+	assert_almost_eq(Wave.front_at(9.0), 0.0, 0.01)
+	assert_almost_eq(Wave.front_at(17.0), 5.0, 0.01, "период 14 с")
+	assert_true(Wave.foam(13.0), "пена за 1,5 с")
+	assert_false(Wave.foam(10.0))
+
+func test_forklift_states() -> void:
+	assert_eq(Forklift.next_state(&"wait", 3.0, 5.0, false), &"wait", "стоит у штабеля")
+	assert_eq(Forklift.next_state(&"wait", 5.0, 5.0, false), &"horn", "потом гудит")
+	assert_eq(Forklift.next_state(&"horn", 1.0, 5.0, false), &"horn")
+	assert_eq(Forklift.next_state(&"horn", 1.5, 5.0, false), &"drive", "через 1,5 с едет")
+	assert_eq(Forklift.next_state(&"drive", 2.0, 5.0, true), &"wait", "ночью стоит")
+	assert_eq(Forklift.next_state(&"wait", 9.0, 5.0, true), &"wait")
+
+func test_crab_burrow_chase_hide() -> void:
+	assert_eq(Crab.decide(&"burrow", 2.5, false, 0.0, 0.0, false), &"chase", "кот ближе 3 м — выбегает")
+	assert_eq(Crab.decide(&"burrow", 3.5, false, 0.0, 0.0, false), &"burrow")
+	assert_eq(Crab.decide(&"burrow", 3.5, false, 0.0, 0.0, true), &"chase", "ночью радиус 4 м")
+	assert_eq(Crab.decide(&"chase", 1.0, true, 1.0, 0.0, false), &"hide", "кот прыгнул над крабом")
+	assert_eq(Crab.decide(&"chase", 1.0, false, 5.0, 0.0, false), &"hide", "5 с погони")
+	assert_eq(Crab.decide(&"chase", 1.0, false, 2.0, 0.0, false), &"chase")
+	assert_eq(Crab.decide(&"hide", 1.0, false, 0.0, 3.0, false), &"hide", "6 с в норке")
+	assert_eq(Crab.decide(&"hide", 1.0, false, 0.0, 0.0, false), &"burrow", "потом снова сторожит")
+```
+
 ## `tests/unit/test_rarity.gd`
 
 ```gdscript
@@ -10337,6 +11270,22 @@ func test_taken_yarn_keys_round_trip() -> void:
 	assert_false(GameState.is_yarn_taken("1.5,0.6,1.5"))
 	SaveGame.load_now()
 	assert_true(GameState.is_yarn_taken("1.5,0.6,1.5"), "список собранных клубочков сохраняется")
+
+func test_read_only_save_writes_nothing() -> void:
+	# План 14: кадры (make shot) собирали клубочки и автосохраняли их в настоящий save.json владельца.
+	SaveGame.path = "user://test_save_ro.json"
+	SaveGame.clear()
+	SaveGame.read_only = true
+	assert_false(SaveGame.save_now(), "в режиме только чтения не пишет")
+	assert_false(FileAccess.file_exists("user://test_save_ro.json"))
+	SaveGame.read_only = false
+
+func test_dev_runs_are_detected() -> void:
+	assert_true(DevTools.is_dev_run(PackedStringArray(["--screenshot=build/x.png"])))
+	assert_true(DevTools.is_dev_run(PackedStringArray(["--at=1,2,3"])))
+	assert_true(DevTools.is_dev_run(PackedStringArray(["--album"])))
+	assert_true(DevTools.is_dev_run(PackedStringArray(["--phase=night"])))
+	assert_false(DevTools.is_dev_run(PackedStringArray([])), "обычная игра пишет сохранение")
 ```
 
 ## `tests/unit/test_sfx.gd`
@@ -11201,6 +12150,60 @@ if __name__ == "__main__":
 	print("ОК", out)
 ```
 
+## `tools/blender/crab.py`
+
+```python
+"""Краб из CC0 methodical pixel: корпус кирпичный, клешни коралловые; ширина 0,4 м; клипы idle, walk (план 14)."""
+import os
+
+import bpy
+from mathutils import Vector
+
+import palette
+import rig_utils
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+BLEND = os.path.join(ROOT, "third_party", "crab_methodicalpixel", "crab.blend")
+ACTIONS = ("idle", "walk")
+TARGET_WIDTH = 0.4
+
+
+def build():
+	bpy.ops.wm.open_mainfile(filepath=BLEND)
+	arm = bpy.data.objects["rig crab"]
+	mesh = bpy.data.objects["crab"]
+	for o in list(bpy.data.objects):
+		if o not in (arm, mesh):
+			bpy.data.objects.remove(o)
+	for a in list(bpy.data.actions):
+		if a.name in ACTIONS:
+			rig_utils.clean_action(a, arm)
+		else:
+			bpy.data.actions.remove(a)
+	bpy.context.view_layer.update()
+	m = mesh.matrix_world
+	ys = [(m @ v.co).y for v in mesh.data.vertices]
+	front = min(ys) + (max(ys) - min(ys)) * 0.3
+	mesh.data.materials.clear()
+	for key in ("brick", "coral", "ink"):
+		mesh.data.materials.append(palette.get_material(key))
+	for p in mesh.data.polygons:
+		c = m @ p.center
+		p.material_index = 1 if c.y < front else 0   # клешни спереди (−Y) коралловые
+	arm.animation_data_create()
+	arm.animation_data.action = None
+	rig_utils.face_forward(arm, root_bone="body", head_bone="left arm 1.2")   # передом — клешни
+	bpy.context.view_layer.update()
+	corners = [mesh.matrix_world @ Vector(c) for c in mesh.bound_box]
+	width = max(max(c[i] for c in corners) - min(c[i] for c in corners) for i in range(2))
+	k = TARGET_WIDTH / width
+	arm.scale = (arm.scale.x * k, arm.scale.y * k, arm.scale.z * k)
+	bpy.context.view_layer.update()
+	arm.name = "CrabRig"
+	mesh.name = "crab"
+	return [arm, mesh]
+```
+
 ## `tools/blender/dog.py`
 
 ```python
@@ -11582,6 +12585,23 @@ def build():
 	return lib.group([ball, band])
 ```
 
+## `tools/blender/gen/burrow.py`
+
+```python
+"""Норка краба (план 14): песчаное кольцо с тёмной серединой."""
+import lib
+
+SPEC = {"max_tris": 300, "max_dim": 0.6}
+
+
+def build():
+	ring = lib.torus("burrow", major=0.22, minor=0.06, material="sand")
+	ring.location.z = 0.02
+	hole = lib.cylinder("burrow_hole", radius=0.18, depth=0.02, segments=10, material="ink")
+	hole.location.z = 0.005
+	return lib.group([ring, hole])
+```
+
 ## `tools/blender/gen/bush.py`
 
 ```python
@@ -11700,6 +12720,19 @@ def build():
 		leg.location = (x, y, 0.225)
 		parts.append(leg)
 	return lib.group(parts)
+```
+
+## `tools/blender/gen/crab.py`
+
+```python
+"""Генератор краба (CC0 methodical pixel — crab.py)."""
+import crab
+
+SPEC = {"max_tris": 1500, "max_dim": 0.45, "animations": True}
+
+
+def build():
+	return crab.build()
 ```
 
 ## `tools/blender/gen/cyclist.py`
@@ -12252,6 +13285,45 @@ def build():
 	return lib.group(parts)
 ```
 
+## `tools/blender/gen/forklift.py`
+
+```python
+"""Погрузчик причала (план 14): корпус, кабина-рама, мачта, вилы спереди (−Y Blender = +Z Godot — «вперёд» по ходу), ящик."""
+import lib
+
+SPEC = {"max_tris": 1500, "max_dim": 2.8}
+
+
+def build():
+	body = lib.rounded_box("forklift", (1.1, 1.8, 0.7), bevel=0.05, material="rarity_legendary")
+	body.location = (0, 0.2, 0.55)
+	seat = lib.rounded_box("forklift_seat", (0.6, 0.5, 0.3), bevel=0.03, segments=1, material="ink")
+	seat.location = (0, 0.4, 1.05)
+	parts = [body, seat]
+	for i, (x, y) in enumerate(((-0.5, -0.4), (0.5, -0.4), (-0.5, 0.8), (0.5, 0.8))):
+		post = lib.rounded_box(f"forklift_post{i}", (0.06, 0.06, 1.1), bevel=0.0, segments=1, material="ink")
+		post.location = (x, y, 1.45)
+		parts.append(post)
+	roof = lib.rounded_box("forklift_roof", (1.1, 1.3, 0.06), bevel=0.01, segments=1, material="ink")
+	roof.location = (0, 0.2, 2.0)
+	parts.append(roof)
+	for i, x in enumerate((-0.35, 0.35)):
+		mast = lib.rounded_box(f"forklift_mast{i}", (0.08, 0.08, 1.8), bevel=0.0, segments=1, material="asphalt")
+		mast.location = (x, -0.75, 0.9)
+		fork = lib.rounded_box(f"forklift_fork{i}", (0.1, 0.9, 0.05), bevel=0.0, segments=1, material="asphalt")
+		fork.location = (x, -1.2, 0.25)
+		parts += [mast, fork]
+	crate = lib.rounded_box("forklift_crate", (0.9, 0.8, 0.6), bevel=0.03, segments=1, material="sand")
+	crate.location = (0, -1.2, 0.58)
+	parts.append(crate)
+	for i, (x, y) in enumerate(((-0.58, -0.3), (0.58, -0.3), (-0.58, 0.75), (0.58, 0.75))):
+		w = lib.cylinder(f"forklift_wheel{i}", radius=0.22, depth=0.16, segments=10, material="ink")
+		w.rotation_euler = (0, 1.5708, 0)
+		w.location = (x, y, 0.22)
+		parts.append(w)
+	return lib.group(parts)
+```
+
 ## `tools/blender/gen/fountain.py`
 
 ```python
@@ -12385,6 +13457,19 @@ SPEC = {"max_tris": 2500, "max_dim": 2.0, "animations": True}
 
 def build():
 	return human.build("guard")
+```
+
+## `tools/blender/gen/gull.py`
+
+```python
+"""Генератор чайки (CC0-голубь, перекраска — gull.py)."""
+import gull
+
+SPEC = {"max_tris": 1500, "max_dim": 0.6, "animations": True}
+
+
+def build():
+	return gull.build()
 ```
 
 ## `tools/blender/gen/ivy.py`
@@ -12984,6 +14069,47 @@ def build():
 		ball.location = (x, -0.85, 1.43)
 		parts.append(ball)
 	return lib.group(parts)
+```
+
+## `tools/blender/gull.py`
+
+```python
+"""Чайка (план 14): CC0-голубь mujtaba-io с его клипами flap/idle, перекрашенный под чайку и крупнее (длина 0,5 м).
+Готовой CC0-чайки с клипами не нашлось (BlendSwap 7419 — риг без клипов), а голубь уже в проекте — правило владельца:
+готовые анимации раньше генерации."""
+import bpy
+from mathutils import Vector
+
+import palette
+import pigeon
+
+TARGET_LENGTH = 0.5
+
+
+def build():
+	arm, mesh = pigeon.build()
+	m = mesh.matrix_world
+	zs = [(m @ v.co).z for v in mesh.data.vertices]
+	lo, hi = min(zs), max(zs)
+	mesh.data.materials.clear()
+	for key in ("cream", "asphalt", "rarity_legendary"):
+		mesh.data.materials.append(palette.get_material(key))
+	for p in mesh.data.polygons:
+		z = (m @ p.center).z
+		if z < lo + (hi - lo) * 0.18:
+			p.material_index = 2                     # жёлтые лапы
+		elif z > lo + (hi - lo) * 0.62:
+			p.material_index = 1                     # серая спина и крылья
+		else:
+			p.material_index = 0                     # белая грудка
+	corners = [mesh.matrix_world @ Vector(c) for c in mesh.bound_box]
+	length = max(max(c[i] for c in corners) - min(c[i] for c in corners) for i in range(3))
+	k = TARGET_LENGTH / length
+	arm.scale = (arm.scale.x * k, arm.scale.y * k, arm.scale.z * k)
+	bpy.context.view_layer.update()
+	arm.name = "GullRig"
+	mesh.name = "gull"
+	return [arm, mesh]
 ```
 
 ## `tools/blender/human.py`
@@ -14070,6 +15196,18 @@ if __name__ == "__main__":
 
 ```
 
+```
+
+## `third_party/crab_methodicalpixel/README.md`
+
+```markdown
+# Краб (CC0)
+
+- Источник: [crab low poly animated 3d model](https://opengameart.org/content/crab-low-poly-animated-3d-model), автор methodical pixel.
+- Лицензия: CC0 1.0 (http://creativecommons.org/publicdomain/zero/1.0/).
+- Архив: https://opengameart.org/sites/default/files/crab_0.zip → `crab/crab.blend` (текстура и превью не нужны: краска — палитра проекта).
+- Клипы: `idle` (48 кадров), `walk` (24 кадра); ноги на IK-костях, экспорт glTF запекает позы.
+- Используется в `tools/blender/crab.py` (план 14: крабы на пляже порта).
 ```
 
 ## `third_party/pigeon_mujtaba/README.md`
@@ -15369,6 +16507,8 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
   дну пруда; линейный поиск маркера берега; маршруты ядра парка через фонтан и качели (с плана 9).
 - План 13. Район «Порт» и вода (`2026-10-09-snack-run-13-port.md`) — ВЫПОЛНЕН 2026-10-09: набережная, причал, пляж, море,
   качающиеся лодки и бочки, ворота 50, шесть вкусняшек, альбом 20.
+- План 14. Опасности порта (`2026-10-09-snack-run-14-port-hazards.md`) — ВЫПОЛНЕН 2026-10-09: чайки (CC0-голубь), волны,
+  погрузчик, крабы (CC0 methodical pixel).
 - Отложено из ревью плана 13: проёмы стен в описании «1.0» при фактических 4 м; лодки и бочки без тун-обводки.
 - Планы 13–15. Этап 3: порт 120×102 (район и вода, опасности, рыбалка) по спеку `2026-10-09-snack-run-stage3-port-design.md`.
 ```
@@ -15543,6 +16683,51 @@ def splash(duration=0.45):
 	return out
 
 
+def gull(duration=0.7):
+	"""Крик чайки: два «кья» — тон 1400→900 Гц с хрипотцой (шум 0,2), между ними пауза."""
+	rnd = random.Random(23)
+	out = []
+	for part in (0.3, 0.32):
+		phase = 0.0
+		n = int(RATE * part)
+		for i in range(n):
+			t = i / RATE
+			u = t / part
+			phase += 2 * math.pi * (1400 - 500 * u) / RATE
+			env = min(1.0, t / 0.02) * (1.0 - u) ** 1.2
+			out.append(env * 0.45 * (math.sin(phase) + 0.35 * math.sin(2 * phase) + 0.2 * rnd.uniform(-1, 1)))
+		out += [0.0] * int(RATE * 0.06)
+	return out
+
+
+def wave_sound(duration=1.6):
+	"""Шум наката: мягкий шум с плавным нарастанием и спадом."""
+	rnd = random.Random(29)
+	out = []
+	n = int(RATE * duration)
+	prev = 0.0
+	for i in range(n):
+		u = i / n
+		prev = prev * 0.8 + rnd.uniform(-1.0, 1.0) * 0.2
+		env = math.sin(math.pi * u) ** 1.5
+		out.append(env * 0.9 * prev)
+	return out
+
+
+def horn(duration=0.8):
+	"""Гудок погрузчика: два коротких тона 420 Гц с квадратной окраской."""
+	out = []
+	for part in (0.3, 0.3):
+		n = int(RATE * part)
+		for i in range(n):
+			t = i / RATE
+			s = math.sin(2 * math.pi * 420 * t)
+			env = min(1.0, t / 0.01) * min(1.0, (part - t) / 0.02)
+			out.append(env * 0.35 * (s + 0.3 * math.copysign(1.0, s)))
+		out += [0.0] * int(RATE * 0.1)
+	return out
+
+
 def sprinkle(count=6, gap=0.11):
 	"""Бульканье дождевателя: короткие «бульки» — тон 300→700 Гц по 60 мс."""
 	out = []
@@ -15579,8 +16764,11 @@ if __name__ == "__main__":
 	write("hiss.wav", hiss())
 	write("sprinkle.wav", sprinkle())
 	write("splash.wav", splash())
+	write("gull.wav", gull())
+	write("wave.wav", wave_sound())
+	write("horn.wav", horn())
 	write("coo.wav", coo())
-	print("ОК assets/sfx/meow.wav, bark.wav, hiss.wav, sprinkle.wav, coo.wav, splash.wav")
+	print("ОК assets/sfx/meow.wav, bark.wav, hiss.wav, sprinkle.wav, coo.wav, splash.wav, gull.wav, wave.wav, horn.wav")
 ```
 
 ## `tools/release/fetch_templates.sh`
@@ -16181,6 +17369,10 @@ void fragment() {
 | hiss.wav | шланг садовника | синтез `make sfx` | проект |
 | sprinkle.wav | дождеватель | синтез `make sfx` | проект |
 | coo.wav | голуби | синтез `make sfx` | проект |
+| splash.wav | кот упал в воду | синтез `make sfx` | проект |
+| gull.wav | крик чайки | синтез `make sfx` | проект |
+| wave.wav | шум наката | синтез `make sfx` | проект |
+| horn.wav | гудок погрузчика | синтез `make sfx` | проект |
 
 Паки: https://kenney.nl/assets/interface-sounds, https://kenney.nl/assets/impact-sounds.
 Правило: один `Sfx.play()` на игровое событие (сигнал), никогда из `_process`.
@@ -17481,6 +18673,9 @@ if __name__ == "__main__":
     {"model": "pontoon", "pos": [35.7, -1.75, 165], "rot": 0, "snap": false, "colliders": [{"size": [1.4, 0.3, 1.6], "offset": [0, 0.15, 0]}]},
     {"model": "pontoon", "pos": [35.7, -1.75, 181], "rot": 0, "snap": false, "colliders": [{"size": [1.4, 0.3, 1.6], "offset": [0, 0.15, 0]}]},
     {"model": "pontoon", "pos": [14.3, -1.75, 176], "rot": 0, "snap": false, "colliders": [{"size": [1.4, 0.3, 1.6], "offset": [0, 0.15, 0]}]},
+    {"outline": true, "model": "box", "pos": [24.6, 0, 209.8], "rot": 0},
+    {"outline": true, "model": "box", "pos": [25.4, 0, 209.8], "rot": 0},
+    {"outline": true, "model": "box", "pos": [25.0, 0.3, 209.8], "rot": 15},
     {"model": "retaining_wall3", "pos": [-58.5, -2.3, 148.5], "rot": 0, "snap": false},
     {"model": "retaining_wall3", "pos": [-54.5, -2.3, 148.5], "rot": 0, "snap": false},
     {"model": "retaining_wall3", "pos": [-50.5, -2.3, 148.5], "rot": 0, "snap": false},
@@ -17590,47 +18785,47 @@ if __name__ == "__main__":
     {"outline": true, "model": "box", "pos": [28.3, 0, 201.0], "rot": 90},
     {"outline": true, "model": "box", "pos": [19.3, 0, 163.8], "rot": 345},
     {"outline": true, "model": "box", "pos": [29.2, 0, 157.8], "rot": 135},
-    {"outline": true, "model": "box", "pos": [19.2, 0, 171.4], "rot": 210},
-    {"outline": true, "model": "box", "pos": [26.4, 0, 183.0], "rot": 180},
-    {"outline": true, "model": "box", "pos": [26.2, 0, 203.2], "rot": 0},
-    {"outline": true, "model": "box", "pos": [23.7, 0, 187.7], "rot": 345},
-    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-8.8, 0, 142.6], "rot": 0},
-    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-31.9, 0, 136.0], "rot": 0},
-    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [23.0, 0, 135.0], "rot": 0},
-    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [30.2, 0, 133.3], "rot": 0},
-    {"outline": true, "model": "box", "pos": [37.6, 0, 131.0], "rot": 75},
-    {"outline": true, "model": "box", "pos": [-34.0, 0, 141.4], "rot": 345},
-    {"outline": true, "model": "box", "pos": [-14.4, 0, 139.9], "rot": 60},
-    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-28.0, 0, 139.3], "rot": 90},
-    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [10.2, 0, 133.4], "rot": 180},
-    {"model": "deckchair", "pos": [-29.8, 0, 178.0], "rot": 180},
-    {"model": "deckchair", "pos": [-29.9, 0, 165.4], "rot": 150},
-    {"model": "deckchair", "pos": [-27.6, 0, 155.7], "rot": 15},
-    {"model": "deckchair", "pos": [-55.0, 0, 188.9], "rot": 135},
-    {"model": "deckchair", "pos": [-14.9, 0, 164.9], "rot": 240},
-    {"model": "deckchair", "pos": [-28.3, 0, 191.7], "rot": 195},
-    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [4.8, 0, 158.8], "rot": 225},
-    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [-54.5, 0, 167.4], "rot": 210},
-    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [-47.7, 0, 165.0], "rot": 270},
-    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [-35.1, 0, 156.9], "rot": 270},
-    {"outline": true, "model": "box", "pos": [-10.7, 0, 164.3], "rot": 135},
-    {"outline": true, "model": "box", "pos": [-7.7, 0, 157.3], "rot": 180}
+    {"outline": true, "model": "box", "pos": [32.2, 0, 192.2], "rot": 300},
+    {"outline": true, "model": "box", "pos": [31.5, 0, 152.6], "rot": 30},
+    {"outline": true, "model": "box", "pos": [32.2, 0, 160.0], "rot": 240},
+    {"outline": true, "model": "box", "pos": [33.5, 0, 199.5], "rot": 0},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-43.3, 0, 132.6], "rot": 0},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-10.7, 0, 143.3], "rot": 0},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [7.5, 0, 139.6], "rot": 0},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [50.9, 0, 136.4], "rot": 0},
+    {"outline": true, "model": "box", "pos": [-51.9, 0, 133.6], "rot": 270},
+    {"outline": true, "model": "box", "pos": [-17.7, 0, 128.8], "rot": 195},
+    {"outline": true, "model": "box", "pos": [-1.1, 0, 137.5], "rot": 15},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-17.3, 0, 132.3], "rot": 90},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-38.7, 0, 143.0], "rot": 0},
+    {"model": "deckchair", "pos": [1.0, 0, 188.6], "rot": 90},
+    {"model": "deckchair", "pos": [-13.0, 0, 156.5], "rot": 270},
+    {"model": "deckchair", "pos": [-40.6, 0, 185.0], "rot": 180},
+    {"model": "deckchair", "pos": [-54.9, 0, 162.3], "rot": 285},
+    {"model": "deckchair", "pos": [-3.4, 0, 162.3], "rot": 15},
+    {"model": "deckchair", "pos": [-6.1, 0, 182.8], "rot": 255},
+    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [1.2, 0, 157.5], "rot": 135},
+    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [-48.9, 0, 173.8], "rot": 120},
+    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [-4.4, 0, 173.8], "rot": 30},
+    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [-38.2, 0, 190.5], "rot": 165},
+    {"outline": true, "model": "box", "pos": [-2.6, 0, 159.0], "rot": 120},
+    {"outline": true, "model": "box", "pos": [-54.5, 0, 172.5], "rot": 105}
   ],
   "hideouts": [
     {"kind": "barrel", "pos": [44, 0.2, 132.75], "size": [0.6, 0.4, 0.6]},
     {"kind": "barrel", "pos": [-48, 0.2, 140.75], "size": [0.6, 0.4, 0.6]},
     {"kind": "boat", "pos": [-8, 0.2, 170], "rot": 30, "size": [1.2, 0.4, 3.6]},
-    {"kind": "box", "pos": [19.2, 0.2, 172.05], "size": [0.6, 0.4, 0.6]},
-    {"kind": "box", "pos": [26.4, 0.2, 183.65], "size": [0.6, 0.4, 0.6]},
-    {"kind": "box", "pos": [26.2, 0.2, 203.85], "size": [0.6, 0.4, 0.6]},
-    {"kind": "box", "pos": [23.7, 0.2, 188.35], "size": [0.6, 0.4, 0.6]},
-    {"kind": "box", "pos": [37.6, 0.2, 131.65], "size": [0.6, 0.4, 0.6]},
-    {"kind": "box", "pos": [-34.0, 0.2, 142.05], "size": [0.6, 0.4, 0.6]},
-    {"kind": "box", "pos": [-14.4, 0.2, 140.55], "size": [0.6, 0.4, 0.6]},
-    {"kind": "bench", "pos": [-28.0, 0.2, 139.3], "rot": 90, "size": [1.3, 0.4, 0.4]},
-    {"kind": "bench", "pos": [10.2, 0.2, 133.4], "rot": 180, "size": [1.3, 0.4, 0.4]},
-    {"kind": "box", "pos": [-10.7, 0.2, 164.95], "size": [0.6, 0.4, 0.6]},
-    {"kind": "box", "pos": [-7.7, 0.2, 157.95], "size": [0.6, 0.4, 0.6]}
+    {"kind": "box", "pos": [32.2, 0.2, 192.85], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [31.5, 0.2, 153.25], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [32.2, 0.2, 160.65], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [33.5, 0.2, 200.15], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [-51.9, 0.2, 134.25], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [-17.7, 0.2, 129.45], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [-1.1, 0.2, 138.15], "size": [0.6, 0.4, 0.6]},
+    {"kind": "bench", "pos": [-17.3, 0.2, 132.3], "rot": 90, "size": [1.3, 0.4, 0.4]},
+    {"kind": "bench", "pos": [-38.7, 0.2, 143.0], "rot": 0, "size": [1.3, 0.4, 0.4]},
+    {"kind": "box", "pos": [-2.6, 0.2, 159.65], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [-54.5, 0.2, 173.15], "size": [0.6, 0.4, 0.6]}
   ],
   "spawn_points": [
     {"pos": [37.3, -1.55, 164], "allowed": [1], "foods": ["squid"], "snap": false},
@@ -17641,62 +18836,72 @@ if __name__ == "__main__":
     {"pos": [28.3, 0, 209.9], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
     {"pos": [17.5, 0, 197.6], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
     {"pos": [32.0, 0, 165.7], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
-    {"pos": [24.1, 0, 176.2], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
     {"pos": [18.5, 0, 202.6], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
-    {"pos": [22.4, 0, 164.0], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
     {"pos": [32.2, 0, 183.0], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
-    {"pos": [23.8, 0, 138.3], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [2.4, 0, 138.8], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [46.6, 0, 139.7], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [41.9, 0, 127.8], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [23.4, 0, 127.7], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [9.6, 0, 137.3], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-36.9, 0, 130.5], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [33.3, 0, 137.0], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [46.5, 0, 130.0], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-8.2, 0, 137.7], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [35.6, 0, 139.5], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [7.3, 0, 154.7], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-22.7, 0, 158.0], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-5.0, 0, 165.6], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [0.9, 0, 174.3], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-49.7, 0, 153.2], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-41.6, 0, 186.9], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-48.1, 0, 171.7], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-33.5, 0, 166.5], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-5.1, 0, 161.3], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-10.6, 0, 179.0], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [2.7, 0, 170.2], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-20.2, 0, 177.2], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]}
+    {"pos": [32.0, 0, 188.3], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
+    {"pos": [20.7, 0, 176.9], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
+    {"pos": [40.8, 0, 127.6], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-20.9, 0, 129.8], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [6.9, 0, 136.6], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [37.6, 0, 131.0], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-34.0, 0, 141.4], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-14.4, 0, 139.9], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-39.8, 0, 129.6], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-33.0, 0, 134.6], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-30.7, 0, 140.9], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [10.7, 0, 134.7], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [16.3, 0, 134.7], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-54.6, 0, 154.2], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-10.0, 0, 157.2], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-10.7, 0, 186.8], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [8.0, 0, 184.6], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-30.0, 0, 177.3], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-3.0, 0, 180.9], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-50.8, 0, 165.0], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [7.7, 0, 171.4], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-28.3, 0, 153.1], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-1.7, 0, 169.2], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-26.1, 0, 163.2], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-27.6, 0, 188.2], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]}
   ],
   "yarn": [
     {"pos": [37.3, -1.55, 166.5], "snap": false},
     {"pos": [12.7, -1.55, 174.5], "snap": false},
-    {"pos": [32.0, 0, 188.3]},
-    {"pos": [27.8, 0, 170.8]},
-    {"pos": [26.7, 0, 188.0]},
-    {"pos": [20.7, 0, 176.9]},
-    {"pos": [23.9, 0, 193.7]},
-    {"pos": [25.6, 0, 167.6]},
-    {"pos": [54.6, 0, 141.9]},
-    {"pos": [16.8, 0, 136.5]},
-    {"pos": [-43.3, 0, 132.6]},
-    {"pos": [7.5, 0, 139.6]},
-    {"pos": [50.9, 0, 136.4]},
-    {"pos": [-20.9, 0, 129.8]},
-    {"pos": [-2.6, 0, 188.0]},
-    {"pos": [-50.4, 0, 158.3]},
-    {"pos": [-22.8, 0, 184.7]},
-    {"pos": [-22.8, 0, 164.7]},
-    {"pos": [5.5, 0, 164.6]},
-    {"pos": [-52.3, 0, 155.0]},
-    {"pos": [-56.0, 0, 181.4]},
-    {"pos": [-50.9, 0, 180.9]},
-    {"pos": [-0.8, 0, 192.0]},
-    {"pos": [-4.6, 0, 169.5]},
-    {"pos": [-16.9, 0, 185.5]}
+    {"pos": [19.2, 0, 171.4]},
+    {"pos": [24.3, 0, 150.1]},
+    {"pos": [20.0, 0, 179.9]},
+    {"pos": [28.6, 0, 176.7]},
+    {"pos": [29.7, 0, 171.0]},
+    {"pos": [28.7, 0, 187.8]},
+    {"pos": [-21.2, 0, 135.3]},
+    {"pos": [-50.0, 0, 127.8]},
+    {"pos": [48.9, 0, 138.8]},
+    {"pos": [57.0, 0, 134.0]},
+    {"pos": [-50.9, 0, 136.5]},
+    {"pos": [52.4, 0, 129.7]},
+    {"pos": [-22.6, 0, 160.6]},
+    {"pos": [-33.2, 0, 171.6]},
+    {"pos": [-45.4, 0, 175.3]},
+    {"pos": [-55.7, 0, 185.0]},
+    {"pos": [-46.2, 0, 157.0]},
+    {"pos": [-19.1, 0, 165.0]},
+    {"pos": [0.4, 0, 172.4]},
+    {"pos": [-23.6, 0, 185.5]},
+    {"pos": [-43.9, 0, 182.1]},
+    {"pos": [-15.2, 0, 169.7]},
+    {"pos": [5.3, 0, 153.9]}
   ],
   "hazards": [
+    {"type": "forklift", "pos": [25, 0, 153], "rot": 0, "path": [[25, 153], [25, 207]]},
+    {"type": "gull", "pos": [30, 0, 192], "phase": 0.0},
+    {"type": "gull", "pos": [-30, 0, 170], "phase": 2.0},
+    {"type": "wave", "pos": [-25, -2.0, 194.2], "snap": false, "width": 68, "inland": -1},
+    {"type": "crab", "pos": [-50, 0, 175]},
+    {"type": "crab", "pos": [-35, 0, 186]},
+    {"type": "crab", "pos": [-15, 0, 179]},
+    {"type": "crab", "pos": [-4, 0, 160]},
+    {"type": "crab", "pos": [-42, 0, 164], "night_only": true},
+    {"type": "crab", "pos": [-24, 0, 190], "night_only": true}
   ],
   "decals": [
   ],
@@ -18907,6 +20112,8 @@ def generate(desc):
 			add("water_zones", [water])
 			add("shore", shore)
 			blocked.append(bl)
+		elif t == "block":
+			blocked.append(tuple(op["rect"]) + (0.0,))   # полоса без россыпи (маршрут погрузчика)
 		elif t == "flat":
 			terrain["features"].append({"type": "flat", "rect": op["rect"], "height": op["height"]})
 		elif t == "water":
@@ -19175,6 +20382,14 @@ class Primitives(unittest.TestCase):
 			"zones": [{"name": "z", "ops": [{"type": "place", "props": [{"model": "bin", "pos": [0, 0, 0]}, {"model": "umbrella", "pos": [5, 0, 5]}]}]}]}
 		layout, _ = lg.generate(d)
 		self.assertTrue(all("colliders" in p for p in layout["props"]))
+
+	def test_block_keeps_lane_free(self):
+		# План 14: полоса погрузчика на причале свободна от россыпи.
+		d = {"name": "t", "terrain": DESC["terrain"], "zones": [{"name": "z", "ops": [
+			{"type": "scatter", "what": "prop", "model": "box", "rect": [-10, -10, 10, 10], "count": 30, "min_dist": 1.0},
+			{"type": "block", "rect": [-2, -10, 2, 10]}]}]}
+		layout, _ = lg.generate(d)
+		self.assertFalse(any(-2.4 < p["pos"][0] < 2.4 for p in layout["props"]), "в полосе пусто")
 
 	def test_kit_constants_match_world_builder(self):
 		src = (ROOT / "scripts/world/world_builder.gd").read_text()
@@ -22463,6 +23678,15 @@ class Generate(unittest.TestCase):
      "level": -1.0
     },
     {
+     "type": "block",
+     "rect": [
+      22.5,
+      151,
+      27.5,
+      211
+     ]
+    },
+    {
      "type": "paint",
      "rect": [
       15,
@@ -22674,6 +23898,71 @@ class Generate(unittest.TestCase):
      ],
      "count": 4,
      "min_dist": 3.0
+    },
+    {
+     "type": "place",
+     "props": [
+      {
+       "model": "box",
+       "pos": [
+        24.6,
+        0,
+        209.8
+       ],
+       "rot": 0,
+       "outline": true
+      },
+      {
+       "model": "box",
+       "pos": [
+        25.4,
+        0,
+        209.8
+       ],
+       "rot": 0,
+       "outline": true
+      },
+      {
+       "model": "box",
+       "pos": [
+        25.0,
+        0.3,
+        209.8
+       ],
+       "rot": 15,
+       "outline": true
+      }
+     ],
+     "hazards": [
+      {
+       "type": "forklift",
+       "pos": [
+        25,
+        0,
+        153
+       ],
+       "rot": 0,
+       "path": [
+        [
+         25,
+         153
+        ],
+        [
+         25,
+         207
+        ]
+       ]
+      },
+      {
+       "type": "gull",
+       "pos": [
+        30,
+        0,
+        192
+       ],
+       "phase": 0.0
+      }
+     ]
     }
    ]
   },
@@ -23242,6 +24531,81 @@ class Generate(unittest.TestCase):
      ],
      "count": 2,
      "min_dist": 3.0
+    },
+    {
+     "type": "place",
+     "hazards": [
+      {
+       "type": "gull",
+       "pos": [
+        -30,
+        0,
+        170
+       ],
+       "phase": 2.0
+      },
+      {
+       "type": "wave",
+       "pos": [
+        -25,
+        -2.0,
+        194.2
+       ],
+       "snap": false,
+       "width": 68,
+       "inland": -1
+      },
+      {
+       "type": "crab",
+       "pos": [
+        -50,
+        0,
+        175
+       ]
+      },
+      {
+       "type": "crab",
+       "pos": [
+        -35,
+        0,
+        186
+       ]
+      },
+      {
+       "type": "crab",
+       "pos": [
+        -15,
+        0,
+        179
+       ]
+      },
+      {
+       "type": "crab",
+       "pos": [
+        -4,
+        0,
+        160
+       ]
+      },
+      {
+       "type": "crab",
+       "pos": [
+        -42,
+        0,
+        164
+       ],
+       "night_only": true
+      },
+      {
+       "type": "crab",
+       "pos": [
+        -24,
+        0,
+        190
+       ],
+       "night_only": true
+      }
+     ]
     }
    ]
   }

@@ -67,7 +67,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 - `scripts/autoload/game_state.gd` — сердечки, зубы (3), сытость, альбом, цель сессии; сигналы `cat_hit`, `cat_fainted` и др. В тестах `GameState.reset()` в `before_each`.
 - `scripts/core/` (`Layers`, `Rarity`), `scripts/food/` (`FoodDef`, `FoodCatalog`, `FoodPickup`, `FoodSpawnPoint`), `data/food/*.tres`.
 - `scripts/hideouts/hideout.gd`, `scripts/world/world_builder.gd` (двор из `data/layout/yard.json`), `scripts/world/spill_spawner.gd`.
-- `scripts/hazards/`: `perception.gd`, `chase_brain.gd` (чистые), `hazard_base.gd`, `dog.gd`, `wasp.gd`, `cyclist.gd`; парк: `sprinkler.gd`, `pigeon_flock.gd`, `park_person.gd` → `gardener.gd`, `kid.gd`, `guard.gd`; модели людей `tools/blender/human.py`, голубя `pigeon.py`.
+- `scripts/hazards/`: `perception.gd`, `chase_brain.gd` (чистые), `hazard_base.gd`, `dog.gd`, `wasp.gd`, `cyclist.gd`; парк: `sprinkler.gd`, `pigeon_flock.gd`, `park_person.gd` → `gardener.gd`, `kid.gd`, `guard.gd`; порт: `gull.gd`, `wave.gd`, `forklift.gd`, `crab.gd` (`third_party/crab_methodicalpixel/`); модели людей `tools/blender/human.py`, голубя `pigeon.py`.
 - `scripts/ui/hud.gd` + `scenes/ui/hud.tscn`; экраны `shop_menu.gd`, `album_menu.gd`, `pause_menu.gd`, `title.gd` (главная сцена `scenes/ui/title.tscn`), `menu_input.gd` (опрос клавиш меню, работает на паузе).
 - `scripts/core/shop_item.gd`, `shop_catalog.gd`, `cat_skin.gd`, `skin_catalog.gd`; данные `data/shop/*.tres`, `data/skins/*.tres`.
 - `scripts/autoload/save_game.gd` — JSON в `user://save.json`, пишет только по `save_now()` из `Main`; в тестах с `Main` путь переопределяется.
@@ -138,9 +138,11 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 
 **План 13:** высота террасы в `terrain_gen` абсолютная (в генераторе раскладки — `level`); имена одинаковых узлов давать с номером; кадр альбома — `++ --album`.
 
+**План 14:** отладочные ключи (`--screenshot/--at/--phase/--album`) включают `SaveGame.read_only` — кадры не трогают сохранение; маленькие опасности (краб) без слоя столкновений; у Area3D проверять `get_overlapping_bodies` при старте движения.
+
 ## Статус и что дальше
 
-- Планы 10 «Рельеф», 11 «Двор ×3», 12 «Парк ×3, вода» и 13 «Порт» выполнены 2026-10-09 (спек `2026-10-09-snack-run-scale-terrain-design.md`). Дальше планы 14 (опасности порта) и 15 (рыбалка); владелец: делать подряд, не ждать его оценки.
+- Планы 10 «Рельеф», 11 «Двор ×3», 12 «Парк ×3, вода», 13 «Порт» и 14 «Опасности порта» выполнены 2026-10-09 (спек `2026-10-09-snack-run-scale-terrain-design.md`). Дальше план 15 (рыбалка); владелец: делать подряд, не ждать его оценки.
 - Планы 1–9 выполнены и слиты в `main`: фундамент, игровой цикл, хаб и прогрессия, полировка, визуальная полировка, текстуры крупных поверхностей, этап 2 (сутки, парк, опасности парка). Отложенные мелочи — в дорожной карте.
 - Отложено по просьбе владельца: текстуры пропсов («потом вернёмся к текстурам»).
 - Открытый вопрос владельцу: лицензия весов UniMate для сгенерированных движений (код MIT, для весов явной лицензии не найдено).
