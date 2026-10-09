@@ -1,8 +1,9 @@
 shader_type spatial;
-// Вода пруда и моря (спек порта, раздел 2): цвет палитры sea_light, прозрачность, рябь нормалью; отражения — SSR окружения.
+// Вода пруда и моря (спек порта, раздел 2): цвет палитры sea_light, рябь нормалью; непрозрачная — так её отражает SSR окружения
+// (прозрачный проход Godot SSR не получает, ревью плана 12).
 render_mode diffuse_toon, specular_toon, cull_disabled;
 
-uniform vec4 tint : source_color = vec4(0.184, 0.612, 0.812, 0.85);
+uniform vec4 tint : source_color = vec4(0.184, 0.612, 0.812, 1.0);
 uniform vec4 deep : source_color = vec4(0.114, 0.498, 0.769, 1.0);
 uniform float ripple = 0.08;
 
@@ -19,7 +20,6 @@ void fragment() {
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
 	float f = 0.5 + 0.25 * (a + b) * 0.25;
 	ALBEDO = mix(deep.rgb, tint.rgb, clamp(f, 0.0, 1.0));
-	ALPHA = tint.a;
 	ROUGHNESS = 0.05;
 	METALLIC = 0.0;
 	SPECULAR = 0.6;

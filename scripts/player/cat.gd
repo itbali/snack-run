@@ -92,6 +92,8 @@ func _physics_process(delta: float) -> void:
 		global_position += velocity * delta
 		if drowning_left == 0.0:
 			teleport(_shore)
+			if camera_rig:
+				camera_rig.global_position = global_position + Vector3(0, CameraRig.HEIGHT, 0)   # камера не летит через воду
 		return
 	if stunned_left > 0.0 or petted_left > 0.0:
 		velocity = CatMotion.step(velocity, Vector3.ZERO, false, is_on_floor(), false, delta)
@@ -215,6 +217,8 @@ func try_eat() -> bool:
 
 
 func take_hit(from: Vector3) -> void:
+	if drowning_left > 0.0:
+		return   # в воде сердечко не снимается (спек порта, раздел 2)
 	if invulnerable_left > 0.0 or stunned_left > 0.0 or hidden or in_safe_zone:
 		return
 	Sfx.play(&"hit")   # один вызов на реальный удар: повторные касания блокирует неуязвимость
@@ -263,6 +267,8 @@ func _fade_material(mat: StandardMaterial3D) -> void:
 
 
 func pet(seconds: float) -> bool:
+	if drowning_left > 0.0:
+		return false
 	## Поймал ребёнок: 2 с стоим довольные, еда выпала, сердечко цело; потом неуязвимость, как после удара.
 	if petted_left > 0.0 or invulnerable_left > 0.0 or hidden or in_safe_zone:
 		return false
@@ -311,6 +317,7 @@ func drown(shore: Vector3) -> bool:
 	Sfx.play(&"splash")
 	Effects.burst(get_parent(), global_position + Vector3(0, 0.2, 0), Color("#2F9CCF"), 28, 0.06, 2.5)
 	squash(0.6, 0.2)
+	state = &"idle"   # не продолжать клип бега под водой
 	return true
 
 

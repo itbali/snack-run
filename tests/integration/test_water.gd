@@ -84,3 +84,39 @@ func test_builder_builds_water_zones_and_shore() -> void:
 	if w.size() == 1:
 		assert_almost_eq((w[0] as Water).level, -0.5, 0.001)
 	assert_eq(get_tree().get_nodes_in_group("shore").size(), 1)
+
+func test_drowning_cat_cannot_be_hit_or_petted() -> void:
+	# Ревью плана 12: сторож догонял тонущего кота и снимал сердечко (спек: в воде сердечко не снимается).
+	_floor(-1.5)
+	_water(-0.5)
+	_shore(Vector3(8, 1.0, 0))
+	var cat = CatScene.instantiate()
+	cat.position = Vector3(0, -1.4, 0)
+	world.add_child(cat)
+	await wait_physics_frames(5)
+	assert_gt(cat.drowning_left, 0.0)
+	cat.invulnerable_left = 0.0
+	cat.take_hit(Vector3(1, -1.4, 0))
+	assert_eq(GameState.hearts, 3, "удар по тонущему не проходит")
+	assert_false(cat.pet(2.0), "тонущего не гладят")
+
+func test_water_is_opaque_for_reflections() -> void:
+	# Ревью плана 12: с ALPHA вода шла прозрачным проходом, а SSR на прозрачное не действует (спек: зеркальная вода).
+	var w := _water(-0.5)
+	var mat := (w.get_node("Surface") as MeshInstance3D).material_override as ShaderMaterial
+	assert_false(mat.shader.code.contains("ALPHA"), "вода непрозрачная — отражения SSR")
+
+func test_camera_follows_cat_back_to_shore() -> void:
+	# Ревью плана 12: после возврата из воды камера плыла через весь пруд (в порту — через море).
+	SaveGame.path = "user://test_save.json"
+	SaveGame.clear()
+	var main := (load("res://scenes/main.tscn") as PackedScene).instantiate()
+	add_child_autofree(main)
+	await wait_physics_frames(5)
+	var cat = main.find_child("Cat", true, false)
+	cat.global_position = Vector3(-28, -1.2, 66)   # дно пруда парка
+	await wait_seconds(1.3)
+	assert_eq(cat.drowning_left, 0.0, "вернулся на берег")
+	var rig: Node3D = main.get("_rig")
+	assert_lt(Vector2(rig.global_position.x - cat.global_position.x, rig.global_position.z - cat.global_position.z).length(), 0.5, "камера сразу у кота")
+	SaveGame.clear()
