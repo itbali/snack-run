@@ -159,7 +159,9 @@ def join(name, objs):
 	mats = []
 	for o in objs:
 		depsgraph = bpy.context.evaluated_depsgraph_get()
-		tmp = o.evaluated_get(depsgraph).to_mesh().copy()
+		ev = o.evaluated_get(depsgraph)
+		tmp = ev.to_mesh().copy()
+		ev.to_mesh_clear()
 		tmp.transform(o.matrix_world)
 		for poly in tmp.polygons:
 			mat = o.data.materials[poly.material_index] if o.data.materials else None
@@ -168,7 +170,10 @@ def join(name, objs):
 			poly.material_index = mats.index(mat)
 		bm.from_mesh(tmp)
 		bpy.data.meshes.remove(tmp)
+		src = o.data
 		bpy.data.objects.remove(o)
+		if src.users == 0:
+			bpy.data.meshes.remove(src)   # без сирот в долгих сессиях
 	mesh = bpy.data.meshes.new(name)
 	bm.to_mesh(mesh)
 	bm.free()

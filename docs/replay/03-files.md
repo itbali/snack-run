@@ -5,7 +5,7 @@
 Отступы в GDScript и Makefile — табы; в Python проекта — тоже табы, кроме
 `palette.py` и тестов Blender (пробелы). Копировать как есть.
 
-Файлов: 179
+Файлов: 208
 
 ## `CLAUDE.md`
 
@@ -87,6 +87,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 - `scripts/autoload/input_setup.gd` (InputMap в коде), `dev_tools.gd` (`++ --screenshot=path`).
 - `tools/blender/`: `palette.py`, `lib.py` (rounded_box, world_extent, tri_count, check_asset), `export.py`, `build.py`, `cat.py` (сварка + subdivision) + `cat_eyes.py` (глаза) + `cat_fluff.py` (пучки, усы, ошейник), `dog.py` + `dog_sleep.py` (поза «спит»), `gen/*.py` (каждый: `SPEC` + `build()`); `tools/audio/gen_sfx.py`; `tools/images/gen.py` + `manifest.json`; `export_presets.cfg`.
 - `scripts/visual/surface_textures.gd` — текстуры крупных поверхностей по имени меша (`ground`, `sidewalk`, `wall`), трипланар по мировым координатам (спек 2.9).
+- `scripts/world/day_cycle.gd` (чистая логика суток) + `day_night.gd` (узел в `lighting.tscn`, группа `day_night`; `DayNight.is_night(tree)`, без узла — день); группы `night_lights`, `night_windows`.
 - `scenes/world/lighting.tscn` — солнце, заполняющий свет, окружение (SSAO, SSR, glow, облака `sky_cover`), листья; `WorldBuilder` читает `solid`, `water`, `decals` из `yard.json`.
 - `third_party/quaternius_animal_pack_v2/` (CC0 кот и собака), `third_party/unimate_clips/` (канонический риг + клипы jump/hide/hit/run + README с воспроизведением).
 - `tests/unit`, `tests/integration` (GUT 9.7.1 в `addons/gut`, вендор), `tools/blender/tests/`.
@@ -127,6 +128,8 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 
 **План 4:** одиночный прогон GUT — `-gselect=`, не `-gtest=`; пары Area3D фиксируются по позициям в момент `add_child` (в тестах `position` ставить **до** `add_child`, иначе кот в точке собаки ловит удар на первом кадре); скрипт `-s` (SceneTree) без автозагрузок — `cat.tscn` там не компилируется, рендерить `cat.glb`; в `_init()` такого скрипта `global_position`/`look_at` не применяются — задавать `transform`; в Blender при записи клипа позу ставить при снятом action (иначе `view_layer.update()` возвращает уже записанные кадры); `GameState.reset()` рядом с `Main` тут же автосохраняется — файл стирать после сброса или выключать `autosave`; эмоции — меши на кости головы (материалы не из ролей скина, обводку с глаз снимать).
 
+**Этап 2:** не называть статические функции именами встроенных (`wrap`, `clamp`, `lerp`…) — вызов `Класс.wrap()` падает; кадры фаз и мест: `make shot PHASE=night AT=0,0.1,33,180`; парк строит второй `WorldBuilder` (`ParkBuilder`, `data/layout/park.json`).
+
 **Шрифт и окно:** Nunito вариативный — только через `assets/ui/nunito_bold.tres` (`wght 700`), без веса это ExtraLight; в Nunito нет ♥ ♡ ◎ ✓ — в UI иконки или слова; окно развёрнуто, `stretch canvas_items/expand` (Retina, масштаб 2).
 
 **План 5:** **ось Y скелета кота идёт вдоль тела, верх — +Z скелета** (модификаторы берут верх из `skel.global_transform.basis.inverse() * Vector3.UP`, тесты модификаторов меряют мировые координаты); у мешей из Blender-скриптов нет UV — шейдеры берут шум по `VERTEX_ID`; импортированный glb-меш перед subdivision сваривать (`remove_doubles`), иначе мозаика; subdivision на триангулированном меше ×6; `CPUParticles3D`, созданные в физическом шаге, получают `finished` сразу — эмиссию включать после `add_child`, удалять по таймеру; `ambient_light_source`: 1 = DISABLED, 3 = SKY; внешний `velocity.y` у кота гасится шагом на полу (в тестах прыгать через `Input.action_press("jump")`); с нетипизированным `main` в тестах писать `var x: Тип = main.f()`; `yard.json` многострочный — правки скриптом по строкам; служебный рендер `-s` к `cat.glb` добавляет модификаторы скелета вручную; веки над утопленными глазами читаются как брови — не делать.
@@ -135,7 +138,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 
 ## Статус и что дальше
 
-- План 6 (текстуры крупных поверхностей, гибрид) выполнен 2026-10-09.
+- План 6 (текстуры крупных поверхностей, гибрид) выполнен 2026-10-09. Этап 2 (парк и сутки): спек подтверждён, планы 7 (смена суток) и 8 (район парка) выполнены; дальше план 9 (опасности парка).
 - Планы 1–5 выполнены и слиты в `main` (2026-10-09): фундамент, игровой цикл, хаб и прогрессия, полировка под ролик, визуальная полировка (картинки OpenAI, гладкий кот с глазами в глазницах и пучками, короткие лапы, тун v2, яркий день, VFX, зелень и декали). Отложенные мелочи — в конце дорожной карты.
 - Следующий шаг: живой плейтест владельца с правками по его замечаниям, затем этапы 2+ (парк, сутки, порт) отдельными спеками через brainstorming.
 - Открытый вопрос владельцу: лицензия весов UniMate для сгенерированных движений (код MIT, для весов явной лицензии не найдено).
@@ -148,6 +151,8 @@ SHELL   := /bin/bash
 GODOT   ?= /Applications/Godot.app/Contents/MacOS/Godot
 BLENDER ?= /Applications/Blender.app/Contents/MacOS/Blender
 SHOT    ?= build/shot.png
+PHASE   ?=
+AT      ?=
 TEMPLATES_DIR := $(HOME)/Library/Application Support/Godot/export_templates/4.7.2.stable
 
 .PHONY: import test test-godot test-blender assets shot run replay sfx templates export images
@@ -171,7 +176,7 @@ assets:
 
 shot: import
 	mkdir -p build
-	$(GODOT) --path . --resolution 1280x720 res://scenes/main.tscn ++ --screenshot=$(SHOT)
+	$(GODOT) --path . --resolution 1280x720 res://scenes/main.tscn ++ $(if $(PHASE),--phase=$(PHASE),) $(if $(AT),--at=$(AT),) --screenshot=$(SHOT)
 
 run: import
 	$(GODOT) --path .
@@ -666,6 +671,36 @@ layout_mode = 2
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 26
 text = "🔔 Велосипед!"
+
+[node name="PhasePanel" type="PanelContainer" parent="."]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -150.0
+offset_top = 96.0
+offset_right = -20.0
+offset_bottom = 156.0
+grow_horizontal = 0
+
+[node name="Row" type="HBoxContainer" parent="PhasePanel"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="PhaseIcon" type="TextureRect" parent="PhasePanel/Row"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="PhaseBar" type="ProgressBar" parent="PhasePanel/Row"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 10)
+layout_mode = 2
+size_flags_vertical = 4
+max_value = 1.0
+step = 0.001
+show_percentage = false
 ```
 
 ## `scenes/ui/pause_menu.tscn`
@@ -881,6 +916,10 @@ shape = SubResource("floor")
 script = ExtResource("2")
 layout_path = "res://data/layout/yard.json"
 
+[node name="ParkBuilder" type="Node3D" parent="."]
+script = ExtResource("2")
+layout_path = "res://data/layout/park.json"
+
 [node name="Spawn" type="Marker3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 0)
 ```
@@ -909,6 +948,7 @@ script = ExtResource("1")
 
 [ext_resource type="Script" path="res://scripts/world/lighting.gd" id="1"]
 [ext_resource type="Texture2D" path="res://assets/images/world/clouds.png" id="2"]
+[ext_resource type="Script" path="res://scripts/world/day_night.gd" id="3"]
 
 [sub_resource type="ProceduralSkyMaterial" id="sky"]
 sky_top_color = Color(0.29, 0.608, 0.878, 1)
@@ -962,6 +1002,9 @@ shadow_enabled = false
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("env")
+
+[node name="DayNight" type="Node" parent="."]
+script = ExtResource("3")
 ```
 
 ## `scenes/world/yarn_shop.tscn`
@@ -1033,8 +1076,37 @@ extends Node
 
 func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--phase="):
+			_set_phase_later(DayCycle.parse_time(arg.trim_prefix("--phase=")))
+		if arg.begins_with("--at="):
+			var v := arg.trim_prefix("--at=").split_floats(",")
+			if v.size() >= 3:
+				_teleport_later(Vector3(v[0], v[1], v[2]), deg_to_rad(v[3]) if v.size() > 3 else 0.0)
 		if arg.begins_with("--screenshot="):
 			_screenshot_and_quit(arg.trim_prefix("--screenshot="))
+
+
+func _set_phase_later(t: float) -> void:
+	## Для кадров ночью/на закате: ++ --phase=220 ставит время суток после загрузки сцены.
+	for i in 3:
+		await get_tree().process_frame
+	var dn := get_tree().get_first_node_in_group("day_night")
+	if dn:
+		dn.call("set_time", t)
+		dn.set("time_scale", 0.0)
+
+
+func _teleport_later(pos: Vector3, yaw := 0.0) -> void:
+	## Для кадров других районов: ++ --at=x,y,z[,yaw°] ставит кота в точку и поворачивает камеру.
+	for i in 4:
+		await get_tree().process_frame
+	var cat := get_tree().get_first_node_in_group("cat")
+	if cat:
+		cat.call("teleport", pos)
+		var rig := cat.get("camera_rig") as Node3D
+		if rig:
+			rig.global_position = pos + Vector3(0, 0.6, 0)
+			rig.set("_yaw", yaw)
 
 
 func _screenshot_and_quit(path: String) -> void:
@@ -1075,6 +1147,7 @@ const MOUTH_CAPACITY := 3
 const GOAL_FIRST := 3
 const GOAL_STEP := 2
 const SATIETY_GATE := 10   # сытость, открывающая арку в кафе (план 3)
+const PARK_GATE := 25      # сытость, открывающая ворота в парк (этап 2)
 const YARN_PER_CARD := 3
 const SPEED_BONUS := 1.15
 const STEALTH_BONUS := 0.7
@@ -1579,6 +1652,7 @@ extends RefCounted
 enum Tier { COMMON, RARE, VERY_RARE, LEGENDARY }
 
 const WEIGHTS := {Tier.COMMON: 60, Tier.RARE: 25, Tier.VERY_RARE: 12, Tier.LEGENDARY: 3}
+const NIGHT_WEIGHTS := {Tier.COMMON: 40, Tier.RARE: 30, Tier.VERY_RARE: 20, Tier.LEGENDARY: 10}   # ночью рискованнее, но вкуснее (этап 2)
 const SATIETY := {Tier.COMMON: 1, Tier.RARE: 3, Tier.VERY_RARE: 6, Tier.LEGENDARY: 15}
 const COLORS := {
 	Tier.COMMON: Color("#4D945B"),
@@ -1589,15 +1663,15 @@ const COLORS := {
 const NAMES := {Tier.COMMON: "Обычная", Tier.RARE: "Редкая", Tier.VERY_RARE: "Очень редкая", Tier.LEGENDARY: "Легендарная"}
 
 
-static func pick_weighted(allowed: Array, rng: RandomNumberGenerator) -> int:
+static func pick_weighted(allowed: Array, rng: RandomNumberGenerator, weights: Dictionary = WEIGHTS) -> int:
 	if allowed.is_empty():
 		return Tier.COMMON
 	var total := 0
 	for t in allowed:
-		total += WEIGHTS[t]
+		total += weights[t]
 	var roll := rng.randi_range(1, total)
 	for t in allowed:
-		roll -= WEIGHTS[t]
+		roll -= weights[t]
 		if roll <= 0:
 			return t
 	return allowed[-1]
@@ -1846,6 +1920,7 @@ signal spawned(pickup: FoodPickup)
 const PickupScene := preload("res://scenes/food/food_pickup.tscn")
 
 @export var allowed: Array = [Rarity.Tier.COMMON]
+@export var foods: Array = []   # id еды; пусто — любая еда допустимой редкости (парк задаёт свою еду)
 @export var respawn_min := 30.0
 @export var respawn_max := 90.0
 var rng := RandomNumberGenerator.new()
@@ -1858,8 +1933,21 @@ func _ready() -> void:
 
 
 func pick_def() -> FoodDef:
-	var tier := Rarity.pick_weighted(allowed, rng)
+	var night := is_inside_tree() and DayNight.is_night(get_tree())
+	var tier := Rarity.pick_weighted(allowed, rng, Rarity.NIGHT_WEIGHTS if night else Rarity.WEIGHTS)
 	var pool := FoodCatalog.by_tier(tier)
+	if not foods.is_empty():
+		var ids := foods.map(func(x): return StringName(x))   # один раз, не на каждой еде каталога
+		var only: Array[FoodDef] = []
+		for f in pool:
+			if StringName(f.id) in ids:
+				only.append(f)
+		if only.is_empty():
+			push_warning("точка спавна %s: в списке еды нет редкости %d" % [global_position if is_inside_tree() else Vector3.ZERO, tier])
+			for f in FoodCatalog.all():
+				if StringName(f.id) in ids:
+					only.append(f)
+		pool = only
 	if pool.is_empty():
 		pool = FoodCatalog.all()
 	return pool[rng.randi_range(0, pool.size() - 1)]
@@ -1944,6 +2032,13 @@ func reset() -> void:
 	state = State.IDLE
 	_t = 0.0
 	_hidden_t = 0.0
+
+
+func give_up() -> void:
+	## Погоня обрывается извне (наступила ночь): собака идёт домой спать.
+	if state == State.ALERT or state == State.CHASE:
+		state = State.RETURN
+		_t = 0.0
 
 
 func update(delta: float, sees_cat: bool, cat_hidden: bool, at_home: bool, cat_safe := false) -> int:
@@ -2114,6 +2209,8 @@ func sees_cat() -> bool:
 	var c := _find_cat()
 	if c == null or c.get("hidden") or c.get("in_safe_zone"):
 		return false
+	if DayNight.is_night(get_tree()):
+		return false   # ночью собака двора спит и не просыпается от кота (этап 2)
 	var forward := -global_transform.basis.z
 	return Perception.in_cone(global_position, forward, c.global_position, VISION_HALF_ANGLE * GameState.stealth_mult, VISION_RANGE)
 
@@ -2123,6 +2220,8 @@ func _physics_process(delta: float) -> void:
 	var c := _find_cat()
 	var cat_hidden: bool = c != null and (bool(c.get("hidden")) or bool(c.get("in_safe_zone")))
 	var at_home := global_position.distance_to(home) < HOME_RADIUS
+	if DayNight.is_night(get_tree()):
+		brain.give_up()   # ночь посреди погони — собака уходит спать (ревью плана 7)
 	var cat_safe: bool = c != null and bool(c.get("in_safe_zone"))
 	var s := brain.update(delta, sees_cat(), cat_hidden, at_home, cat_safe)
 	if s == ChaseBrain.State.ALERT and _last_state != ChaseBrain.State.ALERT:
@@ -2439,7 +2538,7 @@ func _ready() -> void:
 	pause_menu.resumed.connect(func() -> void: _set_paused(false))
 	pause_menu.reset_requested.connect(reset_progress)
 	for g in get_tree().get_nodes_in_group("gates"):
-		g.opened.connect(func() -> void: hud.flash_bell("🎉 Арка в кафе открыта!", 3.0))
+		g.opened.connect(func() -> void: hud.flash_bell(g.label, 3.0))
 	for sig in [GameState.album_changed, GameState.satiety_changed, GameState.yarn_changed, GameState.upgrade_bought, GameState.skin_changed]:
 		sig.connect(_on_progress_changed.unbind(1))
 	Mouse.capture(true)
@@ -3301,6 +3400,7 @@ extends CanvasLayer
 const HEART_ICON := "res://assets/images/ui/heart.png"
 const YARN_ICON := "res://assets/images/ui/yarn.png"
 const HEART_LOST_ALPHA := 0.3
+const PHASE_ICONS := {&"day": "res://assets/images/ui/sun.png", &"evening": "res://assets/images/ui/sunset.png", &"night": "res://assets/images/ui/moon.png", &"morning": "res://assets/images/ui/sunset.png"}
 const MAX_MOUTH := 5   # максимум после улучшений магазина
 
 @onready var _hearts: HBoxContainer = %Hearts
@@ -3312,6 +3412,9 @@ const MAX_MOUTH := 5   # максимум после улучшений мага
 @onready var _goal: Label = %Goal
 @onready var _bell: Label = %Bell
 @onready var _bell_panel: PanelContainer = %BellPanel
+@onready var _phase_icon: TextureRect = %PhaseIcon
+@onready var _phase_bar: ProgressBar = %PhaseBar
+var _day_night: DayNight
 
 
 func _ready() -> void:
@@ -3347,6 +3450,28 @@ func _ready() -> void:
 	_on_mouth(GameState.mouth)
 	_on_satiety(GameState.satiety)
 	_on_goal(GameState.goal_done, GameState.goal_target)
+	_on_phase(&"day")
+	_bind_day_night()
+
+
+func _bind_day_night() -> void:
+	_day_night = get_tree().get_first_node_in_group("day_night") as DayNight
+	if _day_night and not _day_night.phase_changed.is_connected(_on_phase):
+		_day_night.phase_changed.connect(_on_phase)
+		_on_phase(_day_night.phase)
+	(_phase_icon.get_parent().get_parent() as Control).visible = _day_night != null
+
+
+func _process(_delta: float) -> void:
+	if _day_night == null or not is_instance_valid(_day_night):
+		_bind_day_night()   # ленивая привязка: Lighting мог появиться позже HUD или быть пересоздан
+		if _day_night == null:
+			return
+	_phase_bar.value = DayCycle.phase_progress(_day_night.time)
+
+
+func _on_phase(phase: StringName) -> void:
+	_phase_icon.texture = _icon(PHASE_ICONS.get(phase, PHASE_ICONS[&"day"]))
 
 
 func hearts_text() -> String:
@@ -3419,8 +3544,17 @@ func satiety_label_text() -> String:
 
 
 func _on_satiety(value: int) -> void:
+	# Ближайшая цель сытости: кафе (10), потом парк (25).
+	if value < GameState.SATIETY_GATE:
+		_satiety.max_value = GameState.SATIETY_GATE
+		_satiety_label.text = "Сытость %d/%d" % [value, GameState.SATIETY_GATE]
+	elif value < GameState.PARK_GATE:
+		_satiety.max_value = GameState.PARK_GATE
+		_satiety_label.text = "До парка %d/%d" % [value, GameState.PARK_GATE]
+	else:
+		_satiety.max_value = GameState.PARK_GATE
+		_satiety_label.text = "Парк открыт"
 	_satiety.value = value
-	_satiety_label.text = "Кафе открыто" if value >= GameState.SATIETY_GATE else "Сытость %d/%d" % [value, GameState.SATIETY_GATE]
 
 
 func _on_goal(done: int, target: int) -> void:
@@ -3867,6 +4001,8 @@ const TABLE := {
 	"ground": ["asphalt.png", 4.0],
 	"sidewalk": ["paving.png", 1.2],
 	"wall": ["stucco.png", 4.5],
+	"lawn": ["grass.png", 2.0],
+	"path": ["gravel.png", 0.8],
 }
 
 
@@ -3971,6 +4107,191 @@ static func make_outline(width: float, jitter := 0.0) -> ShaderMaterial:
 	return m
 ```
 
+## `scripts/world/day_cycle.gd`
+
+```gdscript
+class_name DayCycle
+extends RefCounted
+## Чистая логика смены суток (спек этапа 2, раздел 2): фазы по времени, ключевые кадры света, фонари.
+## Цикл 300 с: день [0,150), вечер [150,180), ночь [180,270), утро [270,300).
+
+const CYCLE := 300.0
+const PHASES := [[0.0, &"day"], [150.0, &"evening"], [180.0, &"night"], [270.0, &"morning"]]
+const LAMPS_FROM := 165.0
+const LAMPS_TO := 285.0
+
+const DAY := {"sun_pitch": -65.0, "sun_color": Color("#FFF1D6"), "sun_energy": 1.2, "fill": 0.25, "ambient": 0.6,
+	"sky_top": Color("#4A9BE0"), "sky_horizon": Color("#CFE6F8"), "clouds": Color("#FFFFFF")}
+const DUSK := {"sun_pitch": -10.0, "sun_color": Color("#FFB36B"), "sun_energy": 0.8, "fill": 0.2, "ambient": 0.45,
+	"sky_top": Color("#5A6FB0"), "sky_horizon": Color("#FFB98A"), "clouds": Color("#FFD2B0")}
+const NIGHT := {"sun_pitch": -50.0, "sun_color": Color("#9FB8FF"), "sun_energy": 0.22, "fill": 0.08, "ambient": 0.18,
+	"sky_top": Color("#0B1633"), "sky_horizon": Color("#1E2F5C"), "clouds": Color("#3A4670")}
+## (время, состояние); рассвет повторяет закат
+const KEYS := [[0.0, DAY], [150.0, DAY], [165.0, DUSK], [185.0, NIGHT], [270.0, NIGHT], [285.0, DUSK], [300.0, DAY]]
+
+
+static func wrap_time(t: float) -> float:
+	return fposmod(t, CYCLE)
+
+
+static func phase_at(t: float) -> StringName:
+	var w := wrap_time(t)
+	var out: StringName = &"day"
+	for p in PHASES:
+		if w >= p[0]:
+			out = p[1]
+	return out
+
+
+static func phase_progress(t: float) -> float:
+	## Доля прошедшей фазы, 0..1 (для полоски «до следующей фазы» в HUD).
+	var w := wrap_time(t)
+	for i in PHASES.size():
+		var start: float = PHASES[i][0]
+		var end: float = PHASES[i + 1][0] if i + 1 < PHASES.size() else CYCLE
+		if w >= start and w < end:
+			return (w - start) / (end - start)
+	return 0.0
+
+
+static func light_at(t: float) -> Dictionary:
+	var w := wrap_time(t)
+	for i in KEYS.size() - 1:
+		var a: Array = KEYS[i]
+		var b: Array = KEYS[i + 1]
+		if w >= a[0] and w <= b[0]:
+			var k: float = 0.0 if b[0] == a[0] else (w - a[0]) / (b[0] - a[0])
+			k = smoothstep(0.0, 1.0, k)
+			var out := {}
+			for key in (a[1] as Dictionary):
+				var va = a[1][key]
+				var vb = b[1][key]
+				out[key] = (va as Color).lerp(vb, k) if va is Color else lerpf(va, vb, k)
+			return out
+	return DAY.duplicate()
+
+
+static func lamps_on(t: float) -> bool:
+	var w := wrap_time(t)
+	return w >= LAMPS_FROM and w < LAMPS_TO
+
+
+static func parse_time(text: String) -> float:
+	## «day/evening/night/morning» или число секунд — для ++ --phase= и make shot PHASE=.
+	var named := {"day": 75.0, "evening": 165.0, "night": 225.0, "morning": 285.0}
+	return named.get(text.to_lower(), text.to_float())
+```
+
+## `scripts/world/day_night.gd`
+
+```gdscript
+class_name DayNight
+extends Node
+## Ведёт время суток и применяет свет к узлам Lighting (спек этапа 2, раздел 2).
+## Остальные спрашивают DayNight.is_night(tree): без узла (тесты, отдельные сцены) всегда день.
+## Пишет в свет/небо только при изменении состояния, фонари и окна — только при переключении.
+
+signal phase_changed(phase: StringName)
+
+const WINDOW_GLOW := Color("#FFD9A0")
+
+@export var time_scale := 1.0
+var time := 0.0
+var phase: StringName = &"day"
+var light_writes := 0          # счётчик применений света (для тестов «не пишет каждый кадр»)
+var _last_light: Dictionary = {}
+var _lamps := false
+var _lamp_count := -1
+
+
+func _ready() -> void:
+	add_to_group("day_night")
+	_own_sky()
+	set_time(time)
+
+
+func _own_sky() -> void:
+	## Свой экземпляр окружения и неба: подресурсы PackedScene общие для всех инстансов сцены.
+	var we := get_parent().get_node_or_null("WorldEnvironment") as WorldEnvironment
+	if we and we.environment:
+		we.environment = we.environment.duplicate(true)
+
+
+func _process(delta: float) -> void:
+	time = DayCycle.wrap_time(time + delta * time_scale)
+	_apply()
+
+
+func set_time(t: float) -> void:
+	time = DayCycle.wrap_time(t)
+	_apply()
+
+
+func _apply() -> void:
+	var s := DayCycle.light_at(time)
+	if s != _last_light:
+		_last_light = s
+		light_writes += 1
+		_write_light(s)
+	var lamps := DayCycle.lamps_on(time)
+	var count := get_tree().get_node_count_in_group("night_lights") + get_tree().get_node_count_in_group("night_windows") if is_inside_tree() else 0
+	if lamps != _lamps or count != _lamp_count:   # новые фонари/окна (построены позже) тоже получают текущее состояние
+		_lamps = lamps
+		_lamp_count = count
+		_write_lamps(lamps)
+	var p := DayCycle.phase_at(time)
+	if p != phase:
+		phase = p
+		phase_changed.emit(phase)
+
+
+func _write_light(s: Dictionary) -> void:
+	var lighting := get_parent()
+	var sun := lighting.get_node_or_null("Sun") as DirectionalLight3D
+	if sun:
+		sun.rotation_degrees = Vector3(s["sun_pitch"], 30.0, 0.0)
+		sun.light_color = s["sun_color"]
+		sun.light_energy = s["sun_energy"]
+	var fill := lighting.get_node_or_null("Fill") as DirectionalLight3D
+	if fill:
+		fill.light_energy = s["fill"]
+	var we := lighting.get_node_or_null("WorldEnvironment") as WorldEnvironment
+	if we and we.environment:
+		we.environment.ambient_light_energy = s["ambient"]
+		var sky := we.environment.sky.sky_material as ProceduralSkyMaterial if we.environment.sky else null
+		if sky:
+			sky.sky_top_color = s["sky_top"]
+			sky.sky_horizon_color = s["sky_horizon"]
+			sky.ground_horizon_color = s["sky_horizon"]
+			sky.sky_cover_modulate = s["clouds"]
+
+
+func _write_lamps(on: bool) -> void:
+	if not is_inside_tree():
+		return
+	for n in get_tree().get_nodes_in_group("night_lights"):
+		(n as Node3D).visible = on
+	for n in get_tree().get_nodes_in_group("night_windows"):
+		var mi := n as MeshInstance3D
+		if mi.mesh == null:
+			continue
+		for i in mi.mesh.get_surface_count():
+			var m := mi.get_surface_override_material(i) as StandardMaterial3D
+			if m:
+				m.emission_enabled = on
+				m.emission = WINDOW_GLOW
+				m.emission_energy_multiplier = 0.9
+
+
+static func current_phase(tree: SceneTree) -> StringName:
+	var n := tree.get_first_node_in_group("day_night") as DayNight
+	return n.phase if n else &"day"
+
+
+static func is_night(tree: SceneTree) -> bool:
+	return current_phase(tree) == &"night"
+```
+
 ## `scripts/world/gate.gd`
 
 ```gdscript
@@ -3986,6 +4307,7 @@ const BARS := 5
 @export var satiety_required := GameState.SATIETY_GATE
 @export var size := Vector3(2.4, 2.6, 0.3)
 var open := false
+var label := "🎉 Арка в кафе открыта!"   # сообщение при открытии (раскладка задаёт своё)
 
 @onready var _shape: CollisionShape3D = $Collision
 @onready var _bars: Node3D = $Bars
@@ -4040,7 +4362,7 @@ func refresh(satiety: int) -> void:
 
 ```gdscript
 extends Node3D
-## Яркий день по референсу (спек 2.8): солнце 65° с юго-востока, заполняющий свет неба с обратной стороны.
+## Свет района: солнце (днём 65° с юго-востока, ведёт DayNight), заполняющий свет неба с обратной стороны, листья.
 
 func _ready() -> void:
 	$Sun.rotation_degrees = Vector3(-65.0, 30.0, 0.0)
@@ -4198,6 +4520,12 @@ func _build_prop(p: Dictionary) -> void:
 	body.global_position = _v3(p["pos"])
 	body.rotation_degrees.y = float(p.get("rot", 0))
 	Toon.apply(model, Toon.OUTLINE_FOOD if p.get("outline", false) else Toon.OUTLINE_NONE)
+	if p["model"] == "lamp":
+		body.add_child(_night_light())
+	for mi in model.find_children("wall_glass*", "MeshInstance3D", true, false):
+		mi.add_to_group("night_windows")   # ночью окна светятся тёплым (DayNight)
+	for mi in model.find_children("lamp_head", "MeshInstance3D", true, false):
+		mi.add_to_group("night_windows")   # и плафоны фонарей
 	if not solid:
 		for mi in model.find_children("*", "MeshInstance3D", true, false):   # листья и трава видны с обеих сторон
 			if (mi as MeshInstance3D).mesh == null:
@@ -4212,9 +4540,28 @@ func _build_prop(p: Dictionary) -> void:
 	props_built += 1
 
 
+func _night_light() -> SpotLight3D:
+	## Свет фонаря: горит с заката до рассвета, переключает DayNight по группе night_lights.
+	var l := SpotLight3D.new()
+	l.name = "NightLight"
+	l.add_to_group("night_lights")
+	l.position = Vector3(0, 2.45, 0)
+	l.rotation_degrees = Vector3(-90, 0, 0)
+	l.spot_angle = 50.0
+	l.spot_range = 7.0
+	l.light_color = Color("#FFD9A0")
+	l.light_energy = 4.0
+	l.shadow_enabled = false
+	l.visible = false
+	return l
+
+
 func _make_water(model: Node3D) -> void:
-	## Лужа: зеркальный материал, отражает небо через SSR окружения (спек 2.8).
-	for mi in model.find_children("*", "MeshInstance3D", true, false):
+	## Лужа/вода фонтана: зеркальный материал, отражает небо через SSR окружения (спек 2.8).
+	## Если у модели есть меши с «water» в имени — зеркальными становятся только они (чаша фонтана остаётся тун).
+	var meshes := model.find_children("*", "MeshInstance3D", true, false)
+	var water := meshes.filter(func(m): return String(m.name).contains("water"))
+	for mi in (water if not water.is_empty() else meshes):
 		var m3 := mi as MeshInstance3D
 		if m3.mesh == null:
 			continue
@@ -4293,6 +4640,7 @@ func _build_spawn(s: Dictionary) -> void:
 	for t in s.get("allowed", [0]):
 		allowed.append(int(t))   # JSON даёт float, ключи словарей Rarity — int
 	node.allowed = allowed
+	node.foods = s.get("foods", [])
 	_container("Spawns").add_child(node)
 	node.global_position = _v3(s["pos"])
 	spawns_built += 1
@@ -4337,6 +4685,7 @@ func _build_gate(g: Dictionary) -> void:
 	var node := GateScene.instantiate() as Gate
 	node.name = "gate_%d" % gates_built
 	node.satiety_required = int(g.get("satiety", GameState.SATIETY_GATE))
+	node.label = String(g.get("label", node.label))
 	node.size = _v3(g.get("size", [2.4, 2.6, 0.3]))
 	_container("Gates").add_child(node)
 	node.global_position = _v3(g["pos"])
@@ -4869,6 +5218,187 @@ func test_cyclist_dust_only_while_riding() -> void:
 	await wait_seconds(0.6)
 	assert_true(c.riding)
 	assert_true(dust.emitting, "в пути пылит")
+```
+
+## `tests/integration/test_day_night.gd`
+
+```gdscript
+extends GutTest
+
+const LightingScene := preload("res://scenes/world/lighting.tscn")
+const DogScene := preload("res://scenes/hazards/dog.tscn")
+const CatScene := preload("res://scenes/player/cat.tscn")
+const HudScene := preload("res://scenes/ui/hud.tscn")
+
+var light
+var dn
+
+func before_each() -> void:
+	GameState.reset()
+	light = LightingScene.instantiate()
+	add_child_autofree(light)
+	dn = light.get_node("DayNight")
+	await wait_process_frames(1)
+
+func after_each() -> void:
+	get_tree().paused = false
+
+func test_light_follows_time() -> void:
+	dn.set_time(50.0)
+	var sun := light.get_node("Sun") as DirectionalLight3D
+	assert_almost_eq(sun.light_energy, 1.2, 0.01)
+	dn.set_time(220.0)
+	assert_almost_eq(sun.light_energy, 0.22, 0.01)
+	var env: Environment = (light.get_node("WorldEnvironment") as WorldEnvironment).environment
+	assert_almost_eq(env.ambient_light_energy, 0.18, 0.01)
+	assert_eq(((env.sky.sky_material as ProceduralSkyMaterial).sky_top_color).to_html(false), "0b1633")
+	assert_eq(dn.phase, &"night")
+	assert_true(DayNight.is_night(get_tree()))
+
+func test_phase_signal_and_lamps() -> void:
+	var lamp := SpotLight3D.new()
+	lamp.add_to_group("night_lights")
+	add_child_autofree(lamp)
+	watch_signals(dn)
+	dn.set_time(50.0)
+	assert_false(lamp.visible, "днём фонарь выключен")
+	dn.set_time(200.0)
+	assert_signal_emitted_with_parameters(dn, "phase_changed", [&"night"])
+	assert_true(lamp.visible, "ночью фонарь горит")
+
+func test_windows_glow_at_night() -> void:
+	var b := WorldBuilder.new()
+	add_child_autofree(b)
+	b.build({"props": [{"model": "wall", "pos": [0, 0, 0]}]})
+	var glass: MeshInstance3D = null
+	for mi in b.find_children("wall_glass*", "MeshInstance3D", true, false):
+		glass = mi
+	assert_not_null(glass, "у стены есть стёкла")
+	if glass == null:
+		return
+	dn.set_time(50.0)
+	assert_false((glass.get_surface_override_material(0) as StandardMaterial3D).emission_enabled, "днём окна не светятся")
+	dn.set_time(220.0)
+	var m := glass.get_surface_override_material(0) as StandardMaterial3D
+	assert_true(m.emission_enabled, "ночью в окнах тёплый свет")
+	assert_eq(m.emission.to_html(false), "ffd9a0")
+
+func test_lamp_head_glows_at_night() -> void:
+	var b := WorldBuilder.new()
+	add_child_autofree(b)
+	b.build({"props": [{"model": "lamp", "pos": [0, 0, 0]}]})
+	var head := b.find_child("lamp_head", true, false) as MeshInstance3D
+	assert_not_null(head)
+	if head == null:
+		return
+	dn.set_time(220.0)
+	await wait_process_frames(1)
+	assert_true((head.get_surface_override_material(0) as StandardMaterial3D).emission_enabled, "плафон светится ночью")
+
+func test_time_advances_and_pause_stops_it() -> void:
+	# Review Focus 1
+	dn.set_time(10.0)
+	dn.time_scale = 20.0
+	await wait_seconds(0.2)
+	assert_gt(dn.time, 12.0, "время идёт")
+	get_tree().paused = true
+	var t0: float = dn.time
+	await get_tree().create_timer(0.2, true).timeout
+	assert_almost_eq(dn.time, t0, 0.001, "на паузе цикл стоит")
+
+func test_dog_sleeps_through_the_night_and_wakes_by_day() -> void:
+	# Review Focus 3
+	var cat = CatScene.instantiate()
+	cat.position = Vector3(0, 0.05, -4)
+	add_child_autofree(cat)
+	var dog = DogScene.instantiate()
+	dog.position = Vector3(0, 0.05, 0)
+	add_child_autofree(dog)
+	dn.set_time(220.0)
+	await wait_physics_frames(3)
+	assert_false(dog.sees_cat(), "ночью собака спит и не замечает кота")
+	dn.set_time(50.0)
+	await wait_physics_frames(3)
+	assert_true(dog.sees_cat(), "днём снова видит")
+
+func test_without_day_night_it_is_day() -> void:
+	# Review Focus 2
+	light.free()
+	await wait_process_frames(1)
+	assert_false(DayNight.is_night(get_tree()))
+	assert_eq(DayNight.current_phase(get_tree()), &"day")
+
+func test_hud_shows_phase_icon() -> void:
+	var hud = HudScene.instantiate()
+	add_child_autofree(hud)
+	await wait_process_frames(1)
+	dn.set_time(50.0)
+	var icon := hud.get_node("%PhaseIcon") as TextureRect
+	assert_eq(icon.texture.resource_path, "res://assets/images/ui/sun.png")
+	dn.set_time(200.0)
+	assert_eq(icon.texture.resource_path, "res://assets/images/ui/moon.png")
+
+func test_hold_phases_do_not_rewrite_light_every_frame() -> void:
+	# Ревью плана 7 (I1): в фазах удержания небо и материалы не перезаписываются каждый кадр.
+	dn.set_time(50.0)
+	var w0: int = dn.light_writes
+	dn.set_time(60.0)
+	dn.set_time(70.0)
+	assert_eq(dn.light_writes, w0, "днём свет постоянен — записей нет")
+	dn.set_time(160.0)
+	assert_gt(dn.light_writes, w0, "на закате свет меняется")
+
+func test_lamp_added_at_night_lights_up() -> void:
+	dn.set_time(220.0)
+	var lamp := SpotLight3D.new()
+	lamp.visible = false
+	lamp.add_to_group("night_lights")
+	add_child_autofree(lamp)
+	await wait_process_frames(2)
+	assert_true(lamp.visible, "фонарь, построенный ночью, горит")
+
+func test_night_ends_an_ongoing_chase() -> void:
+	# Ревью плана 7 (M1): ночь, наступившая посреди погони, укладывает собаку спать.
+	var cat = CatScene.instantiate()
+	cat.position = Vector3(0, 0.05, -4)
+	add_child_autofree(cat)
+	var dog = DogScene.instantiate()
+	dog.position = Vector3(0, 0.05, 0)
+	add_child_autofree(dog)
+	dn.set_time(50.0)
+	dn.time_scale = 0.0
+	await wait_seconds(1.3)
+	assert_eq(dog.brain.state, ChaseBrain.State.CHASE)
+	dn.set_time(220.0)
+	await wait_physics_frames(3)
+	assert_true(dog.brain.state in [ChaseBrain.State.RETURN, ChaseBrain.State.IDLE], "ночью погоня прекращается")
+
+func test_two_lighting_instances_do_not_share_sky() -> void:
+	# Ревью плана 7 (M2)
+	var other = LightingScene.instantiate()
+	add_child_autofree(other)
+	await wait_process_frames(1)
+	other.get_node("DayNight").time_scale = 0.0
+	dn.set_time(220.0)
+	var sky_other := ((other.get_node("WorldEnvironment") as WorldEnvironment).environment.sky.sky_material as ProceduralSkyMaterial)
+	assert_ne(sky_other.sky_top_color.to_html(false), "0b1633", "у второй сцены своё небо")
+
+func test_hud_binds_even_if_created_before_lighting() -> void:
+	# Ревью плана 7 (M3)
+	light.free()
+	var hud = HudScene.instantiate()
+	add_child_autofree(hud)
+	await wait_process_frames(1)
+	var l2 = LightingScene.instantiate()
+	add_child_autofree(l2)
+	l2.get_node("DayNight").set_time(220.0)
+	await wait_process_frames(2)
+	assert_eq((hud.get_node("%PhaseIcon") as TextureRect).texture.resource_path, "res://assets/images/ui/moon.png")
+
+func test_phase_names_parse() -> void:
+	assert_almost_eq(DayCycle.parse_time("night"), 225.0, 0.01)
+	assert_almost_eq(DayCycle.parse_time("evening"), 165.0, 0.01)
+	assert_almost_eq(DayCycle.parse_time("120"), 120.0, 0.01)
 ```
 
 ## `tests/integration/test_dog.gd`
@@ -5466,7 +5996,7 @@ func test_satiety_and_goal_labels() -> void:
 	GameState.pick_up(FoodCatalog.get_by_id(&"donut"))
 	GameState.eat_all()
 	# Полоска показывает прогресс до порога арки (10) и упирается в максимум.
-	assert_eq((hud.get_node("%Satiety") as ProgressBar).value, float(GameState.SATIETY_GATE))
+	assert_eq((hud.get_node("%Satiety") as ProgressBar).value, 15.0, "после кафе полоска считает до парка (25)")
 	assert_eq((hud.get_node("%Goal") as Label).text, "Открой новых карточек: 1/3")
 
 func test_bell_flash_shows_and_hides() -> void:
@@ -5515,6 +6045,19 @@ func test_hearts_and_yarn_are_icons() -> void:
 	assert_gt((hearts.get_child(0) as TextureRect).modulate.a, 0.9)
 	assert_not_null((hud.get_node("%YarnIcon") as TextureRect).texture, "иконка клубочка")
 	assert_eq(hud.yarn_text(), "0")
+
+func test_satiety_target_moves_from_cafe_to_park() -> void:
+	# Review Focus 4
+	GameState.satiety = 12
+	GameState.satiety_changed.emit(12)
+	assert_eq(hud.satiety_label_text(), "До парка 12/25")
+	assert_almost_eq((hud.get_node("%Satiety") as ProgressBar).max_value, 25.0, 0.01)
+	GameState.satiety = 25
+	GameState.satiety_changed.emit(25)
+	assert_eq(hud.satiety_label_text(), "Парк открыт")
+	GameState.satiety = 4
+	GameState.satiety_changed.emit(4)
+	assert_eq(hud.satiety_label_text(), "Сытость 4/10")
 ```
 
 ## `tests/integration/test_lighting.gd`
@@ -5755,7 +6298,7 @@ func test_album_shows_cards_locked_and_unlocked() -> void:
 	assert_true(main.album_menu.is_open)
 	assert_true(get_tree().paused)
 	var cards: Array = main.album_menu.cards()
-	assert_eq(cards.size(), 8)
+	assert_eq(cards.size(), 14, "8 карточек двора и 6 парка")
 	var pizza: Control = null
 	var donut: Control = null
 	for c in cards:
@@ -5838,6 +6381,162 @@ func test_ui_cancel_closes_shop_and_album() -> void:
 	Input.action_release("ui_cancel")
 	assert_false(main.album_menu.is_open, "и альбом")
 	assert_false(get_tree().paused)
+```
+
+## `tests/integration/test_park.gd`
+
+```gdscript
+extends GutTest
+## План 8: район «Парк» (спек этапа 2, разделы 4–5).
+
+const PARK := "res://data/layout/park.json"
+
+func before_each() -> void:
+	GameState.reset()
+
+func _park_with_floor() -> Node3D:
+	var world := Node3D.new()
+	add_child_autofree(world)
+	var b := WorldBuilder.new()
+	world.add_child(b)
+	b.build(WorldBuilder.load_layout(PARK))
+	return world
+
+func _prop_at(world: Node3D, point: Vector3) -> String:
+	var q := PhysicsPointQueryParameters3D.new()
+	q.position = point
+	q.collision_mask = Layers.WORLD
+	for hit in world.get_world_3d().direct_space_state.intersect_point(q, 8):
+		var n: String = hit["collider"].name
+		if not n.begins_with("park_ground"):
+			return n
+	return ""
+
+func test_park_layout_has_the_spec_content() -> void:
+	var d := WorldBuilder.load_layout(PARK)
+	var models := {}
+	for p in d["props"]:
+		models[p["model"]] = models.get(p["model"], 0) + 1
+	for m in ["park_ground", "fountain", "slide", "swings", "sandbox", "kiosk", "shed", "lamp", "bench", "fence", "tree", "flowerbed"]:
+		assert_gt(models.get(m, 0), 0, "в парке есть %s" % m)
+	assert_gte(models.get("lamp", 0), 8, "аллея фонарей")
+	assert_between(d["yarn"].size(), 10, 15, "10–15 клубочков")
+	var kinds := {}
+	for h in d["hideouts"]:
+		kinds[h["kind"]] = true
+	for k in ["bush", "bench", "slide"]:
+		assert_true(kinds.has(k), "укрытие %s" % k)
+	assert_eq(int(d["gates"][0]["satiety"]), GameState.PARK_GATE)
+	var b := WorldBuilder.new()
+	add_child_autofree(b)
+	b.build(d)
+	assert_eq(b.props_built, d["props"].size(), "все модели парка существуют")
+
+func test_spawns_offer_only_park_food() -> void:
+	var foods := {}
+	for s in WorldBuilder.load_layout(PARK)["spawn_points"]:
+		assert_true(s.has("foods"), "у точки парка задан список еды")
+		for f in s.get("foods", []):
+			foods[f] = true
+			assert_not_null(FoodCatalog.get_by_id(StringName(f)), "еда %s есть в каталоге" % f)
+	for f in ["popcorn", "bagel", "sandwich", "corn", "cotton_candy", "cupcake"]:
+		assert_true(foods.has(f), "в парке спавнится %s" % f)
+
+func test_spawn_point_respects_food_list() -> void:
+	var sp := (load("res://scenes/food/food_spawn_point.tscn") as PackedScene).instantiate() as FoodSpawnPoint
+	sp.allowed = [Rarity.Tier.COMMON, Rarity.Tier.RARE]
+	sp.foods = [&"popcorn", &"sandwich"]
+	add_child_autofree(sp)
+	for i in 30:
+		assert_true(sp.pick_def().id in [&"popcorn", &"sandwich"])
+
+func test_catalog_has_fourteen_foods_with_models_and_icons() -> void:
+	# Review Focus 3
+	assert_eq(FoodCatalog.all().size(), 14)
+	for f in FoodCatalog.all():
+		assert_true(ResourceLoader.exists(f.model_path), "модель %s" % f.id)
+		assert_not_null(f.icon(), "иконка %s" % f.id)
+
+func test_invariants_spawns_yarn_hideouts() -> void:
+	var world := _park_with_floor()
+	await wait_physics_frames(3)
+	var space := world.get_world_3d().direct_space_state
+	for sp in world.find_children("*", "FoodSpawnPoint", true, false):
+		var pos: Vector3 = (sp as Node3D).global_position
+		assert_eq(_prop_at(world, pos + Vector3(0, 0.1, 0)), "", "точка спавна %s внутри пропса" % pos)
+	for y in world.find_children("*", "YarnPickup", true, false):
+		var pos: Vector3 = (y as Node3D).global_position
+		assert_eq(_prop_at(world, pos + Vector3(0, 0.1, 0)), "", "клубочек %s внутри пропса" % pos)
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(pos + Vector3(0, 0.1, 0), pos + Vector3(0, -3, 0), Layers.WORLD))
+		assert_false(hit.is_empty(), "под клубочком %s что-то есть" % pos)
+		if not hit.is_empty():
+			assert_lt(pos.y - (hit["position"] as Vector3).y, 0.3, "клубочек %s не висит" % pos)
+	for h in world.find_children("*", "Hideout", true, false):
+		var pos: Vector3 = (h as Node3D).global_position
+		assert_eq(_prop_at(world, pos), "", "укрытие %s (%s) внутри пропса" % [pos, h.kind])
+
+func test_gate_opens_exactly_at_25() -> void:
+	# Review Focus 1
+	var world := _park_with_floor()
+	var gate := world.find_child("gate_0", true, false) as Gate
+	assert_not_null(gate)
+	GameState.satiety = 24
+	GameState.satiety_changed.emit(24)
+	assert_false(gate.open, "при 24 парк закрыт")
+	GameState.satiety = 25
+	GameState.satiety_changed.emit(25)
+	assert_true(gate.open, "при 25 открыт")
+	assert_eq(gate.label, "Ворота в парк открыты!")
+
+func test_park_is_fenced_and_floored() -> void:
+	# Review Focus 2: по периметру забор, под всем парком пол.
+	var world := _park_with_floor()
+	await wait_physics_frames(3)
+	var space := world.get_world_3d().direct_space_state
+	for p in [Vector3(-14.5, 0.5, 45), Vector3(14.5, 0.5, 45), Vector3(0, 0.5, 60.9), Vector3(-5, 0.5, 30)]:
+		var from := Vector3(0, 0.5, 45)
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(from + (p - from).normalized() * 3.0, p + (p - from).normalized() * 1.5, Layers.WORLD))
+		assert_false(hit.is_empty(), "к %s не выйти: забор" % p)
+	for p in [Vector3(-14, 1, 31), Vector3(14, 1, 59), Vector3(0, 1, 45.5), Vector3(-9, 1, 50)]:
+		var down := space.intersect_ray(PhysicsRayQueryParameters3D.create(p, p + Vector3(0, -2, 0), Layers.WORLD))
+		assert_false(down.is_empty(), "под %s есть пол" % p)
+
+func test_lawn_and_paths_are_textured_in_main() -> void:
+	SaveGame.path = "user://test_save.json"
+	SaveGame.clear()
+	var main := (load("res://scenes/main.tscn") as PackedScene).instantiate()
+	add_child_autofree(main)
+	await wait_process_frames(2)
+	for pair in [["lawn", "grass"], ["path", "gravel"]]:
+		var mi := main.find_child(pair[0], true, false) as MeshInstance3D
+		assert_not_null(mi, "меш %s в главной сцене" % pair[0])
+		if mi:
+			var m := mi.get_surface_override_material(0) as StandardMaterial3D
+			assert_not_null(m.albedo_texture)
+			if m.albedo_texture:
+				assert_eq(m.albedo_texture.resource_path, "res://assets/images/textures/%s.png" % pair[1])
+	SaveGame.clear()
+
+func test_perimeter_fence_is_too_high_to_jump_from_any_prop() -> void:
+	# Ревью плана 8 (I1): кот запрыгивал на куст (0,78 м) и с него перелетал забор 1,1 м. С любого пропса
+	# кот достаёт до ≈ 0,8 + 0,84 м, поэтому коллайдер забора по периметру — не ниже 1,7 м.
+	for p in WorldBuilder.load_layout(PARK)["props"]:
+		if p["model"] != "fence":
+			continue
+		assert_true(p.has("colliders"), "у секции забора %s явный коллайдер" % [p["pos"]])
+		if p.has("colliders"):
+			var top: float = p["colliders"][0]["size"][1] / 2.0 + p["colliders"][0]["offset"][1]
+			assert_gte(top, 1.7, "забор %s не перепрыгнуть" % [p["pos"]])
+
+func test_yard_spawns_never_give_park_food() -> void:
+	# Ревью плана 8 (I2): карточки парка нельзя собрать во дворе и кафе.
+	var park_food := [&"popcorn", &"bagel", &"sandwich", &"corn", &"cotton_candy", &"cupcake"]
+	var b := WorldBuilder.new()
+	add_child_autofree(b)
+	b.build(WorldBuilder.load_layout("res://data/layout/yard.json"))
+	for sp in b.find_children("*", "FoodSpawnPoint", true, false):
+		for i in 60:
+			assert_false(StringName((sp as FoodSpawnPoint).pick_def().id) in park_food, "точка двора %s дала еду парка" % (sp as Node3D).global_position)
 ```
 
 ## `tests/integration/test_shop_menu.gd`
@@ -6384,7 +7083,7 @@ func test_collected_yarn_does_not_return_after_relaunch() -> void:
 	add_child_autofree(main)
 	await wait_physics_frames(5)
 	var before := get_tree().get_nodes_in_group("yarn").size()
-	assert_eq(before, 12)
+	assert_eq(before, 24, "12 клубочков двора и 12 парка")
 	var first = get_tree().get_nodes_in_group("yarn")[0]
 	var key: String = first.key
 	GameState.take_yarn(key)
@@ -6395,7 +7094,7 @@ func test_collected_yarn_does_not_return_after_relaunch() -> void:
 	var main2 := (load("res://scenes/main.tscn") as PackedScene).instantiate()
 	add_child_autofree(main2)
 	await wait_physics_frames(5)
-	assert_eq(get_tree().get_nodes_in_group("yarn").size(), 11, "собранный клубочек не вернулся")
+	assert_eq(get_tree().get_nodes_in_group("yarn").size(), 23, "собранный клубочек не вернулся")
 	assert_eq(GameState.yarn, 1)
 	SaveGame.clear()
 ```
@@ -6714,6 +7413,50 @@ func test_safe_zone_ends_chase_immediately() -> void:
 	assert_eq(a.update(0.1, true, true, false, true), ChaseBrain.State.IDLE, "насторожилась, но кот уже в будке")
 ```
 
+## `tests/unit/test_day_cycle.gd`
+
+```gdscript
+extends GutTest
+
+func test_phases_by_time() -> void:
+	assert_eq(DayCycle.phase_at(0.0), &"day")
+	assert_eq(DayCycle.phase_at(149.9), &"day")
+	assert_eq(DayCycle.phase_at(160.0), &"evening")
+	assert_eq(DayCycle.phase_at(200.0), &"night")
+	assert_eq(DayCycle.phase_at(280.0), &"morning")
+	assert_eq(DayCycle.phase_at(300.0), &"day", "цикл замыкается")
+	assert_eq(DayCycle.phase_at(-10.0), &"morning", "отрицательное время оборачивается")
+
+func test_phase_progress_counts_to_next_phase() -> void:
+	assert_almost_eq(DayCycle.phase_progress(75.0), 0.5, 0.001)
+	assert_almost_eq(DayCycle.phase_progress(225.0), 0.5, 0.001)
+
+func test_keyframes_hold_and_blend() -> void:
+	var day := DayCycle.light_at(50.0)
+	assert_almost_eq(day["sun_pitch"], -65.0, 0.01)
+	assert_almost_eq(day["sun_energy"], 1.2, 0.001)
+	assert_eq((day["sun_color"] as Color).to_html(false), "fff1d6")
+	var night := DayCycle.light_at(220.0)
+	assert_almost_eq(night["sun_energy"], 0.22, 0.001)
+	assert_almost_eq(night["ambient"], 0.18, 0.001)
+	assert_eq((night["sky_top"] as Color).to_html(false), "0b1633")
+	var mid := DayCycle.light_at(157.5)   # середина перехода день → закат
+	assert_almost_eq(mid["sun_energy"], (1.2 + 0.8) / 2.0, 0.01)
+
+func test_wrap_is_continuous() -> void:
+	# Review Focus 4
+	var a := DayCycle.light_at(299.99)
+	var b := DayCycle.light_at(0.0)
+	assert_almost_eq(a["sun_energy"], b["sun_energy"], 0.01)
+	assert_almost_eq(a["sun_pitch"], b["sun_pitch"], 0.1)
+
+func test_lamps_on_from_dusk_to_dawn() -> void:
+	assert_false(DayCycle.lamps_on(100.0))
+	assert_true(DayCycle.lamps_on(170.0))
+	assert_true(DayCycle.lamps_on(250.0))
+	assert_false(DayCycle.lamps_on(290.0))
+```
+
 ## `tests/unit/test_game_state.gd`
 
 ```gdscript
@@ -6924,16 +7667,33 @@ func test_pick_weighted_respects_allowed() -> void:
 func test_pick_weighted_empty_gives_common() -> void:
 	assert_eq(Rarity.pick_weighted([], _rng(1)), Rarity.Tier.COMMON)
 
-func test_catalog_has_eight_foods_two_per_tier() -> void:
-	assert_eq(FoodCatalog.all().size(), 8)
+func test_catalog_has_fourteen_foods_in_every_tier() -> void:
+	# Двор — по две еды в редкости, парк (этап 2) добавил ещё шесть: 4/4/3/3.
+	assert_eq(FoodCatalog.all().size(), 14)
+	var expected := {0: 4, 1: 4, 2: 3, 3: 3}
 	for t in 4:
-		assert_eq(FoodCatalog.by_tier(t).size(), 2, "по две еды в редкости %d" % t)
+		assert_eq(FoodCatalog.by_tier(t).size(), expected[t], "еды в редкости %d" % t)
 	var donut := FoodCatalog.get_by_id(&"donut")
 	assert_not_null(donut)
 	assert_eq(donut.tier, Rarity.Tier.LEGENDARY)
 	assert_true(donut.sweet)
 	assert_eq(donut.satiety(), 15)
 	assert_eq(donut.display_name, "Пончик")
+
+func test_night_weights_favor_rare_food() -> void:
+	assert_eq(Rarity.NIGHT_WEIGHTS[Rarity.Tier.COMMON], 40)
+	assert_eq(Rarity.NIGHT_WEIGHTS[Rarity.Tier.LEGENDARY], 10)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 3
+	var all := [Rarity.Tier.COMMON, Rarity.Tier.RARE, Rarity.Tier.VERY_RARE, Rarity.Tier.LEGENDARY]
+	var legend_day := 0
+	var legend_night := 0
+	for i in 2000:
+		if Rarity.pick_weighted(all, rng) == Rarity.Tier.LEGENDARY:
+			legend_day += 1
+		if Rarity.pick_weighted(all, rng, Rarity.NIGHT_WEIGHTS) == Rarity.Tier.LEGENDARY:
+			legend_night += 1
+	assert_gt(legend_night, legend_day * 2, "ночью легендарная еда выпадает заметно чаще")
 ```
 
 ## `tests/unit/test_save.gd`
@@ -8351,6 +9111,51 @@ def build():
 	return lib.group(parts)
 ```
 
+## `tools/blender/gen/flowerbed.py`
+
+```python
+"""Клумба: круглый бортик 1,4 м с землёй и цветами (шарики коралловые и золотые на стеблях)."""
+import math
+
+import lib
+
+SPEC = {"max_tris": 800, "max_dim": 1.5}
+
+
+def build():
+	rim = lib.cylinder("flowerbed", radius=0.7, depth=0.25, segments=16, material="sand")
+	rim.location.z = 0.125
+	soil = lib.cylinder("flowerbed_soil", radius=0.62, depth=0.04, segments=16, material="brick")
+	soil.location.z = 0.25
+	parts = [rim, soil]
+	for i in range(8):
+		a = i * 2 * math.pi / 8
+		r = 0.38 if i % 2 else 0.2
+		head = lib.sphere(f"flowerbed_f{i}", 0.07, material="coral" if i % 2 else "rarity_legendary", segments=6, rings=4)
+		head.location = (math.cos(a) * r, math.sin(a) * r, 0.42)
+		parts.append(head)
+	leafy = lib.sphere("flowerbed_leaves", 0.5, material="leaf", segments=8, rings=5)
+	leafy.scale = (1, 1, 0.35)
+	leafy.location.z = 0.3
+	parts.append(leafy)
+	return lib.group(parts)
+```
+
+## `tools/blender/gen/food_bagel.py`
+
+```python
+"""Бублик: тор."""
+import lib
+
+SPEC = {"max_tris": 400, "max_dim": 0.3}
+
+
+def build():
+	b = lib.torus("food_bagel", major=0.07, minor=0.035, material="cat_orange")
+	b.location.z = 0.035
+	return [b]
+```
+
 ## `tools/blender/gen/food_cookie.py`
 
 ```python
@@ -8368,6 +9173,50 @@ def build():
 		dot = lib.sphere(f"food_cookie_dot{i}", radius=0.012, material="ink", segments=6, rings=4)
 		dot.location = (x, y, 0.022)
 		parts.append(dot)
+	return lib.group(parts)
+```
+
+## `tools/blender/gen/food_corn.py`
+
+```python
+"""Кукуруза: золотой початок и два листа."""
+import math
+
+import lib
+
+SPEC = {"max_tris": 400, "max_dim": 0.3}
+
+
+def build():
+	cob = lib.cylinder("food_corn", radius=0.04, depth=0.2, segments=10, material="rarity_legendary")
+	cob.rotation_euler = (0, math.pi / 2, 0)
+	cob.location.z = 0.04
+	parts = [cob]
+	for i, s in enumerate((-1, 1)):
+		leaf = lib.cone(f"food_corn_leaf{i}", radius=0.03, depth=0.16, segments=5, material="leaf")
+		leaf.rotation_euler = (0, math.pi / 2 + 0.3 * s, 0.4 * s)
+		leaf.location = (-0.11, 0.02 * s, 0.05)
+		parts.append(leaf)
+	return lib.group(parts)
+```
+
+## `tools/blender/gen/food_cotton_candy.py`
+
+```python
+"""Сахарная вата: розово-сиреневое облачко на палочке."""
+import lib
+
+SPEC = {"max_tris": 400, "max_dim": 0.3}
+
+
+def build():
+	stick = lib.cylinder("food_cotton_candy", radius=0.008, depth=0.12, segments=6, material="cream")
+	stick.location.z = 0.06
+	parts = [stick]
+	for i, (x, y, z, r, m) in enumerate(((0, 0, 0.17, 0.065, "coral"), (0.04, 0.02, 0.2, 0.045, "lilac"), (-0.035, -0.015, 0.19, 0.05, "lilac"))):
+		s = lib.sphere(f"food_cotton_candy_c{i}", r, material=m, segments=8, rings=6)
+		s.location = (x, y, z)
+		parts.append(s)
 	return lib.group(parts)
 ```
 
@@ -8391,6 +9240,26 @@ def build():
 		seg.rotation_euler = (0, 0, -ang)
 		parts.append(seg)
 	return lib.group([parts[1], parts[0], parts[2]])
+```
+
+## `tools/blender/gen/food_cupcake.py`
+
+```python
+"""Капкейк: голубая формочка, розовый крем и вишенка."""
+import lib
+
+SPEC = {"max_tris": 400, "max_dim": 0.3}
+
+
+def build():
+	cup = lib.cylinder("food_cupcake", radius=0.06, depth=0.07, segments=10, material="sky")
+	cup.location.z = 0.035
+	cream = lib.sphere("food_cupcake_cream", 0.065, material="coral", segments=10, rings=6)
+	cream.scale = (1, 1, 0.75)
+	cream.location.z = 0.095
+	cherry = lib.sphere("food_cupcake_cherry", 0.018, material="brick", segments=6, rings=4)
+	cherry.location.z = 0.15
+	return lib.group([cup, cream, cherry])
 ```
 
 ## `tools/blender/gen/food_donut.py`
@@ -8488,6 +9357,47 @@ def build():
 	return lib.group(parts)
 ```
 
+## `tools/blender/gen/food_popcorn.py`
+
+```python
+"""Попкорн: полосатый стакан и горка зёрен."""
+import lib
+
+SPEC = {"max_tris": 400, "max_dim": 0.3}
+
+
+def build():
+	cup = lib.cylinder("food_popcorn", radius=0.07, depth=0.14, segments=8, material="brick")
+	cup.location.z = 0.07
+	parts = [cup]
+	for i, (x, y, z) in enumerate(((0, 0, 0.16), (0.04, 0.02, 0.15), (-0.04, 0.01, 0.15), (0.01, -0.04, 0.15), (0, 0.04, 0.19))):
+		k = lib.sphere(f"food_popcorn_k{i}", 0.035, material="cream", segments=6, rings=4)
+		k.location = (x, y, z)
+		parts.append(k)
+	return lib.group(parts)
+```
+
+## `tools/blender/gen/food_sandwich.py`
+
+```python
+"""Сэндвич: два треугольных ломтика хлеба, салат и сыр между ними."""
+import lib
+
+SPEC = {"max_tris": 400, "max_dim": 0.3}
+
+
+def build():
+	bottom = lib.wedge("food_sandwich", width=0.2, length=0.18, height=0.03, material="cream")
+	bottom.location.z = 0.015
+	leaf = lib.wedge("food_sandwich_leaf", width=0.21, length=0.19, height=0.012, material="leaf")
+	leaf.location.z = 0.036
+	cheese = lib.wedge("food_sandwich_cheese", width=0.19, length=0.17, height=0.012, material="rarity_legendary")
+	cheese.location.z = 0.048
+	top = lib.wedge("food_sandwich_top", width=0.2, length=0.18, height=0.03, material="cream")
+	top.location.z = 0.069
+	return lib.group([bottom, leaf, cheese, top])
+```
+
 ## `tools/blender/gen/food_sausage.py`
 
 ```python
@@ -8502,6 +9412,44 @@ def build():
 	body.rotation_euler = (1.5708, 0, 0)
 	body.location.z = 0.03
 	return [body]
+```
+
+## `tools/blender/gen/fountain.py`
+
+```python
+"""Фонтан: круглая чаша 3,2 м (бортик 0,45), вода (меш fountain_water — зеркальный), колонна и верхняя чаша."""
+import lib
+
+SPEC = {"max_tris": 1500, "max_dim": 3.3}
+
+
+def build():
+	basin = lib.cylinder("fountain", radius=1.6, depth=0.45, segments=24, material="cream")
+	basin.location.z = 0.225
+	water = lib.cylinder("fountain_water", radius=1.42, depth=0.02, segments=24, material="sea_light")
+	water.location.z = 0.4
+	column = lib.cylinder("fountain_column", radius=0.22, depth=1.1, segments=12, material="sand")
+	column.location.z = 0.95
+	bowl = lib.cylinder("fountain_bowl", radius=0.6, depth=0.14, segments=16, material="cream")
+	bowl.location.z = 1.45
+	top_water = lib.cylinder("fountain_water_top", radius=0.5, depth=0.02, segments=16, material="sea_light")
+	top_water.location.z = 1.53
+	knob = lib.sphere("fountain_knob", 0.12, material="sky")
+	knob.location.z = 1.62
+	return lib.group([basin, water, column, bowl, top_water, knob])
+```
+
+## `tools/blender/gen/gardener.py`
+
+```python
+"""Генератор: gardener (CC0 Quaternius Animated Human, перекраска по роли — human.py)."""
+import human
+
+SPEC = {"max_tris": 2500, "max_dim": 2.0, "animations": True}
+
+
+def build():
+	return human.build("gardener")
 ```
 
 ## `tools/blender/gen/grass.py`
@@ -8541,6 +9489,19 @@ def build():
 	walk = lib.rounded_box("sidewalk", (30, 30, 0.12), bevel=0.03, segments=2, material="sand")
 	walk.location = (-10, 10, -0.055)   # верх на +5 мм: без z-fighting с асфальтом, кот стоит на коллизии пола y=0
 	return [asphalt, walk]
+```
+
+## `tools/blender/gen/guard.py`
+
+```python
+"""Генератор: guard (CC0 Quaternius Animated Human, перекраска по роли — human.py)."""
+import human
+
+SPEC = {"max_tris": 2500, "max_dim": 2.0, "animations": True}
+
+
+def build():
+	return human.build("guard")
 ```
 
 ## `tools/blender/gen/ivy.py`
@@ -8585,6 +9546,50 @@ def build():
 	return [obj]
 ```
 
+## `tools/blender/gen/kid.py`
+
+```python
+"""Генератор: kid (CC0 Quaternius Animated Human, перекраска по роли — human.py)."""
+import human
+
+SPEC = {"max_tris": 2500, "max_dim": 2.0, "animations": True}
+
+
+def build():
+	return human.build("kid")
+```
+
+## `tools/blender/gen/kiosk.py`
+
+```python
+"""Киоск мороженого 1,6×1,2×2,2 м: корпус, окошко, полосатый навес, рожок-вывеска сверху."""
+import lib
+
+SPEC = {"max_tris": 1500, "max_dim": 2.8}
+
+
+def build():
+	body = lib.rounded_box("kiosk", (1.6, 1.2, 2.0), bevel=0.04, material="cream")
+	body.location.z = 1.0
+	window = lib.rounded_box("kiosk_window", (1.1, 0.06, 0.6), bevel=0.01, material="sky")
+	window.location = (0, 0.6, 1.3)
+	counter = lib.rounded_box("kiosk_counter", (1.3, 0.3, 0.06), bevel=0.01, material="sand")
+	counter.location = (0, 0.72, 0.95)
+	parts = [body, window, counter]
+	for i in range(4):
+		stripe = lib.rounded_box(f"kiosk_awning{i}", (0.42, 0.5, 0.05), bevel=0.0, material="coral" if i % 2 == 0 else "cream")
+		stripe.location = (-0.63 + i * 0.42, 0.8, 1.75)
+		stripe.rotation_euler = (0.35, 0, 0)
+		parts.append(stripe)
+	cone = lib.cone("kiosk_cone", radius=0.18, depth=0.4, segments=10, material="sand")
+	cone.rotation_euler = (3.14159, 0, 0)
+	cone.location.z = 2.25
+	scoop = lib.sphere("kiosk_scoop", 0.2, material="coral")
+	scoop.location.z = 2.5
+	parts += [cone, scoop]
+	return lib.group(parts)
+```
+
 ## `tools/blender/gen/lamp.py`
 
 ```python
@@ -8604,6 +9609,48 @@ def build():
 	return lib.group([post, base, head])
 ```
 
+## `tools/blender/gen/park_ground.py`
+
+```python
+"""Пол парка 30×32 м: газон (меш lawn) и гравийные дорожки (меш path). Текстуры — SurfaceTextures по именам.
+Центр модели — центр парка; в раскладке ставится в (0, 0, 45). +Y Blender = −Z Godot (к кафе)."""
+import lib
+
+SPEC = {"max_tris": 400, "max_dim": 32.5}
+
+
+def build():
+	lawn = lib.rounded_box("lawn", (30, 32, 0.1), bevel=0.0, material="leaf")
+	lawn.location.z = -0.044   # верх на +6 мм: над асфальтом двора там, где они перекрываются
+	# Дорожки: крест через фонтан и отвод к воротам (x 12, южный край). Верх на +12 мм.
+	pieces = []
+	for name, size, loc in (
+		("p_ns", (2.2, 32, 0.1), (0, 0)),
+		("p_ew", (30, 2.2, 0.1), (0, 0)),
+		("p_gate", (2.2, 9, 0.1), (12, 11.5)),      # от ворот (Godot z 30) на север до z 39
+		("p_gate2", (12, 2.2, 0.1), (6, 7)),       # к центральной дорожке (Godot z 38)
+		("p_play", (8, 2.2, 0.1), (-8, 3)),        # к площадке (Godot z 42)
+	):
+		b = lib.rounded_box(name, size, bevel=0.0, material="sand")
+		b.location = (loc[0], loc[1], -0.038)
+		pieces.append(b)
+	path = lib.join("path", pieces)
+	return [lawn, path]
+```
+
+## `tools/blender/gen/pigeon.py`
+
+```python
+"""Генератор голубя (CC0 mujtaba-io — pigeon.py)."""
+import pigeon
+
+SPEC = {"max_tris": 1500, "max_dim": 0.35, "animations": True}
+
+
+def build():
+	return pigeon.build()
+```
+
 ## `tools/blender/gen/puddle.py`
 
 ```python
@@ -8618,6 +9665,85 @@ def build():
 	p.scale = (1.0, 0.7, 1.0)
 	p.location.z = 0.005
 	return [p]
+```
+
+## `tools/blender/gen/sandbox.py`
+
+```python
+"""Песочница 2×2 м: четыре доски бортика 0,2 м и песок внутри, ведёрко."""
+import lib
+
+SPEC = {"max_tris": 800, "max_dim": 2.1}
+
+
+def build():
+	sand = lib.rounded_box("sandbox", (1.84, 1.84, 0.12), bevel=0.02, material="cream")
+	sand.location.z = 0.06
+	parts = [sand]
+	for i, (x, y, sx, sy) in enumerate(((0, 0.96, 2.0, 0.12), (0, -0.96, 2.0, 0.12), (0.96, 0, 0.12, 1.8), (-0.96, 0, 0.12, 1.8))):
+		b = lib.rounded_box(f"sandbox_board{i}", (sx, sy, 0.2), bevel=0.02, segments=1, material="brick")
+		b.location = (x, y, 0.1)
+		parts.append(b)
+	bucket = lib.cylinder("sandbox_bucket", radius=0.08, depth=0.12, segments=10, material="sky")
+	bucket.location = (0.4, 0.3, 0.18)
+	parts.append(bucket)
+	return lib.group(parts)
+```
+
+## `tools/blender/gen/shed.py`
+
+```python
+"""Сторожка садовника 2×2 м: стены, двускатная крыша (клин), дверь, лейка у входа."""
+import math
+
+import lib
+
+SPEC = {"max_tris": 1500, "max_dim": 2.6}
+
+
+def build():
+	walls = lib.rounded_box("shed", (2.0, 2.0, 1.9), bevel=0.03, material="olive")
+	walls.location.z = 0.95
+	roof = lib.wedge("shed_roof", width=2.4, length=1.2, height=2.3, material="brick")
+	roof.rotation_euler = (0, math.pi / 2, math.pi / 2)
+	roof.location = (0, 1.15, 1.9)
+	door = lib.rounded_box("shed_door", (0.7, 0.06, 1.4), bevel=0.01, material="sand")
+	door.location = (0, 1.01, 0.7)
+	can = lib.cylinder("shed_can", radius=0.12, depth=0.25, segments=10, material="sky")
+	can.location = (0.7, 1.25, 0.125)
+	return lib.group([walls, roof, door, can])
+```
+
+## `tools/blender/gen/slide.py`
+
+```python
+"""Детская горка с домиком: домик 1,2×1,2 м (стенки 0,7, открыт спереди — укрытие), крыша-площадка, скат и лесенка."""
+import math
+
+import lib
+
+SPEC = {"max_tris": 1500, "max_dim": 3.2}
+
+
+def build():
+	roof = lib.rounded_box("slide", (1.3, 1.3, 0.06), bevel=0.02, material="coral")
+	roof.location.z = 0.72
+	back = lib.rounded_box("slide_back", (1.2, 0.08, 0.7), bevel=0.01, material="sky")
+	back.location = (0, -0.56, 0.35)
+	parts = [roof, back]
+	for i, x in enumerate((-0.56, 0.56)):
+		side = lib.rounded_box(f"slide_side{i}", (0.08, 1.2, 0.7), bevel=0.01, material="sky")
+		side.location = (x, 0, 0.35)
+		parts.append(side)
+	ramp = lib.rounded_box("slide_ramp", (0.5, 1.6, 0.05), bevel=0.01, material="rarity_legendary")
+	ramp.location = (-1.25, 0, 0.38)
+	ramp.rotation_euler = (0.0, math.radians(-27.0), math.radians(90.0))
+	parts.append(ramp)
+	for i in range(4):
+		rung = lib.rounded_box(f"slide_rung{i}", (0.06, 0.5, 0.04), bevel=0.0, material="cream")
+		rung.location = (0.75, 0, 0.15 + i * 0.17)
+		parts.append(rung)
+	return lib.group(parts)
 ```
 
 ## `tools/blender/gen/stairs.py`
@@ -8642,6 +9768,39 @@ def build():
 	rail = lib.rounded_box("stairs_rail", (0.06, 1.2, 0.9), bevel=0.0, material="ink")
 	rail.location = (0.6, -2.55, 1.45)
 	parts.append(rail)
+	return lib.group(parts)
+```
+
+## `tools/blender/gen/swings.py`
+
+```python
+"""Качели: А-образные стойки, перекладина 2,4 м, два сиденья на тросах."""
+import math
+
+import lib
+
+SPEC = {"max_tris": 800, "max_dim": 2.6}
+
+
+def build():
+	bar = lib.cylinder("swings", radius=0.05, depth=2.4, segments=8, material="coral")
+	bar.rotation_euler = (0, math.pi / 2, 0)
+	bar.location.z = 1.8
+	parts = [bar]
+	for i, x in enumerate((-1.15, 1.15)):
+		for j, s in enumerate((-1, 1)):
+			leg = lib.cylinder(f"swings_leg{i}{j}", radius=0.04, depth=1.95, segments=8, material="coral")
+			leg.rotation_euler = (math.radians(18 * s), 0, 0)
+			leg.location = (x, 0.3 * s, 0.9)
+			parts.append(leg)
+	for i, x in enumerate((-0.5, 0.5)):
+		seat = lib.rounded_box(f"swings_seat{i}", (0.4, 0.2, 0.04), bevel=0.01, material="rarity_legendary")
+		seat.location = (x, 0, 0.45)
+		parts.append(seat)
+		for k, dx in enumerate((-0.17, 0.17)):
+			rope = lib.cylinder(f"swings_rope{i}{k}", radius=0.01, depth=1.33, segments=4, material="ink")
+			rope.location = (x + dx, 0, 1.12)
+			parts.append(rope)
 	return lib.group(parts)
 ```
 
@@ -8786,6 +9945,116 @@ def build():
 		ball.location = (x, -0.85, 1.43)
 		parts.append(ball)
 	return lib.group(parts)
+```
+
+## `tools/blender/human.py`
+
+```python
+"""Люди парка (садовник, ребёнок, сторож) из CC0 Quaternius «Animated Human».
+Текстура модели — палитра-полоски: каждая грань получает материал палитры по цвету текстуры под её UV
+(кожа, волосы, штаны, рубашка) и по роли персонажа. Клипы: idle, walk, run, work."""
+import math
+import os
+
+import bpy
+from mathutils import Matrix, Vector
+
+import palette
+import rig_utils
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+SRC = os.path.join(ROOT, "third_party", "quaternius_animated_human")
+BLEND = os.path.join(SRC, "AnimatedHuman.blend")
+TEXTURE = os.path.join(SRC, "ClothedLightSkin2.png")
+ACTIONS = {"Idle": "idle", "Walk": "walk", "Run": "run", "Working": "work"}
+# цвет полосы текстуры -> класс
+CLASSES = {(255, 209, 159): "skin", (41, 41, 41): "hair", (200, 148, 89): "pants", (100, 215, 105): "shirt"}
+ROLES = {
+	"gardener": {"height": 1.7, "skin": "cream", "hair": "brick", "pants": "olive", "shirt": "leaf"},
+	"kid": {"height": 1.1, "skin": "cream", "hair": "cat_orange", "pants": "sky", "shirt": "rarity_legendary"},
+	"guard": {"height": 1.7, "skin": "cream", "hair": "ink", "pants": "ink", "shirt": "sea_deep"},
+}
+
+
+def _classify(mesh):
+	img = bpy.data.images.load(TEXTURE)
+	w, h = img.size
+	px = list(img.pixels)
+	uv = mesh.data.uv_layers.active.data
+	out = []
+	for p in mesh.data.polygons:
+		u = sum(uv[l].uv[0] for l in p.loop_indices) / len(p.loop_indices)
+		v = sum(uv[l].uv[1] for l in p.loop_indices) / len(p.loop_indices)
+		x = min(w - 1, max(0, int(u * w)))
+		y = min(h - 1, max(0, int(v * h)))
+		i = (y * w + x) * 4
+		c = tuple(round(k * 255) for k in px[i:i + 3])
+		best = min(CLASSES, key=lambda ref: sum((a - b) ** 2 for a, b in zip(ref, c)))
+		out.append(CLASSES[best])
+	return out
+
+
+def _recolor(mesh, role):
+	classes = _classify(mesh)
+	keys = ["skin", "hair", "pants", "shirt"]
+	mesh.data.materials.clear()
+	for k in keys:
+		mesh.data.materials.append(palette.get_material(ROLES[role][k]))
+	for p, c in zip(mesh.data.polygons, classes):
+		p.material_index = keys.index(c)
+
+
+def forward_vector(arm):
+	"""Направление носков в позе клипа walk (кадр 0), мировые координаты. Поза покоя не годится:
+	клипы поворачивают таз относительно покоя, и по покою модель в игре смотрела вбок."""
+	arm.animation_data_create()
+	arm.animation_data.action = bpy.data.actions["walk"]
+	bpy.context.scene.frame_set(0)
+	bpy.context.view_layer.update()
+	d = Vector((0.0, 0.0, 0.0))
+	for side in ("Left", "Right"):
+		foot = arm.matrix_world @ arm.pose.bones[side + "Foot"].head
+		toe = arm.matrix_world @ arm.pose.bones[side + "ToeBase"].head
+		d += toe - foot
+	arm.animation_data.action = None
+	bpy.context.view_layer.update()
+	return d
+
+
+def _face_forward(arm):
+	"""Разворачиваем так, чтобы носки (в позе ходьбы) смотрели по +Y Blender (= −Z Godot)."""
+	arm.rotation_mode = "XYZ"
+	d = forward_vector(arm)
+	arm.rotation_euler.z += math.pi / 2 - math.atan2(d.y, d.x)
+	bpy.context.view_layer.update()
+
+
+def build(role):
+	bpy.ops.wm.open_mainfile(filepath=BLEND)
+	arm = bpy.data.objects["Human Armature"]
+	mesh = bpy.data.objects["Human_Mesh"]
+	for o in list(bpy.data.objects):
+		if o not in (arm, mesh):
+			bpy.data.objects.remove(o)
+	for a in list(bpy.data.actions):
+		if a.name in ACTIONS:
+			a.name = ACTIONS[a.name]
+			rig_utils.clean_action(a, arm)
+		else:
+			bpy.data.actions.remove(a)
+	_recolor(mesh, role)
+	arm.animation_data_create()
+	arm.animation_data.action = None
+	_face_forward(arm)
+	bpy.context.view_layer.update()
+	corners = [mesh.matrix_world @ Vector(c) for c in mesh.bound_box]
+	height = max(c.z for c in corners) - min(c.z for c in corners)
+	k = ROLES[role]["height"] / height
+	arm.scale = (arm.scale.x * k, arm.scale.y * k, arm.scale.z * k)
+	bpy.context.view_layer.update()
+	arm.name = f"{role.capitalize()}Rig"
+	mesh.name = role
+	return [arm, mesh]
 ```
 
 ## `tools/blender/lib.py`
@@ -8941,6 +10210,41 @@ def check_asset(objs, max_tris: int, max_dim: float):
 			if not palette.is_palette_material(m):
 				errors.append(f"{o.name}: материал {getattr(m, 'name', None)!r} не из палитры")
 	return errors
+
+
+def join(name, objs):
+	"""Сливает объекты в один меш (мировые координаты, материалы по граням); исходники удаляются.
+	Нужно, когда поверхность должна быть одним мешем с одним именем (SurfaceTextures ищет по имени)."""
+	import bmesh as _bm
+	bpy.context.view_layer.update()
+	bm = _bm.new()
+	mats = []
+	for o in objs:
+		depsgraph = bpy.context.evaluated_depsgraph_get()
+		ev = o.evaluated_get(depsgraph)
+		tmp = ev.to_mesh().copy()
+		ev.to_mesh_clear()
+		tmp.transform(o.matrix_world)
+		for poly in tmp.polygons:
+			mat = o.data.materials[poly.material_index] if o.data.materials else None
+			if mat not in mats:
+				mats.append(mat)
+			poly.material_index = mats.index(mat)
+		bm.from_mesh(tmp)
+		bpy.data.meshes.remove(tmp)
+		src = o.data
+		bpy.data.objects.remove(o)
+		if src.users == 0:
+			bpy.data.meshes.remove(src)   # без сирот в долгих сессиях
+	mesh = bpy.data.meshes.new(name)
+	bm.to_mesh(mesh)
+	bm.free()
+	for m in mats:
+		mesh.materials.append(m)
+	obj = bpy.data.objects.new(name, mesh)
+	bpy.context.scene.collection.objects.link(obj)
+	bpy.context.view_layer.update()
+	return obj
 ```
 
 ## `tools/blender/palette.py`
@@ -9000,6 +10304,67 @@ def get_material(key: str) -> bpy.types.Material:
 
 def is_palette_material(mat: bpy.types.Material) -> bool:
     return mat is not None and mat.name.startswith(MATERIAL_PREFIX)
+```
+
+## `tools/blender/pigeon.py`
+
+```python
+"""Голубь из CC0 mujtaba-io: серый корпус, бирюзовая шея, коралловые лапы; длина 0,3 м; клипы flap, idle."""
+import os
+
+import bpy
+from mathutils import Vector
+
+import palette
+import rig_utils
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+BLEND = os.path.join(ROOT, "third_party", "pigeon_mujtaba", "pigeon.blend")
+ACTIONS = {"flap-wings-animation": "flap", "idle-animation": "idle"}
+TARGET_LENGTH = 0.3
+
+
+def build():
+	bpy.ops.wm.open_mainfile(filepath=BLEND)
+	arm = bpy.data.objects["pigeon-armature"]
+	mesh = bpy.data.objects["pigeon-model"]
+	for o in list(bpy.data.objects):
+		if o not in (arm, mesh):
+			bpy.data.objects.remove(o)
+	for a in list(bpy.data.actions):
+		if a.name in ACTIONS:
+			a.name = ACTIONS[a.name]
+			rig_utils.clean_action(a, arm)
+		else:
+			bpy.data.actions.remove(a)
+	bpy.context.view_layer.update()
+	m = mesh.matrix_world
+	zs = [(m @ v.co).z for v in mesh.data.vertices]
+	lo, hi = min(zs), max(zs)
+	mesh.data.materials.clear()
+	for key in ("asphalt", "sea_light", "coral"):
+		mesh.data.materials.append(palette.get_material(key))
+	head = arm.matrix_world @ arm.data.bones["neck-bone"].head_local
+	for p in mesh.data.polygons:
+		c = m @ p.center
+		if c.z < lo + (hi - lo) * 0.18:
+			p.material_index = 2                     # лапы
+		elif (c - head).length < (hi - lo) * 0.22:
+			p.material_index = 1                     # шея
+		else:
+			p.material_index = 0
+	arm.animation_data_create()
+	arm.animation_data.action = None
+	rig_utils.face_forward(arm, root_bone="thorax-bone", head_bone="face-bone")
+	bpy.context.view_layer.update()
+	corners = [mesh.matrix_world @ Vector(c) for c in mesh.bound_box]
+	length = max(max(c[i] for c in corners) - min(c[i] for c in corners) for i in range(3))
+	k = TARGET_LENGTH / length
+	arm.scale = (arm.scale.x * k, arm.scale.y * k, arm.scale.z * k)
+	bpy.context.view_layer.update()
+	arm.name = "PigeonRig"
+	mesh.name = "pigeon"
+	return [arm, mesh]
 ```
 
 ## `tools/blender/rig_inspect.py`
@@ -9476,6 +10841,59 @@ class TestPrimitives(unittest.TestCase):
         self.assertEqual(parts, [a, b])
 ```
 
+## `tools/blender/tests/test_park_people.py`
+
+```python
+import unittest
+
+import bpy
+from mathutils import Vector
+
+import human
+import lib
+import pigeon
+
+
+def _actions():
+    return {a.name for a in bpy.data.actions}
+
+
+def _height(mesh):
+    bpy.context.view_layer.update()
+    c = [mesh.matrix_world @ Vector(x) for x in mesh.bound_box]
+    return max(v.z for v in c) - min(v.z for v in c)
+
+
+class TestParkPeople(unittest.TestCase):
+    def test_roles_have_palette_colors_clips_and_height(self):
+        for role, shirt in (("gardener", "sr_leaf"), ("kid", "sr_rarity_legendary"), ("guard", "sr_sea_deep")):
+            lib.clear_scene()
+            objs = human.build(role)
+            mesh = objs[1]
+            mats = [m.name for m in mesh.data.materials]
+            self.assertIn(shirt, mats, role)
+            self.assertIn("sr_cream", mats, f"{role}: кожа")
+            used = {mesh.data.materials[p.material_index].name for p in mesh.data.polygons}
+            self.assertGreaterEqual(len(used), 3, f"{role}: грани разнесены по ролям текстуры")
+            self.assertTrue({"idle", "walk", "run", "work"} <= _actions(), role)
+            self.assertAlmostEqual(_height(mesh), human.ROLES[role]["height"], delta=0.05)
+            self.assertEqual(lib.check_asset(objs, max_tris=2500, max_dim=2.0), [])
+
+    def test_humans_face_forward(self):
+        lib.clear_scene()
+        objs = human.build("gardener")
+        d = human.forward_vector(objs[0])   # в позе клипа walk: по позе покоя модель смотрела вбок
+        self.assertGreater(d.y, abs(d.x) * 3, "носки смотрят по +Y Blender (−Z Godot)")
+
+    def test_pigeon(self):
+        lib.clear_scene()
+        objs = pigeon.build()
+        self.assertTrue({"flap", "idle"} <= _actions())
+        mats = {m.name for m in objs[1].data.materials}
+        self.assertEqual(mats, {"sr_asphalt", "sr_sea_light", "sr_coral"})
+        self.assertEqual(lib.check_asset(objs, max_tris=1500, max_dim=0.35), [])
+```
+
 ## `tools/replay/build_files_md.py`
 
 ````python
@@ -9547,6 +10965,28 @@ if __name__ == "__main__":
 
 ```
 
+```
+
+## `third_party/pigeon_mujtaba/README.md`
+
+```markdown
+# Low poly 3D Pigeon (rigged + animated), автор mujtaba-io, CC0
+
+Источник: https://opengameart.org/node/167919 — файл
+`https://opengameart.org/sites/default/files/genuinely-my-pigeon-extended-furthur.blend` (здесь `pigeon.blend`, Blender 2.79).
+Лицензия: CC0 («Copyright/Attribution Notice: CC0. You own it.»). Клипы: flap-wings-animation, idle-animation.
+Используется в `tools/blender/pigeon.py`.
+```
+
+## `third_party/quaternius_animated_human/README.md`
+
+```markdown
+# Animated Human Low Poly (Quaternius), CC0
+
+Источник: https://opengameart.org/content/animated-human-low-poly — архив
+`https://opengameart.org/sites/default/files/Animated%20Human%20by%20%40Quaternius_0.zip`, файл `Blend/Animated Human.blend`
+(здесь `AnimatedHuman.blend`) и его текстура-палитра `Blend/Textures/ClothedLightSkin2.png`. Лицензия CC0 (`LICENSE.txt`).
+Клипы: Idle, Walk, Run, Working, Jump, Punch, Death. Используется в `tools/blender/human.py` (садовник, ребёнок, сторож).
 ```
 
 ## `third_party/unimate_clips/README.md`
@@ -10350,6 +11790,106 @@ snack_run/
 случайные события и дворовые коты. Каждый этап — отдельный спек и план.
 ````
 
+## `docs/superpowers/specs/2026-10-09-snack-run-stage2-park-design.md`
+
+```markdown
+# Snack Run, этап 2: парк и смена суток (спек)
+
+Продолжение `2026-10-07-snack-run-design.md` (основной спек остаётся источником истины по стилю,
+управлению, прогрессии и архитектуре). Решения владельца 2026-10-09: опасности парка — голуби-воришки,
+садовник со шлангом, дождеватели газона, ребёнок, который хочет погладить; цикл суток ≈ 5 мин меняет
+правила; парк открывается воротами из кафе при сытости 25.
+
+## 1. Что добавляется
+
+- **Район «Парк»** ≈ 30×30 м севернее кафе (за улицей с велосипедистом, z ≈ 26…56), вход — вторые
+  ворота из кафе, порог накопленной сытости 25.
+- **Смена суток** во всех районах: день → вечер → ночь → утро, цикл 300 с.
+- **4 опасности парка + ночной сторож**, 6 новых вкусняшек (альбом 8 → 14), 12 клубочков.
+- Стиль прежний (спек 2.1–2.9): лоуполи, тун, обводка; крупные поверхности — текстуры (газон,
+  гравийные дорожки), пропсы плоскоцветные.
+
+## 2. Смена суток
+
+| Фаза | Длительность | Свет |
+|---|---|---|
+| День | 150 с | как сейчас (спек 2.8): солнце 65°, тёплое |
+| Вечер | 30 с | солнце опускается до 10°, оранжевое `#FFB36B`, небо в персиковый |
+| Ночь | 90 с | солнце выключено, «луна» — холодный `#9FB8FF` 0,25 под 50°, ambient 0,25, небо тёмно-синее; включаются фонари |
+| Утро | 30 с | обратный переход к дню |
+
+- Переходы плавные (интерполяция цвета, энергии, угла, неба). Игра стартует днём; фаза не сохраняется.
+- Значок в HUD: солнце / закат / луна (сгенерированные иконки), рядом полоска до следующей фазы.
+- Правила по фазам: собака двора и садовник ночью спят (не просыпаются от кота); ребёнок уходит
+  домой вечером и возвращается утром; голуби ночью спят на ветках (не воруют); дождеватели работают
+  и ночью; ночью в парке патрулирует **сторож с фонариком** (единственная ночная опасность-преследователь).
+- Ночная еда: в тёмных точках спавна веса редкостей сдвигаются вверх (обычная 40, редкая 30,
+  очень редкая 20, легендарная 10) — ночью рискованнее, но вкуснее.
+- Фонари парка и двора (`lamp`) ночью — `SpotLight3D` вниз, конус 50°, тёплый `#FFD9A0`.
+
+## 3. Опасности парка
+
+| Опасность | Поведение | Попадание |
+|---|---|---|
+| **Голуби** (стая 5, у фонтана и скамеек) | Бродят и клюют. Если кот с едой в зубах ближе 1,5 м и идёт шагом — один голубь выхватывает последнюю еду и улетает. Бегом (Shift) на стаю — разлетаются на 10 с. Ночью спят. | Еда потеряна, сердечко не снимается |
+| **Садовник со шлангом** (дорожки) | Ходит по маршруту; каждые 15–25 с останавливается и поливает газон перед собой 4 с: струя — конус 3 м / 40°. За 1 с до полива — шипение и капли. Ночью спит в сторожке. | Удар (как собака) |
+| **Дождеватели** (3 зоны газона) | Цикл 8 с работают / 12 с стоят; за 1 с — бульканье и капли. Работают и ночью. | Кот мокрый: скорость ×0,6 на 4 с, капли с шерсти; без урона |
+| **Ребёнок** (детская площадка) | Днём бегает по площадке. Заметил кота (конус 50°, 7 м) — бежит к нему 1,1× скорости кота шага; в укрытии теряет через 2 с; устаёт через 6 с. Вечером уходит. | «Гладит» 2 с: кот обездвижен, еда из зубов падает рядом; сердечко не снимается |
+| **Сторож** (только ночью) | Патруль по аллеям с фонариком. Видит кота в луче фонарика (конус 30°, 8 м) или когда кот стоит в свете фонаря парка. Погоня как у собаки (1 с насторожился, 8 с гонится, 2 с до потери в укрытии). | Удар |
+
+Новые укрытия: куст (кот внутри куста), под скамейкой парка, домик детской горки.
+
+## 4. Еда парка (альбом +6)
+
+| Вкусняшка | Редкость | Где |
+|---|---|---|
+| Попкорн | обычная | у киоска, скамейки |
+| Бублик | обычная | скамейки, урны |
+| Сэндвич | редкая | у сторожки садовника, столики |
+| Кукуруза | редкая | у фонтана (голуби!) |
+| Сахарная вата | очень редкая | детская площадка (ребёнок!) |
+| Капкейк | легендарная | на бортике фонтана ночью / под присмотром сторожа |
+
+Сытость и бонусы по редкостям — как в основном спеке 3.3–3.4. Иконки — генератор картинок.
+
+## 5. Район «Парк»
+
+- Газон (текстура травы), гравийные дорожки (текстура гравия), фонтан в центре (вода — зеркальный
+  материал, как лужи), детская площадка (горка с домиком, качели, песочница), аллея со скамейками
+  и фонарями (8), киоск мороженого, сторожка садовника, деревья, кусты, клумбы, забор по периметру.
+- Раскладка — `data/layout/park.json` тем же `WorldBuilder`; ворота из кафе — `gates` с `satiety: 25`.
+- Пол двора расширяется (или отдельный пол парка) так, чтобы kill-plane и коллизия покрывали парк.
+
+## 6. Ассеты и анимации (правило владельца: сначала бесплатные готовые)
+
+- Люди (садовник, ребёнок, сторож): ищем CC0-паки с анимированными гуманоидами (например, Quaternius
+  Ultimate Animated Character / Universal Animation Library) с клипами idle/walk/run; одежда и цвета
+  перекрашиваются скриптом в палитру. Только если не найдено — UniMate, затем скрипт.
+- Голуби: ищем CC0-птицу с клипами (Quaternius animals); иначе процедурное махание крыльями, как у осы.
+- Шланг, струя, дождеватели — частицы `CPUParticles3D` (не меши).
+- Пропсы парка — скрипты Blender (фонтан, горка, качели, песочница, киоск, сторожка, скамейка
+  парка, клумба, фонарь — уже есть).
+
+## 7. Тестирование
+
+Как в основном спеке 5.4: чистая логика (фазы суток, мозг ребёнка/сторожа, голуби) — юнит-тесты;
+поведение опасностей и смена правил по фазе — интеграционные GUT с ускорением времени цикла;
+раскладка парка — инварианты как у двора (спавны и клубочки не в пропсах, на чём-то стоят);
+кадры днём и ночью — `make shot` с параметром фазы.
+
+## 8. Разбивка на планы
+
+- **План 7. Смена суток**: `DayCycle` (фазы, интерполяция света и неба, фонари, HUD-значок, правила
+  сна собаки), ночные веса еды.
+- **План 8. Район «Парк»**: пропсы, текстуры газона и гравия, раскладка, ворота 25, еда парка, укрытия,
+  клубочки, иконки.
+- **План 9. Опасности парка**: голуби, садовник, дождеватели, ребёнок, сторож; поиск анимаций людей и птиц.
+
+## 9. Вне этапа 2
+
+Порт, пляж, чайки (этап 3); случайные события и дворовые коты (этап 4); сохранение фазы суток.
+```
+
 ## `docs/superpowers/plans/2026-10-07-snack-run-roadmap.md`
 
 ```markdown
@@ -10502,6 +12042,14 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
 Гибрид по решению владельца: асфальт, плитка тротуара и штукатурка стен с проглядывающим кирпичом —
 бесшовные текстуры OpenAI с трипланарной проекцией; пропсы, еда и персонажи остаются плоскоцветными.
 Дальше можно: текстура дерева для лавки/забора, картон для коробок, черепица навеса будки.
+
+## Этап 2: парк и смена суток (спек `2026-10-09-snack-run-stage2-park-design.md`)
+
+- План 7. Смена суток (`2026-10-09-snack-run-07-day-cycle.md`) — ВЫПОЛНЕН 2026-10-09: цикл 300 с, свет и небо,
+  фонари и окна ночью, значок фазы, собака спит ночью, ночные веса еды.
+- План 8. Район «Парк» (`2026-10-09-snack-run-08-park.md`) — ВЫПОЛНЕН 2026-10-09: газон и гравий, фонтан,
+  площадка, аллея фонарей, киоск, сторожка, забор, ворота 25, 6 вкусняшек, укрытия, 12 клубочков.
+- План 9. Опасности парка: голуби, садовник, дождеватели, ребёнок, сторож; анимации людей и птиц из CC0-паков.
 ```
 
 ## `docs/superpowers/notes/2026-10-07-unimate-attempt.md`
@@ -10888,6 +12436,72 @@ if __name__ == "__main__":
       "note": "бесшовная штукатурка с кирпичом (стены домов)",
       "model": "gpt-image-2.5-sunburst",
       "prompt": "Seamless tileable texture of a stylized cartoon plastered building wall seen straight on, warm sand stucco #D3AB87 with soft painterly variation and a few small patches where orange-red bricks (#BD4045) peek through the plaster, flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly on all sides, no windows, no text"
+    },
+    {
+      "file": "assets/images/ui/sun.png",
+      "note": "иконка фазы суток: sun",
+      "background": "transparent",
+      "prompt": "Game icon of a smiling cartoon sun with rounded rays, warm yellow (#FABE32), centered, transparent background"
+    },
+    {
+      "file": "assets/images/ui/sunset.png",
+      "note": "иконка фазы суток: sunset",
+      "background": "transparent",
+      "prompt": "Game icon of a cartoon sun half below a horizon line with soft orange (#FFB36B) and coral (#F57485) glow, centered, transparent background"
+    },
+    {
+      "file": "assets/images/ui/moon.png",
+      "note": "иконка фазы суток: moon",
+      "background": "transparent",
+      "prompt": "Game icon of a cute crescent moon with two small stars, pale blue (#9FB8FF), centered, transparent background"
+    },
+    {
+      "file": "assets/images/textures/grass.png",
+      "note": "бесшовный газон парка",
+      "prompt": "Seamless tileable texture of a stylized cartoon lawn seen straight from above, short grass in leaf green (#458B59) and olive (#A9B087) with tiny painted blades and a few small white clover flowers, flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly on all four sides, no objects, no text",
+      "model": "gpt-image-2.5-sunburst"
+    },
+    {
+      "file": "assets/images/textures/gravel.png",
+      "note": "бесшовный гравий дорожек",
+      "prompt": "Seamless tileable texture of a stylized cartoon fine gravel path seen straight from above, small rounded pebbles in sand (#D3AB87), cream (#FCD3A1) and light grey tones, flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly on all four sides, no text",
+      "model": "gpt-image-2.5-sunburst"
+    },
+    {
+      "file": "assets/images/ui/food_popcorn.png",
+      "note": "иконка попкорна",
+      "prompt": "Game icon of a striped red and white popcorn box overflowing with fluffy popcorn, red #BD4045, cream popcorn #FCD3A1, centered, transparent background",
+      "background": "transparent"
+    },
+    {
+      "file": "assets/images/ui/food_bagel.png",
+      "note": "иконка бублика",
+      "prompt": "Game icon of a round golden bagel with sesame seeds, #FAAE45 with #D3AB87 shading, centered, transparent background",
+      "background": "transparent"
+    },
+    {
+      "file": "assets/images/ui/food_sandwich.png",
+      "note": "иконка сэндвича",
+      "prompt": "Game icon of a triangle sandwich with lettuce, tomato and cheese, bread #FCD3A1, centered, transparent background",
+      "background": "transparent"
+    },
+    {
+      "file": "assets/images/ui/food_corn.png",
+      "note": "иконка кукурузы",
+      "prompt": "Game icon of a grilled corn cob with green husk leaves, kernels #FABE32, husk #458B59, centered, transparent background",
+      "background": "transparent"
+    },
+    {
+      "file": "assets/images/ui/food_cotton_candy.png",
+      "note": "иконка сахарной ваты",
+      "prompt": "Game icon of fluffy pink cotton candy on a paper cone stick, pink #F57485 and lilac #B46DB5 swirl, centered, transparent background",
+      "background": "transparent"
+    },
+    {
+      "file": "assets/images/ui/food_cupcake.png",
+      "note": "иконка капкейка",
+      "prompt": "Game icon of a cupcake with swirled pink frosting, sprinkles and a cherry on top, paper cup in sky blue #659ECF, centered, transparent background",
+      "background": "transparent"
     }
   ]
 }

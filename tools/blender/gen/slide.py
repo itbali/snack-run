@@ -17,9 +17,6 @@ def build():
 		side.location = (x, 0, 0.35)
 		parts.append(side)
 	ramp = lib.rounded_box("slide_ramp", (0.5, 1.6, 0.05), bevel=0.01, material="rarity_legendary")
-	ramp.rotation_euler = (0.0, math.radians(26.0), 0.0)
-	ramp.rotation_mode = "XYZ"
-	ramp.rotation_euler = (0.0, 0.0, 0.0)
 	ramp.location = (-1.25, 0, 0.38)
 	ramp.rotation_euler = (0.0, math.radians(-27.0), math.radians(90.0))
 	parts.append(ramp)

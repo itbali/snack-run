@@ -24,13 +24,15 @@ func pick_def() -> FoodDef:
 	var tier := Rarity.pick_weighted(allowed, rng, Rarity.NIGHT_WEIGHTS if night else Rarity.WEIGHTS)
 	var pool := FoodCatalog.by_tier(tier)
 	if not foods.is_empty():
+		var ids := foods.map(func(x): return StringName(x))   # один раз, не на каждой еде каталога
 		var only: Array[FoodDef] = []
-		for f in FoodCatalog.all():
-			if StringName(f.id) in foods.map(func(x): return StringName(x)) and (f.tier == tier or pool.is_empty()):
+		for f in pool:
+			if StringName(f.id) in ids:
 				only.append(f)
-		if only.is_empty():   # редкость не совпала со списком — берём любую еду из списка
+		if only.is_empty():
+			push_warning("точка спавна %s: в списке еды нет редкости %d" % [global_position if is_inside_tree() else Vector3.ZERO, tier])
 			for f in FoodCatalog.all():
-				if StringName(f.id) in foods.map(func(x): return StringName(x)):
+				if StringName(f.id) in ids:
 					only.append(f)
 		pool = only
 	if pool.is_empty():

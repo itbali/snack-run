@@ -128,3 +128,24 @@ func test_lawn_and_paths_are_textured_in_main() -> void:
 			if m.albedo_texture:
 				assert_eq(m.albedo_texture.resource_path, "res://assets/images/textures/%s.png" % pair[1])
 	SaveGame.clear()
+
+func test_perimeter_fence_is_too_high_to_jump_from_any_prop() -> void:
+	# Ревью плана 8 (I1): кот запрыгивал на куст (0,78 м) и с него перелетал забор 1,1 м. С любого пропса
+	# кот достаёт до ≈ 0,8 + 0,84 м, поэтому коллайдер забора по периметру — не ниже 1,7 м.
+	for p in WorldBuilder.load_layout(PARK)["props"]:
+		if p["model"] != "fence":
+			continue
+		assert_true(p.has("colliders"), "у секции забора %s явный коллайдер" % [p["pos"]])
+		if p.has("colliders"):
+			var top: float = p["colliders"][0]["size"][1] / 2.0 + p["colliders"][0]["offset"][1]
+			assert_gte(top, 1.7, "забор %s не перепрыгнуть" % [p["pos"]])
+
+func test_yard_spawns_never_give_park_food() -> void:
+	# Ревью плана 8 (I2): карточки парка нельзя собрать во дворе и кафе.
+	var park_food := [&"popcorn", &"bagel", &"sandwich", &"corn", &"cotton_candy", &"cupcake"]
+	var b := WorldBuilder.new()
+	add_child_autofree(b)
+	b.build(WorldBuilder.load_layout("res://data/layout/yard.json"))
+	for sp in b.find_children("*", "FoodSpawnPoint", true, false):
+		for i in 60:
+			assert_false(StringName((sp as FoodSpawnPoint).pick_def().id) in park_food, "точка двора %s дала еду парка" % (sp as Node3D).global_position)
