@@ -90,3 +90,42 @@ func test_gull_sleeps_on_perch_at_night() -> void:
 	assert_eq(g.mode, &"sleep")
 	assert_lt(g.global_position.y, 1.0, "сидит на насесте")
 	assert_eq(GameState.hearts, 3)
+
+const WaveScene := preload("res://scenes/hazards/wave.tscn")
+
+func _wave() -> Node3D:
+	var w := WaveScene.instantiate() as Node3D
+	w.set("width", 20.0)
+	w.set("inland", -1.0)   # суша — в сторону −Z от линии воды z 0
+	world.add_child(w)
+	return w
+
+func test_wave_throws_cat_inland_and_wets_once() -> void:
+	# Спек: кот отброшен к берегу на 1,5 м и мокрый 4 с; без урона, еда не теряется; один раз за накат.
+	_floor()
+	var w := _wave()
+	var cat = _cat(Vector3(0, 0.05, -2.0))
+	GameState.pick_up(FoodCatalog.get_by_id(&"shrimp"))
+	await wait_seconds(2.0)
+	assert_lt(cat.global_position.z, -3.2, "отброшен вглубь пляжа на 1,5 м")
+	assert_gt(cat.wet_left, 0.0, "мокрый")
+	assert_eq(GameState.hearts, 3)
+	assert_eq(GameState.mouth.size(), 1, "еда в зубах")
+	assert_eq(w.get("hits"), 1)
+	await wait_seconds(3.0)
+	assert_eq(w.get("hits"), 1, "за один накат — один раз")
+
+func test_wave_does_not_reach_cat_far_inland() -> void:
+	_floor()
+	var w := _wave()
+	var cat = _cat(Vector3(0, 0.05, -6.0))
+	await wait_seconds(4.0)
+	assert_eq(w.get("hits"), 0)
+	assert_eq(cat.wet_left, 0.0)
+
+func test_wave_foam_warns_before_roll() -> void:
+	_floor()
+	var w := _wave()
+	w.set("offset", Wave.PERIOD - 1.0)   # за 1 с до наката
+	await wait_physics_frames(3)
+	assert_true((w.get_node("Foam") as CPUParticles3D).emitting, "пена у кромки")

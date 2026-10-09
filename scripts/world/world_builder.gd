@@ -14,6 +14,7 @@ const HAZARD_SCENES := {
 	"kid": "res://scenes/hazards/kid.tscn",
 	"guard": "res://scenes/hazards/guard.tscn",
 	"gull": "res://scenes/hazards/gull.tscn",
+	"wave": "res://scenes/hazards/wave.tscn",
 }
 const HideoutScene := preload("res://scenes/hideouts/hideout.tscn")
 const SpawnScene := preload("res://scenes/food/food_spawn_point.tscn")
