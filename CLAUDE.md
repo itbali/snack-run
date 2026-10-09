@@ -77,6 +77,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 - `scripts/autoload/input_setup.gd` (InputMap в коде), `dev_tools.gd` (`++ --screenshot=path`).
 - `tools/blender/`: `palette.py`, `lib.py` (rounded_box, world_extent, tri_count, check_asset), `export.py`, `build.py`, `cat.py` (сварка + subdivision) + `cat_eyes.py` (глаза) + `cat_fluff.py` (пучки, усы, ошейник), `dog.py` + `dog_sleep.py` (поза «спит»), `gen/*.py` (каждый: `SPEC` + `build()`); `tools/audio/gen_sfx.py`; `tools/images/gen.py` + `manifest.json`; `export_presets.cfg`.
 - `scripts/world/terrain.gd` (`Terrain`: меш тайлами, `HeightMapShape3D` «Floor», шейдер `terrain.gdshader` со сплатом, `height_at`); `WorldBuilder.terrain_path` — раскладка привязывается к высоте (`"snap": false` — абсолютно); набор террас `tools/blender/terrace_kit.py`; демо `scenes/dev/terrain_demo.tscn`.
+- `scripts/world/water.gd` (`Water`: зона воды и поверхность-шейдер; кот `drown()` → ближайший маркер группы `shore`).
 - `tools/layout/layout_gen.py` — генератор раскладки: описание района `data/layout_src/<район>.json` (ядро `*_core.json` + зоны) → `data/layout/<район>.json` и `data/terrain_src/<район>.json`; двор правится только через описание.
 - `scripts/visual/surface_textures.gd` — текстуры крупных поверхностей по имени меша (`wall` и др.; пол — каналы рельефа), трипланар по мировым координатам (спек 2.9).
 - `scripts/world/day_cycle.gd` (чистая логика суток) + `day_night.gd` (узел в `lighting.tscn`, группа `day_night`; `DayNight.is_night(tree)`, без узла — день); группы `night_lights`, `night_windows`.
@@ -132,9 +133,11 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 
 **План 11:** ящик 0,3 м (стопки через 0,3); россыпь генератора идёт после структуры всех зон; в описании покрытие — ключ `surface` (ключ `type` у операции); точкам еды всегда давать `foods` района, иначе выпадает еда парка.
 
+**План 12:** у `perimeter` сторона «n» — меньший z, «s» — больший; парк правится только через `data/layout_src/park.json` + `make layout`.
+
 ## Статус и что дальше
 
-- Планы 10 «Рельеф» и 11 «Генератор раскладки и двор ×3» выполнены 2026-10-09 (спек `2026-10-09-snack-run-scale-terrain-design.md`). Дальше план 12 (парк ×3), затем порт — планы 13–15.
+- Планы 10 «Рельеф», 11 «Двор ×3» и 12 «Парк ×3, вода» выполнены 2026-10-09 (спек `2026-10-09-snack-run-scale-terrain-design.md`). Дальше порт — планы 13–15 (владелец: делать подряд, не ждать его оценки).
 - Планы 1–9 выполнены и слиты в `main`: фундамент, игровой цикл, хаб и прогрессия, полировка, визуальная полировка, текстуры крупных поверхностей, этап 2 (сутки, парк, опасности парка). Отложенные мелочи — в дорожной карте.
 - Отложено по просьбе владельца: текстуры пропсов («потом вернёмся к текстурам»).
 - Открытый вопрос владельцу: лицензия весов UniMate для сгенерированных движений (код MIT, для весов явной лицензии не найдено).

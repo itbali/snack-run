@@ -5,7 +5,7 @@
 Отступы в GDScript и Makefile — табы; в Python проекта — тоже табы, кроме
 `palette.py` и тестов Blender (пробелы). Копировать как есть.
 
-Файлов: 256
+Файлов: 263
 
 ## `CLAUDE.md`
 
@@ -89,6 +89,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 - `scripts/autoload/input_setup.gd` (InputMap в коде), `dev_tools.gd` (`++ --screenshot=path`).
 - `tools/blender/`: `palette.py`, `lib.py` (rounded_box, world_extent, tri_count, check_asset), `export.py`, `build.py`, `cat.py` (сварка + subdivision) + `cat_eyes.py` (глаза) + `cat_fluff.py` (пучки, усы, ошейник), `dog.py` + `dog_sleep.py` (поза «спит»), `gen/*.py` (каждый: `SPEC` + `build()`); `tools/audio/gen_sfx.py`; `tools/images/gen.py` + `manifest.json`; `export_presets.cfg`.
 - `scripts/world/terrain.gd` (`Terrain`: меш тайлами, `HeightMapShape3D` «Floor», шейдер `terrain.gdshader` со сплатом, `height_at`); `WorldBuilder.terrain_path` — раскладка привязывается к высоте (`"snap": false` — абсолютно); набор террас `tools/blender/terrace_kit.py`; демо `scenes/dev/terrain_demo.tscn`.
+- `scripts/world/water.gd` (`Water`: зона воды и поверхность-шейдер; кот `drown()` → ближайший маркер группы `shore`).
 - `tools/layout/layout_gen.py` — генератор раскладки: описание района `data/layout_src/<район>.json` (ядро `*_core.json` + зоны) → `data/layout/<район>.json` и `data/terrain_src/<район>.json`; двор правится только через описание.
 - `scripts/visual/surface_textures.gd` — текстуры крупных поверхностей по имени меша (`wall` и др.; пол — каналы рельефа), трипланар по мировым координатам (спек 2.9).
 - `scripts/world/day_cycle.gd` (чистая логика суток) + `day_night.gd` (узел в `lighting.tscn`, группа `day_night`; `DayNight.is_night(tree)`, без узла — день); группы `night_lights`, `night_windows`.
@@ -144,9 +145,11 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 
 **План 11:** ящик 0,3 м (стопки через 0,3); россыпь генератора идёт после структуры всех зон; в описании покрытие — ключ `surface` (ключ `type` у операции); точкам еды всегда давать `foods` района, иначе выпадает еда парка.
 
+**План 12:** у `perimeter` сторона «n» — меньший z, «s» — больший; парк правится только через `data/layout_src/park.json` + `make layout`.
+
 ## Статус и что дальше
 
-- Планы 10 «Рельеф» и 11 «Генератор раскладки и двор ×3» выполнены 2026-10-09 (спек `2026-10-09-snack-run-scale-terrain-design.md`). Дальше план 12 (парк ×3), затем порт — планы 13–15.
+- Планы 10 «Рельеф», 11 «Двор ×3» и 12 «Парк ×3, вода» выполнены 2026-10-09 (спек `2026-10-09-snack-run-scale-terrain-design.md`). Дальше порт — планы 13–15 (владелец: делать подряд, не ждать его оценки).
 - Планы 1–9 выполнены и слиты в `main`: фундамент, игровой цикл, хаб и прогрессия, полировка, визуальная полировка, текстуры крупных поверхностей, этап 2 (сутки, парк, опасности парка). Отложенные мелочи — в дорожной карте.
 - Отложено по просьбе владельца: текстуры пропсов («потом вернёмся к текстурам»).
 - Открытый вопрос владельцу: лицензия весов UniMate для сгенерированных движений (код MIT, для весов явной лицензии не найдено).
@@ -1718,9 +1721,10 @@ const STREAMS := {
 	&"hiss": "res://assets/sfx/hiss.wav",
 	&"sprinkle": "res://assets/sfx/sprinkle.wav",
 	&"coo": "res://assets/sfx/coo.wav",
+	&"splash": "res://assets/sfx/splash.wav",
 }
 const POOL := 6
-const VOLUME_DB := {&"bark": -4.0, &"bell": -2.0, &"meow": -3.0, &"hiss": -6.0, &"sprinkle": -6.0, &"coo": -4.0}
+const VOLUME_DB := {&"bark": -4.0, &"bell": -2.0, &"meow": -3.0, &"hiss": -6.0, &"sprinkle": -6.0, &"coo": -4.0, &"splash": -3.0}
 
 var enabled := true
 var last_played: StringName = &""
@@ -3596,6 +3600,8 @@ var in_safe_zone := false   # внутри будки пряжи: удары н�
 var input_enabled := true   # false, пока открыт экран магазина
 var stunned_left := 0.0
 var invulnerable_left := 0.0
+var drowning_left := 0.0   # кот тонет: потом возврат на берег (вода, план 12)
+var _shore := Vector3.ZERO
 var face := CatFace.new()   # выражения глаз, переключает меши eyes_* модели
 var fade := 1.0   # 1 = непрозрачен; значением владеет камера (set_fade), скин его не трогает
 var was_on_floor := true
@@ -3655,6 +3661,13 @@ func _physics_process(delta: float) -> void:
 	stunned_left = maxf(stunned_left - delta, 0.0)
 	invulnerable_left = maxf(invulnerable_left - delta, 0.0)
 	petted_left = maxf(petted_left - delta, 0.0)
+	if drowning_left > 0.0:
+		drowning_left = maxf(drowning_left - delta, 0.0)
+		velocity = Vector3(0, -0.4, 0)   # медленно уходит под воду
+		global_position += velocity * delta
+		if drowning_left == 0.0:
+			teleport(_shore)
+		return
 	if stunned_left > 0.0 or petted_left > 0.0:
 		velocity = CatMotion.step(velocity, Vector3.ZERO, false, is_on_floor(), false, delta)
 		move_and_slide()
@@ -3862,6 +3875,20 @@ func cheer() -> void:
 	face.cheer()
 
 
+func drown(shore: Vector3) -> bool:
+	## Упал в воду (спек порта, раздел 2): 1 с тонет, еда из зубов потеряна, сердечко цело; затем ближайший берег.
+	if drowning_left > 0.0:
+		return false
+	drowning_left = 1.0
+	_shore = shore
+	unhide()
+	GameState.spill()   # не рассыпается — уходит на дно
+	Sfx.play(&"splash")
+	Effects.burst(get_parent(), global_position + Vector3(0, 0.2, 0), Color("#2F9CCF"), 28, 0.06, 2.5)
+	squash(0.6, 0.2)
+	return true
+
+
 func teleport(pos: Vector3) -> void:
 	unhide()
 	global_position = pos
@@ -3870,6 +3897,7 @@ func teleport(pos: Vector3) -> void:
 	invulnerable_left = INVULNERABLE_TIME   # после возрождения дать прийти в себя
 	wet_left = 0.0
 	petted_left = 0.0
+	drowning_left = 0.0
 	if _drips:
 		_drips.emitting = false
 	state = &"idle"
@@ -5425,6 +5453,67 @@ func _build_collision() -> void:
 	add_child(body)
 ```
 
+## `scripts/world/water.gd`
+
+```gdscript
+class_name Water
+extends Area3D
+## Вода (спек порта, раздел 2): поверхность на уровне узла; кот, погрузившийся на SINK м ниже поверхности, тонет
+## и возвращается на ближайший маркер группы shore. Пруд парка и море порта — один узел.
+
+const SINK := 0.15
+const WaterShader := preload("res://assets/shaders/water.gdshader")
+
+@export var size := Vector3(10, 3, 10)   # ширина, глубина зоны под поверхностью, длина
+var level: float:
+	get:
+		return global_position.y
+
+
+func _ready() -> void:
+	add_to_group("water")
+	collision_layer = Layers.AREA
+	collision_mask = Layers.CAT
+	monitorable = false
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(size.x, size.y, size.z)
+	shape.shape = box
+	shape.position.y = -SINK - size.y / 2.0
+	add_child(shape)
+	var surface := MeshInstance3D.new()
+	surface.name = "Surface"
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(size.x, size.z)
+	plane.subdivide_width = 8
+	plane.subdivide_depth = 8
+	surface.mesh = plane
+	var mat := ShaderMaterial.new()
+	mat.shader = WaterShader
+	surface.material_override = mat
+	surface.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(surface)
+	body_entered.connect(_on_body)
+
+
+func _on_body(body: Node3D) -> void:
+	if body.has_method("drown"):
+		body.call("drown", nearest_shore(get_tree(), body.global_position, level))
+
+
+static func nearest_shore(tree: SceneTree, pos: Vector3, water_level := 0.0) -> Vector3:
+	## Ближайший маркер берега; без маркеров — та же точка над водой.
+	var best := Vector3(pos.x, water_level + 1.0, pos.z)
+	var best_d := INF
+	for m in tree.get_nodes_in_group("shore"):
+		var p: Vector3 = (m as Node3D).global_position
+		var d := Vector2(p.x - pos.x, p.z - pos.z).length()
+		if d < best_d:
+			best_d = d
+			best = p
+	return best
+```
+
 ## `scripts/world/world_builder.gd`
 
 ```gdscript
@@ -5558,6 +5647,24 @@ func build(data: Dictionary) -> void:
 		_build_shop(data["shop"])
 	for hz in data.get("hazards", []):
 		_build_hazard(hz)
+	for w in data.get("water_zones", []):
+		_build_water(w)
+	for m in data.get("shore", []):
+		_build_shore(m)
+
+
+func _build_water(w: Dictionary) -> void:
+	## Зона воды (план 12): pos — абсолютный, y — уровень поверхности; size — ширина, глубина зоны, длина.
+	var node := Water.new()
+	node.size = _v3(w.get("size", [10, 3, 10]))
+	_add_at(_container("Water"), node, _v3(w["pos"]), float(w.get("rot", 0)))
+
+
+func _build_shore(m: Dictionary) -> void:
+	## Маркер берега: сюда возвращается утонувший кот (ближайший).
+	var node := Marker3D.new()
+	node.add_to_group("shore")
+	_add_at(_container("Shore"), node, _place(m) + Vector3(0, 0.1, 0), 0.0)
 
 
 func _build_prop(p: Dictionary) -> void:
@@ -7518,7 +7625,7 @@ func test_park_layout_has_the_spec_content() -> void:
 	for m in ["fountain", "slide", "swings", "sandbox", "kiosk", "shed", "lamp", "bench", "fence", "tree", "flowerbed"]:
 		assert_gt(models.get(m, 0), 0, "в парке есть %s" % m)
 	assert_gte(models.get("lamp", 0), 8, "аллея фонарей")
-	assert_between(d["yarn"].size(), 10, 15, "10–15 клубочков")
+	assert_gte(d["yarn"].size(), 25, "парк ×3: не меньше 25 клубочков (спек «Масштаб», раздел 2)")
 	var kinds := {}
 	for h in d["hideouts"]:
 		kinds[h["kind"]] = true
@@ -7591,7 +7698,8 @@ func test_park_is_fenced_and_floored() -> void:
 	var world := _park_with_floor()
 	await wait_physics_frames(3)
 	var space := world.get_world_3d().direct_space_state
-	for p in [Vector3(-14.5, 0.5, 45), Vector3(14.5, 0.5, 45), Vector3(0, 0.5, 60.9), Vector3(-5, 0.5, 30)]:
+	# План 12: края парка ×3 (x ±45, z 125) проверяет test_park_x3; здесь — южный забор ядра у двора.
+	for p in [Vector3(-5, 0.5, 30), Vector3(5, 0.5, 30)]:
 		var from := Vector3(0, 0.5, 45)
 		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(from + (p - from).normalized() * 3.0, p + (p - from).normalized() * 1.5, Layers.WORLD))
 		assert_false(hit.is_empty(), "к %s не выйти: забор" % p)
@@ -7641,7 +7749,7 @@ func test_park_hazards_are_placed() -> void:
 	var types := {}
 	for hz in WorldBuilder.load_layout(PARK)["hazards"]:
 		types[hz["type"]] = types.get(hz["type"], 0) + 1
-	assert_eq(types.get("sprinkler", 0), 3, "три зоны дождевателей")
+	assert_eq(types.get("sprinkler", 0), 6, "парк ×3: шесть дождевателей")
 	for t in ["pigeons", "gardener", "kid", "guard"]:
 		assert_gt(types.get(t, 0), 0, "в парке есть %s" % t)
 	var b := WorldBuilder.new()
@@ -7822,6 +7930,92 @@ func test_respawn_dries_and_frees_cat() -> void:
 	cat.teleport(Vector3(0, 0.05, 5))
 	assert_almost_eq(cat.wet_left, 0.0, 0.001)
 	assert_almost_eq(cat.petted_left, 0.0, 0.001)
+```
+
+## `tests/integration/test_park_x3.gd`
+
+```gdscript
+extends GutTest
+## План 12: парк ×3 (спек «Масштаб ×3 и рельеф», раздел 2): поляна, холм с беседкой, пруд, роща, северный луг.
+
+const LAYOUT := "res://data/layout/park.json"
+var world: Node3D
+var b: WorldBuilder
+var t: Terrain
+
+func before_all() -> void:
+	world = Node3D.new()
+	add_child(world)
+	t = Terrain.new()
+	t.data_path = "res://data/terrain/park.json"
+	world.add_child(t)
+	b = WorldBuilder.new()
+	b.terrain = t
+	world.add_child(b)
+	b.build(WorldBuilder.load_layout(LAYOUT))
+	await wait_physics_frames(2)
+
+func after_all() -> void:
+	world.free()
+
+func test_park_is_90_by_96_with_counts() -> void:
+	assert_almost_eq(t.width, 90.0, 0.01)
+	assert_almost_eq(t.depth, 96.0, 0.01)
+	var d := WorldBuilder.load_layout(LAYOUT)
+	assert_gte(d["spawn_points"].size(), 35)
+	assert_gte(d["yarn"].size(), 25)
+	var n := {}
+	for h in d["hazards"]:
+		n[h["type"]] = n.get(h["type"], 0) + 1
+	assert_eq(n, {"pigeons": 4, "gardener": 2, "sprinkler": 6, "kid": 2, "guard": 2})
+	assert_lte(t.triangle_count(), 40000)
+
+func test_hill_with_gazebo_and_pond() -> void:
+	assert_almost_eq(t.height_at(0, 92), 3.01, 0.05, "вершина холма")
+	assert_lt(t.height_at(-28, 66), -1.2, "дно пруда")
+	var w := b.find_children("*", "Water", true, false)
+	assert_eq(w.size(), 1, "пруд")
+	if w.size() == 1:
+		assert_almost_eq((w[0] as Water).level, -0.5, 0.01)
+	var g := b.find_children("gazebo*", "", true, false)
+	assert_gt(g.size(), 0, "беседка на холме")
+
+func test_shore_markers_are_dry() -> void:
+	# Review Focus 1: берег выше воды и вне зоны — вернувшегося кота не затягивает обратно.
+	var shores := get_tree().get_nodes_in_group("shore")
+	assert_eq(shores.size(), 8)
+	for m in shores:
+		var p: Vector3 = (m as Node3D).global_position
+		assert_gt(t.height_at(p.x, p.z), -0.3, "берег %s на суше" % p)
+
+func test_generated_items_stand_on_surface() -> void:
+	for s in b.get_node("Spawns").get_children() + b.get_node("Yarn").get_children():
+		var p: Vector3 = s.global_position
+		var hit := world.get_world_3d().direct_space_state.intersect_ray(
+			PhysicsRayQueryParameters3D.create(p + Vector3.UP * 0.3, p + Vector3.DOWN * 0.6, Layers.WORLD))
+		assert_false(hit.is_empty(), "%s в %s на опоре" % [s.name, p])
+		if not hit.is_empty():
+			assert_lt(p.y - (hit["position"] as Vector3).y, 0.35, "%s в %s не висит" % [s.name, p])
+		assert_gt(p.y, -0.3, "%s в %s не в пруду" % [s.name, p])
+
+func test_park_edge_is_closed() -> void:
+	# Review Focus 2: забор по x ±45 и z 125 (юг закрывают стены двора).
+	var space := world.get_world_3d().direct_space_state
+	for z in range(33, 124, 6):
+		for x in [-45, 45]:
+			var from := Vector3(x - signf(x) * 2.0, t.height_at(x - signf(x) * 2.0, z) + 0.3, z)
+			var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(from, from + Vector3(signf(x) * 4.0, 0, 0), Layers.WORLD))
+			assert_false(hit.is_empty(), "забор у x %d, z %d" % [x, z])
+	for x in range(-42, 43, 6):
+		var from := Vector3(x, t.height_at(x, 123) + 0.3, 123)
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(from, from + Vector3(0, 0, 4), Layers.WORLD))
+		assert_false(hit.is_empty(), "забор у x %d на севере" % x)
+
+func test_people_routes_stay_on_dry_land() -> void:
+	# Review Focus 3: маршруты садовников и сторожей не заходят в пруд.
+	for h in WorldBuilder.load_layout(LAYOUT)["hazards"]:
+		for p in h.get("path", []):
+			assert_gt(t.height_at(float(p[0]), float(p[1])), -0.3, "%s: точка %s на суше" % [h["type"], p])
 ```
 
 ## `tests/integration/test_pigeons.gd`
@@ -8327,8 +8521,22 @@ func test_cat_cannot_walk_up_a_one_metre_terrace() -> void:
 
 func test_flat_tiles_are_two_triangles() -> void:
 	# План 11: плоский тайл 30×30 — 2 треугольника вместо 1800 (спек: ≤ 40 000 на район).
+	# Плоский рельеф 61×61 пишется прямо в тесте: районы игры теперь холмистые (планы 11–12).
+	var n := 61
+	var rows := []
+	for j in n:
+		var row := []
+		row.resize(n)
+		row.fill(0.0)
+		rows.append(row)
+	var splat := PackedByteArray()
+	splat.resize(n * n * 4)
+	var f := FileAccess.open("user://flat_terrain.json", FileAccess.WRITE)
+	f.store_string(JSON.stringify({"nx": n, "nz": n, "cell": 1.0, "origin": [-30, -30], "size": [60, 60],
+		"heights": rows, "splat": Marshalls.raw_to_base64(splat)}))
+	f.close()
 	var flat := Terrain.new()
-	flat.data_path = "res://data/terrain/park.json"   # плоский район
+	flat.data_path = "user://flat_terrain.json"
 	add_child_autofree(flat)
 	await wait_physics_frames(1)
 	var tiles := flat.find_children("Tile*", "MeshInstance3D", false, false)
@@ -8461,6 +8669,97 @@ func test_wasp_flies_above_terrace() -> void:
 	world.add_child(w)
 	await wait_physics_frames(4)
 	assert_almost_eq(w.global_position.y, 2.5, 0.15, "оса над террасой на высоте 0,5 над землёй")
+```
+
+## `tests/integration/test_water.gd`
+
+```gdscript
+extends GutTest
+## План 12: вода по правилам этапа 3 (спек порта, раздел 2) — кот тонет и возвращается на ближайший берег.
+
+const CatScene := preload("res://scenes/player/cat.tscn")
+
+var world: Node3D
+
+func before_each() -> void:
+	GameState.reset()
+	world = Node3D.new()
+	add_child_autofree(world)
+
+func _floor(y: float, size := 30.0) -> void:
+	var body := StaticBody3D.new()
+	body.collision_layer = Layers.WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(size, 0.2, size)
+	shape.shape = box
+	shape.position.y = y - 0.1
+	body.add_child(shape)
+	world.add_child(body)
+
+func _water(level: float) -> Water:
+	var w := Water.new()
+	w.size = Vector3(10, 3, 10)
+	w.position = Vector3(0, level, 0)
+	world.add_child(w)
+	return w
+
+func _shore(pos: Vector3) -> void:
+	var m := Marker3D.new()
+	m.add_to_group("shore")
+	m.position = pos
+	world.add_child(m)
+
+func test_cat_sinking_into_water_drowns_and_returns_to_nearest_shore() -> void:
+	_floor(-1.5)
+	_water(-0.5)
+	_shore(Vector3(8, 1.0, 0))
+	_shore(Vector3(-14, 1.0, 0))
+	var island := StaticBody3D.new()   # суша под маркерами
+	island.collision_layer = Layers.WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(4, 0.2, 4)
+	shape.shape = box
+	island.add_child(shape)
+	island.position = Vector3(8, 0.9, 0)
+	world.add_child(island)
+	GameState.pick_up(FoodCatalog.get_by_id(&"popcorn"))
+	var cat = CatScene.instantiate()
+	cat.position = Vector3(0, -1.4, 0)
+	world.add_child(cat)
+	await wait_physics_frames(5)
+	assert_gt(cat.drowning_left, 0.0, "кот тонет")
+	await wait_seconds(1.5)
+	assert_lt(Vector2(cat.global_position.x - 8, cat.global_position.z).length(), 0.5, "на ближайшем берегу")
+	assert_true(GameState.mouth.is_empty(), "еда из зубов потеряна")
+	assert_eq(GameState.hearts, 3, "сердечко цело")
+	assert_gt(cat.invulnerable_left, 0.0, "неуязвимость после возврата")
+
+func test_cat_on_shore_is_not_drowned() -> void:
+	_floor(0.0)
+	_water(-0.5)
+	var cat = CatScene.instantiate()
+	cat.position = Vector3(2, 0.05, 2)
+	world.add_child(cat)
+	await wait_seconds(1.0)
+	assert_eq(cat.drowning_left, 0.0)
+
+func test_water_surface_mesh_is_at_level() -> void:
+	var w := _water(-0.5)
+	var s := w.get_node("Surface") as MeshInstance3D
+	assert_almost_eq(s.global_position.y, -0.5, 0.001)
+	assert_true(s.material_override is ShaderMaterial, "поверхность — шейдер воды")
+
+func test_builder_builds_water_zones_and_shore() -> void:
+	var b := WorldBuilder.new()
+	add_child_autofree(b)
+	b.build({"water_zones": [{"pos": [3, -0.5, 4], "size": [6, 2, 6]}], "shore": [{"pos": [10, 0, 4]}]})
+	var w := b.find_children("*", "Water", true, false)
+	assert_eq(w.size(), 1)
+	if w.size() == 1:
+		assert_almost_eq((w[0] as Water).level, -0.5, 0.001)
+	assert_eq(get_tree().get_nodes_in_group("shore").size(), 1)
 ```
 
 ## `tests/integration/test_world_builder.gd`
@@ -8720,6 +9019,27 @@ func test_lamp_light_fades_at_35m() -> void:
 	assert_true(l.distance_fade_enabled)
 	assert_almost_eq(l.distance_fade_begin, 35.0, 0.01)
 	assert_false(l.shadow_enabled)
+
+const GAZEBO_COLLIDERS := [{"size": [3.4, 0.3, 3.4], "offset": [0, 0.15, 0]},
+	{"size": [0.16, 2.2, 0.16], "offset": [1.85, 1.4, 0]}, {"size": [0.16, 2.2, 0.16], "offset": [-1.85, 1.4, 0]},
+	{"size": [0.16, 2.2, 0.16], "offset": [0.925, 1.4, 1.602]}, {"size": [0.16, 2.2, 0.16], "offset": [-0.925, 1.4, 1.602]},
+	{"size": [0.16, 2.2, 0.16], "offset": [0.925, 1.4, -1.602]}, {"size": [0.16, 2.2, 0.16], "offset": [-0.925, 1.4, -1.602]}]
+
+func test_gazebo_floor_and_posts_are_solid_but_inside_is_free() -> void:
+	# План 12: беседка на холме парка — пол 0,3 м, внутри проходимо.
+	var b = _builder()
+	b.build({"props": [{"model": "gazebo", "pos": [0, 0, 0], "colliders": GAZEBO_COLLIDERS}]})
+	await wait_physics_frames(1)
+	assert_eq(b.props_built, 1, "модель беседки есть")
+	var space: PhysicsDirectSpaceState3D = b.get_world_3d().direct_space_state
+	var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(0.5, 5, 0.3), Vector3(0.5, -1, 0.3), Layers.WORLD))
+	assert_false(hit.is_empty())
+	if not hit.is_empty():
+		assert_almost_eq((hit["position"] as Vector3).y, 0.3, 0.02, "пол беседки")
+	var q := PhysicsPointQueryParameters3D.new()
+	q.position = Vector3(0.5, 0.6, 0.3)
+	q.collision_mask = Layers.WORLD
+	assert_eq(space.intersect_point(q).size(), 0, "внутри беседки свободно")
 ```
 
 ## `tests/integration/test_yard_x3.gd`
@@ -8815,6 +9135,15 @@ func test_zones_reachable_through_gaps() -> void:
 			[Vector3(-12, 0.4, -64), Vector3(-12, 2.4, -74)], [Vector3(-8, 0.4, 20), Vector3(-15, 1.4, 20)]]:
 		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(path[0] + Vector3.UP * 0.5, path[1] + Vector3.UP * 0.5, Layers.WORLD))
 		assert_true(hit.is_empty() or not String(hit["collider"].name).begins_with("retaining_wall"), "проход %s свободен" % [path[0]])
+
+func test_street_is_closed_except_arch() -> void:
+	# План 12: из двора на улицу и в кафе — только через арку с воротами по сытости 10 (спек 3.4).
+	var space := world.get_world_3d().direct_space_state
+	for x in range(-87, 88, 6):
+		if absi(x) < 2:
+			continue
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(x, 0.3, 9.5), Vector3(x, 0.3, 11.5), Layers.WORLD))
+		assert_false(hit.is_empty(), "забор вдоль улицы у x %d" % x)
 ```
 
 ## `tests/integration/test_yarn.gd`
@@ -11302,6 +11631,32 @@ SPEC = {"max_tris": 2500, "max_dim": 2.0, "animations": True}
 
 def build():
 	return human.build("gardener")
+```
+
+## `tools/blender/gen/gazebo.py`
+
+```python
+"""Беседка на вершине холма парка (план 12): восьмигранный пол 0,3 м, 6 столбов, конусная крыша."""
+import math
+
+import lib
+
+SPEC = {"max_tris": 1500, "max_dim": 5.3}
+
+
+def build():
+	floor = lib.cylinder("gazebo", radius=2.0, depth=0.3, segments=8, material="sand", smooth=False)
+	floor.location.z = 0.15
+	parts = [floor]
+	for k in range(6):
+		a = k * math.pi / 3
+		post = lib.cylinder(f"gazebo_post{k}", radius=0.08, depth=2.2, segments=8, material="cream")
+		post.location = (1.85 * math.cos(a), 1.85 * math.sin(a), 0.3 + 1.1)
+		parts.append(post)
+	roof = lib.cone("gazebo_roof", radius=2.6, depth=1.1, segments=8, material="brick", smooth=False)
+	roof.location.z = 2.5 + 0.55
+	parts.append(roof)
+	return lib.group(parts)
 ```
 
 ## `tools/blender/gen/grass.py`
@@ -14302,7 +14657,8 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
   формулировок (лучи, один ряд гаражей) — вынести проверку достижимости по карте поверхности в тест; замер fps на M4 не делался;
   деревья россыпи сразу за верхней площадкой лестниц; местами пустые поля травы — смотреть на плейтесте; арку кафе (ворота 10)
   обходят по улице — решение владельца.
-- План 12. Парк ×3 (90×96: холм с беседкой, пруд, роща, аллея на склоне).
+- План 12. Парк ×3, вода и арка кафе (`2026-10-09-snack-run-12-park-x3.md`) — ВЫПОЛНЕН 2026-10-09: парк 90×96 с холмом
+  и беседкой, прудом (вода: кот тонет и возвращается на берег), рощей и лугом; забор вдоль улицы — в кафе только через арку.
 - Планы 13–15. Этап 3: порт 120×102 (район и вода, опасности, рыбалка) по спеку `2026-10-09-snack-run-stage3-port-design.md`.
 ```
 
@@ -14459,6 +14815,23 @@ def hiss(duration=0.9):
 	return out
 
 
+def splash(duration=0.45):
+	"""Всплеск: удар низкого тона 180→60 Гц и шумовой хвост с быстрым затуханием (кот упал в воду)."""
+	rnd = random.Random(17)
+	out = []
+	n = int(RATE * duration)
+	prev = 0.0
+	phase = 0.0
+	for i in range(n):
+		t = i / RATE
+		u = t / duration
+		phase += 2 * math.pi * (180 - 120 * u) / RATE
+		prev = prev * 0.35 + rnd.uniform(-1.0, 1.0) * 0.65
+		env = min(1.0, t / 0.008) * (1.0 - u) ** 2.2
+		out.append(env * (0.45 * math.sin(phase) * (1.0 - u) + 0.45 * prev))
+	return out
+
+
 def sprinkle(count=6, gap=0.11):
 	"""Бульканье дождевателя: короткие «бульки» — тон 300→700 Гц по 60 мс."""
 	out = []
@@ -14494,8 +14867,9 @@ if __name__ == "__main__":
 	write("bark.wav", bark())
 	write("hiss.wav", hiss())
 	write("sprinkle.wav", sprinkle())
+	write("splash.wav", splash())
 	write("coo.wav", coo())
-	print("ОК assets/sfx/meow.wav, bark.wav, hiss.wav, sprinkle.wav, coo.wav")
+	print("ОК assets/sfx/meow.wav, bark.wav, hiss.wav, sprinkle.wav, coo.wav, splash.wav")
 ```
 
 ## `tools/release/fetch_templates.sh`
@@ -15001,6 +15375,37 @@ void fragment() {
 }
 ```
 
+## `assets/shaders/water.gdshader`
+
+```glsl
+shader_type spatial;
+// Вода пруда и моря (спек порта, раздел 2): цвет палитры sea_light, прозрачность, рябь нормалью; отражения — SSR окружения.
+render_mode diffuse_toon, specular_toon, cull_disabled;
+
+uniform vec4 tint : source_color = vec4(0.184, 0.612, 0.812, 0.85);
+uniform vec4 deep : source_color = vec4(0.114, 0.498, 0.769, 1.0);
+uniform float ripple = 0.08;
+
+varying vec3 wpos;
+
+void vertex() {
+	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+}
+
+void fragment() {
+	float a = sin(wpos.x * 1.7 + TIME * 1.3) + sin(wpos.z * 2.3 - TIME * 1.1);
+	float b = cos(wpos.x * 2.1 - TIME * 0.9) + cos(wpos.z * 1.5 + TIME * 1.4);
+	vec3 n = normalize(vec3(a * ripple, 1.0, b * ripple));
+	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
+	float f = 0.5 + 0.25 * (a + b) * 0.25;
+	ALBEDO = mix(deep.rgb, tint.rgb, clamp(f, 0.0, 1.0));
+	ALPHA = tint.a;
+	ROUGHNESS = 0.05;
+	METALLIC = 0.0;
+	SPECULAR = 0.6;
+}
+```
+
 ## `assets/sfx/README.md`
 
 ```markdown
@@ -15441,13 +15846,12 @@ if __name__ == "__main__":
 
 ```json
 {
-  "note": "Парк 30×32 (до масштаба ×3): плоский газон, гравийные дорожки как прежний park_ground.glb.",
   "size": [
-    30,
-    32
+    90,
+    96
   ],
   "origin": [
-    -15,
+    -45,
     29
   ],
   "cell": 1.0,
@@ -15459,7 +15863,26 @@ if __name__ == "__main__":
     "gravel"
   ],
   "default": "grass",
-  "features": [],
+  "features": [
+    {
+      "type": "hill",
+      "center": [
+        0,
+        92
+      ],
+      "radius": 18,
+      "height": 3
+    },
+    {
+      "type": "basin",
+      "center": [
+        -28,
+        66
+      ],
+      "radius": 11,
+      "depth": 1.5
+    }
+  ],
   "paint": [
     {
       "rect": [
@@ -15503,6 +15926,15 @@ if __name__ == "__main__":
         40.9,
         -4,
         43.1
+      ],
+      "type": "gravel"
+    },
+    {
+      "rect": [
+        -1.5,
+        61,
+        1.5,
+        90
       ],
       "type": "gravel"
     }
@@ -15696,2651 +16128,429 @@ if __name__ == "__main__":
 ```json
 {
   "props": [
-    {
-      "model": "fence",
-      "pos": [
-        -14,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -14,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -12,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -12,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -10,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -10,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -8,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -8,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -6,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -6,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -4,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -4,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -2,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -2,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        0,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        0,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        2,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        2,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        4,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        4,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        6,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        6,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        8,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        8,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        10,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        10,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        12,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        14,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        14,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        31
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        31
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        33
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        33
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        35
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        35
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        37
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        37
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        39
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        39
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        41
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        41
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        43
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        43
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        45
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        45
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        47
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        47
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        49
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        49
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        51
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        51
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        53
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        53
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        55
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        55
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        57
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        57
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        59
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        59
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fountain",
-      "pos": [
-        0,
-        0,
-        45
-      ],
-      "rot": 0,
-      "water": true,
-      "colliders": [
-        {
-          "size": [
-            3.2,
-            0.45,
-            3.2
-          ],
-          "offset": [
-            0,
-            0.225,
-            0
-          ]
-        },
-        {
-          "size": [
-            0.5,
-            1.4,
-            0.5
-          ],
-          "offset": [
-            0,
-            0.7,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "slide",
-      "pos": [
-        -9,
-        0,
-        38
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            1.3,
-            0.06,
-            1.3
-          ],
-          "offset": [
-            0,
-            0.72,
-            0
-          ]
-        },
-        {
-          "size": [
-            1.2,
-            0.7,
-            0.08
-          ],
-          "offset": [
-            0,
-            0.35,
-            0.56
-          ]
-        },
-        {
-          "size": [
-            0.08,
-            0.7,
-            1.2
-          ],
-          "offset": [
-            -0.56,
-            0.35,
-            0
-          ]
-        },
-        {
-          "size": [
-            0.08,
-            0.7,
-            1.2
-          ],
-          "offset": [
-            0.56,
-            0.35,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "swings",
-      "pos": [
-        -9,
-        0,
-        45
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            0.2,
-            1.9,
-            0.8
-          ],
-          "offset": [
-            -1.15,
-            0.95,
-            0
-          ]
-        },
-        {
-          "size": [
-            0.2,
-            1.9,
-            0.8
-          ],
-          "offset": [
-            1.15,
-            0.95,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "sandbox",
-      "pos": [
-        -5,
-        0,
-        37.5
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            0.2,
-            2.0
-          ],
-          "offset": [
-            0,
-            0.1,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "kiosk",
-      "pos": [
-        9,
-        0,
-        41.5
-      ],
-      "rot": 180
-    },
-    {
-      "model": "shed",
-      "pos": [
-        11,
-        0,
-        56
-      ],
-      "rot": 180
-    },
-    {
-      "model": "tree",
-      "pos": [
-        -12,
-        0,
-        32.5
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.3,
-            1.6,
-            0.3
-          ],
-          "offset": [
-            0,
-            0.8,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "tree",
-      "pos": [
-        12,
-        0,
-        51
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.3,
-            1.6,
-            0.3
-          ],
-          "offset": [
-            0,
-            0.8,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "tree",
-      "pos": [
-        -12,
-        0,
-        58
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.3,
-            1.6,
-            0.3
-          ],
-          "offset": [
-            0,
-            0.8,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "tree",
-      "pos": [
-        -6,
-        0,
-        57
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.3,
-            1.6,
-            0.3
-          ],
-          "offset": [
-            0,
-            0.8,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "tree",
-      "pos": [
-        7,
-        0,
-        48
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.3,
-            1.6,
-            0.3
-          ],
-          "offset": [
-            0,
-            0.8,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bench",
-      "pos": [
-        4,
-        0,
-        34
-      ],
-      "rot": -90,
-      "colliders": [
-        {
-          "size": [
-            1.5,
-            0.08,
-            0.45
-          ],
-          "offset": [
-            0,
-            0.45,
-            0
-          ]
-        },
-        {
-          "size": [
-            1.5,
-            0.4,
-            0.06
-          ],
-          "offset": [
-            0,
-            0.72,
-            0.22
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bench",
-      "pos": [
-        4,
-        0,
-        52
-      ],
-      "rot": -90,
-      "colliders": [
-        {
-          "size": [
-            1.5,
-            0.08,
-            0.45
-          ],
-          "offset": [
-            0,
-            0.45,
-            0
-          ]
-        },
-        {
-          "size": [
-            1.5,
-            0.4,
-            0.06
-          ],
-          "offset": [
-            0,
-            0.72,
-            0.22
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bench",
-      "pos": [
-        -4,
-        0,
-        52
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            1.5,
-            0.08,
-            0.45
-          ],
-          "offset": [
-            0,
-            0.45,
-            0
-          ]
-        },
-        {
-          "size": [
-            1.5,
-            0.4,
-            0.06
-          ],
-          "offset": [
-            0,
-            0.72,
-            0.22
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bench",
-      "pos": [
-        -4,
-        0,
-        34
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            1.5,
-            0.08,
-            0.45
-          ],
-          "offset": [
-            0,
-            0.45,
-            0
-          ]
-        },
-        {
-          "size": [
-            1.5,
-            0.4,
-            0.06
-          ],
-          "offset": [
-            0,
-            0.72,
-            0.22
-          ]
-        }
-      ]
-    },
-    {
-      "model": "lamp",
-      "pos": [
-        2,
-        0,
-        33
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.2,
-            2.6,
-            0.2
-          ],
-          "offset": [
-            0,
-            1.3,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "lamp",
-      "pos": [
-        2,
-        0,
-        41
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.2,
-            2.6,
-            0.2
-          ],
-          "offset": [
-            0,
-            1.3,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "lamp",
-      "pos": [
-        2,
-        0,
-        49
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.2,
-            2.6,
-            0.2
-          ],
-          "offset": [
-            0,
-            1.3,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "lamp",
-      "pos": [
-        2,
-        0,
-        57
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.2,
-            2.6,
-            0.2
-          ],
-          "offset": [
-            0,
-            1.3,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "lamp",
-      "pos": [
-        -2,
-        0,
-        37
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.2,
-            2.6,
-            0.2
-          ],
-          "offset": [
-            0,
-            1.3,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "lamp",
-      "pos": [
-        -2,
-        0,
-        53
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.2,
-            2.6,
-            0.2
-          ],
-          "offset": [
-            0,
-            1.3,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "lamp",
-      "pos": [
-        -12,
-        0,
-        47.5
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.2,
-            2.6,
-            0.2
-          ],
-          "offset": [
-            0,
-            1.3,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "lamp",
-      "pos": [
-        12,
-        0,
-        43
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.2,
-            2.6,
-            0.2
-          ],
-          "offset": [
-            0,
-            1.3,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "flowerbed",
-      "pos": [
-        -5,
-        0,
-        49
-      ],
-      "rot": 0
-    },
-    {
-      "model": "flowerbed",
-      "pos": [
-        5,
-        0,
-        41
-      ],
-      "rot": 0
-    },
-    {
-      "model": "bush",
-      "pos": [
-        -13,
-        0,
-        50
-      ],
-      "rot": 0,
-      "solid": false
-    },
-    {
-      "model": "bush",
-      "pos": [
-        13,
-        0,
-        36
-      ],
-      "rot": 0,
-      "solid": false
-    },
-    {
-      "model": "bush",
-      "pos": [
-        6,
-        0,
-        58.5
-      ],
-      "rot": 0,
-      "solid": false
-    },
-    {
-      "model": "bush",
-      "pos": [
-        -13.5,
-        0,
-        40
-      ],
-      "rot": 30
-    },
-    {
-      "model": "bush",
-      "pos": [
-        9,
-        0,
-        59
-      ],
-      "rot": 30
-    },
-    {
-      "model": "bush",
-      "pos": [
-        -8,
-        0,
-        59
-      ],
-      "rot": 30
-    },
-    {
-      "model": "bush",
-      "pos": [
-        13.5,
-        0,
-        47
-      ],
-      "rot": 30
-    },
-    {
-      "model": "grass",
-      "pos": [
-        -14,
-        0,
-        31
-      ],
-      "rot": 143,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        14,
-        0,
-        31
-      ],
-      "rot": 291,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        -7,
-        0,
-        31.5
-      ],
-      "rot": 3,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        6,
-        0,
-        31.5
-      ],
-      "rot": 46,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        -14,
-        0,
-        59.5
-      ],
-      "rot": 342,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        3,
-        0,
-        59.5
-      ],
-      "rot": 149,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        -10,
-        0,
-        53
-      ],
-      "rot": 61,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        10,
-        0,
-        34
-      ],
-      "rot": 188,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        -3,
-        0,
-        41
-      ],
-      "rot": 194,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        3,
-        0,
-        49.5
-      ],
-      "rot": 79,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        8,
-        0,
-        53
-      ],
-      "rot": 259,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        -11,
-        0,
-        41
-      ],
-      "rot": 306,
-      "solid": false
-    }
+    {"model": "fence", "pos": [-14, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-12, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-10, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-8, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-6, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-4, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-2, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [0, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [2, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [4, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [6, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [8, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [10, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [14, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fountain", "pos": [0, 0, 45], "rot": 0, "water": true, "colliders": [{"size": [3.2, 0.45, 3.2], "offset": [0, 0.225, 0]}, {"size": [0.5, 1.4, 0.5], "offset": [0, 0.7, 0]}]},
+    {"model": "slide", "pos": [-9, 0, 38], "rot": 0, "colliders": [{"size": [1.3, 0.06, 1.3], "offset": [0, 0.72, 0]}, {"size": [1.2, 0.7, 0.08], "offset": [0, 0.35, 0.56]}, {"size": [0.08, 0.7, 1.2], "offset": [-0.56, 0.35, 0]}, {"size": [0.08, 0.7, 1.2], "offset": [0.56, 0.35, 0]}]},
+    {"model": "swings", "pos": [-9, 0, 45], "rot": 90, "colliders": [{"size": [0.2, 1.9, 0.8], "offset": [-1.15, 0.95, 0]}, {"size": [0.2, 1.9, 0.8], "offset": [1.15, 0.95, 0]}]},
+    {"model": "sandbox", "pos": [-5, 0, 37.5], "rot": 0, "colliders": [{"size": [2.0, 0.2, 2.0], "offset": [0, 0.1, 0]}]},
+    {"model": "kiosk", "pos": [9, 0, 41.5], "rot": 180},
+    {"model": "shed", "pos": [11, 0, 56], "rot": 180},
+    {"model": "tree", "pos": [-12, 0, 32.5], "rot": 0, "colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}]},
+    {"model": "tree", "pos": [12, 0, 51], "rot": 0, "colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}]},
+    {"model": "tree", "pos": [-12, 0, 58], "rot": 0, "colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}]},
+    {"model": "tree", "pos": [-6, 0, 57], "rot": 0, "colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}]},
+    {"model": "tree", "pos": [7, 0, 48], "rot": 0, "colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}]},
+    {"model": "bench", "pos": [4, 0, 34], "rot": -90, "colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}]},
+    {"model": "bench", "pos": [4, 0, 52], "rot": -90, "colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}]},
+    {"model": "bench", "pos": [-4, 0, 52], "rot": 90, "colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}]},
+    {"model": "bench", "pos": [-4, 0, 34], "rot": 90, "colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}]},
+    {"model": "lamp", "pos": [2, 0, 33], "rot": 0, "colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}]},
+    {"model": "lamp", "pos": [2, 0, 41], "rot": 0, "colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}]},
+    {"model": "lamp", "pos": [2, 0, 49], "rot": 0, "colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}]},
+    {"model": "lamp", "pos": [2, 0, 57], "rot": 0, "colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}]},
+    {"model": "lamp", "pos": [-2, 0, 37], "rot": 0, "colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}]},
+    {"model": "lamp", "pos": [-2, 0, 53], "rot": 0, "colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}]},
+    {"model": "lamp", "pos": [-12, 0, 47.5], "rot": 0, "colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}]},
+    {"model": "lamp", "pos": [12, 0, 43], "rot": 0, "colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}]},
+    {"model": "flowerbed", "pos": [-5, 0, 49], "rot": 0},
+    {"model": "flowerbed", "pos": [5, 0, 41], "rot": 0},
+    {"model": "bush", "pos": [-13, 0, 50], "rot": 0, "solid": false},
+    {"model": "bush", "pos": [13, 0, 36], "rot": 0, "solid": false},
+    {"model": "bush", "pos": [6, 0, 58.5], "rot": 0, "solid": false},
+    {"model": "bush", "pos": [-13.5, 0, 40], "rot": 30},
+    {"model": "bush", "pos": [9, 0, 59], "rot": 30},
+    {"model": "bush", "pos": [-8, 0, 59], "rot": 30},
+    {"model": "bush", "pos": [13.5, 0, 47], "rot": 30},
+    {"model": "grass", "pos": [-14, 0, 31], "rot": 143, "solid": false},
+    {"model": "grass", "pos": [14, 0, 31], "rot": 291, "solid": false},
+    {"model": "grass", "pos": [-7, 0, 31.5], "rot": 3, "solid": false},
+    {"model": "grass", "pos": [6, 0, 31.5], "rot": 46, "solid": false},
+    {"model": "grass", "pos": [-14, 0, 59.5], "rot": 342, "solid": false},
+    {"model": "grass", "pos": [3, 0, 59.5], "rot": 149, "solid": false},
+    {"model": "grass", "pos": [-10, 0, 53], "rot": 61, "solid": false},
+    {"model": "grass", "pos": [10, 0, 34], "rot": 188, "solid": false},
+    {"model": "grass", "pos": [-3, 0, 41], "rot": 194, "solid": false},
+    {"model": "grass", "pos": [3, 0, 49.5], "rot": 79, "solid": false},
+    {"model": "grass", "pos": [8, 0, 53], "rot": 259, "solid": false},
+    {"model": "grass", "pos": [-11, 0, 41], "rot": 306, "solid": false},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-44.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-42.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-40.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-38.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-36.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-34.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-32.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-30.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-28.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-26.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-24.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-22.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-20.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-18.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-16.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-14.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-12.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-10.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-8.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-6.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-4.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-2.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [0.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [2.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [4.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [6.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [8.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [10.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [12.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [14.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [16.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [18.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [20.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [22.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [24.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [26.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [28.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [30.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [32.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [34.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [36.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [38.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [40.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [42.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [44.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 30.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 32.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 34.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 36.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 38.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 40.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 42.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 44.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 46.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 48.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 50.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 52.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 54.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 56.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 58.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 60.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 62.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 64.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 66.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 68.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 70.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 72.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 74.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 76.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 78.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 80.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 82.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 84.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 86.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 88.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 90.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 92.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 94.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 96.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 98.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 100.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 102.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 104.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 106.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 108.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 110.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 112.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 114.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 116.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 118.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 120.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 122.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-44.95, 0, 124.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 30.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 32.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 34.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 36.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 38.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 40.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 42.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 44.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 46.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 48.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 50.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 52.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 54.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 56.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 58.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 60.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 62.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 64.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 66.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 68.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 70.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 72.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 74.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 76.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 78.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 80.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 82.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 84.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 86.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 88.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 90.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 92.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 94.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 96.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 98.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 100.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 102.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 104.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 106.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 108.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 110.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 112.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 114.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 116.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 118.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 120.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 122.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [44.95, 0, 124.0], "rot": -90},
+    {"model": "gazebo", "pos": [0, 0, 92], "rot": 0, "colliders": [{"size": [3.4, 0.3, 3.4], "offset": [0, 0.15, 0]}, {"size": [0.16, 2.2, 0.16], "offset": [1.85, 1.4, 0.0]}, {"size": [0.16, 2.2, 0.16], "offset": [0.925, 1.4, 1.602]}, {"size": [0.16, 2.2, 0.16], "offset": [-0.925, 1.4, 1.602]}, {"size": [0.16, 2.2, 0.16], "offset": [-1.85, 1.4, 0.0]}, {"size": [0.16, 2.2, 0.16], "offset": [-0.925, 1.4, -1.602]}, {"size": [0.16, 2.2, 0.16], "offset": [0.925, 1.4, -1.602]}]},
+    {"colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}], "model": "lamp", "pos": [2.5, 0, 64], "rot": 0},
+    {"colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}], "model": "lamp", "pos": [2.5, 0, 68], "rot": 0},
+    {"colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}], "model": "lamp", "pos": [2.5, 0, 72], "rot": 0},
+    {"colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}], "model": "lamp", "pos": [2.5, 0, 76], "rot": 0},
+    {"colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}], "model": "lamp", "pos": [2.5, 0, 80], "rot": 0},
+    {"colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}], "model": "lamp", "pos": [2.5, 0, 84], "rot": 0},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-3, 0, 78], "rot": 90},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [5, 0, 98], "rot": 0},
+    {"solid": false, "model": "grass", "pos": [-16.4, 0, 69.08], "rot": 14},
+    {"solid": false, "model": "grass", "pos": [-19.5, 0, 74.47], "rot": 44},
+    {"solid": false, "model": "grass", "pos": [-24.87, 0, 77.59], "rot": 74},
+    {"solid": false, "model": "grass", "pos": [-31.08, 0, 77.6], "rot": 104},
+    {"solid": false, "model": "grass", "pos": [-36.47, 0, 74.5], "rot": 134},
+    {"solid": false, "model": "grass", "pos": [-39.59, 0, 69.13], "rot": 164},
+    {"solid": false, "model": "grass", "pos": [-39.6, 0, 62.92], "rot": 193},
+    {"solid": false, "model": "grass", "pos": [-36.5, 0, 57.53], "rot": 223},
+    {"solid": false, "model": "grass", "pos": [-31.13, 0, 54.41], "rot": 253},
+    {"solid": false, "model": "grass", "pos": [-24.92, 0, 54.4], "rot": 283},
+    {"solid": false, "model": "grass", "pos": [-19.53, 0, 57.5], "rot": 313},
+    {"solid": false, "model": "grass", "pos": [-16.41, 0, 62.87], "rot": 343},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [21, 0, 94], "rot": 0},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [24, 0, 94], "rot": 0},
+    {"model": "flowerbed", "pos": [-30, 0, 116], "rot": 0},
+    {"model": "flowerbed", "pos": [-10, 0, 116], "rot": 0},
+    {"model": "flowerbed", "pos": [10, 0, 116], "rot": 0},
+    {"model": "flowerbed", "pos": [30, 0, 116], "rot": 0},
+    {"solid": false, "model": "bush", "pos": [-0.7, 0, 94.9], "rot": 75},
+    {"solid": false, "model": "bush", "pos": [4.7, 0, 72.3], "rot": 150},
+    {"solid": false, "model": "bush", "pos": [-13.7, 0, 82.5], "rot": 90},
+    {"solid": false, "model": "bush", "pos": [-6.3, 0, 101.7], "rot": 15},
+    {"solid": false, "model": "bush", "pos": [5.3, 0, 92.5], "rot": 270},
+    {"solid": false, "model": "bush", "pos": [-9.9, 0, 85.4], "rot": 90},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [5.5, 0, 66.4], "rot": 90},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [30.7, 0, 40.3], "rot": 210},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [33.2, 0, 70.7], "rot": 255},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [29.7, 0, 67.7], "rot": 165},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [20.1, 0, 46.0], "rot": 75},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [37.7, 0, 49.6], "rot": 90},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [41.5, 0, 81.0], "rot": 345},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [27.6, 0, 52.1], "rot": 105},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [24.3, 0, 53.4], "rot": 285},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [37.1, 0, 45.3], "rot": 0},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [27.5, 0, 80.7], "rot": 120},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [18.8, 0, 37.3], "rot": 150},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [34.9, 0, 38.3], "rot": 75},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [23.1, 0, 67.6], "rot": 105},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [19.9, 0, 50.2], "rot": 0},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [28.8, 0, 61.9], "rot": 240},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [30.9, 0, 55.2], "rot": 15},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [35.4, 0, 80.5], "rot": 105},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [24.0, 0, 87.4], "rot": 285},
+    {"solid": false, "model": "bush", "pos": [20.9, 0, 54.8], "rot": 120},
+    {"solid": false, "model": "bush", "pos": [31.7, 0, 44.0], "rot": 195},
+    {"solid": false, "model": "bush", "pos": [34.7, 0, 50.5], "rot": 60},
+    {"solid": false, "model": "bush", "pos": [21.0, 0, 76.8], "rot": 105},
+    {"solid": false, "model": "bush", "pos": [26.8, 0, 71.6], "rot": 90},
+    {"solid": false, "model": "bush", "pos": [29.1, 0, 74.4], "rot": 195},
+    {"solid": false, "model": "bush", "pos": [39.6, 0, 69.3], "rot": 225},
+    {"solid": false, "model": "bush", "pos": [29.1, 0, 77.2], "rot": 15},
+    {"solid": false, "model": "bush", "pos": [36.4, 0, 63.1], "rot": 255},
+    {"solid": false, "model": "bush", "pos": [18.7, 0, 65.0], "rot": 270},
+    {"solid": false, "model": "bush", "pos": [30.2, 0, 59.1], "rot": 15},
+    {"solid": false, "model": "bush", "pos": [22.5, 0, 70.7], "rot": 195},
+    {"solid": false, "model": "bush", "pos": [25.0, 0, 46.5], "rot": 165},
+    {"solid": false, "model": "bush", "pos": [31.6, 0, 49.1], "rot": 135},
+    {"solid": false, "model": "bush", "pos": [-7.9, 0, 114.4], "rot": 75},
+    {"solid": false, "model": "bush", "pos": [-18.7, 0, 118.7], "rot": 75},
+    {"solid": false, "model": "bush", "pos": [24.9, 0, 114.0], "rot": 90},
+    {"solid": false, "model": "bush", "pos": [-30.3, 0, 106.0], "rot": 120},
+    {"solid": false, "model": "bush", "pos": [-40.2, 0, 115.1], "rot": 45},
+    {"solid": false, "model": "bush", "pos": [25.5, 0, 108.7], "rot": 120},
+    {"solid": false, "model": "bush", "pos": [-13.8, 0, 117.7], "rot": 240},
+    {"solid": false, "model": "bush", "pos": [-0.6, 0, 121.6], "rot": 15},
+    {"solid": false, "model": "grass", "pos": [31.7, 0, 115.0], "rot": 0},
+    {"solid": false, "model": "grass", "pos": [20.8, 0, 116.5], "rot": 300},
+    {"solid": false, "model": "grass", "pos": [41.3, 0, 121.0], "rot": 60},
+    {"solid": false, "model": "grass", "pos": [23.3, 0, 119.8], "rot": 180},
+    {"solid": false, "model": "grass", "pos": [-16.3, 0, 120.1], "rot": 240},
+    {"solid": false, "model": "grass", "pos": [4.8, 0, 101.0], "rot": 225},
+    {"solid": false, "model": "grass", "pos": [26.7, 0, 104.5], "rot": 300},
+    {"solid": false, "model": "grass", "pos": [-26.1, 0, 118.6], "rot": 135},
+    {"solid": false, "model": "grass", "pos": [36.7, 0, 122.6], "rot": 210},
+    {"solid": false, "model": "grass", "pos": [-41.1, 0, 120.9], "rot": 165},
+    {"solid": false, "model": "grass", "pos": [-11.6, 0, 111.5], "rot": 300},
+    {"solid": false, "model": "grass", "pos": [-25.8, 0, 102.3], "rot": 180},
+    {"solid": false, "model": "bush", "pos": [-37.9, 0, 118.3], "rot": 225},
+    {"solid": false, "model": "bush", "pos": [16.0, 0, 122.7], "rot": 285},
+    {"solid": false, "model": "bush", "pos": [-30.8, 0, 102.8], "rot": 60},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [14.5, 0, 100.3], "rot": 90},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-39.8, 0, 40.6], "rot": 285},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-34.2, 0, 39.9], "rot": 300},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-34.7, 0, 44.1], "rot": 255},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-23.1, 0, 50.4], "rot": 285},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-21.9, 0, 38.5], "rot": 165},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-41.3, 0, 86.1], "rot": 45},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-36.1, 0, 90.2], "rot": 345},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-21.2, 0, 92.0], "rot": 270},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-31.6, 0, 85.0], "rot": 300},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-34.1, 0, 97.8], "rot": 225},
+    {"solid": false, "model": "bush", "pos": [-31.6, 0, 49.9], "rot": 90},
+    {"solid": false, "model": "bush", "pos": [-21.1, 0, 46.6], "rot": 120}
   ],
   "hideouts": [
-    {
-      "kind": "bush",
-      "pos": [
-        -13,
-        0.25,
-        50
-      ],
-      "size": [
-        0.9,
-        0.5,
-        0.9
-      ]
-    },
-    {
-      "kind": "bush",
-      "pos": [
-        13,
-        0.25,
-        36
-      ],
-      "size": [
-        0.9,
-        0.5,
-        0.9
-      ]
-    },
-    {
-      "kind": "bush",
-      "pos": [
-        6,
-        0.25,
-        58.5
-      ],
-      "size": [
-        0.9,
-        0.5,
-        0.9
-      ]
-    },
-    {
-      "kind": "bench",
-      "pos": [
-        4,
-        0.2,
-        52
-      ],
-      "rot": -90,
-      "size": [
-        1.2,
-        0.4,
-        0.35
-      ]
-    },
-    {
-      "kind": "bench",
-      "pos": [
-        -4,
-        0.2,
-        34
-      ],
-      "rot": 90,
-      "size": [
-        1.2,
-        0.4,
-        0.35
-      ]
-    },
-    {
-      "kind": "slide",
-      "pos": [
-        -9,
-        0.3,
-        38
-      ],
-      "size": [
-        0.9,
-        0.5,
-        0.9
-      ]
-    }
+    {"kind": "bush", "pos": [-13, 0.25, 50], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bush", "pos": [13, 0.25, 36], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bush", "pos": [6, 0.25, 58.5], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bench", "pos": [4, 0.2, 52], "rot": -90, "size": [1.2, 0.4, 0.35]},
+    {"kind": "bench", "pos": [-4, 0.2, 34], "rot": 90, "size": [1.2, 0.4, 0.35]},
+    {"kind": "slide", "pos": [-9, 0.3, 38], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bench", "pos": [5.5, 0.2, 66.4], "rot": 90, "size": [1.3, 0.4, 0.4]},
+    {"kind": "bush", "pos": [30.2, 0.25, 59.1], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bush", "pos": [22.5, 0.25, 70.7], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bush", "pos": [25.0, 0.25, 46.5], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bush", "pos": [31.6, 0.25, 49.1], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bush", "pos": [-37.9, 0.25, 118.3], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bush", "pos": [16.0, 0.25, 122.7], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bush", "pos": [-30.8, 0.25, 102.8], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bench", "pos": [14.5, 0.2, 100.3], "rot": 90, "size": [1.3, 0.4, 0.4]},
+    {"kind": "bush", "pos": [-31.6, 0.25, 49.9], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bush", "pos": [-21.1, 0.25, 46.6], "size": [0.9, 0.5, 0.9]}
   ],
   "spawn_points": [
-    {
-      "pos": [
-        8,
-        0,
-        39.3
-      ],
-      "allowed": [
-        0
-      ],
-      "foods": [
-        "popcorn",
-        "bagel"
-      ]
-    },
-    {
-      "pos": [
-        3,
-        0,
-        35.5
-      ],
-      "allowed": [
-        0
-      ],
-      "foods": [
-        "popcorn",
-        "bagel"
-      ]
-    },
-    {
-      "pos": [
-        3,
-        0,
-        53.5
-      ],
-      "allowed": [
-        0
-      ],
-      "foods": [
-        "bagel"
-      ]
-    },
-    {
-      "pos": [
-        -3,
-        0,
-        50.5
-      ],
-      "allowed": [
-        0
-      ],
-      "foods": [
-        "popcorn"
-      ]
-    },
-    {
-      "pos": [
-        -11,
-        0,
-        49
-      ],
-      "allowed": [
-        0
-      ],
-      "foods": [
-        "bagel"
-      ]
-    },
-    {
-      "pos": [
-        -1,
-        0,
-        31.5
-      ],
-      "allowed": [
-        0
-      ],
-      "foods": [
-        "popcorn",
-        "bagel"
-      ]
-    },
-    {
-      "pos": [
-        9.5,
-        0,
-        53.8
-      ],
-      "allowed": [
-        1
-      ],
-      "foods": [
-        "sandwich"
-      ]
-    },
-    {
-      "pos": [
-        2.3,
-        0,
-        42.6
-      ],
-      "allowed": [
-        1
-      ],
-      "foods": [
-        "corn"
-      ]
-    },
-    {
-      "pos": [
-        -2.3,
-        0,
-        47.4
-      ],
-      "allowed": [
-        1
-      ],
-      "foods": [
-        "corn"
-      ]
-    },
-    {
-      "pos": [
-        -7,
-        0,
-        40.2
-      ],
-      "allowed": [
-        2
-      ],
-      "foods": [
-        "cotton_candy"
-      ]
-    },
-    {
-      "pos": [
-        -6.3,
-        0,
-        35.2
-      ],
-      "allowed": [
-        2
-      ],
-      "foods": [
-        "cotton_candy"
-      ]
-    },
-    {
-      "pos": [
-        1.45,
-        0.45,
-        45
-      ],
-      "allowed": [
-        3
-      ],
-      "foods": [
-        "cupcake"
-      ]
-    }
+    {"pos": [8, 0, 39.3], "allowed": [0], "foods": ["popcorn", "bagel"]},
+    {"pos": [3, 0, 35.5], "allowed": [0], "foods": ["popcorn", "bagel"]},
+    {"pos": [3, 0, 53.5], "allowed": [0], "foods": ["bagel"]},
+    {"pos": [-3, 0, 50.5], "allowed": [0], "foods": ["popcorn"]},
+    {"pos": [-11, 0, 49], "allowed": [0], "foods": ["bagel"]},
+    {"pos": [-1, 0, 31.5], "allowed": [0], "foods": ["popcorn", "bagel"]},
+    {"pos": [9.5, 0, 53.8], "allowed": [1], "foods": ["sandwich"]},
+    {"pos": [2.3, 0, 42.6], "allowed": [1], "foods": ["corn"]},
+    {"pos": [-2.3, 0, 47.4], "allowed": [1], "foods": ["corn"]},
+    {"pos": [-7, 0, 40.2], "allowed": [2], "foods": ["cotton_candy"]},
+    {"pos": [-6.3, 0, 35.2], "allowed": [2], "foods": ["cotton_candy"]},
+    {"pos": [1.45, 0.45, 45], "allowed": [3], "foods": ["cupcake"]},
+    {"pos": [0, 0.3, 92], "allowed": [2], "foods": ["cotton_candy"]},
+    {"pos": [-11.9, 0, 95.6], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [-4.6, 0, 82.6], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [9.6, 0, 64.9], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [-12.3, 0, 106.1], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [0.2, 0, 68.2], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [33.6, 0, 83.8], "allowed": [0, 1, 3], "foods": ["popcorn", "bagel", "corn", "sandwich", "cupcake"]},
+    {"pos": [42.0, 0, 75.5], "allowed": [0, 1, 3], "foods": ["popcorn", "bagel", "corn", "sandwich", "cupcake"]},
+    {"pos": [32.1, 0, 36.9], "allowed": [0, 1, 3], "foods": ["popcorn", "bagel", "corn", "sandwich", "cupcake"]},
+    {"pos": [37.9, 0, 82.7], "allowed": [0, 1, 3], "foods": ["popcorn", "bagel", "corn", "sandwich", "cupcake"]},
+    {"pos": [40.8, 0, 63.8], "allowed": [0, 1, 3], "foods": ["popcorn", "bagel", "corn", "sandwich", "cupcake"]},
+    {"pos": [37.7, 0, 55.7], "allowed": [0, 1, 3], "foods": ["popcorn", "bagel", "corn", "sandwich", "cupcake"]},
+    {"pos": [30.3, 0, 120.5], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [-41.2, 0, 103.6], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [22.1, 0, 108.4], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [-34.1, 0, 119.4], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [39.8, 0, 108.6], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [-36.8, 0, 121.1], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [-27.5, 0, 43.7], "allowed": [0, 1], "foods": ["popcorn", "bagel", "corn", "sandwich"]},
+    {"pos": [-33.8, 0, 52.9], "allowed": [0, 1], "foods": ["popcorn", "bagel", "corn", "sandwich"]},
+    {"pos": [-31.0, 0, 34.8], "allowed": [0, 1], "foods": ["popcorn", "bagel", "corn", "sandwich"]},
+    {"pos": [-34.6, 0, 86.6], "allowed": [1, 2], "foods": ["corn", "sandwich", "cotton_candy"]},
+    {"pos": [-25.9, 0, 87.2], "allowed": [1, 2], "foods": ["corn", "sandwich", "cotton_candy"]}
   ],
   "yarn": [
-    {
-      "pos": [
-        -1.45,
-        0.45,
-        45
-      ]
-    },
-    {
-      "pos": [
-        0,
-        0.45,
-        46.45
-      ]
-    },
-    {
-      "pos": [
-        -9,
-        0.75,
-        38
-      ]
-    },
-    {
-      "pos": [
-        -5,
-        0.2,
-        36.6
-      ]
-    },
-    {
-      "pos": [
-        12.5,
-        0,
-        57.8
-      ]
-    },
-    {
-      "pos": [
-        -12.6,
-        0,
-        33.2
-      ]
-    },
-    {
-      "pos": [
-        -14,
-        0,
-        60
-      ]
-    },
-    {
-      "pos": [
-        14,
-        0,
-        30.6
-      ]
-    },
-    {
-      "pos": [
-        -14,
-        0,
-        30.6
-      ]
-    },
-    {
-      "pos": [
-        13.7,
-        0,
-        52.5
-      ]
-    },
-    {
-      "pos": [
-        -5.5,
-        0,
-        58.5
-      ]
-    },
-    {
-      "pos": [
-        7.6,
-        0,
-        47.3
-      ]
-    }
-  ],
-  "gates": [
-    {
-      "pos": [
-        12,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "size": [
-        2.2,
-        2.6,
-        0.3
-      ],
-      "satiety": 25,
-      "label": "Ворота в парк открыты!"
-    }
+    {"pos": [-1.45, 0.45, 45]},
+    {"pos": [0, 0.45, 46.45]},
+    {"pos": [-9, 0.75, 38]},
+    {"pos": [-5, 0.2, 36.6]},
+    {"pos": [12.5, 0, 57.8]},
+    {"pos": [-12.6, 0, 33.2]},
+    {"pos": [-14, 0, 60]},
+    {"pos": [14, 0, 30.6]},
+    {"pos": [-14, 0, 30.6]},
+    {"pos": [13.7, 0, 52.5]},
+    {"pos": [-5.5, 0, 58.5]},
+    {"pos": [7.6, 0, 47.3]},
+    {"pos": [0.8, 0.3, 92.6]},
+    {"pos": [-0.8, 0.3, 91.4]},
+    {"pos": [13.6, 0, 107.5]},
+    {"pos": [-10.2, 0, 78.4]},
+    {"pos": [25.8, 0, 84.6]},
+    {"pos": [27.9, 0, 48.8]},
+    {"pos": [35.4, 0, 75.5]},
+    {"pos": [27.1, 0, 37.5]},
+    {"pos": [-6.6, 0, 118.5]},
+    {"pos": [5.6, 0, 121.2]},
+    {"pos": [8.0, 0, 113.5]},
+    {"pos": [-3.4, 0, 107.7]},
+    {"pos": [12.9, 0, 119.1]},
+    {"pos": [-41.1, 0, 45.8]},
+    {"pos": [-40.4, 0, 36.5]},
+    {"pos": [-21.9, 0, 97.8]}
   ],
   "hazards": [
-    {
-      "type": "pigeons",
-      "pos": [
-        3.2,
-        0,
-        47.5
-      ]
-    },
-    {
-      "type": "pigeons",
-      "pos": [
-        -3.5,
-        0,
-        33.2
-      ]
-    },
-    {
-      "type": "gardener",
-      "pos": [
-        11,
-        0,
-        54.3
-      ],
-      "rot": 180,
-      "path": [
-        [
-          11,
-          50
-        ],
-        [
-          12,
-          39
-        ],
-        [
-          6,
-          38.5
-        ],
-        [
-          1,
-          38.5
-        ],
-        [
-          1,
-          52
-        ],
-        [
-          10,
-          53
-        ]
-      ]
-    },
-    {
-      "type": "sprinkler",
-      "pos": [
-        -7,
-        0,
-        52
-      ],
-      "offset": 0
-    },
-    {
-      "type": "sprinkler",
-      "pos": [
-        7,
-        0,
-        33.5
-      ],
-      "offset": 7
-    },
-    {
-      "type": "sprinkler",
-      "pos": [
-        9,
-        0,
-        46
-      ],
-      "offset": 14
-    },
-    {
-      "type": "kid",
-      "pos": [
-        -7.5,
-        0,
-        41
-      ],
-      "rot": 90
-    },
-    {
-      "type": "guard",
-      "pos": [
-        0,
-        0,
-        31
-      ],
-      "rot": 180,
-      "path": [
-        [
-          0,
-          31
-        ],
-        [
-          0,
-          58
-        ],
-        [
-          -13,
-          58
-        ],
-        [
-          -13,
-          45
-        ],
-        [
-          0,
-          45
-        ],
-        [
-          13,
-          45
-        ],
-        [
-          13,
-          31
-        ]
-      ]
-    }
+    {"type": "pigeons", "pos": [3.2, 0, 47.5]},
+    {"type": "pigeons", "pos": [-3.5, 0, 33.2]},
+    {"type": "gardener", "pos": [11, 0, 54.3], "rot": 180, "path": [[11, 50], [12, 39], [6, 38.5], [1, 38.5], [1, 52], [10, 53]]},
+    {"type": "sprinkler", "pos": [-7, 0, 52], "offset": 0},
+    {"type": "sprinkler", "pos": [7, 0, 33.5], "offset": 7},
+    {"type": "sprinkler", "pos": [9, 0, 46], "offset": 14},
+    {"type": "kid", "pos": [-7.5, 0, 41], "rot": 90},
+    {"type": "guard", "pos": [0, 0, 31], "rot": 180, "path": [[0, 31], [0, 58], [-13, 58], [-13, 45], [0, 45], [13, 45], [13, 31]]},
+    {"type": "pigeons", "pos": [-4, 0, 80]},
+    {"type": "kid", "pos": [-22, 0, 82], "rot": 180},
+    {"type": "gardener", "pos": [16.5, 0, 40], "rot": 0, "path": [[16.5, 40], [16.5, 86], [30, 90], [16.5, 86]]},
+    {"type": "pigeons", "pos": [20, 0, 92]},
+    {"type": "sprinkler", "pos": [-20, 0, 110], "offset": 3},
+    {"type": "sprinkler", "pos": [20, 0, 112], "offset": 10},
+    {"type": "sprinkler", "pos": [-30, 0, 40], "offset": 17},
+    {"type": "guard", "pos": [-10, 0, 70], "rot": 0, "path": [[-10, 70], [-12, 104], [12, 104], [14, 70]]}
+  ],
+  "decals": [
+  ],
+  "gates": [
+    {"pos": [12, 0, 29.9], "rot": 0, "size": [2.2, 2.6, 0.3], "satiety": 25, "label": "Ворота в парк открыты!"}
+  ],
+  "water_zones": [
+    {"pos": [-28, -0.5, 66], "size": [22, 2.0, 22]}
+  ],
+  "shore": [
+    {"pos": [-15.5, 0, 66.0]},
+    {"pos": [-19.16, 0, 74.84]},
+    {"pos": [-28.0, 0, 78.5]},
+    {"pos": [-36.84, 0, 74.84]},
+    {"pos": [-40.5, 0, 66.0]},
+    {"pos": [-36.84, 0, 57.16]},
+    {"pos": [-28.0, 0, 53.5]},
+    {"pos": [-19.16, 0, 57.16]}
   ]
 }
 ```
@@ -18623,6 +16833,96 @@ if __name__ == "__main__":
     {"model": "wall", "pos": [78.0, 0, 30.0], "rot": 180},
     {"model": "wall", "pos": [84.0, 0, 30.0], "rot": 180},
     {"model": "wall", "pos": [87.0, 0, 29.95], "rot": 180},
+    {"model": "fence", "pos": [-89.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-87.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-85.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-83.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-81.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-79.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-77.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-75.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-73.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-71.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-69.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-67.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-65.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-63.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-61.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-59.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-57.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-55.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-53.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-51.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-49.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-47.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-45.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-43.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-41.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-39.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-37.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-35.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-33.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-31.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-29.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-27.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-25.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-23.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-21.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-19.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-17.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-15.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-13.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-11.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-9.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-7.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-5.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-3.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-2.7, 0, 10.85], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [2.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [4.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [6.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [8.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [10.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [12.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [14.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [16.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [18.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [20.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [22.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [24.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [26.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [28.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [30.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [32.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [34.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [36.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [38.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [40.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [42.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [44.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [46.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [48.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [50.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [52.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [54.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [56.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [58.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [60.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [62.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [64.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [66.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [68.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [70.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [72.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [74.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [76.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [78.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [80.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [82.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [84.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [86.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [88.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [89.0, 0, 10.85], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
     {"outline": true, "colliders": [{"size": [1.7, 1.2, 3.6], "offset": [0, 0.9, 0]}], "model": "car", "pos": [-30, 0, 8.5], "rot": 90},
     {"outline": true, "colliders": [{"size": [1.7, 1.2, 3.6], "offset": [0, 0.9, 0]}], "model": "car", "pos": [-48, 0, 8.5], "rot": 90},
     {"outline": true, "colliders": [{"size": [1.7, 1.2, 3.6], "offset": [0, 0.9, 0]}], "model": "car", "pos": [32, 0, 8.5], "rot": 90},
@@ -19118,6 +17418,10 @@ if __name__ == "__main__":
   "gates": [
     {"pos": [0, 0, 10.5], "rot": 0, "size": [2.4, 2.6, 0.3], "satiety": 10}
   ],
+  "water_zones": [
+  ],
+  "shore": [
+  ],
   "shop": {"pos": [-4.5, 0, -1.5], "rot": 180},
   "road": {"points": [[-88, 0, 12], [88, 0, 12]]}
 }
@@ -19208,7 +17512,7 @@ def _local(origin, rot, dx, dz):
 SIDES = {"n": 0, "s": 180, "w": 90, "e": -90}   # стена дома лицом внутрь прямоугольника
 
 
-def perimeter(rect, model="wall", length=6.0, sides="nswe", gaps=()):
+def perimeter(rect, model="wall", length=6.0, sides="nswe", gaps=(), extra=None):
 	"""Модули стен по сторонам rect; gaps — [(сторона, центр вдоль стороны, ширина)] — проходы без стен."""
 	x0, z0, x1, z1 = rect
 	out = []
@@ -19230,7 +17534,7 @@ def perimeter(rect, model="wall", length=6.0, sides="nswe", gaps=()):
 			line = (z0 if side == "n" else z1) if horiz else (x0 if side == "w" else x1)
 			line = round(line + shift, 3)
 			pos = [c, 0, line] if horiz else [line, 0, c]
-			out.append({"model": model, "pos": pos, "rot": SIDES[side]})
+			out.append({"model": model, "pos": pos, "rot": SIDES[side], **(extra or {})})
 	return out
 
 
@@ -19298,6 +17602,20 @@ def garage_row(origin, count, rot=0, step=3.2, foods=None):
 	return {"props": props, "yarn": yarn, "spawn_points": spawns}
 
 
+def pond(center, radius, depth, level):
+	"""Пруд: котловина рельефа, зона воды (поверхность level, абсолютная), 8 маркеров берега на radius + 1,5,
+	прямоугольник, закрытый для россыпи. Возвращает (feature, water, shore, blocked)."""
+	cx, cz = center
+	feature = {"type": "basin", "center": [cx, cz], "radius": radius, "depth": depth}
+	water = {"pos": [cx, level, cz], "size": [2 * radius, 2.0, 2 * radius]}
+	shore = []
+	for k in range(8):
+		a = k * math.pi / 4
+		shore.append({"pos": [round(cx + (radius + 1.5) * math.cos(a), 2), 0, round(cz + (radius + 1.5) * math.sin(a), 2)]})
+	blocked = (cx - radius - 1, cz - radius - 1, cx + radius + 1, cz + radius + 1, 0.0)
+	return feature, water, shore, blocked
+
+
 def scatter(rng, rect, count, blocked, min_dist=2.0, margin=0.4, taken=None, tries=6000):
 	"""count точек в rect не ближе min_dist друг к другу и к taken, вне blocked (+margin)."""
 	pts = []
@@ -19342,7 +17660,7 @@ def model_defaults(props):
 	return d
 
 
-LISTS = ("props", "hideouts", "spawn_points", "yarn", "hazards", "decals", "gates")
+LISTS = ("props", "hideouts", "spawn_points", "yarn", "hazards", "decals", "gates", "water_zones", "shore")
 
 
 def generate(desc):
@@ -19375,7 +17693,7 @@ def generate(desc):
 	for op in [o for o in ops if o["type"] != "scatter"] + [o for o in ops if o["type"] == "scatter"]:
 		t = op["type"]
 		if t == "perimeter":
-			add("props", perimeter(op["rect"], op.get("model", "wall"), op.get("length", 6.0), op.get("sides", "nswe"), [tuple(g) for g in op.get("gaps", [])]))
+			add("props", perimeter(op["rect"], op.get("model", "wall"), op.get("length", 6.0), op.get("sides", "nswe"), [tuple(g) for g in op.get("gaps", [])], op.get("extra")))
 		elif t == "terrace":
 			feature, props, bl = terrace(op["rect"], op["height"], [tuple(a) for a in op.get("access", [])])
 			terrain["features"].append(feature)
@@ -19385,6 +17703,12 @@ def generate(desc):
 			row = garage_row(tuple(op["origin"]), op["count"], op.get("rot", 0), op.get("step", 3.2), op.get("foods"))
 			for k, v in row.items():
 				add(k, v)
+		elif t == "pond":
+			feature, water, shore, bl = pond(tuple(op["center"]), op["radius"], op["depth"], op["level"])
+			terrain["features"].append(feature)
+			add("water_zones", [water])
+			add("shore", shore)
+			blocked.append(bl)
 		elif t == "hill":
 			terrain["features"].append({"type": "hill", "center": op["center"], "radius": op["radius"], "height": op["height"]})
 		elif t == "paint":
@@ -19409,6 +17733,9 @@ def generate(desc):
 				elif w == "hideout" and op.get("kind", "box") == "box":
 					add("props", [{"model": "box", "pos": [x, 0, z], "rot": rng.randrange(0, 360, 15), "outline": True}])
 					add("hideouts", [{"kind": "box", "pos": [x, 0.2, round(z + 0.65, 2)], "size": [0.6, 0.4, 0.6]}])
+				elif w == "hideout" and op.get("kind") == "bush":
+					add("props", [{"model": "bush", "pos": [x, 0, z], "rot": rng.randrange(0, 360, 15)}])
+					add("hideouts", [{"kind": "bush", "pos": [x, 0.25, z], "size": [0.9, 0.5, 0.9]}])
 				elif w == "hideout":
 					r = rng.choice((0, 90, 180, 270))
 					add("props", [{"model": "bench", "pos": [x, 0, z], "rot": r}])
@@ -19527,6 +17854,16 @@ class Primitives(unittest.TestCase):
 		self.assertAlmostEqual(f[3] - f[1], 1.5, 3, "rot 90 меняет оси")
 		self.assertEqual(lg.footprints({"model": "grass", "pos": [0, 0, 0], "solid": False}), [])
 
+	def test_perimeter_extra_flags_reach_every_module(self):
+		col = [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]
+		fences = lg.perimeter([0, 0, 4, 1], "fence", 2.0, "s", extra={"colliders": col})
+		self.assertEqual(len(fences), 2)
+		self.assertTrue(all(f["colliders"] == col for f in fences))
+		d = {"name": "t", "terrain": DESC["terrain"], "zones": [{"name": "z", "ops": [
+			{"type": "perimeter", "rect": [0, 0, 4, 1], "model": "fence", "length": 2.0, "sides": "s", "extra": {"colliders": col}}]}]}
+		layout, _ = lg.generate(d)
+		self.assertTrue(all(p.get("colliders") == col for p in layout["props"]))
+
 	def test_terrace_stairs_land_on_edge_and_walls_cover_cliff(self):
 		feature, props, blocked = lg.terrace([10, -20, 30, -10], 2, access=[("s", 20.0, "stairs"), ("w", -15.0, "ramp")])
 		self.assertEqual(feature, {"type": "terrace", "rect": [10, -20, 30, -10], "height": 2.0})
@@ -19576,6 +17913,30 @@ class Primitives(unittest.TestCase):
 		pts = lg.scatter(random.Random(2), [10, -10, 30, 0], 60, blocked, min_dist=0.8)
 		for x, z in pts:
 			self.assertFalse(abs(x - 20.0) < 1.5 and start[2] <= z <= start[2] + 3.0, f"{x},{z} перед лестницей")
+
+	def test_pond_makes_basin_water_and_shore_ring(self):
+		feature, water, shore, blocked = lg.pond((-28, 62), 11, 1.5, -0.5)
+		self.assertEqual(feature, {"type": "basin", "center": [-28, 62], "radius": 11, "depth": 1.5})
+		self.assertEqual(water, {"pos": [-28, -0.5, 62], "size": [22, 2.0, 22]})
+		self.assertEqual(len(shore), 8)
+		for m in shore:
+			self.assertAlmostEqual(math.dist((m["pos"][0], m["pos"][2]), (-28, 62)), 12.5, 2)
+		self.assertEqual(blocked, (-40, 50, -16, 74, 0.0))
+
+	def test_scatter_bush_hideout(self):
+		d = {"name": "t", "terrain": DESC["terrain"], "zones": [{"name": "z", "ops": [
+			{"type": "scatter", "what": "hideout", "kind": "bush", "rect": [-10, -10, 10, 10], "count": 2}]}]}
+		layout, _ = lg.generate(d)
+		self.assertEqual([p["model"] for p in layout["props"]], ["bush", "bush"])
+		self.assertTrue(all(h["kind"] == "bush" and h["pos"][1] == 0.25 and h["size"] == [0.9, 0.5, 0.9] for h in layout["hideouts"]))
+
+	def test_generate_writes_pond_lists(self):
+		d = {"name": "t", "terrain": DESC["terrain"], "zones": [{"name": "z", "ops": [
+			{"type": "pond", "center": [0, 0], "radius": 6, "depth": 1.5, "level": -0.5}]}]}
+		layout, terrain = lg.generate(d)
+		self.assertEqual(len(layout["water_zones"]), 1)
+		self.assertEqual(len(layout["shore"]), 8)
+		self.assertEqual(terrain["features"][0]["type"], "basin")
 
 	def test_kit_constants_match_world_builder(self):
 		src = (ROOT / "scripts/world/world_builder.gd").read_text()
@@ -19641,6 +18002,2648 @@ class Generate(unittest.TestCase):
 		layout, _ = lg.generate(json.loads((ROOT / "data/layout_src/yard.json").read_text()))
 		keys = {tuple(y["pos"]) for y in layout["yarn"]}
 		self.assertTrue(all(tuple(y["pos"]) in keys for y in core["yarn"]), "клубочки ядра на прежних местах")
+
+	def test_core_park_yarn_keys_preserved(self):
+		core = json.loads((ROOT / "data/layout_src/park_core.json").read_text())
+		layout, _ = lg.generate(json.loads((ROOT / "data/layout_src/park.json").read_text()))
+		keys = {tuple(y["pos"]) for y in layout["yarn"]}
+		self.assertTrue(all(tuple(y["pos"]) in keys for y in core["yarn"]), "клубочки ядра парка на прежних местах")
+```
+
+## `data/layout_src/park.json`
+
+```json
+{
+ "name": "park",
+ "seed": 12,
+ "core": "data/layout_src/park_core.json",
+ "note": "Парк ×3 (спек «Масштаб ×3 и рельеф»): ядро — прежний парк (поляна с фонтаном); холм с беседкой, пруд, роща, северный луг.",
+ "terrain": {
+  "size": [
+   90,
+   96
+  ],
+  "origin": [
+   -45,
+   29
+  ],
+  "cell": 1.0,
+  "base": 0.01,
+  "channels": [
+   "asphalt",
+   "paving",
+   "grass",
+   "gravel"
+  ],
+  "default": "grass",
+  "features": [],
+  "paint": [
+   {
+    "rect": [
+     -1.1,
+     29,
+     1.1,
+     61
+    ],
+    "type": "gravel"
+   },
+   {
+    "rect": [
+     -15,
+     43.9,
+     15,
+     46.1
+    ],
+    "type": "gravel"
+   },
+   {
+    "rect": [
+     10.9,
+     29,
+     13.1,
+     38
+    ],
+    "type": "gravel"
+   },
+   {
+    "rect": [
+     0,
+     36.9,
+     12,
+     39.1
+    ],
+    "type": "gravel"
+   },
+   {
+    "rect": [
+     -12,
+     40.9,
+     -4,
+     43.1
+    ],
+    "type": "gravel"
+   }
+  ]
+ },
+ "counts": {
+  "spawn_points": 35,
+  "yarn": 25,
+  "hideouts": 14
+ },
+ "zones": [
+  {
+   "name": "край парка",
+   "ops": [
+    {
+     "type": "perimeter",
+     "rect": [
+      -45,
+      29.9,
+      45,
+      125
+     ],
+     "model": "fence",
+     "length": 2.0,
+     "sides": "swe",
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         2.0,
+         1.8,
+         0.12
+        ],
+        "offset": [
+         0,
+         0.9,
+         0
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "холм с беседкой",
+   "ops": [
+    {
+     "type": "hill",
+     "center": [
+      0,
+      92
+     ],
+     "radius": 18,
+     "height": 3
+    },
+    {
+     "type": "paint",
+     "rect": [
+      -1.5,
+      61,
+      1.5,
+      90
+     ],
+     "surface": "gravel"
+    },
+    {
+     "type": "place",
+     "props": [
+      {
+       "model": "gazebo",
+       "pos": [
+        0,
+        0,
+        92
+       ],
+       "rot": 0,
+       "colliders": [
+        {
+         "size": [
+          3.4,
+          0.3,
+          3.4
+         ],
+         "offset": [
+          0,
+          0.15,
+          0
+         ]
+        },
+        {
+         "size": [
+          0.16,
+          2.2,
+          0.16
+         ],
+         "offset": [
+          1.85,
+          1.4,
+          0.0
+         ]
+        },
+        {
+         "size": [
+          0.16,
+          2.2,
+          0.16
+         ],
+         "offset": [
+          0.925,
+          1.4,
+          1.602
+         ]
+        },
+        {
+         "size": [
+          0.16,
+          2.2,
+          0.16
+         ],
+         "offset": [
+          -0.925,
+          1.4,
+          1.602
+         ]
+        },
+        {
+         "size": [
+          0.16,
+          2.2,
+          0.16
+         ],
+         "offset": [
+          -1.85,
+          1.4,
+          0.0
+         ]
+        },
+        {
+         "size": [
+          0.16,
+          2.2,
+          0.16
+         ],
+         "offset": [
+          -0.925,
+          1.4,
+          -1.602
+         ]
+        },
+        {
+         "size": [
+          0.16,
+          2.2,
+          0.16
+         ],
+         "offset": [
+          0.925,
+          1.4,
+          -1.602
+         ]
+        }
+       ]
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        2.5,
+        0,
+        64
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        2.5,
+        0,
+        68
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        2.5,
+        0,
+        72
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        2.5,
+        0,
+        76
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        2.5,
+        0,
+        80
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        2.5,
+        0,
+        84
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bench",
+       "pos": [
+        -3,
+        0,
+        78
+       ],
+       "rot": 90
+      },
+      {
+       "model": "bench",
+       "pos": [
+        5,
+        0,
+        98
+       ],
+       "rot": 0
+      }
+     ],
+     "spawn_points": [
+      {
+       "pos": [
+        0,
+        0.3,
+        92
+       ],
+       "allowed": [
+        2
+       ],
+       "foods": [
+        "cotton_candy"
+       ]
+      }
+     ],
+     "yarn": [
+      {
+       "pos": [
+        0.8,
+        0.3,
+        92.6
+       ]
+      },
+      {
+       "pos": [
+        -0.8,
+        0.3,
+        91.4
+       ]
+      }
+     ],
+     "hazards": [
+      {
+       "type": "pigeons",
+       "pos": [
+        -4,
+        0,
+        80
+       ]
+      }
+     ]
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush",
+     "rect": [
+      -14,
+      66,
+      14,
+      110
+     ],
+     "count": 6,
+     "rot": "random",
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      -14,
+      64,
+      14,
+      110
+     ],
+     "count": 5,
+     "allowed": [
+      0,
+      1,
+      2
+     ],
+     "foods": [
+      "popcorn",
+      "bagel",
+      "corn",
+      "sandwich",
+      "cotton_candy"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      -14,
+      64,
+      14,
+      110
+     ],
+     "count": 2,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "bench",
+     "rect": [
+      -14,
+      64,
+      14,
+      110
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "пруд",
+   "ops": [
+    {
+     "type": "pond",
+     "center": [
+      -28,
+      66
+     ],
+     "radius": 11,
+     "depth": 1.5,
+     "level": -0.5
+    },
+    {
+     "type": "place",
+     "props": [
+      {
+       "model": "grass",
+       "pos": [
+        -16.4,
+        0,
+        69.08
+       ],
+       "rot": 14,
+       "solid": false
+      },
+      {
+       "model": "grass",
+       "pos": [
+        -19.5,
+        0,
+        74.47
+       ],
+       "rot": 44,
+       "solid": false
+      },
+      {
+       "model": "grass",
+       "pos": [
+        -24.87,
+        0,
+        77.59
+       ],
+       "rot": 74,
+       "solid": false
+      },
+      {
+       "model": "grass",
+       "pos": [
+        -31.08,
+        0,
+        77.6
+       ],
+       "rot": 104,
+       "solid": false
+      },
+      {
+       "model": "grass",
+       "pos": [
+        -36.47,
+        0,
+        74.5
+       ],
+       "rot": 134,
+       "solid": false
+      },
+      {
+       "model": "grass",
+       "pos": [
+        -39.59,
+        0,
+        69.13
+       ],
+       "rot": 164,
+       "solid": false
+      },
+      {
+       "model": "grass",
+       "pos": [
+        -39.6,
+        0,
+        62.92
+       ],
+       "rot": 193,
+       "solid": false
+      },
+      {
+       "model": "grass",
+       "pos": [
+        -36.5,
+        0,
+        57.53
+       ],
+       "rot": 223,
+       "solid": false
+      },
+      {
+       "model": "grass",
+       "pos": [
+        -31.13,
+        0,
+        54.41
+       ],
+       "rot": 253,
+       "solid": false
+      },
+      {
+       "model": "grass",
+       "pos": [
+        -24.92,
+        0,
+        54.4
+       ],
+       "rot": 283,
+       "solid": false
+      },
+      {
+       "model": "grass",
+       "pos": [
+        -19.53,
+        0,
+        57.5
+       ],
+       "rot": 313,
+       "solid": false
+      },
+      {
+       "model": "grass",
+       "pos": [
+        -16.41,
+        0,
+        62.87
+       ],
+       "rot": 343,
+       "solid": false
+      }
+     ],
+     "hazards": [
+      {
+       "type": "kid",
+       "pos": [
+        -22,
+        0,
+        82
+       ],
+       "rot": 180
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "роща",
+   "ops": [
+    {
+     "type": "place",
+     "hazards": [
+      {
+       "type": "gardener",
+       "pos": [
+        16.5,
+        0,
+        40
+       ],
+       "rot": 0,
+       "path": [
+        [
+         16.5,
+         40
+        ],
+        [
+         16.5,
+         86
+        ],
+        [
+         30,
+         90
+        ],
+        [
+         16.5,
+         86
+        ]
+       ]
+      },
+      {
+       "type": "pigeons",
+       "pos": [
+        20,
+        0,
+        92
+       ]
+      }
+     ],
+     "props": [
+      {
+       "model": "bench",
+       "pos": [
+        21,
+        0,
+        94
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bench",
+       "pos": [
+        24,
+        0,
+        94
+       ],
+       "rot": 0
+      }
+     ]
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree",
+     "rect": [
+      18,
+      36,
+      43,
+      88
+     ],
+     "count": 18,
+     "rot": "random",
+     "min_dist": 3.5
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush",
+     "rect": [
+      18,
+      36,
+      43,
+      88
+     ],
+     "count": 10,
+     "rot": "random",
+     "min_dist": 2.5
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      18,
+      36,
+      43,
+      88
+     ],
+     "count": 6,
+     "allowed": [
+      0,
+      1,
+      3
+     ],
+     "foods": [
+      "popcorn",
+      "bagel",
+      "corn",
+      "sandwich",
+      "cupcake"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      18,
+      36,
+      43,
+      88
+     ],
+     "count": 4,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "bush",
+     "rect": [
+      18,
+      36,
+      43,
+      88
+     ],
+     "count": 4,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "северный луг",
+   "ops": [
+    {
+     "type": "place",
+     "props": [
+      {
+       "model": "flowerbed",
+       "pos": [
+        -30,
+        0,
+        116
+       ],
+       "rot": 0
+      },
+      {
+       "model": "flowerbed",
+       "pos": [
+        -10,
+        0,
+        116
+       ],
+       "rot": 0
+      },
+      {
+       "model": "flowerbed",
+       "pos": [
+        10,
+        0,
+        116
+       ],
+       "rot": 0
+      },
+      {
+       "model": "flowerbed",
+       "pos": [
+        30,
+        0,
+        116
+       ],
+       "rot": 0
+      }
+     ],
+     "hazards": [
+      {
+       "type": "sprinkler",
+       "pos": [
+        -20,
+        0,
+        110
+       ],
+       "offset": 3
+      },
+      {
+       "type": "sprinkler",
+       "pos": [
+        20,
+        0,
+        112
+       ],
+       "offset": 10
+      },
+      {
+       "type": "sprinkler",
+       "pos": [
+        -30,
+        0,
+        40
+       ],
+       "offset": 17
+      },
+      {
+       "type": "guard",
+       "pos": [
+        -10,
+        0,
+        70
+       ],
+       "rot": 0,
+       "path": [
+        [
+         -10,
+         70
+        ],
+        [
+         -12,
+         104
+        ],
+        [
+         12,
+         104
+        ],
+        [
+         14,
+         70
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush",
+     "rect": [
+      -43,
+      100,
+      43,
+      123
+     ],
+     "count": 8,
+     "rot": "random",
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "grass",
+     "rect": [
+      -43,
+      100,
+      43,
+      123
+     ],
+     "count": 12,
+     "rot": "random",
+     "min_dist": 2.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      -43,
+      100,
+      43,
+      123
+     ],
+     "count": 6,
+     "allowed": [
+      0,
+      1,
+      2
+     ],
+     "foods": [
+      "popcorn",
+      "bagel",
+      "corn",
+      "sandwich",
+      "cotton_candy"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      -43,
+      100,
+      43,
+      123
+     ],
+     "count": 5,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "bush",
+     "rect": [
+      -43,
+      100,
+      43,
+      123
+     ],
+     "count": 3,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "bench",
+     "rect": [
+      -43,
+      100,
+      43,
+      123
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "западные поляны",
+   "ops": [
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree",
+     "rect": [
+      -43,
+      31,
+      -17,
+      53
+     ],
+     "count": 5,
+     "rot": "random",
+     "min_dist": 4.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree",
+     "rect": [
+      -43,
+      80,
+      -17,
+      98
+     ],
+     "count": 5,
+     "rot": "random",
+     "min_dist": 4.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      -43,
+      31,
+      -17,
+      53
+     ],
+     "count": 3,
+     "allowed": [
+      0,
+      1
+     ],
+     "foods": [
+      "popcorn",
+      "bagel",
+      "corn",
+      "sandwich"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      -43,
+      80,
+      -17,
+      98
+     ],
+     "count": 2,
+     "allowed": [
+      1,
+      2
+     ],
+     "foods": [
+      "corn",
+      "sandwich",
+      "cotton_candy"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      -43,
+      31,
+      -17,
+      53
+     ],
+     "count": 2,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      -43,
+      80,
+      -17,
+      98
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "bush",
+     "rect": [
+      -43,
+      31,
+      -17,
+      98
+     ],
+     "count": 2,
+     "min_dist": 3.0
+    }
+   ]
+  }
+ ]
+}
+```
+
+## `data/layout_src/park_core.json`
+
+```json
+{
+ "props": [
+  {
+   "model": "fence",
+   "pos": [
+    -14,
+    0,
+    29.9
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      2.0,
+      1.8,
+      0.12
+     ],
+     "offset": [
+      0,
+      0.9,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "fence",
+   "pos": [
+    -12,
+    0,
+    29.9
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      2.0,
+      1.8,
+      0.12
+     ],
+     "offset": [
+      0,
+      0.9,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "fence",
+   "pos": [
+    -10,
+    0,
+    29.9
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      2.0,
+      1.8,
+      0.12
+     ],
+     "offset": [
+      0,
+      0.9,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "fence",
+   "pos": [
+    -8,
+    0,
+    29.9
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      2.0,
+      1.8,
+      0.12
+     ],
+     "offset": [
+      0,
+      0.9,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "fence",
+   "pos": [
+    -6,
+    0,
+    29.9
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      2.0,
+      1.8,
+      0.12
+     ],
+     "offset": [
+      0,
+      0.9,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "fence",
+   "pos": [
+    -4,
+    0,
+    29.9
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      2.0,
+      1.8,
+      0.12
+     ],
+     "offset": [
+      0,
+      0.9,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "fence",
+   "pos": [
+    -2,
+    0,
+    29.9
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      2.0,
+      1.8,
+      0.12
+     ],
+     "offset": [
+      0,
+      0.9,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "fence",
+   "pos": [
+    0,
+    0,
+    29.9
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      2.0,
+      1.8,
+      0.12
+     ],
+     "offset": [
+      0,
+      0.9,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "fence",
+   "pos": [
+    2,
+    0,
+    29.9
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      2.0,
+      1.8,
+      0.12
+     ],
+     "offset": [
+      0,
+      0.9,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "fence",
+   "pos": [
+    4,
+    0,
+    29.9
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      2.0,
+      1.8,
+      0.12
+     ],
+     "offset": [
+      0,
+      0.9,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "fence",
+   "pos": [
+    6,
+    0,
+    29.9
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      2.0,
+      1.8,
+      0.12
+     ],
+     "offset": [
+      0,
+      0.9,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "fence",
+   "pos": [
+    8,
+    0,
+    29.9
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      2.0,
+      1.8,
+      0.12
+     ],
+     "offset": [
+      0,
+      0.9,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "fence",
+   "pos": [
+    10,
+    0,
+    29.9
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      2.0,
+      1.8,
+      0.12
+     ],
+     "offset": [
+      0,
+      0.9,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "fence",
+   "pos": [
+    14,
+    0,
+    29.9
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      2.0,
+      1.8,
+      0.12
+     ],
+     "offset": [
+      0,
+      0.9,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "fountain",
+   "pos": [
+    0,
+    0,
+    45
+   ],
+   "rot": 0,
+   "water": true,
+   "colliders": [
+    {
+     "size": [
+      3.2,
+      0.45,
+      3.2
+     ],
+     "offset": [
+      0,
+      0.225,
+      0
+     ]
+    },
+    {
+     "size": [
+      0.5,
+      1.4,
+      0.5
+     ],
+     "offset": [
+      0,
+      0.7,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "slide",
+   "pos": [
+    -9,
+    0,
+    38
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      1.3,
+      0.06,
+      1.3
+     ],
+     "offset": [
+      0,
+      0.72,
+      0
+     ]
+    },
+    {
+     "size": [
+      1.2,
+      0.7,
+      0.08
+     ],
+     "offset": [
+      0,
+      0.35,
+      0.56
+     ]
+    },
+    {
+     "size": [
+      0.08,
+      0.7,
+      1.2
+     ],
+     "offset": [
+      -0.56,
+      0.35,
+      0
+     ]
+    },
+    {
+     "size": [
+      0.08,
+      0.7,
+      1.2
+     ],
+     "offset": [
+      0.56,
+      0.35,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "swings",
+   "pos": [
+    -9,
+    0,
+    45
+   ],
+   "rot": 90,
+   "colliders": [
+    {
+     "size": [
+      0.2,
+      1.9,
+      0.8
+     ],
+     "offset": [
+      -1.15,
+      0.95,
+      0
+     ]
+    },
+    {
+     "size": [
+      0.2,
+      1.9,
+      0.8
+     ],
+     "offset": [
+      1.15,
+      0.95,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "sandbox",
+   "pos": [
+    -5,
+    0,
+    37.5
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      2.0,
+      0.2,
+      2.0
+     ],
+     "offset": [
+      0,
+      0.1,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "kiosk",
+   "pos": [
+    9,
+    0,
+    41.5
+   ],
+   "rot": 180
+  },
+  {
+   "model": "shed",
+   "pos": [
+    11,
+    0,
+    56
+   ],
+   "rot": 180
+  },
+  {
+   "model": "tree",
+   "pos": [
+    -12,
+    0,
+    32.5
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.3,
+      1.6,
+      0.3
+     ],
+     "offset": [
+      0,
+      0.8,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "tree",
+   "pos": [
+    12,
+    0,
+    51
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.3,
+      1.6,
+      0.3
+     ],
+     "offset": [
+      0,
+      0.8,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "tree",
+   "pos": [
+    -12,
+    0,
+    58
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.3,
+      1.6,
+      0.3
+     ],
+     "offset": [
+      0,
+      0.8,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "tree",
+   "pos": [
+    -6,
+    0,
+    57
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.3,
+      1.6,
+      0.3
+     ],
+     "offset": [
+      0,
+      0.8,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "tree",
+   "pos": [
+    7,
+    0,
+    48
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.3,
+      1.6,
+      0.3
+     ],
+     "offset": [
+      0,
+      0.8,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "bench",
+   "pos": [
+    4,
+    0,
+    34
+   ],
+   "rot": -90,
+   "colliders": [
+    {
+     "size": [
+      1.5,
+      0.08,
+      0.45
+     ],
+     "offset": [
+      0,
+      0.45,
+      0
+     ]
+    },
+    {
+     "size": [
+      1.5,
+      0.4,
+      0.06
+     ],
+     "offset": [
+      0,
+      0.72,
+      0.22
+     ]
+    }
+   ]
+  },
+  {
+   "model": "bench",
+   "pos": [
+    4,
+    0,
+    52
+   ],
+   "rot": -90,
+   "colliders": [
+    {
+     "size": [
+      1.5,
+      0.08,
+      0.45
+     ],
+     "offset": [
+      0,
+      0.45,
+      0
+     ]
+    },
+    {
+     "size": [
+      1.5,
+      0.4,
+      0.06
+     ],
+     "offset": [
+      0,
+      0.72,
+      0.22
+     ]
+    }
+   ]
+  },
+  {
+   "model": "bench",
+   "pos": [
+    -4,
+    0,
+    52
+   ],
+   "rot": 90,
+   "colliders": [
+    {
+     "size": [
+      1.5,
+      0.08,
+      0.45
+     ],
+     "offset": [
+      0,
+      0.45,
+      0
+     ]
+    },
+    {
+     "size": [
+      1.5,
+      0.4,
+      0.06
+     ],
+     "offset": [
+      0,
+      0.72,
+      0.22
+     ]
+    }
+   ]
+  },
+  {
+   "model": "bench",
+   "pos": [
+    -4,
+    0,
+    34
+   ],
+   "rot": 90,
+   "colliders": [
+    {
+     "size": [
+      1.5,
+      0.08,
+      0.45
+     ],
+     "offset": [
+      0,
+      0.45,
+      0
+     ]
+    },
+    {
+     "size": [
+      1.5,
+      0.4,
+      0.06
+     ],
+     "offset": [
+      0,
+      0.72,
+      0.22
+     ]
+    }
+   ]
+  },
+  {
+   "model": "lamp",
+   "pos": [
+    2,
+    0,
+    33
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.2,
+      2.6,
+      0.2
+     ],
+     "offset": [
+      0,
+      1.3,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "lamp",
+   "pos": [
+    2,
+    0,
+    41
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.2,
+      2.6,
+      0.2
+     ],
+     "offset": [
+      0,
+      1.3,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "lamp",
+   "pos": [
+    2,
+    0,
+    49
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.2,
+      2.6,
+      0.2
+     ],
+     "offset": [
+      0,
+      1.3,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "lamp",
+   "pos": [
+    2,
+    0,
+    57
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.2,
+      2.6,
+      0.2
+     ],
+     "offset": [
+      0,
+      1.3,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "lamp",
+   "pos": [
+    -2,
+    0,
+    37
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.2,
+      2.6,
+      0.2
+     ],
+     "offset": [
+      0,
+      1.3,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "lamp",
+   "pos": [
+    -2,
+    0,
+    53
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.2,
+      2.6,
+      0.2
+     ],
+     "offset": [
+      0,
+      1.3,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "lamp",
+   "pos": [
+    -12,
+    0,
+    47.5
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.2,
+      2.6,
+      0.2
+     ],
+     "offset": [
+      0,
+      1.3,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "lamp",
+   "pos": [
+    12,
+    0,
+    43
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.2,
+      2.6,
+      0.2
+     ],
+     "offset": [
+      0,
+      1.3,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "flowerbed",
+   "pos": [
+    -5,
+    0,
+    49
+   ],
+   "rot": 0
+  },
+  {
+   "model": "flowerbed",
+   "pos": [
+    5,
+    0,
+    41
+   ],
+   "rot": 0
+  },
+  {
+   "model": "bush",
+   "pos": [
+    -13,
+    0,
+    50
+   ],
+   "rot": 0,
+   "solid": false
+  },
+  {
+   "model": "bush",
+   "pos": [
+    13,
+    0,
+    36
+   ],
+   "rot": 0,
+   "solid": false
+  },
+  {
+   "model": "bush",
+   "pos": [
+    6,
+    0,
+    58.5
+   ],
+   "rot": 0,
+   "solid": false
+  },
+  {
+   "model": "bush",
+   "pos": [
+    -13.5,
+    0,
+    40
+   ],
+   "rot": 30
+  },
+  {
+   "model": "bush",
+   "pos": [
+    9,
+    0,
+    59
+   ],
+   "rot": 30
+  },
+  {
+   "model": "bush",
+   "pos": [
+    -8,
+    0,
+    59
+   ],
+   "rot": 30
+  },
+  {
+   "model": "bush",
+   "pos": [
+    13.5,
+    0,
+    47
+   ],
+   "rot": 30
+  },
+  {
+   "model": "grass",
+   "pos": [
+    -14,
+    0,
+    31
+   ],
+   "rot": 143,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    14,
+    0,
+    31
+   ],
+   "rot": 291,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    -7,
+    0,
+    31.5
+   ],
+   "rot": 3,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    6,
+    0,
+    31.5
+   ],
+   "rot": 46,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    -14,
+    0,
+    59.5
+   ],
+   "rot": 342,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    3,
+    0,
+    59.5
+   ],
+   "rot": 149,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    -10,
+    0,
+    53
+   ],
+   "rot": 61,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    10,
+    0,
+    34
+   ],
+   "rot": 188,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    -3,
+    0,
+    41
+   ],
+   "rot": 194,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    3,
+    0,
+    49.5
+   ],
+   "rot": 79,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    8,
+    0,
+    53
+   ],
+   "rot": 259,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    -11,
+    0,
+    41
+   ],
+   "rot": 306,
+   "solid": false
+  }
+ ],
+ "hideouts": [
+  {
+   "kind": "bush",
+   "pos": [
+    -13,
+    0.25,
+    50
+   ],
+   "size": [
+    0.9,
+    0.5,
+    0.9
+   ]
+  },
+  {
+   "kind": "bush",
+   "pos": [
+    13,
+    0.25,
+    36
+   ],
+   "size": [
+    0.9,
+    0.5,
+    0.9
+   ]
+  },
+  {
+   "kind": "bush",
+   "pos": [
+    6,
+    0.25,
+    58.5
+   ],
+   "size": [
+    0.9,
+    0.5,
+    0.9
+   ]
+  },
+  {
+   "kind": "bench",
+   "pos": [
+    4,
+    0.2,
+    52
+   ],
+   "rot": -90,
+   "size": [
+    1.2,
+    0.4,
+    0.35
+   ]
+  },
+  {
+   "kind": "bench",
+   "pos": [
+    -4,
+    0.2,
+    34
+   ],
+   "rot": 90,
+   "size": [
+    1.2,
+    0.4,
+    0.35
+   ]
+  },
+  {
+   "kind": "slide",
+   "pos": [
+    -9,
+    0.3,
+    38
+   ],
+   "size": [
+    0.9,
+    0.5,
+    0.9
+   ]
+  }
+ ],
+ "spawn_points": [
+  {
+   "pos": [
+    8,
+    0,
+    39.3
+   ],
+   "allowed": [
+    0
+   ],
+   "foods": [
+    "popcorn",
+    "bagel"
+   ]
+  },
+  {
+   "pos": [
+    3,
+    0,
+    35.5
+   ],
+   "allowed": [
+    0
+   ],
+   "foods": [
+    "popcorn",
+    "bagel"
+   ]
+  },
+  {
+   "pos": [
+    3,
+    0,
+    53.5
+   ],
+   "allowed": [
+    0
+   ],
+   "foods": [
+    "bagel"
+   ]
+  },
+  {
+   "pos": [
+    -3,
+    0,
+    50.5
+   ],
+   "allowed": [
+    0
+   ],
+   "foods": [
+    "popcorn"
+   ]
+  },
+  {
+   "pos": [
+    -11,
+    0,
+    49
+   ],
+   "allowed": [
+    0
+   ],
+   "foods": [
+    "bagel"
+   ]
+  },
+  {
+   "pos": [
+    -1,
+    0,
+    31.5
+   ],
+   "allowed": [
+    0
+   ],
+   "foods": [
+    "popcorn",
+    "bagel"
+   ]
+  },
+  {
+   "pos": [
+    9.5,
+    0,
+    53.8
+   ],
+   "allowed": [
+    1
+   ],
+   "foods": [
+    "sandwich"
+   ]
+  },
+  {
+   "pos": [
+    2.3,
+    0,
+    42.6
+   ],
+   "allowed": [
+    1
+   ],
+   "foods": [
+    "corn"
+   ]
+  },
+  {
+   "pos": [
+    -2.3,
+    0,
+    47.4
+   ],
+   "allowed": [
+    1
+   ],
+   "foods": [
+    "corn"
+   ]
+  },
+  {
+   "pos": [
+    -7,
+    0,
+    40.2
+   ],
+   "allowed": [
+    2
+   ],
+   "foods": [
+    "cotton_candy"
+   ]
+  },
+  {
+   "pos": [
+    -6.3,
+    0,
+    35.2
+   ],
+   "allowed": [
+    2
+   ],
+   "foods": [
+    "cotton_candy"
+   ]
+  },
+  {
+   "pos": [
+    1.45,
+    0.45,
+    45
+   ],
+   "allowed": [
+    3
+   ],
+   "foods": [
+    "cupcake"
+   ]
+  }
+ ],
+ "yarn": [
+  {
+   "pos": [
+    -1.45,
+    0.45,
+    45
+   ]
+  },
+  {
+   "pos": [
+    0,
+    0.45,
+    46.45
+   ]
+  },
+  {
+   "pos": [
+    -9,
+    0.75,
+    38
+   ]
+  },
+  {
+   "pos": [
+    -5,
+    0.2,
+    36.6
+   ]
+  },
+  {
+   "pos": [
+    12.5,
+    0,
+    57.8
+   ]
+  },
+  {
+   "pos": [
+    -12.6,
+    0,
+    33.2
+   ]
+  },
+  {
+   "pos": [
+    -14,
+    0,
+    60
+   ]
+  },
+  {
+   "pos": [
+    14,
+    0,
+    30.6
+   ]
+  },
+  {
+   "pos": [
+    -14,
+    0,
+    30.6
+   ]
+  },
+  {
+   "pos": [
+    13.7,
+    0,
+    52.5
+   ]
+  },
+  {
+   "pos": [
+    -5.5,
+    0,
+    58.5
+   ]
+  },
+  {
+   "pos": [
+    7.6,
+    0,
+    47.3
+   ]
+  }
+ ],
+ "gates": [
+  {
+   "pos": [
+    12,
+    0,
+    29.9
+   ],
+   "rot": 0,
+   "size": [
+    2.2,
+    2.6,
+    0.3
+   ],
+   "satiety": 25,
+   "label": "Ворота в парк открыты!"
+  }
+ ],
+ "hazards": [
+  {
+   "type": "pigeons",
+   "pos": [
+    3.2,
+    0,
+    47.5
+   ]
+  },
+  {
+   "type": "pigeons",
+   "pos": [
+    -3.5,
+    0,
+    33.2
+   ]
+  },
+  {
+   "type": "gardener",
+   "pos": [
+    11,
+    0,
+    54.3
+   ],
+   "rot": 180,
+   "path": [
+    [
+     11,
+     50
+    ],
+    [
+     12,
+     39
+    ],
+    [
+     6,
+     38.5
+    ],
+    [
+     1,
+     38.5
+    ],
+    [
+     1,
+     52
+    ],
+    [
+     10,
+     53
+    ]
+   ]
+  },
+  {
+   "type": "sprinkler",
+   "pos": [
+    -7,
+    0,
+    52
+   ],
+   "offset": 0
+  },
+  {
+   "type": "sprinkler",
+   "pos": [
+    7,
+    0,
+    33.5
+   ],
+   "offset": 7
+  },
+  {
+   "type": "sprinkler",
+   "pos": [
+    9,
+    0,
+    46
+   ],
+   "offset": 14
+  },
+  {
+   "type": "kid",
+   "pos": [
+    -7.5,
+    0,
+    41
+   ],
+   "rot": 90
+  },
+  {
+   "type": "guard",
+   "pos": [
+    0,
+    0,
+    31
+   ],
+   "rot": 180,
+   "path": [
+    [
+     0,
+     31
+    ],
+    [
+     0,
+     58
+    ],
+    [
+     -13,
+     58
+    ],
+    [
+     -13,
+     45
+    ],
+    [
+     0,
+     45
+    ],
+    [
+     13,
+     45
+    ],
+    [
+     13,
+     31
+    ]
+   ]
+  }
+ ],
+ "note": "Ядро парка ×3: прежний парк 30×32 без боковых и северного заборов (план 12)."
+}
 ```
 
 ## `data/layout_src/yard.json`
@@ -19769,6 +20772,62 @@ class Generate(unittest.TestCase):
   {
    "name": "улица",
    "ops": [
+    {
+     "type": "perimeter",
+     "rect": [
+      -90,
+      0,
+      -1.7,
+      10.9
+     ],
+     "model": "fence",
+     "length": 2.0,
+     "sides": "s",
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         2.0,
+         1.8,
+         0.12
+        ],
+        "offset": [
+         0,
+         0.9,
+         0
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "type": "perimeter",
+     "rect": [
+      1.7,
+      0,
+      90,
+      10.9
+     ],
+     "model": "fence",
+     "length": 2.0,
+     "sides": "s",
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         2.0,
+         1.8,
+         0.12
+        ],
+        "offset": [
+         0,
+         0.9,
+         0
+        ]
+       }
+      ]
+     }
+    },
     {
      "type": "place",
      "props": [
