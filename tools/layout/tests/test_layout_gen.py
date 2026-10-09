@@ -123,6 +123,23 @@ class Primitives(unittest.TestCase):
 		self.assertEqual(len(layout["shore"]), 8)
 		self.assertEqual(terrain["features"][0]["type"], "basin")
 
+	def test_terrace_walls_only_on_given_sides(self):
+		# План 13: набережная — стена только к пляжу (сторона «s»), проём под причал.
+		_, props, _ = lg.terrace([0, 0, 40, 20], 2, sides="s", gaps=[("s", 30, 10)])
+		walls = [p for p in props if p["model"] == "retaining_wall2"]
+		self.assertTrue(walls)
+		self.assertTrue(all(abs(w["pos"][2] - 20.5) < 0.1 for w in walls), "только сторона s")
+		self.assertFalse(any(25 < w["pos"][0] < 35 for w in walls), "проём под причал")
+
+	def test_flat_and_water_ops(self):
+		d = {"name": "t", "terrain": DESC["terrain"], "zones": [{"name": "z", "ops": [
+			{"type": "flat", "rect": [-10, 0, 10, 20], "height": -3.5},
+			{"type": "water", "rect": [-10, 0, 10, 20], "level": -2.3, "shore": [[0, 0, -2], [5, 0, -2]]}]}]}
+		layout, terrain = lg.generate(d)
+		self.assertEqual(terrain["features"][0], {"type": "flat", "rect": [-10, 0, 10, 20], "height": -3.5})
+		self.assertEqual(layout["water_zones"], [{"pos": [0.0, -2.3, 10.0], "size": [20, 2.0, 20]}])
+		self.assertEqual([m["pos"] for m in layout["shore"]], [[0, 0, -2], [5, 0, -2]])
+
 	def test_kit_constants_match_world_builder(self):
 		src = (ROOT / "scripts/world/world_builder.gd").read_text()
 		for name, val in (("KIT_STEP_RISE", lg.KIT_RISE), ("KIT_STEP_TREAD", lg.KIT_TREAD), ("KIT_RAMP_DEG", lg.KIT_RAMP_DEG), ("KIT_WIDTH", lg.KIT_WIDTH)):

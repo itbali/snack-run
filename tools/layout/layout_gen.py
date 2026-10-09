@@ -106,17 +106,17 @@ def perimeter(rect, model="wall", length=6.0, sides="nswe", gaps=(), extra=None)
 	return out
 
 
-def terrace(rect, height, access=()):
+def terrace(rect, height, access=(), sides="nswe", gaps=()):
 	"""Терраса: элемент рельефа, подпорные стены на ячейке обрыва (снаружи rect), лестницы и пандусы.
 	access — [(сторона, центр вдоль стороны, "stairs" | "ramp")]. Возвращает (feature, props, blocked)."""
 	h = int(height)
 	assert h in (1, 2, 3) and all(float(v).is_integer() for v in rect), "терраса: высота 1–3 м, углы в целых метрах"
 	x0, z0, x1, z1 = rect
 	feature = {"type": "terrace", "rect": list(rect), "height": float(h)}
-	gaps = [(s, c, KIT_WIDTH + 0.8) for s, c, _ in access]
+	gaps = [(s, c, KIT_WIDTH + 0.8) for s, c, _ in access] + [tuple(g) for g in gaps]
 	props = []
 	half = WALL_THICK / 2
-	for w in perimeter([x0 - half, z0 - half, x1 + half, z1 + half], f"retaining_wall{h}", 4.0, "nswe", gaps):
+	for w in perimeter([x0 - half, z0 - half, x1 + half, z1 + half], f"retaining_wall{h}", 4.0, sides, gaps):
 		w["rot"] = 0 if w["rot"] in (0, 180) else 90   # подпорная стена симметрична
 		w["snap"] = False
 		props.append(w)
@@ -263,7 +263,8 @@ def generate(desc):
 		if t == "perimeter":
 			add("props", perimeter(op["rect"], op.get("model", "wall"), op.get("length", 6.0), op.get("sides", "nswe"), [tuple(g) for g in op.get("gaps", [])], op.get("extra")))
 		elif t == "terrace":
-			feature, props, bl = terrace(op["rect"], op["height"], [tuple(a) for a in op.get("access", [])])
+			feature, props, bl = terrace(op["rect"], op["height"], [tuple(a) for a in op.get("access", [])],
+				op.get("sides", "nswe"), [tuple(g) for g in op.get("gaps", [])])
 			terrain["features"].append(feature)
 			add("props", props)
 			blocked.extend(bl)
@@ -277,6 +278,13 @@ def generate(desc):
 			add("water_zones", [water])
 			add("shore", shore)
 			blocked.append(bl)
+		elif t == "flat":
+			terrain["features"].append({"type": "flat", "rect": op["rect"], "height": op["height"]})
+		elif t == "water":
+			x0, z0, x1, z1 = op["rect"]
+			add("water_zones", [{"pos": [(x0 + x1) / 2, op["level"], (z0 + z1) / 2], "size": [x1 - x0, op.get("depth", 2.0), z1 - z0]}])
+			add("shore", [dict(m) if isinstance(m, dict) else {"pos": list(m)} for m in op.get("shore", [])])   # словарь — с флагами (snap)
+			blocked.append((x0, z0, x1, z1, 0.0))
 		elif t == "hill":
 			terrain["features"].append({"type": "hill", "center": op["center"], "radius": op["radius"], "height": op["height"]})
 		elif t == "paint":
