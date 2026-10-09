@@ -144,7 +144,7 @@ func test_port_hazards_are_placed() -> void:
 		n[h["type"]] = n.get(h["type"], 0) + 1
 		if h["type"] == "crab" and h.get("night_only", false):
 			night_crabs += 1
-	assert_eq(n, {"forklift": 1, "gull": 2, "wave": 1, "crab": 6})
+	assert_eq(n, {"forklift": 1, "gull": 2, "wave": 1, "crab": 6, "fisher": 2})
 	assert_eq(night_crabs, 2)
 
 func test_forklift_lane_is_clear() -> void:
@@ -165,3 +165,14 @@ func test_gulls_have_posts_to_sleep_on() -> void:
 		assert_false(hit.is_empty())
 		if not hit.is_empty():
 			assert_almost_eq((hit["position"] as Vector3).y - t.height_at(x, z), float(h.get("perch_h", 0.0)), 0.1, "насест чайки у %s" % [h["pos"]])
+
+func test_two_fishers_at_pier_end() -> void:
+	# План 15: два рыбака на торце причала, поплавок над водой, ведро на настиле, не на полосе погрузчика.
+	var fishers := b.find_children("*", "Fisher", true, false)
+	assert_eq(fishers.size(), 2)
+	for f in fishers:
+		var fl := (f.get_node("Float") as Node3D).global_position
+		var bucket := (f.get_node("Bucket") as Node3D).global_position
+		assert_lt(t.height_at(fl.x, fl.z), -2.3, "поплавок над водой")
+		assert_almost_eq(t.height_at(bucket.x, bucket.z), -1.0, 0.05, "ведро на причале")
+		assert_false(bucket.x > 22.5 and bucket.x < 27.5, "не на полосе погрузчика")

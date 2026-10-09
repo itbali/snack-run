@@ -269,6 +269,8 @@
   "hazards": [
     {"type": "forklift", "pos": [25, 0, 153], "rot": 0, "path": [[25, 153], [25, 207]]},
     {"type": "gull", "pos": [34, 0, 200], "phase": 0.0, "perch_h": 0.55},
+    {"type": "fisher", "pos": [18.5, 0, 210.5], "rot": 180, "water": -2.3},
+    {"type": "fisher", "pos": [31.5, 0, 210.5], "rot": 180, "water": -2.3},
     {"type": "gull", "pos": [-30, 0, 172], "phase": 2.0, "perch_h": 2.65},
     {"type": "wave", "pos": [-25, -2.0, 194.2], "snap": false, "width": 68, "inland": -1},
     {"type": "crab", "pos": [-50, 0, 175]},
