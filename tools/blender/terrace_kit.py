@@ -10,7 +10,7 @@ STEP_TREAD = 0.3
 RAMP_DEG = 25.0
 WIDTH = 1.6
 WALL_LEN = 4.0
-WALL_THICK = 0.4
+WALL_THICK = 1.0   # стена закрывает всю ячейку обрыва 1 м (ревью плана 10)
 
 
 def stairs_run(h):

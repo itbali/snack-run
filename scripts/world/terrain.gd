@@ -29,6 +29,9 @@ var material: ShaderMaterial
 func ensure_loaded() -> void:
 	if loaded or data_path == "":
 		return
+	if not FileAccess.file_exists(data_path):
+		push_warning("нет рельефа " + data_path)
+		return
 	var json := JSON.new()
 	if json.parse(FileAccess.get_file_as_string(data_path)) != OK:
 		push_error("не разобрать рельеф " + data_path)
@@ -73,6 +76,8 @@ func contains(x: float, z: float) -> bool:
 func height_at(x: float, z: float) -> float:
 	## Высота поверхности по треугольникам сетки — так же, как в меше и HeightMapShape3D.
 	ensure_loaded()
+	if not loaded:
+		return 0.0
 	var fx := (x - x0) / cell
 	var fz := (z - z0) / cell
 	var i := clampi(int(floor(fx)), 0, nx - 2)
@@ -124,6 +129,22 @@ func _normal(i: int, j: int) -> Vector3:
 	return Vector3(h(i - 1, j) - h(i + 1, j), 2.0 * cell, h(i, j - 1) - h(i, j + 1)).normalized()
 
 
+var _tris := 0
+
+
+func triangle_count() -> int:
+	return _tris
+
+
+func _tile_flat(ti: int, tj: int, i1: int, j1: int) -> bool:
+	var h0 := h(ti, tj)
+	for j in range(tj, j1 + 1):
+		for i in range(ti, i1 + 1):
+			if absf(h(i, j) - h0) > 0.0001:
+				return false
+	return true
+
+
 func _build_tiles() -> void:
 	var t := 0
 	for tj in range(0, nz - 1, TILE):
@@ -132,11 +153,18 @@ func _build_tiles() -> void:
 			st.begin(Mesh.PRIMITIVE_TRIANGLES)
 			var i1 := mini(ti + TILE, nx - 1)
 			var j1 := mini(tj + TILE, nz - 1)
-			for j in range(tj, j1):
-				for i in range(ti, i1):
-					for q in [[i, j], [i + 1, j], [i, j + 1], [i + 1, j], [i + 1, j + 1], [i, j + 1]]:
-						st.set_normal(_normal(q[0], q[1]))
-						st.add_vertex(Vector3(x0 + q[0] * cell, h(q[0], q[1]), z0 + q[1] * cell))
+			if _tile_flat(ti, tj, i1, j1):   # плоский тайл — один квад (спек: ≤ 40 000 треугольников на район)
+				for q in [[ti, tj], [i1, tj], [ti, j1], [i1, tj], [i1, j1], [ti, j1]]:
+					st.set_normal(Vector3.UP)
+					st.add_vertex(Vector3(x0 + q[0] * cell, h(q[0], q[1]), z0 + q[1] * cell))
+				_tris += 2
+			else:
+				for j in range(tj, j1):
+					for i in range(ti, i1):
+						for q in [[i, j], [i + 1, j], [i, j + 1], [i + 1, j], [i + 1, j + 1], [i, j + 1]]:
+							st.set_normal(_normal(q[0], q[1]))
+							st.add_vertex(Vector3(x0 + q[0] * cell, h(q[0], q[1]), z0 + q[1] * cell))
+				_tris += (i1 - ti) * (j1 - tj) * 2
 			var mi := MeshInstance3D.new()
 			mi.name = "Tile%d" % t
 			mi.mesh = st.commit()
