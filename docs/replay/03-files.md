@@ -5,7 +5,7 @@
 Отступы в GDScript и Makefile — табы; в Python проекта — тоже табы, кроме
 `palette.py` и тестов Blender (пробелы). Копировать как есть.
 
-Файлов: 308
+Файлов: 323
 
 ## `CLAUDE.md`
 
@@ -2932,7 +2932,10 @@ func _land_fish() -> void:
 		return
 	fish = PickupScene.instantiate() as FoodPickup
 	fish.setup(FoodCatalog.get_by_id(&"golden_fish"))
-	fish.position = _bucket.global_position + Vector3(0, 0.12, 0)   # в ведре: зона подбора с земли достаёт
+	fish.grace = LOOK   # пока рыбак смотрит в ведро, рыбку не взять (ревью плана 15); потом — обычный подбор
+	var parent := get_parent() as Node3D
+	var at := _bucket.global_position + Vector3(0, 0.12, 0)   # в ведре: зона подбора с земли достаёт
+	fish.position = parent.global_transform.affine_inverse() * at if parent else at
 	get_parent().add_child(fish)
 
 
@@ -7795,6 +7798,43 @@ func test_no_fisher_at_night() -> void:
 	await wait_seconds(4.0)
 	assert_false(f.visible, "ночью рыбака нет")
 	assert_null(_fish(f), "и рыбки нет")
+
+func test_cat_waiting_in_bucket_gets_shooed_without_fish() -> void:
+	# Ревью плана 15: кот, ждавший в ведре, получал рыбку ценой сердечка; пока рыбак смотрит в ведро, рыбку не взять.
+	var f := _fisher([0.2, 0.2])
+	var cat = CatScene.instantiate()
+	cat.position = (f.get_node("Bucket") as Node3D).global_position + Vector3(0, 0.05, 0.15)
+	world.add_child(cat)
+	await wait_seconds(3.6)
+	assert_eq(GameState.hearts, 2, "шуганул")
+	assert_false(GameState.mouth.any(func(x): return x.id == &"golden_fish"), "рыбка осталась в ведре")
+
+func test_fish_cannot_be_taken_while_fisher_looks_at_bucket() -> void:
+	var f := _fisher([0.2, 0.2])
+	await wait_seconds(3.5)   # рыбак повернулся, рыбка в ведре
+	assert_eq(f.get("phase"), &"look")
+	var cat = CatScene.instantiate()
+	cat.position = (f.get_node("Bucket") as Node3D).global_position + Vector3(0, 0.05, 0.15)
+	world.add_child(cat)
+	await wait_physics_frames(10)
+	assert_false(GameState.mouth.any(func(x): return x.id == &"golden_fish"), "на глазах у рыбака не украсть")
+
+func test_fish_leaves_with_fisher_at_night_and_he_returns_in_morning() -> void:
+	var light = (load("res://scenes/world/lighting.tscn") as PackedScene).instantiate()
+	world.add_child(light)
+	var dn = light.get_node("DayNight")
+	dn.set("time_scale", 0.0)
+	dn.set_time(10.0)
+	var f := _fisher([0.2, 0.2])
+	await wait_seconds(3.6)
+	assert_not_null(_fish(f), "днём улов в ведре")
+	dn.set_time(220.0)
+	await wait_physics_frames(5)
+	assert_false(f.visible)
+	assert_null(_fish(f), "рыбка ушла с рыбаком")
+	dn.set_time(10.0)
+	await wait_physics_frames(5)
+	assert_true(f.visible, "утром рыбак вернулся")
 ```
 
 ## `tests/integration/test_floater.gd`
@@ -12716,6 +12756,25 @@ def export_glb(path: str, objects, animations: bool = False) -> None:
 	)
 ```
 
+## `tools/blender/foliage.py`
+
+```python
+"""Листва (план 16): пышный куст из комковатых шапок — общий для bush и bush_flowers."""
+import lib
+
+BUSH_LUMPS = ((0.0, 0.0, 0.42, 0.4), (0.38, 0.12, 0.32, 0.3), (-0.34, -0.16, 0.3, 0.3), (0.1, -0.38, 0.3, 0.28),
+	(-0.12, 0.36, 0.33, 0.28), (0.18, 0.05, 0.68, 0.24))
+
+
+def bush(name):
+	parts = []
+	for i, (x, y, z, r) in enumerate(BUSH_LUMPS):
+		c = lib.lumpy(name if i == 0 else f"{name}_{i}", r, material="leaf" if i % 2 == 0 else "olive", seed=31 + i, segments=8, rings=6)
+		c.location = (x, y, z)
+		parts.append(c)
+	return parts
+```
+
 ## `tools/blender/gen/__init__.py`
 
 ```python
@@ -12978,6 +13037,28 @@ def build():
 	return lib.group([a, b, c])
 ```
 
+## `tools/blender/gen/bush_flowers.py`
+
+```python
+"""Цветущий куст (план 16): пышный куст и россыпь цветков палитры."""
+import math
+
+import foliage
+import lib
+
+SPEC = {"max_tris": 1500, "max_dim": 1.3}
+
+
+def build():
+	parts = foliage.bush("bush_flowers")
+	for i in range(9):
+		a = i * 2.4
+		f = lib.sphere(f"bush_flowers_f{i}", 0.05, material=("coral", "lilac", "rarity_legendary")[i % 3], segments=6, rings=4)
+		f.location = (math.cos(a) * 0.35, math.sin(a) * 0.3, 0.45 + 0.2 * math.sin(a * 1.7))
+		parts.append(f)
+	return lib.group(parts)
+```
+
 ## `tools/blender/gen/cafe_sign.py`
 
 ```python
@@ -13154,6 +13235,158 @@ def build():
 		leg.location = (x, y, 0.15)
 		parts.append(leg)
 	return lib.group(parts)
+```
+
+## `tools/blender/gen/decor_flowers.py`
+
+```python
+"""Цветы (украшение, план 16): пять стеблей с головками палитры; один меш для MultiMesh."""
+import math
+
+import lib
+
+SPEC = {"max_tris": 300, "max_dim": 0.35}
+
+
+def build():
+	parts = []
+	for i in range(5):
+		a = i * 1.3
+		x, y = math.cos(a) * 0.08, math.sin(a) * 0.08
+		h = 0.18 + 0.05 * (i % 3)
+		s = lib.cylinder(f"st{i}", radius=0.008, depth=h, segments=4, material="leaf", smooth=False)
+		s.location = (x, y, h / 2)
+		f = lib.sphere(f"fl{i}", 0.035, material=("coral", "lilac", "rarity_legendary", "cream", "coral")[i], segments=6, rings=4, smooth=False)
+		f.location = (x, y, h)
+		parts += [s, f]
+	return [lib.join("decor_flowers", parts)]
+```
+
+## `tools/blender/gen/decor_grass.py`
+
+```python
+"""Густой пучок травы (украшение, план 16): восемь наклонённых травинок двух оттенков; один меш."""
+import math
+
+import lib
+
+SPEC = {"max_tris": 200, "max_dim": 0.35}
+
+
+def build():
+	parts = []
+	for i in range(8):
+		a = i * 2 * math.pi / 8
+		c = lib.cone(f"g{i}", radius=0.018, depth=0.18 + 0.06 * (i % 3), segments=4, material="leaf" if i % 2 else "olive", smooth=False)
+		c.location = (math.cos(a) * 0.05, math.sin(a) * 0.05, 0.1)
+		c.rotation_euler = (math.sin(a) * 0.4, -math.cos(a) * 0.4, 0.0)
+		parts.append(c)
+	return [lib.join("decor_grass", parts)]
+```
+
+## `tools/blender/gen/decor_leaves.py`
+
+```python
+"""Опавшие листья (украшение, план 16): плоские ромбики оливковых и рыжих оттенков; один меш."""
+import math
+
+import lib
+
+SPEC = {"max_tris": 200, "max_dim": 0.5}
+
+
+def build():
+	parts = []
+	for i in range(6):
+		a = i * 1.1
+		l = lib.rounded_box(f"l{i}", (0.07, 0.11, 0.01), bevel=0.0, segments=1, material=("olive", "cat_orange", "brick")[i % 3])
+		l.location = (math.cos(a) * 0.15, math.sin(a) * 0.12, 0.006)
+		l.rotation_euler.z = a * 2.0
+		parts.append(l)
+	return [lib.join("decor_leaves", parts)]
+```
+
+## `tools/blender/gen/decor_litter.py`
+
+```python
+"""Мусор двора (украшение, план 16): смятая бумажка и банка на боку; один меш."""
+import lib
+
+SPEC = {"max_tris": 200, "max_dim": 0.3}
+
+
+def build():
+	paper = lib.lumpy("p", 0.04, material="cream", seed=71, segments=6, rings=4)
+	paper.location.z = 0.035
+	can = lib.cylinder("c", radius=0.03, depth=0.11, segments=8, material="sky", smooth=False)
+	can.rotation_euler.x = 1.5708
+	can.location = (0.12, 0.03, 0.03)
+	return [lib.join("decor_litter", [paper, can])]
+```
+
+## `tools/blender/gen/decor_reeds.py`
+
+```python
+"""Камыш у пруда (украшение, план 16): высокие стебли с бурыми початками; один меш."""
+import math
+
+import lib
+
+SPEC = {"max_tris": 300, "max_dim": 1.1}
+
+
+def build():
+	parts = []
+	for i in range(6):
+		a = i * 1.05
+		x, y = math.cos(a) * 0.1, math.sin(a) * 0.1
+		h = 0.7 + 0.12 * (i % 3)
+		s = lib.cone(f"st{i}", radius=0.015, depth=h, segments=4, material="olive" if i % 2 else "leaf", smooth=False)
+		s.location = (x, y, h / 2)
+		parts.append(s)
+		if i % 2 == 0:
+			c = lib.cylinder(f"c{i}", radius=0.025, depth=0.12, segments=6, material="brick", smooth=False)
+			c.location = (x, y, h * 0.85)
+			parts.append(c)
+	return [lib.join("decor_reeds", parts)]
+```
+
+## `tools/blender/gen/decor_shell.py`
+
+```python
+"""Ракушки на пляже (украшение, план 16): два плоских веера; один меш."""
+import lib
+
+SPEC = {"max_tris": 120, "max_dim": 0.3}
+
+
+def build():
+	parts = []
+	for i, (x, y) in enumerate(((0, 0), (0.12, 0.07))):
+		s = lib.cone(f"s{i}", radius=0.05, depth=0.02, segments=7, material="cream" if i == 0 else "coral", smooth=False)
+		s.scale = (1.0, 0.7, 1.0)
+		s.location = (x, y, 0.01)
+		parts.append(s)
+	return [lib.join("decor_shell", parts)]
+```
+
+## `tools/blender/gen/decor_stones.py`
+
+```python
+"""Камешки (украшение, план 16): три приплюснутых комка; один меш."""
+import lib
+
+SPEC = {"max_tris": 300, "max_dim": 0.5}
+
+
+def build():
+	parts = []
+	for i, (x, y, r) in enumerate(((0, 0, 0.12), (0.15, 0.08, 0.08), (-0.1, 0.12, 0.06))):
+		s = lib.lumpy(f"s{i}", r, material="asphalt" if i == 0 else "sand", seed=50 + i, segments=7, rings=5)
+		s.scale = (1.0, 0.8, 0.55)
+		s.location = (x, y, r * 0.35)
+		parts.append(s)
+	return [lib.join("decor_stones", parts)]
 ```
 
 ## `tools/blender/gen/dog.py`
@@ -13859,6 +14092,58 @@ def build():
 	return gull.build()
 ```
 
+## `tools/blender/gen/house_a.py`
+
+```python
+"""Дом (план 16): этажей 2, стены sand, крыша pitched, глубина 6.0 м — house_kit.house."""
+import house_kit
+
+SPEC = {"max_tris": 3000, "max_dim": 11.0}
+
+
+def build():
+	return house_kit.house(floors=2, wall_mat="sand", roof="pitched", depth=6.0, door=True)
+```
+
+## `tools/blender/gen/house_b.py`
+
+```python
+"""Дом (план 16): этажей 3, стены cream, крыша flat, глубина 6.0 м — house_kit.house."""
+import house_kit
+
+SPEC = {"max_tris": 3000, "max_dim": 11.0}
+
+
+def build():
+	return house_kit.house(floors=3, wall_mat="cream", roof="flat", depth=6.0, door=False)
+```
+
+## `tools/blender/gen/house_c.py`
+
+```python
+"""Дом (план 16): этажей 2, стены coral, крыша flat, глубина 6.0 м — house_kit.house."""
+import house_kit
+
+SPEC = {"max_tris": 3000, "max_dim": 11.0}
+
+
+def build():
+	return house_kit.house(floors=2, wall_mat="coral", roof="flat", depth=6.0, door=True)
+```
+
+## `tools/blender/gen/house_shallow.py`
+
+```python
+"""Дом (план 16): этажей 1, стены sand, крыша pitched, глубина 1.8 м — house_kit.house."""
+import house_kit
+
+SPEC = {"max_tris": 3000, "max_dim": 11.0}
+
+
+def build():
+	return house_kit.house(floors=1, wall_mat="sand", roof="pitched", depth=1.8, door=True)
+```
+
 ## `tools/blender/gen/ivy.py`
 
 ```python
@@ -14355,6 +14640,27 @@ def build():
 	return lib.group([trunk, crown, crown2])
 ```
 
+## `tools/blender/gen/tree_pine.py`
+
+```python
+"""Ель 3,4 м (план 16): ствол и четыре яруса чуть повёрнутых конусов двух оттенков."""
+import lib
+
+SPEC = {"max_tris": 800, "max_dim": 3.5}
+
+
+def build():
+	trunk = lib.cylinder("tree_pine", radius=0.12, depth=1.0, segments=8, material="brick", smooth=False)
+	trunk.location.z = 0.5
+	parts = [trunk]
+	for i, (z, r, h) in enumerate(((1.1, 1.0, 1.1), (1.7, 0.8, 1.0), (2.3, 0.6, 0.9), (2.85, 0.38, 0.8))):
+		c = lib.cone(f"tree_pine_t{i}", radius=r, depth=h, segments=9, material="leaf" if i % 2 == 0 else "olive", smooth=False)
+		c.location.z = z
+		c.rotation_euler.z = i * 0.35
+		parts.append(c)
+	return lib.group(parts)
+```
+
 ## `tools/blender/gen/umbrella.py`
 
 ```python
@@ -14518,6 +14824,69 @@ def build():
 	arm.name = "GullRig"
 	mesh.name = "gull"
 	return [arm, mesh]
+```
+
+## `tools/blender/house_kit.py`
+
+```python
+"""Дома (план 16): замкнутые объёмы вместо одиночных стен. Фасад — в плоскости фасада прежнего модуля стены
+(y −0,2 Blender = +Z Godot), корпус уходит назад на depth. Окна спереди и сзади (wall_frame*/wall_glass* — ночью светятся),
+главный меш «wall» (текстура штукатурки SurfaceTextures). Крыша — двускатная или плоская с парапетом."""
+import bmesh
+
+import lib
+
+WIDTH = 6.0
+FLOOR = 3.1
+
+
+def gable(name, width, length, height, material):
+	"""Двускатная крыша: треугольник в плоскости XZ (конёк вдоль Y), основание на z 0, длина по Y от 0 до length."""
+	bm = bmesh.new()
+	w = width / 2.0
+	v = [bm.verts.new(c) for c in ((-w, 0, 0), (w, 0, 0), (0, 0, height), (-w, length, 0), (w, length, 0), (0, length, height))]
+	bm.faces.new((v[0], v[1], v[2]))
+	bm.faces.new((v[3], v[5], v[4]))
+	bm.faces.new((v[0], v[2], v[5], v[3]))
+	bm.faces.new((v[1], v[4], v[5], v[2]))
+	bm.faces.new((v[0], v[3], v[4], v[1]))
+	bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+	return lib._finish(name, bm, material, smooth=False)
+
+
+def house(floors=2, wall_mat="sand", roof="pitched", depth=6.0, door=False):
+	h = floors * FLOOR
+	body = lib.rounded_box("wall", (WIDTH, depth, h), bevel=0.04, segments=1, material=wall_mat)
+	body.location = (0, depth / 2.0 - 0.2, h / 2.0)
+	parts = [body]
+	n = 0
+	for f in range(floors):
+		z = f * FLOOR + 1.8
+		for x in (-1.9, 0.0, 1.9):
+			if door and f == 0 and x == 0.0:
+				continue
+			for side, y in (("", -0.22), ("_b", depth - 0.18)):
+				if side and depth < 2.5:
+					continue   # у неглубокого дома окна только на фасаде
+				frame = lib.rounded_box(f"wall_frame{side}{n}", (1.0, 0.1, 1.2), bevel=0.02, segments=1, material="cream")
+				frame.location = (x, y, z)
+				glass = lib.rounded_box(f"wall_glass{side}{n}", (0.8, 0.06, 1.0), bevel=0.0, segments=1, material="sky")
+				glass.location = (x, y - 0.04 if not side else y + 0.04, z)
+				parts += [frame, glass]
+			n += 1
+	if door:
+		d = lib.rounded_box("house_door", (1.1, 0.12, 2.1), bevel=0.02, segments=1, material="brick")
+		d.location = (0, -0.24, 1.05)
+		parts.append(d)
+	if roof == "pitched":
+		r = gable("house_roof", WIDTH + 0.4, depth + 0.4, 1.6, "brick")
+		r.location = (0, -0.4, h)
+		parts.append(r)
+	else:
+		cap = lib.rounded_box("house_cap", (WIDTH + 0.1, depth + 0.1, 0.25), bevel=0.02, segments=1, material="cream")
+		cap.location = (0, depth / 2.0 - 0.2, h + 0.12)
+		parts.append(cap)
+	return lib.group(parts)
 ```
 
 ## `tools/blender/human.py`
@@ -16920,6 +17289,7 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
   погрузчик, крабы (CC0 methodical pixel).
 - План 15. Рыбалка (`2026-10-09-snack-run-15-fishing.md`) — ВЫПОЛНЕН 2026-10-10: два рыбака, цикл, золотая рыбка в ведре,
   кража и шугание. Этап 3 закрыт.
+- Отложено из ревью плана 15: удочка поворачивается вместе с рыбаком; жилет и панама — только цвета.
 - Отложено из ревью плана 14: чайка пикирует к тонущему коту; краб гонится в море и падает с уступа; волна сдвигает кота без
   проверки коллизий; погрузчик без твёрдого тела, разворот мгновенный.
 - Отложено из ревью плана 13: проёмы стен в описании «1.0» при фактических 4 м; лодки и бочки без тун-обводки.
