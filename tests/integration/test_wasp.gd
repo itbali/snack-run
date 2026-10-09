@@ -103,3 +103,15 @@ func test_wasp_has_a_trail() -> void:
 	var w = WaspScene.instantiate()
 	world.add_child(w)
 	assert_not_null(w.find_child("Trail", false, false), "за осой серый шлейф")
+
+func test_wasp_flies_above_terrace() -> void:
+	# План 11: оса над террасой летает на height над землёй, а не над нулём.
+	var t := Terrain.new()
+	t.data_path = "res://data/terrain/demo.json"   # терраса 2 м: x −18…−6, z −18…−8
+	world.add_child(t)
+	var w = WaspScene.instantiate()
+	w.radius = 0.0
+	w.position = Vector3(-12, 2.5, -13)
+	world.add_child(w)
+	await wait_physics_frames(4)
+	assert_almost_eq(w.global_position.y, 2.5, 0.15, "оса над террасой на высоте 0,5 над землёй")

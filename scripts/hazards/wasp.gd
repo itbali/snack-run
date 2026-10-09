@@ -6,6 +6,7 @@ extends Node3D
 @export var angular_speed := 0.8
 @export var height := 0.5
 var anchor: Vector3
+var ground := 0.0   # высота рельефа под якорем: оса летает на height над землёй (план 11)
 var _anchored := false
 var _angle := 0.0
 var _t := 0.0
@@ -34,6 +35,7 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if not _anchored:
 		anchor = global_position   # позиция задаётся после add_child, поэтому якорь берём здесь
+		ground = Terrain.surface_height(get_tree(), anchor.x, anchor.z, 0.0)
 		_anchored = true
 	_t += delta
 	_angle += angular_speed * delta
@@ -47,10 +49,10 @@ func _physics_process(delta: float) -> void:
 func _place() -> void:
 	var bob := sin(_t * 4.0) * 0.08
 	if radius > 0.0:
-		global_position = Vector3(anchor.x + cos(_angle) * radius, height + bob, anchor.z + sin(_angle) * radius)
+		global_position = Vector3(anchor.x + cos(_angle) * radius, ground + height + bob, anchor.z + sin(_angle) * radius)
 		rotation.y = PI - _angle   # головой (−Z модели) по касательной движения
 	else:
-		global_position = Vector3(anchor.x, height + bob, anchor.z)
+		global_position = Vector3(anchor.x, ground + height + bob, anchor.z)
 
 
 func _on_body(body: Node3D) -> void:
