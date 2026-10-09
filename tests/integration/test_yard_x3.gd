@@ -92,7 +92,7 @@ func test_zones_reachable_through_gaps() -> void:
 func test_street_is_closed_except_arch() -> void:
 	# План 12: из двора на улицу и в кафе — только через арку с воротами по сытости 10 (спек 3.4).
 	var space := world.get_world_3d().direct_space_state
-	for x in range(-87, 88, 6):
+	for x in range(-81, 82, 6):   # план 16: за ±84 — корпуса домов
 		if absi(x) < 2:
 			continue
 		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(x, 0.3, 9.5), Vector3(x, 0.3, 11.5), Layers.WORLD))

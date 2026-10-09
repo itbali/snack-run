@@ -39,8 +39,8 @@ func test_decor_is_not_in_water() -> void:
 		var t := Terrain.new()
 		t.data_path = "res://data/terrain/%s.json" % d
 		add_child_autofree(t)
+		var bad := 0
 		for it in WorldBuilder.load_layout(DISTRICTS[d]).get("decor", []):
-			var h := t.height_at(float(it["pos"][0]), float(it["pos"][2]))
-			if h < WATER[d]:
-				assert_true(false, "%s: украшение %s под водой" % [d, it["pos"]])
-				break
+			if t.height_at(float(it["pos"][0]), float(it["pos"][2])) < WATER[d]:
+				bad += 1
+		assert_eq(bad, 0, "%s: украшений под водой" % d)

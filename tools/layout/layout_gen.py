@@ -181,7 +181,6 @@ def garage_row(origin, count, rot=0, step=3.2, foods=None):
 def decor(rng, model, rect, count, blocked, min_dist=0.35, margin=0.15, scale=(0.7, 1.3)):
 	"""Мелкие украшения (трава, цветы, камешки) — сколько поместится из count, без исключения; отдельный список decor."""
 	out = []
-	pts = []
 	x0, z0, x1, z1 = rect
 	cell = {}
 	for _ in range(count * 6):
@@ -290,7 +289,9 @@ def generate(desc):
 	# Два прохода: сначала структура всех зон (стены, террасы, гаражи, ручные места), потом россыпь —
 	# иначе россыпь ранней зоны не знает о лестницах и стенах поздней.
 	ops = [op for z in desc.get("zones", []) for op in z["ops"]]
-	for op in [o for o in ops if o["type"] != "scatter"] + [o for o in ops if o["type"] == "scatter"]:
+	# украшения — третьим проходом: после россыпи, чтобы не попадать в кусты, урны и коробки (ревью плана 16)
+	order = [o for o in ops if o["type"] not in ("scatter", "decor")] + [o for o in ops if o["type"] == "scatter"] + [o for o in ops if o["type"] == "decor"]
+	for op in order:
 		t = op["type"]
 		if t == "perimeter":
 			add("props", perimeter(op["rect"], op.get("model", "wall"), op.get("length", 6.0), op.get("sides", "nswe"), [tuple(g) for g in op.get("gaps", [])], op.get("extra"), op.get("models")))

@@ -265,3 +265,23 @@ class Generate(unittest.TestCase):
 		layout, _ = lg.generate(json.loads((ROOT / "data/layout_src/park.json").read_text()))
 		keys = {tuple(y["pos"]) for y in layout["yarn"]}
 		self.assertTrue(all(tuple(y["pos"]) in keys for y in core["yarn"]), "клубочки ядра парка на прежних местах")
+
+	def test_real_districts_have_no_overlapping_houses_or_props_inside_houses(self):
+		# Ревью плана 16: дома в концах рядов налезали друг на друга, забор и дорога шли сквозь дома.
+		for name in ("yard", "park", "port"):
+			layout, _ = lg.generate(json.loads((ROOT / f"data/layout_src/{name}.json").read_text()))
+			houses = [(p, f) for p in layout["props"] if p["model"].startswith("house") for f in lg.footprints(p)]
+			def overlap(a, b, tol=0.25):
+				return min(a[2], b[2]) - max(a[0], b[0]) > tol and min(a[3], b[3]) - max(a[1], b[1]) > tol
+			for i, (p, f) in enumerate(houses):
+				for q, g in houses[i + 1:]:
+					self.assertFalse(overlap(f, g), f"{name}: дома {p['pos']} и {q['pos']} налезают")
+			for q in layout["props"]:
+				if q["model"].startswith("house"):
+					continue
+				for g in lg.footprints(q):
+					for p, f in houses:
+						self.assertFalse(overlap(f, g), f"{name}: {q['model']} {q['pos']} внутри дома {p['pos']}")
+			for pt in (layout.get("road") or {}).get("points", []):
+				for p, f in houses:
+					self.assertFalse(f[0] < pt[0] < f[2] and f[1] < pt[2] < f[3], f"{name}: дорога {pt} в доме {p['pos']}")

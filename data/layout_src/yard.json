@@ -66,12 +66,12 @@
  "road": {
   "points": [
    [
-    -88,
+    -83,
     0,
     12
    ],
    [
-    88,
+    83,
     0,
     12
    ]
@@ -94,7 +94,7 @@
       84,
       24
      ],
-     "sides": "nwe",
+     "sides": "n",
      "models": [
       "house_a",
       "house_b",
@@ -105,8 +105,23 @@
      "type": "perimeter",
      "rect": [
       -84,
+      -144,
+      84,
+      30
+     ],
+     "sides": "we",
+     "models": [
+      "house_a",
+      "house_b",
+      "house_c"
+     ]
+    },
+    {
+     "type": "perimeter",
+     "rect": [
+      -78,
       0,
-      -15,
+      -18,
       24
      ],
      "sides": "s",
@@ -119,9 +134,9 @@
     {
      "type": "perimeter",
      "rect": [
-      15,
+      18,
       0,
-      84,
+      78,
       24
      ],
      "sides": "s",
@@ -130,6 +145,118 @@
       "house_b",
       "house_c"
      ]
+    },
+    {
+     "type": "perimeter",
+     "rect": [
+      -18,
+      0,
+      -15,
+      29.9
+     ],
+     "model": "fence",
+     "length": 2.0,
+     "sides": "s",
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         2.0,
+         1.8,
+         0.12
+        ],
+        "offset": [
+         0,
+         0.9,
+         0
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "type": "perimeter",
+     "rect": [
+      15,
+      0,
+      18,
+      29.9
+     ],
+     "model": "fence",
+     "length": 2.0,
+     "sides": "s",
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         2.0,
+         1.8,
+         0.12
+        ],
+        "offset": [
+         0,
+         0.9,
+         0
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "type": "perimeter",
+     "rect": [
+      -84,
+      0,
+      -78,
+      29.9
+     ],
+     "model": "fence",
+     "length": 2.0,
+     "sides": "s",
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         2.0,
+         1.8,
+         0.12
+        ],
+        "offset": [
+         0,
+         0.9,
+         0
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "type": "perimeter",
+     "rect": [
+      78,
+      0,
+      84,
+      29.9
+     ],
+     "model": "fence",
+     "length": 2.0,
+     "sides": "s",
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         2.0,
+         1.8,
+         0.12
+        ],
+        "offset": [
+         0,
+         0.9,
+         0
+        ]
+       }
+      ]
+     }
     }
    ]
   },
@@ -139,7 +266,7 @@
     {
      "type": "perimeter",
      "rect": [
-      -90,
+      -83,
       0,
       -1.7,
       10.9
@@ -169,7 +296,7 @@
      "rect": [
       1.7,
       0,
-      90,
+      83,
       10.9
      ],
      "model": "fence",
@@ -1139,7 +1266,7 @@
       -27,
       15,
       -13,
-      23
+      22
      ],
      "height": 1,
      "access": [
@@ -1156,7 +1283,7 @@
       -27,
       15,
       -13,
-      23
+      22
      ],
      "surface": "paving"
     },
