@@ -12,9 +12,10 @@ const STREAMS := {
 	&"hiss": "res://assets/sfx/hiss.wav",
 	&"sprinkle": "res://assets/sfx/sprinkle.wav",
 	&"coo": "res://assets/sfx/coo.wav",
+	&"splash": "res://assets/sfx/splash.wav",
 }
 const POOL := 6
-const VOLUME_DB := {&"bark": -4.0, &"bell": -2.0, &"meow": -3.0, &"hiss": -6.0, &"sprinkle": -6.0, &"coo": -4.0}
+const VOLUME_DB := {&"bark": -4.0, &"bell": -2.0, &"meow": -3.0, &"hiss": -6.0, &"sprinkle": -6.0, &"coo": -4.0, &"splash": -3.0}
 
 var enabled := true
 var last_played: StringName = &""

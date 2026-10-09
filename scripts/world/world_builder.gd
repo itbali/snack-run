@@ -128,6 +128,24 @@ func build(data: Dictionary) -> void:
 		_build_shop(data["shop"])
 	for hz in data.get("hazards", []):
 		_build_hazard(hz)
+	for w in data.get("water_zones", []):
+		_build_water(w)
+	for m in data.get("shore", []):
+		_build_shore(m)
+
+
+func _build_water(w: Dictionary) -> void:
+	## Зона воды (план 12): pos — абсолютный, y — уровень поверхности; size — ширина, глубина зоны, длина.
+	var node := Water.new()
+	node.size = _v3(w.get("size", [10, 3, 10]))
+	_add_at(_container("Water"), node, _v3(w["pos"]), float(w.get("rot", 0)))
+
+
+func _build_shore(m: Dictionary) -> void:
+	## Маркер берега: сюда возвращается утонувший кот (ближайший).
+	var node := Marker3D.new()
+	node.add_to_group("shore")
+	_add_at(_container("Shore"), node, _place(m) + Vector3(0, 0.1, 0), 0.0)
 
 
 func _build_prop(p: Dictionary) -> void:

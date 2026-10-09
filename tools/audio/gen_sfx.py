@@ -69,6 +69,23 @@ def hiss(duration=0.9):
 	return out
 
 
+def splash(duration=0.45):
+	"""Всплеск: удар низкого тона 180→60 Гц и шумовой хвост с быстрым затуханием (кот упал в воду)."""
+	rnd = random.Random(17)
+	out = []
+	n = int(RATE * duration)
+	prev = 0.0
+	phase = 0.0
+	for i in range(n):
+		t = i / RATE
+		u = t / duration
+		phase += 2 * math.pi * (180 - 120 * u) / RATE
+		prev = prev * 0.35 + rnd.uniform(-1.0, 1.0) * 0.65
+		env = min(1.0, t / 0.008) * (1.0 - u) ** 2.2
+		out.append(env * (0.45 * math.sin(phase) * (1.0 - u) + 0.45 * prev))
+	return out
+
+
 def sprinkle(count=6, gap=0.11):
 	"""Бульканье дождевателя: короткие «бульки» — тон 300→700 Гц по 60 мс."""
 	out = []
@@ -104,5 +121,6 @@ if __name__ == "__main__":
 	write("bark.wav", bark())
 	write("hiss.wav", hiss())
 	write("sprinkle.wav", sprinkle())
+	write("splash.wav", splash())
 	write("coo.wav", coo())
-	print("ОК assets/sfx/meow.wav, bark.wav, hiss.wav, sprinkle.wav, coo.wav")
+	print("ОК assets/sfx/meow.wav, bark.wav, hiss.wav, sprinkle.wav, coo.wav, splash.wav")

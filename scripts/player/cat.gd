@@ -25,6 +25,8 @@ var in_safe_zone := false   # внутри будки пряжи: удары н�
 var input_enabled := true   # false, пока открыт экран магазина
 var stunned_left := 0.0
 var invulnerable_left := 0.0
+var drowning_left := 0.0   # кот тонет: потом возврат на берег (вода, план 12)
+var _shore := Vector3.ZERO
 var face := CatFace.new()   # выражения глаз, переключает меши eyes_* модели
 var fade := 1.0   # 1 = непрозрачен; значением владеет камера (set_fade), скин его не трогает
 var was_on_floor := true
@@ -84,6 +86,13 @@ func _physics_process(delta: float) -> void:
 	stunned_left = maxf(stunned_left - delta, 0.0)
 	invulnerable_left = maxf(invulnerable_left - delta, 0.0)
 	petted_left = maxf(petted_left - delta, 0.0)
+	if drowning_left > 0.0:
+		drowning_left = maxf(drowning_left - delta, 0.0)
+		velocity = Vector3(0, -0.4, 0)   # медленно уходит под воду
+		global_position += velocity * delta
+		if drowning_left == 0.0:
+			teleport(_shore)
+		return
 	if stunned_left > 0.0 or petted_left > 0.0:
 		velocity = CatMotion.step(velocity, Vector3.ZERO, false, is_on_floor(), false, delta)
 		move_and_slide()
@@ -291,6 +300,20 @@ func cheer() -> void:
 	face.cheer()
 
 
+func drown(shore: Vector3) -> bool:
+	## Упал в воду (спек порта, раздел 2): 1 с тонет, еда из зубов потеряна, сердечко цело; затем ближайший берег.
+	if drowning_left > 0.0:
+		return false
+	drowning_left = 1.0
+	_shore = shore
+	unhide()
+	GameState.spill()   # не рассыпается — уходит на дно
+	Sfx.play(&"splash")
+	Effects.burst(get_parent(), global_position + Vector3(0, 0.2, 0), Color("#2F9CCF"), 28, 0.06, 2.5)
+	squash(0.6, 0.2)
+	return true
+
+
 func teleport(pos: Vector3) -> void:
 	unhide()
 	global_position = pos
@@ -299,6 +322,7 @@ func teleport(pos: Vector3) -> void:
 	invulnerable_left = INVULNERABLE_TIME   # после возрождения дать прийти в себя
 	wet_left = 0.0
 	petted_left = 0.0
+	drowning_left = 0.0
 	if _drips:
 		_drips.emitting = false
 	state = &"idle"
