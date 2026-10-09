@@ -5,7 +5,7 @@
 Отступы в GDScript и Makefile — табы; в Python проекта — тоже табы, кроме
 `palette.py` и тестов Blender (пробелы). Копировать как есть.
 
-Файлов: 300
+Файлов: 308
 
 ## `CLAUDE.md`
 
@@ -79,7 +79,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 - `scripts/autoload/game_state.gd` — сердечки, зубы (3), сытость, альбом, цель сессии; сигналы `cat_hit`, `cat_fainted` и др. В тестах `GameState.reset()` в `before_each`.
 - `scripts/core/` (`Layers`, `Rarity`), `scripts/food/` (`FoodDef`, `FoodCatalog`, `FoodPickup`, `FoodSpawnPoint`), `data/food/*.tres`.
 - `scripts/hideouts/hideout.gd`, `scripts/world/world_builder.gd` (двор из `data/layout/yard.json`), `scripts/world/spill_spawner.gd`.
-- `scripts/hazards/`: `perception.gd`, `chase_brain.gd` (чистые), `hazard_base.gd`, `dog.gd`, `wasp.gd`, `cyclist.gd`; парк: `sprinkler.gd`, `pigeon_flock.gd`, `park_person.gd` → `gardener.gd`, `kid.gd`, `guard.gd`; порт: `gull.gd`, `wave.gd`, `forklift.gd`, `crab.gd` (`third_party/crab_methodicalpixel/`); модели людей `tools/blender/human.py`, голубя `pigeon.py`.
+- `scripts/hazards/`: `perception.gd`, `chase_brain.gd` (чистые), `hazard_base.gd`, `dog.gd`, `wasp.gd`, `cyclist.gd`; парк: `sprinkler.gd`, `pigeon_flock.gd`, `park_person.gd` → `gardener.gd`, `kid.gd`, `guard.gd`; порт: `gull.gd`, `wave.gd`, `forklift.gd`, `crab.gd`, `fisher.gd` (`third_party/crab_methodicalpixel/`); модели людей `tools/blender/human.py`, голубя `pigeon.py`.
 - `scripts/ui/hud.gd` + `scenes/ui/hud.tscn`; экраны `shop_menu.gd`, `album_menu.gd`, `pause_menu.gd`, `title.gd` (главная сцена `scenes/ui/title.tscn`), `menu_input.gd` (опрос клавиш меню, работает на паузе).
 - `scripts/core/shop_item.gd`, `shop_catalog.gd`, `cat_skin.gd`, `skin_catalog.gd`; данные `data/shop/*.tres`, `data/skins/*.tres`.
 - `scripts/autoload/save_game.gd` — JSON в `user://save.json`, пишет только по `save_now()` из `Main`; в тестах с `Main` путь переопределяется.
@@ -154,7 +154,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 
 ## Статус и что дальше
 
-- Планы 10 «Рельеф», 11 «Двор ×3», 12 «Парк ×3, вода», 13 «Порт» и 14 «Опасности порта» выполнены 2026-10-09 (спек `2026-10-09-snack-run-scale-terrain-design.md`). Дальше план 15 (рыбалка); владелец: делать подряд, не ждать его оценки.
+- Планы 10 «Рельеф», 11 «Двор ×3», 12 «Парк ×3, вода», 13 «Порт», 14 «Опасности порта» и 15 «Рыбалка» выполнены 2026-10-09/10 — этап 3 закрыт (спек `2026-10-09-snack-run-scale-terrain-design.md`). Дальше план 16 (наполнение и логика мира: кроны, трава, дома без «одной стены»), план 17 (обучение, помощь, переназначение клавиш); владелец: делать подряд, не ждать его оценки.
 - Планы 1–9 выполнены и слиты в `main`: фундамент, игровой цикл, хаб и прогрессия, полировка, визуальная полировка, текстуры крупных поверхностей, этап 2 (сутки, парк, опасности парка). Отложенные мелочи — в дорожной карте.
 - Отложено по просьбе владельца: текстуры пропсов («потом вернёмся к текстурам»).
 - Открытый вопрос владельцу: лицензия весов UniMate для сгенерированных движений (код MIT, для весов явной лицензии не найдено).
@@ -475,6 +475,32 @@ shape = SubResource("body")
 [node name="Shape" type="CollisionShape3D" parent="HitZone"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
 shape = SubResource("hit")
+```
+
+## `scenes/hazards/fisher.tscn`
+
+```
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/hazards/fisher.gd" id="1"]
+[ext_resource type="PackedScene" path="res://assets/models/fisher.glb" id="2"]
+[ext_resource type="PackedScene" path="res://assets/models/rod.glb" id="3"]
+[ext_resource type="PackedScene" path="res://assets/models/bucket.glb" id="4"]
+[ext_resource type="PackedScene" path="res://assets/models/fishing_float.glb" id="5"]
+
+[node name="Fisher" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Model" parent="." instance=ExtResource("2")]
+
+[node name="Rod" parent="Model" instance=ExtResource("3")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.25, 0, -0.15)
+
+[node name="Bucket" parent="." instance=ExtResource("4")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 0, 1.0)
+
+[node name="Float" parent="." instance=ExtResource("5")]
+top_level = true
 ```
 
 ## `scenes/hazards/forklift.tscn`
@@ -2797,6 +2823,127 @@ func play_clip(name: StringName) -> void:
 	_anim.speed_scale = speed
 	if _anim.current_animation != clip:
 		_anim.play(clip, 0.2)
+```
+
+## `scripts/hazards/fisher.gd`
+
+```gdscript
+class_name Fisher
+extends Node3D
+## Рыбак на причале (спек порта, раздел 4): смотрит на воду 10–20 с → клюёт (1 с) → вытягивает (2 с) → золотая рыбка в ведре
+## → 3 с смотрит в ведро (кот ближе 1 м к ведру в момент поворота — удар) → снова к воде. Ночью рыбака нет.
+
+const BITE := 1.0
+const PULL := 2.0
+const LOOK := 3.0
+const SHOO_DIST := 1.0
+
+
+static func next_phase(phase: StringName, t: float, watch: float) -> StringName:
+	match phase:
+		&"watch":
+			return &"bite" if t >= watch else &"watch"
+		&"bite":
+			return &"pull" if t >= BITE else &"bite"
+		&"pull":
+			return &"look" if t >= PULL else &"pull"
+		&"look":
+			return &"watch" if t >= LOOK else &"look"
+	return phase
+
+
+static func shoos(dist_to_bucket: float, hidden: bool, safe: bool) -> bool:
+	return dist_to_bucket < SHOO_DIST and not hidden and not safe
+
+const PickupScene := preload("res://scenes/food/food_pickup.tscn")
+const CAST := 3.5   # поплавок перед рыбаком, м
+
+var phase: StringName = &"watch"
+var watch_range := Vector2(10.0, 20.0)
+var watch := 15.0
+var water_level := -2.3
+var fish: FoodPickup
+var _t := 0.0
+var _rng := RandomNumberGenerator.new()
+
+@onready var _model: Node3D = $Model
+@onready var _bucket: Node3D = $Bucket
+@onready var _float: Node3D = $Float
+@onready var _anim: AnimationPlayer = $Model.find_child("AnimationPlayer", true, false)
+
+
+func configure(hz: Dictionary, _builder: Node3D) -> void:
+	var w: Array = hz.get("watch", [10.0, 20.0])
+	watch_range = Vector2(float(w[0]), float(w[1]))
+	water_level = float(hz.get("water", water_level))
+
+
+func _ready() -> void:
+	add_to_group("hazards")
+	_rng.randomize()
+	Toon.apply(_model, Toon.OUTLINE_CHARACTER, true)
+	Toon.apply(_bucket, Toon.OUTLINE_FOOD)
+	for clip in ["idle", "work"]:
+		if _anim and _anim.has_animation(clip):
+			_anim.get_animation(clip).loop_mode = Animation.LOOP_LINEAR
+	watch = _rng.randf_range(watch_range.x, watch_range.y)
+	_play(&"idle")
+
+
+func _play(clip: StringName) -> void:
+	if _anim and _anim.has_animation(clip) and _anim.current_animation != clip:
+		_anim.play(clip, 0.2)
+
+
+func _physics_process(delta: float) -> void:
+	var present := not DayNight.is_night(get_tree())   # днём и вечером; ночью рыбака нет
+	if visible != present:
+		visible = present
+		if not present and is_instance_valid(fish):
+			fish.queue_free()   # рыбка уходит вместе с рыбаком
+	if not present:
+		return
+	_t += delta
+	var fl := to_global(Vector3(0, 0, -CAST))
+	_float.global_position = Vector3(fl.x, water_level + (sin(_t * 30.0) * 0.06 if phase == &"bite" else sin(_t * 2.0) * 0.015), fl.z)
+	var next := next_phase(phase, _t, watch)
+	if next == phase:
+		return
+	phase = next
+	_t = 0.0
+	match phase:
+		&"bite":
+			Sfx.play(&"splash")
+		&"pull":
+			_play(&"work")
+		&"look":
+			_land_fish()
+			_model.rotation.y = PI   # повернулся к ведру
+			_play(&"idle")
+			_check_cat()
+		&"watch":
+			_model.rotation.y = 0.0
+			watch = _rng.randf_range(watch_range.x, watch_range.y)
+
+
+func _land_fish() -> void:
+	## Рыба падает в ведро — золотая рыбка (только так, спек 5); в ведре не больше одной.
+	if is_instance_valid(fish):
+		return
+	fish = PickupScene.instantiate() as FoodPickup
+	fish.setup(FoodCatalog.get_by_id(&"golden_fish"))
+	fish.position = _bucket.global_position + Vector3(0, 0.12, 0)   # в ведре: зона подбора с земли достаёт
+	get_parent().add_child(fish)
+
+
+func _check_cat() -> void:
+	## Повернулся к ведру: кот ближе 1 м — шугает (удар, еда рассыпается).
+	var c := get_tree().get_first_node_in_group("cat") as Node3D
+	if c == null or not c.has_method("take_hit"):
+		return
+	var d := c.global_position - _bucket.global_position
+	if shoos(Vector2(d.x, d.z).length(), bool(c.get("hidden")), bool(c.get("in_safe_zone"))):
+		c.call("take_hit", global_position)
 ```
 
 ## `scripts/hazards/forklift.gd`
@@ -6251,6 +6398,7 @@ const HAZARD_SCENES := {
 	"wave": "res://scenes/hazards/wave.tscn",
 	"forklift": "res://scenes/hazards/forklift.tscn",
 	"crab": "res://scenes/hazards/crab.tscn",
+	"fisher": "res://scenes/hazards/fisher.tscn",
 }
 const HideoutScene := preload("res://scenes/hideouts/hideout.tscn")
 const SpawnScene := preload("res://scenes/food/food_spawn_point.tscn")
@@ -7568,6 +7716,85 @@ func test_dust_hearts_sparkles_trail_leaves_zzz_factories() -> void:
 	assert_eq(l.amount, 40)
 	assert_false(l.one_shot)
 	assert_gte(l.position.y - l.emission_box_extents.y, 0.0, "листья рождаются над землёй, не под ней")
+```
+
+## `tests/integration/test_fishing.gd`
+
+```gdscript
+extends GutTest
+## План 15: рыбалка (спек порта, раздел 4).
+
+const FisherScene := preload("res://scenes/hazards/fisher.tscn")
+const CatScene := preload("res://scenes/player/cat.tscn")
+
+var world: Node3D
+
+func before_each() -> void:
+	GameState.reset()
+	world = Node3D.new()
+	add_child_autofree(world)
+	var body := StaticBody3D.new()
+	body.collision_layer = Layers.WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(30, 0.2, 30)
+	shape.shape = box
+	shape.position.y = -0.1
+	body.add_child(shape)
+	world.add_child(body)
+
+func _fisher(watch := [0.2, 0.2]) -> Node3D:
+	var f := FisherScene.instantiate() as Node3D
+	f.call("configure", {"watch": watch, "water": -1.0}, null)
+	world.add_child(f)
+	return f
+
+func _fish(f: Node3D) -> FoodPickup:
+	return f.get("fish") as FoodPickup if is_instance_valid(f.get("fish")) else null
+
+func test_golden_fish_lands_in_bucket_once() -> void:
+	var f := _fisher()
+	await wait_seconds(3.6)
+	var fish := _fish(f)
+	assert_not_null(fish, "рыбка в ведре")
+	if fish:
+		assert_eq(fish.food.id, &"golden_fish")
+		var bucket := (f.get_node("Bucket") as Node3D).global_position
+		assert_lt(Vector2(fish.global_position.x - bucket.x, fish.global_position.z - bucket.z).length(), 0.3)
+	await wait_seconds(3.6)
+	assert_eq(world.find_children("*", "FoodPickup", true, false).size(), 1, "в ведре не больше одной рыбки")
+
+func test_cat_steals_fish_while_fisher_watches_water() -> void:
+	var f := _fisher([0.2, 0.2])
+	await wait_seconds(3.6)    # рыбка в ведре, рыбак повернулся к ведру
+	f.set("watch_range", Vector2(20, 20))   # следующий раз смотрит на воду долго
+	await wait_seconds(3.0)    # снова смотрит на воду
+	assert_eq(f.get("phase"), &"watch")
+	var cat = CatScene.instantiate()
+	cat.position = (f.get_node("Bucket") as Node3D).global_position + Vector3(0, 0.05, 0.15)
+	world.add_child(cat)
+	await wait_physics_frames(10)
+	assert_true(GameState.mouth.any(func(x): return x.id == &"golden_fish"), "кот стащил золотую рыбку")
+	assert_eq(GameState.hearts, 3)
+
+func test_fisher_shoos_cat_at_bucket_when_turning() -> void:
+	var f := _fisher([0.5, 0.5])
+	var cat = CatScene.instantiate()
+	cat.position = (f.get_node("Bucket") as Node3D).global_position + Vector3(0.7, 0.05, 0)
+	world.add_child(cat)
+	GameState.pick_up(FoodCatalog.get_by_id(&"shrimp"))
+	await wait_seconds(4.0)    # клюнуло, вытянул, повернулся — кот у ведра
+	assert_eq(GameState.hearts, 2, "рыбак шуганул")
+
+func test_no_fisher_at_night() -> void:
+	var light = (load("res://scenes/world/lighting.tscn") as PackedScene).instantiate()
+	world.add_child(light)
+	light.get_node("DayNight").set_time(220.0)
+	light.get_node("DayNight").set("time_scale", 0.0)
+	var f := _fisher()
+	await wait_seconds(4.0)
+	assert_false(f.visible, "ночью рыбака нет")
+	assert_null(_fish(f), "и рыбки нет")
 ```
 
 ## `tests/integration/test_floater.gd`
@@ -9081,7 +9308,7 @@ func test_port_hazards_are_placed() -> void:
 		n[h["type"]] = n.get(h["type"], 0) + 1
 		if h["type"] == "crab" and h.get("night_only", false):
 			night_crabs += 1
-	assert_eq(n, {"forklift": 1, "gull": 2, "wave": 1, "crab": 6})
+	assert_eq(n, {"forklift": 1, "gull": 2, "wave": 1, "crab": 6, "fisher": 2})
 	assert_eq(night_crabs, 2)
 
 func test_forklift_lane_is_clear() -> void:
@@ -9102,6 +9329,17 @@ func test_gulls_have_posts_to_sleep_on() -> void:
 		assert_false(hit.is_empty())
 		if not hit.is_empty():
 			assert_almost_eq((hit["position"] as Vector3).y - t.height_at(x, z), float(h.get("perch_h", 0.0)), 0.1, "насест чайки у %s" % [h["pos"]])
+
+func test_two_fishers_at_pier_end() -> void:
+	# План 15: два рыбака на торце причала, поплавок над водой, ведро на настиле, не на полосе погрузчика.
+	var fishers := b.find_children("*", "Fisher", true, false)
+	assert_eq(fishers.size(), 2)
+	for f in fishers:
+		var fl := (f.get_node("Float") as Node3D).global_position
+		var bucket := (f.get_node("Bucket") as Node3D).global_position
+		assert_lt(t.height_at(fl.x, fl.z), -2.3, "поплавок над водой")
+		assert_almost_eq(t.height_at(bucket.x, bucket.z), -1.0, 0.05, "ведро на причале")
+		assert_false(bucket.x > 22.5 and bucket.x < 27.5, "не на полосе погрузчика")
 ```
 
 ## `tests/integration/test_port_hazards.gd`
@@ -10917,6 +11155,29 @@ func test_lamps_on_from_dusk_to_dawn() -> void:
 	assert_false(DayCycle.lamps_on(290.0))
 ```
 
+## `tests/unit/test_fisher_cycle.gd`
+
+```gdscript
+extends GutTest
+## План 15: цикл рыбака (спек порта, раздел 4).
+
+func test_fisher_cycle() -> void:
+	assert_eq(Fisher.next_phase(&"watch", 5.0, 12.0), &"watch", "смотрит на воду")
+	assert_eq(Fisher.next_phase(&"watch", 12.0, 12.0), &"bite", "клюёт")
+	assert_eq(Fisher.next_phase(&"bite", 0.5, 12.0), &"bite")
+	assert_eq(Fisher.next_phase(&"bite", 1.0, 12.0), &"pull", "вытягивает")
+	assert_eq(Fisher.next_phase(&"pull", 1.9, 12.0), &"pull")
+	assert_eq(Fisher.next_phase(&"pull", 2.0, 12.0), &"look", "рыба в ведре — смотрит в ведро")
+	assert_eq(Fisher.next_phase(&"look", 2.9, 12.0), &"look")
+	assert_eq(Fisher.next_phase(&"look", 3.0, 12.0), &"watch", "снова к воде")
+
+func test_shoo_only_close_to_bucket() -> void:
+	assert_true(Fisher.shoos(0.8, false, false))
+	assert_false(Fisher.shoos(1.2, false, false), "дальше 1 м — нет")
+	assert_false(Fisher.shoos(0.5, true, false), "спрятанного не видит")
+	assert_false(Fisher.shoos(0.5, false, true), "в безопасной зоне — нет")
+```
+
 ## `tests/unit/test_floater_math.gd`
 
 ```gdscript
@@ -12647,6 +12908,23 @@ def build():
 	return [body]
 ```
 
+## `tools/blender/gen/bucket.py`
+
+```python
+"""Ведро рыбака (план 15): голубое, с ручкой; в него падает золотая рыбка."""
+import lib
+
+SPEC = {"max_tris": 500, "max_dim": 0.45}
+
+
+def build():
+	body = lib.cylinder("bucket", radius=0.17, depth=0.3, segments=12, material="sky")
+	body.location.z = 0.15
+	rim = lib.torus("bucket_rim", major=0.17, minor=0.015, material="cream")
+	rim.location.z = 0.3
+	return lib.group([body, rim])
+```
+
 ## `tools/blender/gen/buoy.py`
 
 ```python
@@ -12930,6 +13208,36 @@ def build():
 		post.location = (-1.0 + i * 0.5, 0, 0.55)
 		parts.append(post)
 	return lib.group(parts)
+```
+
+## `tools/blender/gen/fisher.py`
+
+```python
+"""Генератор: fisher (CC0 Quaternius Animated Human, роль рыбака — human.py, план 15)."""
+import human
+
+SPEC = {"max_tris": 2500, "max_dim": 2.0, "animations": True}
+
+
+def build():
+	return human.build("fisher")
+```
+
+## `tools/blender/gen/fishing_float.py`
+
+```python
+"""Поплавок (план 15): красно-белый, на воде перед рыбаком."""
+import lib
+
+SPEC = {"max_tris": 300, "max_dim": 0.2}
+
+
+def build():
+	top = lib.sphere("fishing_float", radius=0.05, material="brick", segments=8, rings=6)
+	top.location.z = 0.04
+	bottom = lib.sphere("fishing_float_b", radius=0.05, material="cream", segments=8, rings=6)
+	bottom.location.z = -0.02
+	return lib.group([top, bottom])
 ```
 
 ## `tools/blender/gen/flowerbed.py`
@@ -13814,6 +14122,27 @@ def build():
 	return terrace_kit.wall(3)
 ```
 
+## `tools/blender/gen/rod.py`
+
+```python
+"""Удочка рыбака (план 15): тонкое удилище под наклоном вперёд (−Y Blender = +Z Godot), катушка."""
+import math
+
+import lib
+
+SPEC = {"max_tris": 400, "max_dim": 2.6}
+
+
+def build():
+	rod = lib.cylinder("rod", radius=0.02, depth=2.4, segments=6, material="ink")
+	rod.rotation_euler = (math.radians(-60), 0, 0)
+	rod.location = (0, -1.0, 1.5)
+	reel = lib.cylinder("rod_reel", radius=0.05, depth=0.04, segments=8, material="sky")
+	reel.rotation_euler = (0, math.radians(90), 0)
+	reel.location = (0.04, -0.15, 0.95)
+	return lib.group([rod, reel])
+```
+
 ## `tools/blender/gen/sandbox.py`
 
 ```python
@@ -14217,6 +14546,7 @@ ROLES = {
 	"gardener": {"height": 1.7, "skin": "cream", "hair": "brick", "pants": "olive", "shirt": "leaf"},
 	"kid": {"height": 1.1, "skin": "cream", "hair": "cat_orange", "pants": "sky", "shirt": "rarity_legendary"},
 	"guard": {"height": 1.7, "skin": "cream", "hair": "ink", "pants": "ink", "shirt": "sea_deep"},
+	"fisher": {"height": 1.7, "skin": "cream", "hair": "sand", "pants": "sky", "shirt": "cat_orange"},   # панама и жилет (план 15)
 }
 
 
@@ -16588,10 +16918,21 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
   качающиеся лодки и бочки, ворота 50, шесть вкусняшек, альбом 20.
 - План 14. Опасности порта (`2026-10-09-snack-run-14-port-hazards.md`) — ВЫПОЛНЕН 2026-10-09: чайки (CC0-голубь), волны,
   погрузчик, крабы (CC0 methodical pixel).
+- План 15. Рыбалка (`2026-10-09-snack-run-15-fishing.md`) — ВЫПОЛНЕН 2026-10-10: два рыбака, цикл, золотая рыбка в ведре,
+  кража и шугание. Этап 3 закрыт.
 - Отложено из ревью плана 14: чайка пикирует к тонущему коту; краб гонится в море и падает с уступа; волна сдвигает кота без
   проверки коллизий; погрузчик без твёрдого тела, разворот мгновенный.
 - Отложено из ревью плана 13: проёмы стен в описании «1.0» при фактических 4 м; лодки и бочки без тун-обводки.
 - Планы 13–15. Этап 3: порт 120×102 (район и вода, опасности, рыбалка) по спеку `2026-10-09-snack-run-stage3-port-design.md`.
+
+
+## Дальше (просьбы владельца 2026-10-10)
+
+- План 16. Наполнение и логика мира: кроны деревьев и кусты не шарами (составные кроны, листва), трава, цветы, камни,
+  мусор и прочая мелочь по всем районам, чтобы уровни не были пустыми; проверка логики — нет бесконечных стен и «домов»
+  из одной стены, дома — замкнутые объёмы с крышами, проходы осмысленны.
+- План 17. Обучение и помощь: короткое обучение в начале (подсказки по шагам: ходить, бежать, прыгать, прятаться, есть,
+  магазин), экран помощи и настройки с просмотром и переназначением клавиш управления (сохраняются).
 ```
 
 ## `docs/superpowers/notes/2026-10-07-unimate-attempt.md`
@@ -18976,6 +19317,8 @@ if __name__ == "__main__":
   "hazards": [
     {"type": "forklift", "pos": [25, 0, 153], "rot": 0, "path": [[25, 153], [25, 207]]},
     {"type": "gull", "pos": [34, 0, 200], "phase": 0.0, "perch_h": 0.55},
+    {"type": "fisher", "pos": [18.5, 0, 210.5], "rot": 180, "water": -2.3},
+    {"type": "fisher", "pos": [31.5, 0, 210.5], "rot": 180, "water": -2.3},
     {"type": "gull", "pos": [-30, 0, 172], "phase": 2.0, "perch_h": 2.65},
     {"type": "wave", "pos": [-25, -2.0, 194.2], "snap": false, "width": 68, "inland": -1},
     {"type": "crab", "pos": [-50, 0, 175]},
@@ -23762,6 +24105,24 @@ class Generate(unittest.TestCase):
     {
      "type": "block",
      "rect": [
+      29,
+      207,
+      34,
+      212
+     ]
+    },
+    {
+     "type": "block",
+     "rect": [
+      16,
+      207,
+      21,
+      212
+     ]
+    },
+    {
+     "type": "block",
+     "rect": [
       22.5,
       151,
       27.5,
@@ -24044,6 +24405,31 @@ class Generate(unittest.TestCase):
        ],
        "phase": 0.0,
        "perch_h": 0.55
+      }
+     ]
+    },
+    {
+     "type": "place",
+     "hazards": [
+      {
+       "type": "fisher",
+       "pos": [
+        18.5,
+        0,
+        210.5
+       ],
+       "rot": 180,
+       "water": -2.3
+      },
+      {
+       "type": "fisher",
+       "pos": [
+        31.5,
+        0,
+        210.5
+       ],
+       "rot": 180,
+       "water": -2.3
       }
      ]
     }
