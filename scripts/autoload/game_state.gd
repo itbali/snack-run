@@ -14,6 +14,7 @@ signal goal_completed(target: int)
 signal yarn_changed(count: int)
 signal upgrade_bought(id: StringName)
 signal skin_changed(id: StringName)
+signal food_stolen(food: FoodDef)
 
 const MAX_HEARTS := 3
 const MOUTH_CAPACITY := 3
@@ -110,6 +111,16 @@ func spill() -> Array[FoodDef]:
 	mouth = []
 	mouth_changed.emit(mouth)
 	return spilled
+
+
+func steal_last() -> FoodDef:
+	## Голубь выхватывает последнюю еду из зубов: без урона и без рассыпания (этап 2).
+	if mouth.is_empty():
+		return null
+	var f: FoodDef = mouth.pop_back()
+	mouth_changed.emit(mouth)
+	food_stolen.emit(f)
+	return f
 
 
 func take_hit() -> bool:

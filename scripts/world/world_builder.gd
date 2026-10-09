@@ -8,6 +8,8 @@ const HAZARD_SCENES := {
 	"dog": "res://scenes/hazards/dog.tscn",
 	"wasp": "res://scenes/hazards/wasp.tscn",
 	"cyclist": "res://scenes/hazards/cyclist.tscn",
+	"sprinkler": "res://scenes/hazards/sprinkler.tscn",
+	"pigeons": "res://scenes/hazards/pigeon_flock.tscn",
 }
 const HideoutScene := preload("res://scenes/hideouts/hideout.tscn")
 const SpawnScene := preload("res://scenes/food/food_spawn_point.tscn")

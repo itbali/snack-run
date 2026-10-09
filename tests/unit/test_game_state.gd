@@ -119,3 +119,18 @@ func test_yarn_add_spend_and_card_bonus() -> void:
 	gs.eat_all()
 	assert_eq(gs.yarn, 3, "повтор карточки клубочков не даёт")
 	assert_signal_emitted(gs, "yarn_changed")
+
+func test_steal_last_takes_only_the_last_food_without_damage() -> void:
+	var gs = load("res://scripts/autoload/game_state.gd").new()
+	add_child_autofree(gs)
+	gs.reset()
+	gs.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	gs.pick_up(FoodCatalog.get_by_id(&"pizza"))
+	watch_signals(gs)
+	var f = gs.steal_last()
+	assert_eq(f.id, &"pizza")
+	assert_eq(gs.mouth.size(), 1)
+	assert_eq(gs.hearts, 3, "кража не ранит")
+	assert_signal_emitted(gs, "food_stolen")
+	gs.mouth.clear()
+	assert_null(gs.steal_last(), "из пустых зубов красть нечего")

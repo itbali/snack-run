@@ -16,6 +16,7 @@ const STUN_TIME := 1.0
 const INVULNERABLE_TIME := 2.0
 const RUN_DUST_EVERY := 0.25
 const FLASH_COLOR := Color.WHITE
+const WET_SLOW := 0.6   # мокрый кот (дождеватель парка)
 
 var camera_rig: CameraRig
 var current_hideout: Area3D
@@ -27,6 +28,8 @@ var invulnerable_left := 0.0
 var face := CatFace.new()   # выражения глаз, переключает меши eyes_* модели
 var fade := 1.0   # 1 = непрозрачен; значением владеет камера (set_fade), скин его не трогает
 var was_on_floor := true
+var wet_left := 0.0
+var _drips: CPUParticles3D
 var flashing := false
 var _run_dust_t := 0.0
 var _squash: Tween
@@ -73,6 +76,10 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	face.update(delta, stunned_left > 0.0)
+	if wet_left > 0.0:
+		wet_left = maxf(wet_left - delta, 0.0)
+		if _drips:
+			_drips.emitting = wet_left > 0.0
 	stunned_left = maxf(stunned_left - delta, 0.0)
 	invulnerable_left = maxf(invulnerable_left - delta, 0.0)
 	if stunned_left > 0.0:
@@ -104,12 +111,12 @@ func _physics_process(delta: float) -> void:
 	var dir := CatMotion.world_direction(input, yaw)
 	var running := Input.is_action_pressed("run")
 	var jump := Input.is_action_just_pressed("jump")
-	velocity = CatMotion.step(velocity, dir, running, is_on_floor(), jump, delta, GameState.speed_mult)
+	velocity = CatMotion.step(velocity, dir, running, is_on_floor(), jump, delta, GameState.speed_mult * speed_factor())
 	move_and_slide()
 	if dir.length() > 0.0:
 		var target_yaw := atan2(-dir.x, -dir.z)
 		_model.rotation.y = lerp_angle(_model.rotation.y, target_yaw, TURN_SPEED * delta)
-	state = CatMotion.pick_state(velocity, is_on_floor(), running, GameState.speed_mult)
+	state = CatMotion.pick_state(velocity, is_on_floor(), running, GameState.speed_mult * speed_factor())
 	_after_move(delta)
 
 
@@ -242,6 +249,20 @@ func _fade_material(mat: StandardMaterial3D) -> void:
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED if fade >= 0.999 else BaseMaterial3D.TRANSPARENCY_ALPHA
 	# Полупрозрачное тело всё равно пишет глубину: иначе дальняя сторона hull-обводки рисуется поверх кота («рентген»).
 	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_OPAQUE_ONLY if fade >= 0.999 else BaseMaterial3D.DEPTH_DRAW_ALWAYS
+
+
+func wet(seconds: float) -> void:
+	## Намок под дождевателем: замедление ×0,6; повторное намокание продлевает до большего срока, не складывается.
+	wet_left = maxf(wet_left, seconds)
+	if _drips == null:
+		_drips = Effects.trail(self, Color("#9FD3F0"), 8)
+		_drips.name = "Drips"
+		_drips.position = Vector3(0, 0.2, 0)
+	_drips.emitting = true
+
+
+func speed_factor() -> float:
+	return WET_SLOW if wet_left > 0.0 else 1.0
 
 
 func threaten() -> void:
