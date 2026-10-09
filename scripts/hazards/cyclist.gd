@@ -37,7 +37,7 @@ func _ready() -> void:
 	_hit.monitorable = false
 	_hit.monitoring = false
 	_hit.body_entered.connect(_on_body)
-	Toon.apply(_model, Toon.OUTLINE_CHARACTER)
+	Toon.apply(_model, Toon.OUTLINE_CHARACTER, true)
 	visible = false
 	if path:
 		start_cycle()

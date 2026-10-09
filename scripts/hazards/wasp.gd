@@ -27,7 +27,7 @@ func _ready() -> void:
 	_hit.collision_mask = Layers.CAT
 	_hit.monitorable = false
 	_hit.body_entered.connect(_on_body)
-	Toon.apply(_model, Toon.OUTLINE_CHARACTER)
+	Toon.apply(_model, Toon.OUTLINE_CHARACTER, true)
 
 
 func _physics_process(delta: float) -> void:

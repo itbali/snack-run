@@ -39,7 +39,7 @@ func _ready() -> void:
 	add_to_group("cat")
 	collision_layer = Layers.CAT
 	collision_mask = Layers.WORLD | Layers.HAZARD
-	Toon.apply(_model, Toon.OUTLINE_CHARACTER)
+	Toon.apply(_model, Toon.OUTLINE_CHARACTER, true)
 	for mi in _model.find_children("*", "MeshInstance3D", true, false):
 		if String(mi.name).begins_with("eyes_") or mi.name == "whiskers" or mi.name == "eyelids":
 			(mi as MeshInstance3D).material_overlay = null   # обводка на глазах — рамка, на усах и веках — клякса
@@ -174,7 +174,9 @@ func _apply_fade() -> void:
 			continue
 		for i in m3.mesh.get_surface_count():
 			_fade_material(m3.get_surface_override_material(i) as StandardMaterial3D)
-		_fade_material(m3.material_overlay as StandardMaterial3D)
+		var outline := m3.material_overlay as ShaderMaterial
+		if outline:
+			outline.set_shader_parameter("alpha", fade)
 
 
 func _fade_material(mat: StandardMaterial3D) -> void:

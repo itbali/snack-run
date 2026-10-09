@@ -16,7 +16,7 @@ var _last_state: int = ChaseBrain.State.IDLE
 
 func _ready() -> void:
 	super()
-	Toon.apply(_model, Toon.OUTLINE_CHARACTER)
+	Toon.apply(_model, Toon.OUTLINE_CHARACTER, true)
 	for clip in ["idle", "walk", "sleep", "alert"]:
 		if _anim and _anim.has_animation(clip):
 			_anim.get_animation(clip).loop_mode = Animation.LOOP_LINEAR

@@ -41,6 +41,9 @@ func test_head_is_scaled() -> void:
 	await wait_process_frames(3)
 	assert_almost_eq(_captured_head_scale.x, 1.4, 0.01)
 
+func _body_outline(cat) -> ShaderMaterial:
+	return (cat.find_child("cat", true, false) as MeshInstance3D).material_overlay as ShaderMaterial
+
 func _body_material(cat) -> StandardMaterial3D:
 	for mi in cat.find_children("*", "MeshInstance3D", true, false):
 		for i in (mi as MeshInstance3D).mesh.get_surface_count():
@@ -61,9 +64,12 @@ func test_camera_rig_fades_target_instead_of_hiding() -> void:
 	var body := _body_material(cat)
 	assert_eq(body.transparency, BaseMaterial3D.TRANSPARENCY_ALPHA)
 	assert_almost_eq(body.albedo_color.a, cat.fade, 0.01)
+	var outline := _body_outline(cat)
+	assert_almost_eq(float(outline.get_shader_parameter("alpha")), cat.fade, 0.01, "обводка тоже полупрозрачна (Review Focus 2)")
 	rig.apply_arm_length(3.5)
 	assert_almost_eq(cat.fade, 1.0, 0.001, "отошли от стены — непрозрачен")
 	assert_eq(_body_material(cat).transparency, BaseMaterial3D.TRANSPARENCY_DISABLED)
+	assert_almost_eq(float(_body_outline(cat).get_shader_parameter("alpha")), 1.0, 0.001)
 
 func test_skin_change_keeps_fade() -> void:
 	# Review Focus 4
@@ -74,6 +80,7 @@ func test_skin_change_keeps_fade() -> void:
 	GameState.buy(ShopCatalog.get_by_id(&"skin_black"))
 	await wait_process_frames(1)
 	assert_almost_eq(_body_material(cat).albedo_color.a, 0.4, 0.01, "скин не возвращает непрозрачность")
+	assert_almost_eq(float(_body_outline(cat).get_shader_parameter("alpha")), 0.4, 0.01, "и обводка остаётся полупрозрачной")
 	GameState.reset()
 
 func test_mouse_turns_camera() -> void:

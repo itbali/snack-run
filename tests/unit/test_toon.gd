@@ -19,13 +19,15 @@ func test_apply_sets_toon_modes_and_outline() -> void:
 	assert_eq(m.diffuse_mode, BaseMaterial3D.DIFFUSE_TOON)
 	assert_eq(m.specular_mode, BaseMaterial3D.SPECULAR_TOON)
 	assert_eq(m.albedo_color, Color.RED)
-	var outline := mi.material_overlay as StandardMaterial3D
-	assert_not_null(outline)
-	assert_true(outline.grow)
-	assert_almost_eq(outline.grow_amount, 0.02, 0.0001)
-	assert_eq(outline.cull_mode, BaseMaterial3D.CULL_FRONT)
-	assert_eq(outline.shading_mode, BaseMaterial3D.SHADING_MODE_UNSHADED)
-	assert_eq(outline.albedo_color, Toon.OUTLINE_COLOR)
+	var outline := mi.material_overlay as ShaderMaterial
+	assert_not_null(outline, "обводка — шейдерный hull")
+	if outline == null:
+		return
+	assert_eq(outline.shader.resource_path, "res://assets/shaders/outline_fur.gdshader")
+	assert_almost_eq(float(outline.get_shader_parameter("width")), 0.02, 0.0001)
+	assert_almost_eq(float(outline.get_shader_parameter("jitter")), 0.0, 0.0001, "у пропсов и еды шерсти нет")
+	assert_eq((outline.get_shader_parameter("color") as Color).to_html(false), Toon.OUTLINE_COLOR.to_html(false))
+	assert_false(m.rim_enabled, "у не-персонажей rim выключен")
 
 func test_apply_without_outline_leaves_overlay_empty() -> void:
 	var mi := _make_mesh()
@@ -50,4 +52,13 @@ func test_outline_width_is_in_meters_under_scaled_parent() -> void:
 	mi.mesh = BoxMesh.new()
 	parent.add_child(mi)
 	Toon.apply(mi, 0.02)
-	assert_almost_eq((mi.material_overlay as StandardMaterial3D).grow_amount, 0.1, 0.001)
+	assert_almost_eq(float((mi.material_overlay as ShaderMaterial).get_shader_parameter("width")), 0.1, 0.001)
+
+func test_character_gets_rim_and_fur_jitter() -> void:
+	var mi := _make_mesh()
+	Toon.apply(mi, 0.006, true)
+	var m := mi.get_surface_override_material(0) as StandardMaterial3D
+	assert_true(m.rim_enabled)
+	assert_almost_eq(m.rim, 0.5, 0.01)
+	assert_almost_eq(m.rim_tint, 0.6, 0.01)
+	assert_almost_eq(float((mi.material_overlay as ShaderMaterial).get_shader_parameter("jitter")), Toon.OUTLINE_JITTER, 0.001)
