@@ -72,3 +72,40 @@ func test_no_fisher_at_night() -> void:
 	await wait_seconds(4.0)
 	assert_false(f.visible, "ночью рыбака нет")
 	assert_null(_fish(f), "и рыбки нет")
+
+func test_cat_waiting_in_bucket_gets_shooed_without_fish() -> void:
+	# Ревью плана 15: кот, ждавший в ведре, получал рыбку ценой сердечка; пока рыбак смотрит в ведро, рыбку не взять.
+	var f := _fisher([0.2, 0.2])
+	var cat = CatScene.instantiate()
+	cat.position = (f.get_node("Bucket") as Node3D).global_position + Vector3(0, 0.05, 0.15)
+	world.add_child(cat)
+	await wait_seconds(3.6)
+	assert_eq(GameState.hearts, 2, "шуганул")
+	assert_false(GameState.mouth.any(func(x): return x.id == &"golden_fish"), "рыбка осталась в ведре")
+
+func test_fish_cannot_be_taken_while_fisher_looks_at_bucket() -> void:
+	var f := _fisher([0.2, 0.2])
+	await wait_seconds(3.5)   # рыбак повернулся, рыбка в ведре
+	assert_eq(f.get("phase"), &"look")
+	var cat = CatScene.instantiate()
+	cat.position = (f.get_node("Bucket") as Node3D).global_position + Vector3(0, 0.05, 0.15)
+	world.add_child(cat)
+	await wait_physics_frames(10)
+	assert_false(GameState.mouth.any(func(x): return x.id == &"golden_fish"), "на глазах у рыбака не украсть")
+
+func test_fish_leaves_with_fisher_at_night_and_he_returns_in_morning() -> void:
+	var light = (load("res://scenes/world/lighting.tscn") as PackedScene).instantiate()
+	world.add_child(light)
+	var dn = light.get_node("DayNight")
+	dn.set("time_scale", 0.0)
+	dn.set_time(10.0)
+	var f := _fisher([0.2, 0.2])
+	await wait_seconds(3.6)
+	assert_not_null(_fish(f), "днём улов в ведре")
+	dn.set_time(220.0)
+	await wait_physics_frames(5)
+	assert_false(f.visible)
+	assert_null(_fish(f), "рыбка ушла с рыбаком")
+	dn.set_time(10.0)
+	await wait_physics_frames(5)
+	assert_true(f.visible, "утром рыбак вернулся")

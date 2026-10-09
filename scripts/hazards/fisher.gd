@@ -102,7 +102,10 @@ func _land_fish() -> void:
 		return
 	fish = PickupScene.instantiate() as FoodPickup
 	fish.setup(FoodCatalog.get_by_id(&"golden_fish"))
-	fish.position = _bucket.global_position + Vector3(0, 0.12, 0)   # в ведре: зона подбора с земли достаёт
+	fish.grace = LOOK   # пока рыбак смотрит в ведро, рыбку не взять (ревью плана 15); потом — обычный подбор
+	var parent := get_parent() as Node3D
+	var at := _bucket.global_position + Vector3(0, 0.12, 0)   # в ведре: зона подбора с земли достаёт
+	fish.position = parent.global_transform.affine_inverse() * at if parent else at
 	get_parent().add_child(fish)
 
 
