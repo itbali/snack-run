@@ -1125,6 +1125,219 @@
         19
       ],
       "rot": 30
+    },
+    {
+      "model": "bush",
+      "pos": [
+        -10.5,
+        0,
+        -13.0
+      ],
+      "rot": 294
+    },
+    {
+      "model": "bush",
+      "pos": [
+        -4.5,
+        0,
+        -13.0
+      ],
+      "rot": 193
+    },
+    {
+      "model": "bush",
+      "pos": [
+        0.0,
+        0,
+        -13.0
+      ],
+      "rot": 0
+    },
+    {
+      "model": "bush",
+      "pos": [
+        7.5,
+        0,
+        -13.0
+      ],
+      "rot": 277
+    },
+    {
+      "model": "bush",
+      "pos": [
+        10.5,
+        0,
+        -13.0
+      ],
+      "rot": 28
+    },
+    {
+      "model": "bush",
+      "pos": [
+        -11.0,
+        0,
+        -5.0
+      ],
+      "rot": 90
+    },
+    {
+      "model": "bush",
+      "pos": [
+        -11.0,
+        0,
+        0.5
+      ],
+      "rot": 90
+    },
+    {
+      "model": "grass",
+      "pos": [
+        -12.5,
+        0,
+        -12.5
+      ],
+      "rot": 205,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        12.5,
+        0,
+        -12.5
+      ],
+      "rot": 90,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        -12.5,
+        0,
+        9
+      ],
+      "rot": 210,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        12.5,
+        0,
+        9
+      ],
+      "rot": 95,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        -6,
+        0,
+        -12.8
+      ],
+      "rot": 184,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        6,
+        0,
+        -12.8
+      ],
+      "rot": 100,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        -12.8,
+        0,
+        -3
+      ],
+      "rot": 350,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        12.8,
+        0,
+        -3
+      ],
+      "rot": 267,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        3.5,
+        0,
+        4.2
+      ],
+      "rot": 256,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        -3,
+        0,
+        1.5
+      ],
+      "rot": 226,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        8.5,
+        0,
+        -5
+      ],
+      "rot": 5,
+      "solid": false
+    },
+    {
+      "model": "grass",
+      "pos": [
+        -8.5,
+        0,
+        9.5
+      ],
+      "rot": 71,
+      "solid": false
+    },
+    {
+      "model": "ivy",
+      "pos": [
+        -10.0,
+        2.2,
+        -13.78
+      ],
+      "rot": 0,
+      "solid": false
+    },
+    {
+      "model": "ivy",
+      "pos": [
+        0.0,
+        2.2,
+        -13.78
+      ],
+      "rot": 0,
+      "solid": false
+    },
+    {
+      "model": "ivy",
+      "pos": [
+        8.0,
+        2.2,
+        -13.78
+      ],
+      "rot": 0,
+      "solid": false
     }
   ],
   "hideouts": [
@@ -1563,5 +1776,109 @@
       -1.5
     ],
     "rot": 180
-  }
+  },
+  "decals": [
+    {
+      "texture": "assets/images/world/decal_manhole.png",
+      "pos": [
+        3,
+        0,
+        -2
+      ],
+      "size": [
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "texture": "assets/images/world/decal_cracks.png",
+      "pos": [
+        -6,
+        0,
+        4
+      ],
+      "size": [
+        2.0,
+        2.0
+      ],
+      "rot": 20
+    },
+    {
+      "texture": "assets/images/world/decal_cracks.png",
+      "pos": [
+        8,
+        0,
+        -9
+      ],
+      "size": [
+        1.5,
+        1.5
+      ],
+      "rot": 110
+    },
+    {
+      "texture": "assets/images/world/decal_leaves.png",
+      "pos": [
+        -2,
+        0,
+        -6
+      ],
+      "size": [
+        2.0,
+        2.0
+      ]
+    },
+    {
+      "texture": "assets/images/world/decal_leaves.png",
+      "pos": [
+        6,
+        0,
+        6
+      ],
+      "size": [
+        2.0,
+        2.0
+      ],
+      "rot": 70
+    },
+    {
+      "texture": "assets/images/world/poster_cafe.png",
+      "pos": [
+        -5.0,
+        0.8,
+        -13.78
+      ],
+      "size": [
+        0.9,
+        0.9
+      ],
+      "wall": true
+    },
+    {
+      "texture": "assets/images/world/poster_cat.png",
+      "pos": [
+        6.5,
+        0.8,
+        -13.78
+      ],
+      "size": [
+        0.8,
+        0.8
+      ],
+      "wall": true
+    },
+    {
+      "texture": "assets/images/world/poster_paws.png",
+      "pos": [
+        -11.0,
+        0.8,
+        -13.78
+      ],
+      "size": [
+        0.7,
+        0.7
+      ],
+      "wall": true
+    }
+  ]
 }

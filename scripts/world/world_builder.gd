@@ -1,6 +1,7 @@
 class_name WorldBuilder
 extends Node3D
-## Строит район из data/layout/*.json: пропсы с коллизией, укрытия, точки спавна, опасности, дорога.
+## Строит район из data/layout/*.json: пропсы (с коллизией или без — solid), укрытия, точки спавна,
+## опасности, дорога, декали (квады с текстурами из сгенерированных картинок).
 
 const MODELS_DIR := "res://assets/models"
 const HAZARD_SCENES := {
@@ -23,6 +24,7 @@ var yarn_built := 0
 var gates_built := 0
 var shop_built := 0
 var water_built := 0
+var decals_built := 0
 
 
 func _ready() -> void:
@@ -53,6 +55,8 @@ func _container(name: String) -> Node3D:
 func build(data: Dictionary) -> void:
 	for p in data.get("props", []):
 		_build_prop(p)
+	for d in data.get("decals", []):
+		_build_decal(d)
 	for h in data.get("hideouts", []):
 		_build_hideout(h)
 	for s in data.get("spawn_points", []):
@@ -80,8 +84,9 @@ func _build_prop(p: Dictionary) -> void:
 	var model := (load(model_path) as PackedScene).instantiate() as Node3D
 	model.name = "Model"
 	body.add_child(model)
-	var colliders: Array = p.get("colliders", [])
-	if colliders.is_empty():
+	var solid := bool(p.get("solid", true))
+	var colliders: Array = p.get("colliders", []) if solid else []
+	if colliders.is_empty() and solid:
 		var aabb := _model_aabb(model)
 		colliders = [{"size": [aabb.size.x, aabb.size.y, aabb.size.z],
 			"offset": [aabb.position.x + aabb.size.x / 2, aabb.position.y + aabb.size.y / 2, aabb.position.z + aabb.size.z / 2]}]
@@ -98,6 +103,12 @@ func _build_prop(p: Dictionary) -> void:
 	body.global_position = _v3(p["pos"])
 	body.rotation_degrees.y = float(p.get("rot", 0))
 	Toon.apply(model, Toon.OUTLINE_FOOD if p.get("outline", false) else Toon.OUTLINE_NONE)
+	if not solid:
+		for mi in model.find_children("*", "MeshInstance3D", true, false):   # листья и трава видны с обеих сторон
+			for i in (mi as MeshInstance3D).mesh.get_surface_count():
+				var m := (mi as MeshInstance3D).get_surface_override_material(i) as StandardMaterial3D
+				if m:
+					m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	if bool(p.get("water", false)):
 		_make_water(model)
 		water_built += 1
@@ -117,6 +128,33 @@ func _make_water(model: Node3D) -> void:
 			m.roughness = 0.05
 			m.metallic = 0.0
 			m.metallic_specular = 1.0
+
+
+func _build_decal(d: Dictionary) -> void:
+	## Декаль: квад с текстурой из сгенерированной картинки; на асфальте плашмя, на стене вертикально.
+	var path := "res://" + String(d["texture"])
+	if not ResourceLoader.exists(path):
+		push_warning("нет текстуры декали " + path)
+		return
+	var mi := MeshInstance3D.new()
+	mi.name = "decal_%d" % decals_built
+	var quad := QuadMesh.new()
+	var size: Array = d.get("size", [1.0, 1.0])
+	quad.size = Vector2(size[0], size[1])
+	mi.mesh = quad
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = load(path)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	mat.alpha_scissor_threshold = 0.5
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.roughness = 0.9
+	mi.set_surface_override_material(0, mat)
+	_container("Decals").add_child(mi)
+	var pos := _v3(d["pos"])
+	var wall := bool(d.get("wall", false))
+	mi.global_position = pos + (Vector3.ZERO if wall else Vector3(0, 0.01, 0))
+	mi.rotation_degrees = Vector3(0.0, float(d.get("rot", 0)), 0.0) if wall else Vector3(-90.0, float(d.get("rot", 0)), 0.0)
+	decals_built += 1
 
 
 func _model_aabb(model: Node3D) -> AABB:

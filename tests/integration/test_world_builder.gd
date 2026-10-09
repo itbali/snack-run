@@ -166,3 +166,42 @@ func test_real_yard_puddles_are_water() -> void:
 	for p in data["props"]:
 		if p["model"] == "puddle":
 			assert_true(bool(p.get("water", false)), "лужи в раскладке помечены water")
+
+func test_decals_are_textured_quads_on_ground_and_walls() -> void:
+	var b := WorldBuilder.new()
+	add_child_autofree(b)
+	b.build({"decals": [
+		{"texture": "assets/images/world/decal_manhole.png", "pos": [1, 0, 2], "size": [1.0, 1.0]},
+		{"texture": "assets/images/world/poster_cafe.png", "pos": [0, 1.5, -13.9], "size": [1.2, 1.2], "rot": 0, "wall": true}]})
+	assert_eq(b.decals_built, 2)
+	if b.decals_built != 2:
+		return
+	var ground := b.get_node("Decals").get_child(0) as MeshInstance3D
+	assert_true(ground.mesh is QuadMesh)
+	assert_almost_eq(ground.global_position.y, 0.01, 0.001, "чуть над асфальтом")
+	assert_almost_eq(absf(ground.global_transform.basis.y.y), 0.0, 0.01, "лежит плашмя")
+	var wall := b.get_node("Decals").get_child(1) as MeshInstance3D
+	assert_almost_eq(wall.global_transform.basis.y.y, 1.0, 0.01, "стоит вертикально")
+	assert_not_null((ground.get_surface_override_material(0) as StandardMaterial3D).albedo_texture)
+
+func test_non_solid_props_have_no_collision() -> void:
+	var b := WorldBuilder.new()
+	add_child_autofree(b)
+	b.build({"props": [{"model": "grass", "pos": [0, 0, 0], "solid": false}, {"model": "ivy", "pos": [0, 1, -13.9], "solid": false}]})
+	assert_eq(b.props_built, 2)
+	for body in b.get_node("Props").get_children():
+		assert_eq(body.find_children("*", "CollisionShape3D", true, false).size(), 0, "%s без коллайдера" % body.name)
+
+func test_real_yard_has_greenery_and_decals() -> void:
+	var data := WorldBuilder.load_layout("res://data/layout/yard.json")
+	var models := {}
+	for p in data["props"]:
+		models[p["model"]] = models.get(p["model"], 0) + 1
+	assert_gte(models.get("bush", 0), 8, "кусты вдоль стен")
+	assert_gte(models.get("grass", 0), 10, "трава пучками")
+	assert_gte(models.get("ivy", 0), 3, "плющ на фасаде")
+	assert_gte(data.get("decals", []).size(), 6, "декали и плакаты")
+	var b := WorldBuilder.new()
+	add_child_autofree(b)
+	b.build(data)
+	assert_eq(b.decals_built, data.get("decals", []).size(), "все текстуры декалей существуют")
