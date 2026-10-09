@@ -5,7 +5,7 @@
 Отступы в GDScript и Makefile — табы; в Python проекта — тоже табы, кроме
 `palette.py` и тестов Blender (пробелы). Копировать как есть.
 
-Файлов: 323
+Файлов: 325
 
 ## `CLAUDE.md`
 
@@ -152,9 +152,11 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 
 **План 14:** отладочные ключи (`--screenshot/--at/--phase/--album`) включают `SaveGame.read_only` — кадры не трогают сохранение; маленькие опасности (краб) без слоя столкновений; у Area3D проверять `get_overlapping_bodies` при старте движения.
 
+**План 16:** одиночных стен не ставить — дома `house_*` (корпус за фасадом); мелочь — `decor` (MultiMesh клетками 30 м, тун в меше); `visibility_range` меряется от позиции узла.
+
 ## Статус и что дальше
 
-- Планы 10 «Рельеф», 11 «Двор ×3», 12 «Парк ×3, вода», 13 «Порт», 14 «Опасности порта» и 15 «Рыбалка» выполнены 2026-10-09/10 — этап 3 закрыт (спек `2026-10-09-snack-run-scale-terrain-design.md`). Дальше план 16 (наполнение и логика мира: кроны, трава, дома без «одной стены»), план 17 (обучение, помощь, переназначение клавиш); владелец: делать подряд, не ждать его оценки.
+- Планы 10 «Рельеф», 11 «Двор ×3», 12 «Парк ×3, вода», 13 «Порт», 14 «Опасности порта» и 15 «Рыбалка» и 16 «Наполнение и логика мира» выполнены 2026-10-09/10 — этап 3 закрыт (спек `2026-10-09-snack-run-scale-terrain-design.md`). Дальше план 17 (обучение, помощь, переназначение клавиш); владелец: делать подряд, не ждать его оценки.
 - Планы 1–9 выполнены и слиты в `main`: фундамент, игровой цикл, хаб и прогрессия, полировка, визуальная полировка, текстуры крупных поверхностей, этап 2 (сутки, парк, опасности парка). Отложенные мелочи — в дорожной карте.
 - Отложено по просьбе владельца: текстуры пропсов («потом вернёмся к текстурам»).
 - Открытый вопрос владельцу: лицензия весов UniMate для сгенерированных движений (код MIT, для весов явной лицензии не найдено).
@@ -6523,6 +6525,74 @@ func build(data: Dictionary) -> void:
 		_build_shore(m)
 	for f in data.get("floaters", []):
 		_build_floater(f)
+	_build_decor(data.get("decor", []))
+
+
+const DECOR_RANGE := 45.0
+
+
+const DECOR_CHUNK := 30.0
+
+
+func _build_decor(items: Array) -> void:
+	## Мелкие украшения (план 16): MultiMeshInstance3D на модель и клетку 30×30 м, без коллизий; высота — с рельефа.
+	## Узел стоит в центре клетки: visibility_range меряется от позиции узла, иначе весь район гас бы от центра мира.
+	var groups := {}
+	for it in items:
+		var p := _place(it)
+		var key := "%s|%d|%d" % [it["model"], int(floor(p.x / DECOR_CHUNK)), int(floor(p.z / DECOR_CHUNK))]
+		groups.get_or_add(key, []).append([it, p])
+	var meshes := {}
+	for key in groups:
+		var model_name: String = key.split("|")[0]
+		if not meshes.has(model_name):
+			meshes[model_name] = _decor_mesh(model_name)
+		var mesh: Mesh = meshes[model_name]
+		if mesh == null:
+			continue
+		var list: Array = groups[key]
+		var center := Vector3.ZERO
+		for e in list:
+			center += e[1]
+		center /= list.size()
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = mesh
+		mm.instance_count = list.size()
+		for i in list.size():
+			var it: Dictionary = list[i][0]
+			var k := float(it.get("scale", 1.0))
+			var basis := Basis(Vector3.UP, deg_to_rad(float(it.get("rot", 0)))).scaled(Vector3(k, k, k))
+			mm.set_instance_transform(i, Transform3D(basis, list[i][1] - center))
+		var node := MultiMeshInstance3D.new()
+		node.name = "Decor_%s_%d" % [model_name, _container("Decor").get_child_count()]
+		node.multimesh = mm
+		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		node.visibility_range_end = DECOR_RANGE
+		node.visibility_range_end_margin = 5.0
+		node.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+		_add_at(_container("Decor"), node, center, 0.0)
+
+
+func _decor_mesh(model_name: String) -> Mesh:
+	var path := "%s/%s.glb" % [MODELS_DIR, model_name]
+	if not ResourceLoader.exists(path):
+		push_warning("нет модели украшения " + path)
+		return null
+	var src := (load(path) as PackedScene).instantiate() as Node3D
+	add_child(src)   # Toon.apply работает с узлами в дереве
+	Toon.apply(src, Toon.OUTLINE_NONE)
+	var mi := src.find_children("*", "MeshInstance3D", true, false)
+	var mesh: Mesh = null
+	if not mi.is_empty():
+		var m3 := mi[0] as MeshInstance3D
+		mesh = m3.mesh.duplicate() as Mesh
+		for i in mesh.get_surface_count():
+			var mat := m3.get_surface_override_material(i)
+			if mat:
+				mesh.surface_set_material(i, mat)   # тун-материалы — в сам меш: у MultiMesh нет поверхностных override
+	src.queue_free()
+	return mesh
 
 
 func _build_floater(f: Dictionary) -> void:
@@ -10446,7 +10516,7 @@ func test_real_yard_layout_loads() -> void:
 	var models := {}
 	for p in data["props"]:
 		models[p["model"]] = true
-	for m in ["bench", "lamp", "car", "wall", "fence", "bag", "stairs", "bush", "tree", "puddle", "arch", "door"]:
+	for m in ["bench", "lamp", "car", "house_a", "fence", "bag", "stairs", "bush", "tree", "puddle", "arch"]:   # план 16: дома вместо стен и дверей
 		assert_true(models.has(m), "в раскладке есть " + m)
 	for m in ["cafe_table", "chair", "umbrella", "cafe_sign"]:
 		assert_true(models.has(m), "в раскладке есть " + m)
@@ -10602,7 +10672,7 @@ func test_wall_decals_and_ivy_hang_on_real_walls() -> void:
 	var data := WorldBuilder.load_layout("res://data/layout/yard.json")
 	var walls := []
 	for p in data["props"]:
-		if p["model"] == "wall":
+		if p["model"] == "wall" or String(p["model"]).begins_with("house"):   # план 16: фасады домов вместо стен
 			walls.append({"pos": WorldBuilder._v3(p["pos"]), "rot": int(p.get("rot", 0)) % 180})
 	var items := []
 	for dc in data["decals"]:
@@ -10669,6 +10739,94 @@ func test_gazebo_floor_and_posts_are_solid_but_inside_is_free() -> void:
 	q.position = Vector3(0.5, 0.6, 0.3)
 	q.collision_mask = Layers.WORLD
 	assert_eq(space.intersect_point(q).size(), 0, "внутри беседки свободно")
+
+func test_decor_is_multimesh_without_collision() -> void:
+	# План 16: тысячи украшений — один MultiMeshInstance3D на модель, без тел и коллизий, на рельефе.
+	var b = _builder()
+	var items := []
+	for i in 300:
+		items.append({"model": "decor_grass", "pos": [i % 20, 0, int(i / 20)], "rot": i * 7, "scale": 1.0})
+	items.append({"model": "decor_flowers", "pos": [3, 0, 3], "rot": 0, "scale": 1.2})
+	b.build({"decor": items})
+	var mms := b.find_children("*", "MultiMeshInstance3D", true, false)
+	assert_eq(mms.size(), 2, "по одному на модель")
+	var total := 0
+	for m in mms:
+		total += (m as MultiMeshInstance3D).multimesh.instance_count
+		assert_gt((m as MultiMeshInstance3D).visibility_range_end, 0.0, "гаснет вдали")
+	assert_eq(total, 301)
+	assert_eq(b.find_children("*", "StaticBody3D", true, false).size(), 0, "без коллизий")
+
+func test_decor_is_chunked_so_far_chunks_fade_independently() -> void:
+	# visibility_range меряется от позиции узла: украшения делятся на клетки 30×30 м, узел — в центре своей клетки.
+	var b = _builder()
+	b.build({"decor": [{"model": "decor_grass", "pos": [1, 0, 1]}, {"model": "decor_grass", "pos": [100, 0, 1]}]})
+	var mms := b.find_children("*", "MultiMeshInstance3D", true, false)
+	assert_eq(mms.size(), 2, "две клетки")
+	for m in mms:
+		var mm := (m as MultiMeshInstance3D).multimesh
+		var world_pos := (m as Node3D).global_transform * mm.get_instance_transform(0).origin
+		assert_lt((m as Node3D).global_position.distance_to(world_pos), 25.0, "узел рядом со своими украшениями")
+
+func test_decor_uses_toon_materials() -> void:
+	var b = _builder()
+	b.build({"decor": [{"model": "decor_flowers", "pos": [1, 0, 1]}]})
+	var mm := (b.find_children("*", "MultiMeshInstance3D", true, false)[0] as MultiMeshInstance3D).multimesh
+	var mat := mm.mesh.surface_get_material(0) as BaseMaterial3D
+	assert_not_null(mat)
+	if mat:
+		assert_eq(mat.diffuse_mode, BaseMaterial3D.DIFFUSE_TOON, "украшения в тун-свете, как весь мир")
+```
+
+## `tests/integration/test_world_logic.gd`
+
+```gdscript
+extends GutTest
+## План 16: логика мира (просьба владельца 2026-10-10) — нет одиночных стен и «домов из одной стены»,
+## дома — объёмы с крышей; районы наполнены украшениями; украшения не в воде.
+
+const DISTRICTS := {"yard": "res://data/layout/yard.json", "park": "res://data/layout/park.json", "port": "res://data/layout/port.json"}
+const MIN_DECOR := {"yard": 3000, "park": 2500, "port": 800}
+const WATER := {"park": -0.5, "port": -2.3}
+
+func test_no_free_standing_wall_modules() -> void:
+	for d in DISTRICTS:
+		for p in WorldBuilder.load_layout(DISTRICTS[d])["props"]:
+			assert_ne(p["model"], "wall", "%s: одиночная стена в %s — должен быть дом" % [d, p["pos"]])
+
+func test_houses_have_roofs_and_depth() -> void:
+	var world := Node3D.new()
+	add_child_autofree(world)
+	var b := WorldBuilder.new()
+	world.add_child(b)
+	var houses: Array = (WorldBuilder.load_layout(DISTRICTS["yard"])["props"] as Array).filter(func(p): return String(p["model"]).begins_with("house"))
+	assert_gt(houses.size(), 40, "двор окружён домами")
+	b.build({"props": houses.slice(0, 6)})
+	await wait_physics_frames(2)
+	var space := world.get_world_3d().direct_space_state
+	for p in houses.slice(0, 6):
+		var basis := Basis(Vector3.UP, deg_to_rad(float(p.get("rot", 0))))
+		var back := Vector3(p["pos"][0], 0, p["pos"][2]) + basis * Vector3(0, 0, -1.0)   # за фасадом — корпус
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(back + Vector3.UP * 20, back + Vector3.DOWN * 5, Layers.WORLD))
+		assert_false(hit.is_empty(), "дом %s имеет глубину" % [p["pos"]])
+		if not hit.is_empty():
+			assert_gt((hit["position"] as Vector3).y, 3.0, "крыша дома %s" % [p["pos"]])
+
+func test_districts_are_filled_with_decor() -> void:
+	for d in DISTRICTS:
+		var n: int = (WorldBuilder.load_layout(DISTRICTS[d]).get("decor", []) as Array).size()
+		assert_gte(n, MIN_DECOR[d], "%s: украшений %d" % [d, n])
+
+func test_decor_is_not_in_water() -> void:
+	for d in WATER:
+		var t := Terrain.new()
+		t.data_path = "res://data/terrain/%s.json" % d
+		add_child_autofree(t)
+		for it in WorldBuilder.load_layout(DISTRICTS[d]).get("decor", []):
+			var h := t.height_at(float(it["pos"][0]), float(it["pos"][2]))
+			if h < WATER[d]:
+				assert_true(false, "%s: украшение %s под водой" % [d, it["pos"]])
+				break
 ```
 
 ## `tests/integration/test_yard_x3.gd`
@@ -10743,19 +10901,19 @@ func test_garage_chain_steps_by_physics() -> void:
 	assert_almost_eq(tops[-1], 2.28, 0.05, "цепочка ведёт на крышу")
 
 func test_district_edge_is_closed() -> void:
-	# Review Focus 2: горизонтальный луч наружу на высоте кота упирается в стену по всему периметру, кроме прохода в парк.
+	# Review Focus 2 (план 16: край — ряд домов, фасады на 6 м внутрь): луч наружу перед фасадом упирается в дом.
 	var space := world.get_world_3d().direct_space_state
 	var checks := []
-	for x in range(-84, 85, 12):
-		checks.append([Vector3(x, 0.3, -147), Vector3(x, 0.3, -153)])
-		if absf(x) > 18:
-			checks.append([Vector3(x, 0.3, 27), Vector3(x, 0.3, 33)])
-	for z in range(-144, 25, 12):
-		checks.append([Vector3(-87, 0.3, z), Vector3(-93, 0.3, z)])
-		checks.append([Vector3(87, 0.3, z), Vector3(93, 0.3, z)])
+	for x in range(-80, 81, 8):
+		checks.append([Vector3(x, 0.3, -141), Vector3(x, 0.3, -153)])
+		if absf(x) > 16:
+			checks.append([Vector3(x, 0.3, 21), Vector3(x, 0.3, 33)])
+	for z in range(-138, 21, 8):
+		checks.append([Vector3(-81, 0.3, z), Vector3(-93, 0.3, z)])
+		checks.append([Vector3(81, 0.3, z), Vector3(93, 0.3, z)])
 	for c in checks:
 		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(c[0], c[1], Layers.WORLD))
-		assert_false(hit.is_empty(), "стена на краю у %s" % [c[0]])
+		assert_false(hit.is_empty(), "дом на краю у %s" % [c[0]])
 
 func test_zones_reachable_through_gaps() -> void:
 	# Review Focus 1: лестницы и пандусы террас стоят в проходах подпорных стен (луч вдоль подъёма не упирается в стену).
@@ -13021,20 +13179,15 @@ def build():
 ## `tools/blender/gen/bush.py`
 
 ```python
-"""Куст: три сферы."""
+"""Куст (план 16): шесть комковатых шапок разного размера и оттенка — пышный, не три шара (foliage.bush)."""
+import foliage
 import lib
 
-SPEC = {"max_tris": 800, "max_dim": 1.2}
+SPEC = {"max_tris": 1200, "max_dim": 1.3}
 
 
 def build():
-	a = lib.sphere("bush", radius=0.4, material="leaf")
-	a.location.z = 0.38
-	b = lib.sphere("bush_b", radius=0.3, material="olive")
-	b.location = (0.35, 0.1, 0.3)
-	c = lib.sphere("bush_c", radius=0.28, material="leaf")
-	c.location = (-0.3, -0.15, 0.28)
-	return lib.group([a, b, c])
+	return lib.group(foliage.bush("bush"))
 ```
 
 ## `tools/blender/gen/bush_flowers.py`
@@ -14624,20 +14777,30 @@ def build():
 ## `tools/blender/gen/tree.py`
 
 ```python
-"""Дерево 3,2 м: ствол и две сферы кроны."""
+"""Дерево 3,2 м (план 16): сужающийся ствол с двумя ветками и крона из шести комковатых шапок двух оттенков — не шар."""
+import math
+
 import lib
 
-SPEC = {"max_tris": 800, "max_dim": 3.3}
+SPEC = {"max_tris": 1500, "max_dim": 3.4}
+LUMPS = ((0.0, 0.0, 2.3, 0.75), (0.55, 0.2, 2.15, 0.5), (-0.5, 0.25, 2.2, 0.5), (0.1, -0.55, 2.2, 0.5),
+	(0.25, 0.3, 2.85, 0.48), (-0.25, -0.2, 2.75, 0.45))
 
 
 def build():
-	trunk = lib.cylinder("tree", radius=0.15, depth=1.6, material="brick", segments=10)
-	trunk.location.z = 0.8
-	crown = lib.sphere("tree_crown", radius=0.9, material="leaf")
-	crown.location.z = 2.2
-	crown2 = lib.sphere("tree_crown2", radius=0.6, material="olive")
-	crown2.location = (0.5, 0.3, 2.6)
-	return lib.group([trunk, crown, crown2])
+	trunk = lib.cone("tree", radius=0.18, depth=2.0, segments=8, material="brick", smooth=False)
+	trunk.location.z = 1.0
+	parts = [trunk]
+	for i, (a, tilt) in enumerate(((0.6, 0.7), (3.8, 0.6))):
+		br = lib.cylinder(f"tree_branch{i}", radius=0.05, depth=0.8, segments=6, material="brick", smooth=False)
+		br.rotation_euler = (tilt, 0, a)
+		br.location = (math.cos(a) * 0.2, math.sin(a) * 0.2, 1.7)
+		parts.append(br)
+	for i, (x, y, z, r) in enumerate(LUMPS):
+		c = lib.lumpy(f"tree_crown{i}", r, material="leaf" if i % 3 else "olive", seed=11 + i, segments=9, rings=6)
+		c.location = (x, y, z)
+		parts.append(c)
+	return lib.group(parts)
 ```
 
 ## `tools/blender/gen/tree_pine.py`
@@ -15188,6 +15351,18 @@ def join(name, objs):
 	bpy.context.scene.collection.objects.link(obj)
 	bpy.context.view_layer.update()
 	return obj
+
+
+def lumpy(name, radius, material=None, seed=1, amount=0.22, segments=10, rings=7):
+	"""Комковатая сфера: вершины сдвинуты по нормали на ±amount·radius (детерминированно по seed) — крона и куст не шар."""
+	import random as _random
+	rnd = _random.Random(seed)
+	bm = bmesh.new()
+	bmesh.ops.create_uvsphere(bm, u_segments=segments, v_segments=rings, radius=radius)
+	for v in bm.verts:
+		k = 1.0 + rnd.uniform(-amount, amount)
+		v.co = v.co * k
+	return _finish(name, bm, material, smooth=False)
 ```
 
 ## `tools/blender/palette.py`
@@ -15899,6 +16074,68 @@ class TestParkPeople(unittest.TestCase):
         mats = {m.name for m in objs[1].data.materials}
         self.assertEqual(mats, {"sr_asphalt", "sr_sea_light", "sr_coral"})
         self.assertEqual(lib.check_asset(objs, max_tris=1500, max_dim=0.35), [])
+```
+
+## `tools/blender/tests/test_world_fill.py`
+
+```python
+"""План 16: кроны и кусты не шары, дома — замкнутые объёмы, украшения — один меш (для MultiMesh)."""
+import importlib
+import math
+import unittest
+
+import bpy
+
+import lib
+
+
+def _build(name):
+	lib.clear_scene()
+	mod = importlib.import_module(f"gen.{name}")
+	importlib.reload(mod)
+	return mod.build()
+
+
+class TestFoliage(unittest.TestCase):
+	def test_lumpy_is_not_a_sphere(self):
+		lib.clear_scene()
+		o = lib.lumpy("l", 1.0, seed=3)
+		rs = [v.co.length for v in o.data.vertices]
+		self.assertGreater(max(rs) - min(rs), 0.2, "радиусы вершин разные — не шар")
+		o2 = lib.lumpy("l2", 1.0, seed=3)
+		self.assertEqual([round(v.co.length, 5) for v in o.data.vertices], [round(v.co.length, 5) for v in o2.data.vertices], "детерминированно")
+
+	def test_tree_crown_is_many_lumps(self):
+		objs = _build("tree")
+		crowns = [o for o in objs if o.name.startswith("tree_crown")]
+		self.assertGreaterEqual(len(crowns), 5)
+
+	def test_bush_is_many_lumps(self):
+		objs = _build("bush")
+		self.assertGreaterEqual(len(objs), 5)
+
+
+class TestHouses(unittest.TestCase):
+	def test_house_is_closed_box_behind_facade(self):
+		for name, floors, depth in (("house_a", 2, 6.0), ("house_b", 3, 6.0), ("house_shallow", 1, 1.8)):
+			objs = _build(name)
+			body = next(o for o in objs if o.name == "wall")
+			bpy.context.view_layer.update()
+			self.assertAlmostEqual(body.dimensions.x, 6.0, 1, name)
+			self.assertAlmostEqual(body.dimensions.y, depth, 1, name)
+			self.assertAlmostEqual(body.dimensions.z, floors * 3.1, 1, name)
+			ys = [(body.matrix_world @ v.co).y for v in body.data.vertices]
+			self.assertAlmostEqual(min(ys), -0.2, 1, f"{name}: фасад в плоскости прежней стены")
+			self.assertTrue(any(o.name.startswith("wall_glass") for o in objs), f"{name}: окна (ночью светятся)")
+			self.assertTrue(any(o.name.startswith("house_roof") or o.name.startswith("house_cap") for o in objs), f"{name}: крыша")
+
+
+class TestDecor(unittest.TestCase):
+	def test_decor_models_are_single_mesh(self):
+		for name in ("decor_grass", "decor_flowers", "decor_stones", "decor_leaves", "decor_litter", "decor_shell", "decor_reeds"):
+			objs = _build(name)
+			self.assertEqual(len(objs), 1, name)
+			self.assertEqual(objs[0].type, "MESH")
 ```
 
 ## `tools/replay/build_files_md.py`
@@ -17298,7 +17535,7 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
 
 ## Дальше (просьбы владельца 2026-10-10)
 
-- План 16. Наполнение и логика мира: кроны деревьев и кусты не шарами (составные кроны, листва), трава, цветы, камни,
+- План 16 — ВЫПОЛНЕН 2026-10-10 (`2026-10-10-snack-run-16-world-fill.md`). Наполнение и логика мира: кроны деревьев и кусты не шарами (составные кроны, листва), трава, цветы, камни,
   мусор и прочая мелочь по всем районам, чтобы уровни не были пустыми; проверка логики — нет бесконечных стен и «домов»
   из одной стены, дома — замкнутые объёмы с крышами, проходы осмысленны.
 - План 17. Обучение и помощь: короткое обучение в начале (подсказки по шагам: ходить, бежать, прыгать, прятаться, есть,
@@ -18855,7 +19092,7 @@ if __name__ == "__main__":
         -27,
         15,
         -13,
-        26
+        23
       ],
       "height": 1.0
     }
@@ -18931,7 +19168,7 @@ if __name__ == "__main__":
         -27,
         15,
         -13,
-        26
+        23
       ],
       "type": "paving"
     },
@@ -19209,81 +19446,96 @@ if __name__ == "__main__":
     {"model": "flowerbed", "pos": [-10, 0, 116], "rot": 0},
     {"model": "flowerbed", "pos": [10, 0, 116], "rot": 0},
     {"model": "flowerbed", "pos": [30, 0, 116], "rot": 0},
-    {"solid": false, "model": "bush", "pos": [-0.7, 0, 94.9], "rot": 75},
-    {"solid": false, "model": "bush", "pos": [4.7, 0, 72.3], "rot": 150},
-    {"solid": false, "model": "bush", "pos": [-13.7, 0, 82.5], "rot": 90},
-    {"solid": false, "model": "bush", "pos": [-6.3, 0, 101.7], "rot": 15},
-    {"solid": false, "model": "bush", "pos": [5.3, 0, 92.5], "rot": 270},
-    {"solid": false, "model": "bush", "pos": [-9.9, 0, 85.4], "rot": 90},
-    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [5.5, 0, 66.4], "rot": 90},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [30.7, 0, 40.3], "rot": 210},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [33.2, 0, 70.7], "rot": 255},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [29.7, 0, 67.7], "rot": 165},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [20.1, 0, 46.0], "rot": 75},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [37.7, 0, 49.6], "rot": 90},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [41.5, 0, 81.0], "rot": 345},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [27.6, 0, 52.1], "rot": 105},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [24.3, 0, 53.4], "rot": 285},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [37.1, 0, 45.3], "rot": 0},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [27.5, 0, 80.7], "rot": 120},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [18.8, 0, 37.3], "rot": 150},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [34.9, 0, 38.3], "rot": 75},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [23.1, 0, 67.6], "rot": 105},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [19.9, 0, 50.2], "rot": 0},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [28.8, 0, 61.9], "rot": 240},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [30.9, 0, 55.2], "rot": 15},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [35.4, 0, 80.5], "rot": 105},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [24.0, 0, 87.4], "rot": 285},
-    {"solid": false, "model": "bush", "pos": [20.9, 0, 54.8], "rot": 120},
-    {"solid": false, "model": "bush", "pos": [31.7, 0, 44.0], "rot": 195},
-    {"solid": false, "model": "bush", "pos": [34.7, 0, 50.5], "rot": 60},
-    {"solid": false, "model": "bush", "pos": [21.0, 0, 76.8], "rot": 105},
-    {"solid": false, "model": "bush", "pos": [26.8, 0, 71.6], "rot": 90},
-    {"solid": false, "model": "bush", "pos": [29.1, 0, 74.4], "rot": 195},
-    {"solid": false, "model": "bush", "pos": [39.6, 0, 69.3], "rot": 225},
-    {"solid": false, "model": "bush", "pos": [29.1, 0, 77.2], "rot": 15},
-    {"solid": false, "model": "bush", "pos": [36.4, 0, 63.1], "rot": 255},
-    {"solid": false, "model": "bush", "pos": [18.7, 0, 65.0], "rot": 270},
-    {"solid": false, "model": "bush", "pos": [30.2, 0, 59.1], "rot": 15},
-    {"solid": false, "model": "bush", "pos": [22.5, 0, 70.7], "rot": 195},
-    {"solid": false, "model": "bush", "pos": [25.0, 0, 46.5], "rot": 165},
-    {"solid": false, "model": "bush", "pos": [31.6, 0, 49.1], "rot": 135},
-    {"solid": false, "model": "bush", "pos": [-7.9, 0, 114.4], "rot": 75},
-    {"solid": false, "model": "bush", "pos": [-18.7, 0, 118.7], "rot": 75},
-    {"solid": false, "model": "bush", "pos": [24.9, 0, 114.0], "rot": 90},
-    {"solid": false, "model": "bush", "pos": [-30.3, 0, 106.0], "rot": 120},
-    {"solid": false, "model": "bush", "pos": [-40.2, 0, 115.1], "rot": 45},
-    {"solid": false, "model": "bush", "pos": [25.5, 0, 108.7], "rot": 120},
-    {"solid": false, "model": "bush", "pos": [-13.8, 0, 117.7], "rot": 240},
-    {"solid": false, "model": "bush", "pos": [-0.6, 0, 121.6], "rot": 15},
-    {"solid": false, "model": "grass", "pos": [31.7, 0, 115.0], "rot": 0},
-    {"solid": false, "model": "grass", "pos": [20.8, 0, 116.5], "rot": 300},
-    {"solid": false, "model": "grass", "pos": [41.3, 0, 121.0], "rot": 60},
-    {"solid": false, "model": "grass", "pos": [23.3, 0, 119.8], "rot": 180},
-    {"solid": false, "model": "grass", "pos": [-16.3, 0, 120.1], "rot": 240},
-    {"solid": false, "model": "grass", "pos": [4.8, 0, 101.0], "rot": 225},
-    {"solid": false, "model": "grass", "pos": [26.7, 0, 104.5], "rot": 300},
-    {"solid": false, "model": "grass", "pos": [-26.1, 0, 118.6], "rot": 135},
-    {"solid": false, "model": "grass", "pos": [36.7, 0, 122.6], "rot": 210},
-    {"solid": false, "model": "grass", "pos": [-41.1, 0, 120.9], "rot": 165},
-    {"solid": false, "model": "grass", "pos": [-11.6, 0, 111.5], "rot": 300},
-    {"solid": false, "model": "grass", "pos": [-25.8, 0, 102.3], "rot": 180},
-    {"solid": false, "model": "bush", "pos": [-37.9, 0, 118.3], "rot": 225},
-    {"solid": false, "model": "bush", "pos": [16.0, 0, 122.7], "rot": 285},
-    {"solid": false, "model": "bush", "pos": [-30.8, 0, 102.8], "rot": 60},
-    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [14.5, 0, 100.3], "rot": 90},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-39.8, 0, 40.6], "rot": 285},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-34.2, 0, 39.9], "rot": 300},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-34.7, 0, 44.1], "rot": 255},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-23.1, 0, 50.4], "rot": 285},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-21.9, 0, 38.5], "rot": 165},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-41.3, 0, 86.1], "rot": 45},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-36.1, 0, 90.2], "rot": 345},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-21.2, 0, 92.0], "rot": 270},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-31.6, 0, 85.0], "rot": 300},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-34.1, 0, 97.8], "rot": 225},
-    {"solid": false, "model": "bush", "pos": [-31.6, 0, 49.9], "rot": 90},
-    {"solid": false, "model": "bush", "pos": [-21.1, 0, 46.6], "rot": 120}
+    {"solid": false, "model": "bush", "pos": [-12.7, 0, 74.0], "rot": 15},
+    {"solid": false, "model": "bush", "pos": [-7.3, 0, 75.2], "rot": 300},
+    {"solid": false, "model": "bush", "pos": [4.9, 0, 99.5], "rot": 255},
+    {"solid": false, "model": "bush", "pos": [0.6, 0, 83.9], "rot": 45},
+    {"solid": false, "model": "bush", "pos": [-4.8, 0, 108.2], "rot": 225},
+    {"solid": false, "model": "bush", "pos": [1.0, 0, 79.4], "rot": 135},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-11.7, 0, 95.5], "rot": 0},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [37.5, 0, 84.0], "rot": 120},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [28.4, 0, 44.8], "rot": 30},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [33.3, 0, 78.2], "rot": 225},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [20.6, 0, 44.3], "rot": 75},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [36.4, 0, 58.4], "rot": 255},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [18.6, 0, 39.8], "rot": 240},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [24.5, 0, 40.1], "rot": 195},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [32.5, 0, 39.8], "rot": 210},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [24.5, 0, 48.8], "rot": 345},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [29.2, 0, 50.2], "rot": 210},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [28.7, 0, 62.3], "rot": 285},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [26.8, 0, 36.3], "rot": 0},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [19.6, 0, 71.9], "rot": 30},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [20.8, 0, 60.5], "rot": 225},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [29.3, 0, 58.5], "rot": 285},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [39.0, 0, 76.0], "rot": 90},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [37.1, 0, 37.2], "rot": 255},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [29.7, 0, 84.8], "rot": 0},
+    {"solid": false, "model": "bush", "pos": [40.5, 0, 71.4], "rot": 225},
+    {"solid": false, "model": "bush", "pos": [27.5, 0, 81.5], "rot": 225},
+    {"solid": false, "model": "bush", "pos": [32.7, 0, 73.2], "rot": 30},
+    {"solid": false, "model": "bush", "pos": [36.3, 0, 71.0], "rot": 165},
+    {"solid": false, "model": "bush", "pos": [25.2, 0, 86.0], "rot": 330},
+    {"solid": false, "model": "bush", "pos": [24.4, 0, 79.3], "rot": 225},
+    {"solid": false, "model": "bush", "pos": [42.1, 0, 84.6], "rot": 330},
+    {"solid": false, "model": "bush", "pos": [23.1, 0, 73.3], "rot": 285},
+    {"solid": false, "model": "bush", "pos": [25.8, 0, 66.4], "rot": 345},
+    {"solid": false, "model": "bush", "pos": [42.6, 0, 54.4], "rot": 0},
+    {"solid": false, "model": "bush", "pos": [39.8, 0, 87.3], "rot": 180},
+    {"solid": false, "model": "bush", "pos": [32.2, 0, 46.1], "rot": 30},
+    {"solid": false, "model": "bush", "pos": [42.6, 0, 49.6], "rot": 210},
+    {"solid": false, "model": "bush", "pos": [38.1, 0, 52.6], "rot": 240},
+    {"solid": false, "model": "bush", "pos": [-23.4, 0, 119.8], "rot": 195},
+    {"solid": false, "model": "bush", "pos": [-35.1, 0, 104.2], "rot": 0},
+    {"solid": false, "model": "bush", "pos": [18.7, 0, 107.4], "rot": 195},
+    {"solid": false, "model": "bush", "pos": [-42.3, 0, 114.1], "rot": 300},
+    {"solid": false, "model": "bush", "pos": [-15.2, 0, 104.7], "rot": 135},
+    {"solid": false, "model": "bush", "pos": [36.5, 0, 113.9], "rot": 90},
+    {"solid": false, "model": "bush", "pos": [-34.0, 0, 116.9], "rot": 30},
+    {"solid": false, "model": "bush", "pos": [-10.3, 0, 117.6], "rot": 135},
+    {"solid": false, "model": "grass", "pos": [42.8, 0, 107.8], "rot": 315},
+    {"solid": false, "model": "grass", "pos": [-35.1, 0, 118.6], "rot": 345},
+    {"solid": false, "model": "grass", "pos": [41.8, 0, 119.2], "rot": 0},
+    {"solid": false, "model": "grass", "pos": [29.3, 0, 105.3], "rot": 90},
+    {"solid": false, "model": "grass", "pos": [16.8, 0, 114.7], "rot": 240},
+    {"solid": false, "model": "grass", "pos": [25.9, 0, 113.7], "rot": 135},
+    {"solid": false, "model": "grass", "pos": [2.4, 0, 111.3], "rot": 300},
+    {"solid": false, "model": "grass", "pos": [-27.5, 0, 110.0], "rot": 150},
+    {"solid": false, "model": "grass", "pos": [-37.3, 0, 120.2], "rot": 60},
+    {"solid": false, "model": "grass", "pos": [6.0, 0, 120.3], "rot": 135},
+    {"solid": false, "model": "grass", "pos": [22.6, 0, 104.6], "rot": 300},
+    {"solid": false, "model": "grass", "pos": [-30.9, 0, 115.1], "rot": 210},
+    {"solid": false, "model": "bush", "pos": [-5.7, 0, 121.7], "rot": 135},
+    {"solid": false, "model": "bush", "pos": [-42.6, 0, 108.5], "rot": 135},
+    {"solid": false, "model": "bush", "pos": [13.6, 0, 103.9], "rot": 180},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [32.6, 0, 110.4], "rot": 90},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-26.1, 0, 43.5], "rot": 75},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-24.1, 0, 35.2], "rot": 105},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-40.5, 0, 42.9], "rot": 0},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-34.7, 0, 39.3], "rot": 240},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-39.3, 0, 49.7], "rot": 225},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-29.3, 0, 94.7], "rot": 135},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-39.0, 0, 93.5], "rot": 285},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-38.7, 0, 81.6], "rot": 240},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-23.2, 0, 91.2], "rot": 225},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-28.4, 0, 88.2], "rot": 0},
+    {"solid": false, "model": "bush", "pos": [-39.3, 0, 89.0], "rot": 0},
+    {"solid": false, "model": "bush", "pos": [-30.3, 0, 85.2], "rot": 90},
+    {"model": "tree_pine", "pos": [19.6, 0, 65.4], "rot": 30, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [36.6, 0, 65.8], "rot": 345, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [18.7, 0, 48.5], "rot": 120, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [33.0, 0, 52.3], "rot": 195, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [18.8, 0, 79.5], "rot": 255, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [18.1, 0, 85.1], "rot": 330, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [-42.9, 0, 95.3], "rot": 105, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [-35.3, 0, 97.3], "rot": 120, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [-41.9, 0, 85.5], "rot": 255, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "bush_flowers", "pos": [-38.7, 0, 104.2], "rot": 150},
+    {"model": "bush_flowers", "pos": [-25.9, 0, 100.5], "rot": 345},
+    {"model": "bush_flowers", "pos": [32.2, 0, 116.0], "rot": 330},
+    {"model": "bush_flowers", "pos": [-19.5, 0, 122.9], "rot": 135},
+    {"model": "bush_flowers", "pos": [8.7, 0, 110.0], "rot": 15},
+    {"model": "bush_flowers", "pos": [-10.8, 0, 106.9], "rot": 60}
   ],
   "hideouts": [
     {"kind": "bush", "pos": [-13, 0.25, 50], "size": [0.9, 0.5, 0.9]},
@@ -19292,17 +19544,17 @@ if __name__ == "__main__":
     {"kind": "bench", "pos": [4, 0.2, 52], "rot": -90, "size": [1.2, 0.4, 0.35]},
     {"kind": "bench", "pos": [-4, 0.2, 34], "rot": 90, "size": [1.2, 0.4, 0.35]},
     {"kind": "slide", "pos": [-9, 0.3, 38], "size": [0.9, 0.5, 0.9]},
-    {"kind": "bench", "pos": [5.5, 0.2, 66.4], "rot": 90, "size": [1.3, 0.4, 0.4]},
-    {"kind": "bush", "pos": [30.2, 0.25, 59.1], "size": [0.9, 0.5, 0.9]},
-    {"kind": "bush", "pos": [22.5, 0.25, 70.7], "size": [0.9, 0.5, 0.9]},
-    {"kind": "bush", "pos": [25.0, 0.25, 46.5], "size": [0.9, 0.5, 0.9]},
-    {"kind": "bush", "pos": [31.6, 0.25, 49.1], "size": [0.9, 0.5, 0.9]},
-    {"kind": "bush", "pos": [-37.9, 0.25, 118.3], "size": [0.9, 0.5, 0.9]},
-    {"kind": "bush", "pos": [16.0, 0.25, 122.7], "size": [0.9, 0.5, 0.9]},
-    {"kind": "bush", "pos": [-30.8, 0.25, 102.8], "size": [0.9, 0.5, 0.9]},
-    {"kind": "bench", "pos": [14.5, 0.2, 100.3], "rot": 90, "size": [1.3, 0.4, 0.4]},
-    {"kind": "bush", "pos": [-31.6, 0.25, 49.9], "size": [0.9, 0.5, 0.9]},
-    {"kind": "bush", "pos": [-21.1, 0.25, 46.6], "size": [0.9, 0.5, 0.9]}
+    {"kind": "bench", "pos": [-11.7, 0.2, 95.5], "rot": 0, "size": [1.3, 0.4, 0.4]},
+    {"kind": "bush", "pos": [39.8, 0.25, 87.3], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bush", "pos": [32.2, 0.25, 46.1], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bush", "pos": [42.6, 0.25, 49.6], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bush", "pos": [38.1, 0.25, 52.6], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bush", "pos": [-5.7, 0.25, 121.7], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bush", "pos": [-42.6, 0.25, 108.5], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bush", "pos": [13.6, 0.25, 103.9], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bench", "pos": [32.6, 0.2, 110.4], "rot": 90, "size": [1.3, 0.4, 0.4]},
+    {"kind": "bush", "pos": [-39.3, 0.25, 89.0], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bush", "pos": [-30.3, 0.25, 85.2], "size": [0.9, 0.5, 0.9]}
   ],
   "spawn_points": [
     {"pos": [8, 0, 39.3], "allowed": [0], "foods": ["popcorn", "bagel"]},
@@ -19318,28 +19570,28 @@ if __name__ == "__main__":
     {"pos": [-6.3, 0, 35.2], "allowed": [2], "foods": ["cotton_candy"]},
     {"pos": [1.45, 0.45, 45], "allowed": [3], "foods": ["cupcake"]},
     {"pos": [0, 0.3, 92], "allowed": [2], "foods": ["cotton_candy"]},
-    {"pos": [-11.9, 0, 95.6], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
-    {"pos": [-4.6, 0, 82.6], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
-    {"pos": [9.6, 0, 64.9], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
-    {"pos": [-12.3, 0, 106.1], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
-    {"pos": [0.2, 0, 68.2], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
-    {"pos": [33.6, 0, 83.8], "allowed": [0, 1, 3], "foods": ["popcorn", "bagel", "corn", "sandwich", "cupcake"]},
-    {"pos": [42.0, 0, 75.5], "allowed": [0, 1, 3], "foods": ["popcorn", "bagel", "corn", "sandwich", "cupcake"]},
-    {"pos": [32.1, 0, 36.9], "allowed": [0, 1, 3], "foods": ["popcorn", "bagel", "corn", "sandwich", "cupcake"]},
-    {"pos": [37.9, 0, 82.7], "allowed": [0, 1, 3], "foods": ["popcorn", "bagel", "corn", "sandwich", "cupcake"]},
-    {"pos": [40.8, 0, 63.8], "allowed": [0, 1, 3], "foods": ["popcorn", "bagel", "corn", "sandwich", "cupcake"]},
-    {"pos": [37.7, 0, 55.7], "allowed": [0, 1, 3], "foods": ["popcorn", "bagel", "corn", "sandwich", "cupcake"]},
-    {"pos": [30.3, 0, 120.5], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
-    {"pos": [-41.2, 0, 103.6], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
-    {"pos": [22.1, 0, 108.4], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
-    {"pos": [-34.1, 0, 119.4], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
-    {"pos": [39.8, 0, 108.6], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
-    {"pos": [-36.8, 0, 121.1], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
-    {"pos": [-27.5, 0, 43.7], "allowed": [0, 1], "foods": ["popcorn", "bagel", "corn", "sandwich"]},
-    {"pos": [-33.8, 0, 52.9], "allowed": [0, 1], "foods": ["popcorn", "bagel", "corn", "sandwich"]},
-    {"pos": [-31.0, 0, 34.8], "allowed": [0, 1], "foods": ["popcorn", "bagel", "corn", "sandwich"]},
-    {"pos": [-34.6, 0, 86.6], "allowed": [1, 2], "foods": ["corn", "sandwich", "cotton_candy"]},
-    {"pos": [-25.9, 0, 87.2], "allowed": [1, 2], "foods": ["corn", "sandwich", "cotton_candy"]}
+    {"pos": [7.1, 0, 84.2], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [5.8, 0, 87.2], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [-14.0, 0, 82.8], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [12.4, 0, 78.1], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [0.4, 0, 66.4], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [41.4, 0, 63.4], "allowed": [0, 1, 3], "foods": ["popcorn", "bagel", "corn", "sandwich", "cupcake"]},
+    {"pos": [33.7, 0, 60.5], "allowed": [0, 1, 3], "foods": ["popcorn", "bagel", "corn", "sandwich", "cupcake"]},
+    {"pos": [21.7, 0, 83.0], "allowed": [0, 1, 3], "foods": ["popcorn", "bagel", "corn", "sandwich", "cupcake"]},
+    {"pos": [18.1, 0, 36.1], "allowed": [0, 1, 3], "foods": ["popcorn", "bagel", "corn", "sandwich", "cupcake"]},
+    {"pos": [31.2, 0, 64.5], "allowed": [0, 1, 3], "foods": ["popcorn", "bagel", "corn", "sandwich", "cupcake"]},
+    {"pos": [35.5, 0, 42.1], "allowed": [0, 1, 3], "foods": ["popcorn", "bagel", "corn", "sandwich", "cupcake"]},
+    {"pos": [22.6, 0, 118.2], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [10.5, 0, 119.4], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [-38.6, 0, 113.6], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [12.3, 0, 100.3], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [37.5, 0, 107.8], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [-18.8, 0, 109.5], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [-25.1, 0, 31.2], "allowed": [0, 1], "foods": ["popcorn", "bagel", "corn", "sandwich"]},
+    {"pos": [-39.9, 0, 35.4], "allowed": [0, 1], "foods": ["popcorn", "bagel", "corn", "sandwich"]},
+    {"pos": [-22.7, 0, 50.8], "allowed": [0, 1], "foods": ["popcorn", "bagel", "corn", "sandwich"]},
+    {"pos": [-21.5, 0, 82.2], "allowed": [1, 2], "foods": ["corn", "sandwich", "cotton_candy"]},
+    {"pos": [-24.0, 0, 87.3], "allowed": [1, 2], "foods": ["corn", "sandwich", "cotton_candy"]}
   ],
   "yarn": [
     {"pos": [-1.45, 0.45, 45]},
@@ -19356,20 +19608,20 @@ if __name__ == "__main__":
     {"pos": [7.6, 0, 47.3]},
     {"pos": [0.8, 0.3, 92.6]},
     {"pos": [-0.8, 0.3, 91.4]},
-    {"pos": [13.6, 0, 107.5]},
-    {"pos": [-10.2, 0, 78.4]},
-    {"pos": [25.8, 0, 84.6]},
-    {"pos": [27.9, 0, 48.8]},
-    {"pos": [35.4, 0, 75.5]},
-    {"pos": [27.1, 0, 37.5]},
-    {"pos": [-6.6, 0, 118.5]},
-    {"pos": [5.6, 0, 121.2]},
-    {"pos": [8.0, 0, 113.5]},
-    {"pos": [-3.4, 0, 107.7]},
-    {"pos": [12.9, 0, 119.1]},
-    {"pos": [-41.1, 0, 45.8]},
-    {"pos": [-40.4, 0, 36.5]},
-    {"pos": [-21.9, 0, 97.8]}
+    {"pos": [6.2, 0, 106.6]},
+    {"pos": [6.4, 0, 96.8]},
+    {"pos": [32.5, 0, 82.8]},
+    {"pos": [28.6, 0, 72.1]},
+    {"pos": [43.0, 0, 43.2]},
+    {"pos": [37.8, 0, 44.4]},
+    {"pos": [31.5, 0, 119.3]},
+    {"pos": [6.2, 0, 114.4]},
+    {"pos": [20.5, 0, 101.2]},
+    {"pos": [-1.5, 0, 111.3]},
+    {"pos": [-31.3, 0, 100.8]},
+    {"pos": [-32.7, 0, 31.5]},
+    {"pos": [-17.8, 0, 38.3]},
+    {"pos": [-18.6, 0, 96.5]}
   ],
   "hazards": [
     {"type": "pigeons", "pos": [3.2, 0, 47.5]},
@@ -19409,6 +19661,3218 @@ if __name__ == "__main__":
     {"pos": [-19.16, 0, 57.16]}
   ],
   "floaters": [
+  ],
+  "decor": [
+    {"model": "decor_grass", "pos": [-2.24, 0, 92.14], "rot": 220, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-43.04, 0, 65.85], "rot": 170, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-3.5, 0, 111.38], "rot": 140, "scale": 1.03},
+    {"model": "decor_grass", "pos": [14.2, 0, 44.51], "rot": 280, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-14.11, 0, 50.55], "rot": 120, "scale": 0.74},
+    {"model": "decor_grass", "pos": [16.45, 0, 62.34], "rot": 250, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-36.31, 0, 116.46], "rot": 320, "scale": 0.83},
+    {"model": "decor_grass", "pos": [43.07, 0, 70.41], "rot": 280, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-6.76, 0, 43.56], "rot": 200, "scale": 1.23},
+    {"model": "decor_grass", "pos": [5.12, 0, 121.78], "rot": 30, "scale": 1.03},
+    {"model": "decor_grass", "pos": [0.64, 0, 38.78], "rot": 260, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-2.68, 0, 87.66], "rot": 340, "scale": 0.72},
+    {"model": "decor_grass", "pos": [19.92, 0, 120.97], "rot": 160, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-12.04, 0, 95.18], "rot": 190, "scale": 0.77},
+    {"model": "decor_grass", "pos": [1.0, 0, 106.34], "rot": 320, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-10.48, 0, 110.89], "rot": 20, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-9.83, 0, 102.79], "rot": 60, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-24.58, 0, 38.25], "rot": 170, "scale": 0.72},
+    {"model": "decor_grass", "pos": [12.05, 0, 35.84], "rot": 290, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-14.11, 0, 73.37], "rot": 300, "scale": 0.84},
+    {"model": "decor_grass", "pos": [42.99, 0, 74.22], "rot": 350, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-27.35, 0, 100.61], "rot": 0, "scale": 1.27},
+    {"model": "decor_grass", "pos": [36.56, 0, 105.53], "rot": 110, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-43.24, 0, 34.72], "rot": 70, "scale": 1.29},
+    {"model": "decor_grass", "pos": [43.87, 0, 77.83], "rot": 10, "scale": 1.26},
+    {"model": "decor_grass", "pos": [33.61, 0, 93.18], "rot": 170, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-23.8, 0, 80.03], "rot": 300, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-12.87, 0, 94.66], "rot": 280, "scale": 1.24},
+    {"model": "decor_grass", "pos": [32.84, 0, 56.88], "rot": 320, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-4.83, 0, 104.67], "rot": 180, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-41.49, 0, 31.34], "rot": 10, "scale": 0.78},
+    {"model": "decor_grass", "pos": [34.01, 0, 70.09], "rot": 150, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-2.48, 0, 36.47], "rot": 160, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-7.25, 0, 85.72], "rot": 250, "scale": 1.17},
+    {"model": "decor_grass", "pos": [7.05, 0, 63.32], "rot": 230, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-10.12, 0, 45.97], "rot": 90, "scale": 1.24},
+    {"model": "decor_grass", "pos": [26.2, 0, 114.47], "rot": 260, "scale": 1.02},
+    {"model": "decor_grass", "pos": [25.44, 0, 66.29], "rot": 60, "scale": 1.13},
+    {"model": "decor_grass", "pos": [25.78, 0, 94.85], "rot": 310, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-33.02, 0, 80.69], "rot": 250, "scale": 1.05},
+    {"model": "decor_grass", "pos": [16.41, 0, 98.03], "rot": 190, "scale": 1.12},
+    {"model": "decor_grass", "pos": [22.85, 0, 92.32], "rot": 270, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-41.38, 0, 76.37], "rot": 280, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-39.01, 0, 86.26], "rot": 290, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-15.18, 0, 118.77], "rot": 0, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-11.75, 0, 109.94], "rot": 270, "scale": 0.88},
+    {"model": "decor_grass", "pos": [35.44, 0, 61.92], "rot": 320, "scale": 0.98},
+    {"model": "decor_grass", "pos": [9.37, 0, 109.39], "rot": 150, "scale": 0.98},
+    {"model": "decor_grass", "pos": [25.12, 0, 35.58], "rot": 140, "scale": 0.94},
+    {"model": "decor_grass", "pos": [17.5, 0, 104.64], "rot": 330, "scale": 1.1},
+    {"model": "decor_grass", "pos": [14.37, 0, 121.44], "rot": 350, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-16.54, 0, 101.86], "rot": 10, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-0.01, 0, 64.56], "rot": 190, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-2.02, 0, 105.48], "rot": 80, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-39.96, 0, 105.74], "rot": 180, "scale": 0.95},
+    {"model": "decor_grass", "pos": [11.22, 0, 57.3], "rot": 200, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-21.18, 0, 34.03], "rot": 240, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-8.19, 0, 66.31], "rot": 240, "scale": 1.26},
+    {"model": "decor_grass", "pos": [27.69, 0, 47.99], "rot": 130, "scale": 1.2},
+    {"model": "decor_grass", "pos": [34.11, 0, 111.76], "rot": 220, "scale": 1.29},
+    {"model": "decor_grass", "pos": [36.52, 0, 102.69], "rot": 190, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-25.41, 0, 112.82], "rot": 10, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-40.25, 0, 106.36], "rot": 120, "scale": 0.8},
+    {"model": "decor_grass", "pos": [18.99, 0, 58.58], "rot": 120, "scale": 1.29},
+    {"model": "decor_grass", "pos": [24.07, 0, 81.79], "rot": 10, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-35.0, 0, 94.7], "rot": 340, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-35.36, 0, 31.58], "rot": 80, "scale": 1.18},
+    {"model": "decor_grass", "pos": [0.46, 0, 90.11], "rot": 290, "scale": 0.91},
+    {"model": "decor_grass", "pos": [29.95, 0, 110.31], "rot": 330, "scale": 0.72},
+    {"model": "decor_grass", "pos": [30.35, 0, 32.91], "rot": 90, "scale": 0.99},
+    {"model": "decor_grass", "pos": [31.28, 0, 95.21], "rot": 270, "scale": 1.03},
+    {"model": "decor_grass", "pos": [40.71, 0, 65.87], "rot": 40, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-32.62, 0, 36.8], "rot": 60, "scale": 0.95},
+    {"model": "decor_grass", "pos": [26.91, 0, 108.83], "rot": 150, "scale": 0.72},
+    {"model": "decor_grass", "pos": [16.42, 0, 83.53], "rot": 10, "scale": 1.06},
+    {"model": "decor_grass", "pos": [7.66, 0, 105.71], "rot": 130, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-14.37, 0, 91.44], "rot": 200, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-9.61, 0, 92.01], "rot": 210, "scale": 1.27},
+    {"model": "decor_grass", "pos": [42.83, 0, 102.17], "rot": 230, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-26.62, 0, 42.46], "rot": 270, "scale": 1.14},
+    {"model": "decor_grass", "pos": [28.67, 0, 101.43], "rot": 210, "scale": 1.06},
+    {"model": "decor_grass", "pos": [23.34, 0, 113.01], "rot": 310, "scale": 0.91},
+    {"model": "decor_grass", "pos": [34.27, 0, 90.1], "rot": 230, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-13.96, 0, 55.79], "rot": 80, "scale": 1.2},
+    {"model": "decor_grass", "pos": [14.63, 0, 71.95], "rot": 170, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-7.17, 0, 40.52], "rot": 310, "scale": 0.8},
+    {"model": "decor_grass", "pos": [4.23, 0, 86.41], "rot": 170, "scale": 0.93},
+    {"model": "decor_grass", "pos": [43.79, 0, 61.72], "rot": 320, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-37.74, 0, 89.1], "rot": 130, "scale": 1.26},
+    {"model": "decor_grass", "pos": [10.61, 0, 88.29], "rot": 90, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-14.75, 0, 92.15], "rot": 250, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-15.08, 0, 80.98], "rot": 330, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-21.98, 0, 106.31], "rot": 50, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-19.13, 0, 109.23], "rot": 140, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-19.89, 0, 42.35], "rot": 130, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-1.86, 0, 120.19], "rot": 290, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-1.45, 0, 72.05], "rot": 240, "scale": 0.92},
+    {"model": "decor_grass", "pos": [18.93, 0, 100.89], "rot": 150, "scale": 1.05},
+    {"model": "decor_grass", "pos": [25.03, 0, 76.1], "rot": 210, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-17.02, 0, 33.29], "rot": 180, "scale": 0.93},
+    {"model": "decor_grass", "pos": [41.11, 0, 114.93], "rot": 90, "scale": 1.11},
+    {"model": "decor_grass", "pos": [1.79, 0, 84.68], "rot": 110, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-7.58, 0, 35.82], "rot": 30, "scale": 0.97},
+    {"model": "decor_grass", "pos": [2.74, 0, 53.85], "rot": 130, "scale": 0.77},
+    {"model": "decor_grass", "pos": [29.21, 0, 66.31], "rot": 310, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-35.8, 0, 48.91], "rot": 140, "scale": 0.93},
+    {"model": "decor_grass", "pos": [2.53, 0, 54.84], "rot": 330, "scale": 1.19},
+    {"model": "decor_grass", "pos": [25.11, 0, 42.7], "rot": 130, "scale": 1.16},
+    {"model": "decor_grass", "pos": [4.55, 0, 104.6], "rot": 160, "scale": 0.72},
+    {"model": "decor_grass", "pos": [4.08, 0, 72.25], "rot": 310, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-27.69, 0, 108.91], "rot": 30, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-42.11, 0, 76.95], "rot": 220, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-36.52, 0, 81.81], "rot": 330, "scale": 0.97},
+    {"model": "decor_grass", "pos": [25.4, 0, 121.35], "rot": 350, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-43.29, 0, 77.91], "rot": 260, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-41.86, 0, 105.04], "rot": 330, "scale": 1.11},
+    {"model": "decor_grass", "pos": [1.34, 0, 67.61], "rot": 50, "scale": 1.17},
+    {"model": "decor_grass", "pos": [15.6, 0, 111.83], "rot": 230, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-13.5, 0, 91.84], "rot": 20, "scale": 0.77},
+    {"model": "decor_grass", "pos": [27.08, 0, 36.95], "rot": 90, "scale": 0.78},
+    {"model": "decor_grass", "pos": [41.02, 0, 80.55], "rot": 110, "scale": 1.03},
+    {"model": "decor_grass", "pos": [34.96, 0, 63.84], "rot": 140, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-42.28, 0, 44.44], "rot": 290, "scale": 1.04},
+    {"model": "decor_grass", "pos": [17.7, 0, 100.89], "rot": 160, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-18.88, 0, 101.27], "rot": 270, "scale": 0.82},
+    {"model": "decor_grass", "pos": [39.99, 0, 117.64], "rot": 220, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-7.49, 0, 61.25], "rot": 190, "scale": 1.02},
+    {"model": "decor_grass", "pos": [2.62, 0, 122.82], "rot": 0, "scale": 0.88},
+    {"model": "decor_grass", "pos": [32.73, 0, 60.31], "rot": 30, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-22.95, 0, 81.72], "rot": 130, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-36.31, 0, 120.15], "rot": 110, "scale": 1.15},
+    {"model": "decor_grass", "pos": [43.44, 0, 122.77], "rot": 210, "scale": 1.3},
+    {"model": "decor_grass", "pos": [24.58, 0, 71.66], "rot": 230, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-39.47, 0, 120.22], "rot": 200, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-1.76, 0, 49.95], "rot": 140, "scale": 1.07},
+    {"model": "decor_grass", "pos": [28.7, 0, 93.2], "rot": 310, "scale": 1.24},
+    {"model": "decor_grass", "pos": [38.04, 0, 78.84], "rot": 290, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-9.69, 0, 62.27], "rot": 120, "scale": 1.21},
+    {"model": "decor_grass", "pos": [15.66, 0, 85.9], "rot": 100, "scale": 1.02},
+    {"model": "decor_grass", "pos": [19.11, 0, 122.68], "rot": 70, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-7.8, 0, 47.35], "rot": 40, "scale": 0.9},
+    {"model": "decor_grass", "pos": [42.93, 0, 94.62], "rot": 330, "scale": 0.75},
+    {"model": "decor_grass", "pos": [13.66, 0, 115.46], "rot": 100, "scale": 1.28},
+    {"model": "decor_grass", "pos": [36.4, 0, 91.46], "rot": 90, "scale": 0.75},
+    {"model": "decor_grass", "pos": [17.72, 0, 98.26], "rot": 100, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-2.48, 0, 110.22], "rot": 80, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-36.21, 0, 118.27], "rot": 350, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-30.92, 0, 121.93], "rot": 310, "scale": 1.18},
+    {"model": "decor_grass", "pos": [41.43, 0, 114.11], "rot": 330, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-22.21, 0, 110.95], "rot": 160, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-9.43, 0, 82.0], "rot": 340, "scale": 1.23},
+    {"model": "decor_grass", "pos": [14.93, 0, 70.67], "rot": 20, "scale": 0.97},
+    {"model": "decor_grass", "pos": [1.8, 0, 120.67], "rot": 270, "scale": 1.16},
+    {"model": "decor_grass", "pos": [5.0, 0, 93.51], "rot": 10, "scale": 0.7},
+    {"model": "decor_grass", "pos": [20.61, 0, 44.08], "rot": 190, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-36.17, 0, 91.56], "rot": 340, "scale": 1.19},
+    {"model": "decor_grass", "pos": [0.93, 0, 104.76], "rot": 40, "scale": 1.18},
+    {"model": "decor_grass", "pos": [36.6, 0, 33.37], "rot": 210, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-43.06, 0, 40.99], "rot": 0, "scale": 0.86},
+    {"model": "decor_grass", "pos": [34.25, 0, 55.47], "rot": 220, "scale": 0.77},
+    {"model": "decor_grass", "pos": [8.36, 0, 100.05], "rot": 270, "scale": 1.19},
+    {"model": "decor_grass", "pos": [24.92, 0, 65.56], "rot": 170, "scale": 1.25},
+    {"model": "decor_grass", "pos": [43.88, 0, 40.85], "rot": 170, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-15.33, 0, 118.22], "rot": 300, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-43.65, 0, 38.91], "rot": 0, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-5.44, 0, 77.4], "rot": 340, "scale": 1.22},
+    {"model": "decor_grass", "pos": [36.63, 0, 67.53], "rot": 240, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-35.85, 0, 113.63], "rot": 100, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-29.2, 0, 123.04], "rot": 280, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-17.77, 0, 98.67], "rot": 30, "scale": 0.7},
+    {"model": "decor_grass", "pos": [5.34, 0, 101.37], "rot": 110, "scale": 1.25},
+    {"model": "decor_grass", "pos": [26.7, 0, 69.47], "rot": 50, "scale": 1.07},
+    {"model": "decor_grass", "pos": [43.03, 0, 31.55], "rot": 290, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-42.18, 0, 62.3], "rot": 150, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-38.75, 0, 43.54], "rot": 0, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-24.04, 0, 41.12], "rot": 90, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-11.53, 0, 110.65], "rot": 230, "scale": 0.83},
+    {"model": "decor_grass", "pos": [41.15, 0, 88.91], "rot": 50, "scale": 1.21},
+    {"model": "decor_grass", "pos": [37.15, 0, 83.05], "rot": 300, "scale": 0.81},
+    {"model": "decor_grass", "pos": [11.18, 0, 97.97], "rot": 210, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-27.64, 0, 45.0], "rot": 280, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-38.95, 0, 78.77], "rot": 150, "scale": 1.16},
+    {"model": "decor_grass", "pos": [18.07, 0, 119.48], "rot": 100, "scale": 1.03},
+    {"model": "decor_grass", "pos": [11.22, 0, 111.32], "rot": 210, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-40.42, 0, 122.42], "rot": 60, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-38.72, 0, 114.1], "rot": 270, "scale": 1.17},
+    {"model": "decor_grass", "pos": [7.04, 0, 91.29], "rot": 300, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-6.35, 0, 53.62], "rot": 300, "scale": 0.94},
+    {"model": "decor_grass", "pos": [11.28, 0, 85.55], "rot": 290, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-14.97, 0, 97.97], "rot": 140, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-19.29, 0, 86.29], "rot": 40, "scale": 0.82},
+    {"model": "decor_grass", "pos": [28.61, 0, 108.02], "rot": 10, "scale": 0.8},
+    {"model": "decor_grass", "pos": [5.25, 0, 113.0], "rot": 270, "scale": 1.22},
+    {"model": "decor_grass", "pos": [42.78, 0, 95.8], "rot": 270, "scale": 0.8},
+    {"model": "decor_grass", "pos": [36.09, 0, 114.0], "rot": 350, "scale": 1.0},
+    {"model": "decor_grass", "pos": [16.04, 0, 116.98], "rot": 110, "scale": 0.71},
+    {"model": "decor_grass", "pos": [37.64, 0, 40.62], "rot": 150, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-21.43, 0, 97.52], "rot": 180, "scale": 0.97},
+    {"model": "decor_grass", "pos": [11.17, 0, 73.46], "rot": 40, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-43.51, 0, 90.45], "rot": 330, "scale": 1.22},
+    {"model": "decor_grass", "pos": [3.17, 0, 81.35], "rot": 90, "scale": 1.16},
+    {"model": "decor_grass", "pos": [2.88, 0, 116.27], "rot": 10, "scale": 1.24},
+    {"model": "decor_grass", "pos": [10.77, 0, 33.77], "rot": 280, "scale": 1.21},
+    {"model": "decor_grass", "pos": [38.19, 0, 35.02], "rot": 220, "scale": 0.74},
+    {"model": "decor_grass", "pos": [39.44, 0, 40.71], "rot": 350, "scale": 0.87},
+    {"model": "decor_grass", "pos": [5.09, 0, 94.8], "rot": 130, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-34.44, 0, 45.6], "rot": 310, "scale": 1.06},
+    {"model": "decor_grass", "pos": [33.01, 0, 121.57], "rot": 120, "scale": 1.16},
+    {"model": "decor_grass", "pos": [11.12, 0, 81.28], "rot": 50, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-31.08, 0, 104.6], "rot": 240, "scale": 0.92},
+    {"model": "decor_grass", "pos": [0.42, 0, 86.73], "rot": 350, "scale": 1.0},
+    {"model": "decor_grass", "pos": [14.83, 0, 36.26], "rot": 140, "scale": 0.79},
+    {"model": "decor_grass", "pos": [27.36, 0, 72.61], "rot": 210, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-25.95, 0, 95.11], "rot": 260, "scale": 1.07},
+    {"model": "decor_grass", "pos": [27.68, 0, 39.05], "rot": 250, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-17.01, 0, 44.84], "rot": 0, "scale": 1.07},
+    {"model": "decor_grass", "pos": [29.39, 0, 97.24], "rot": 300, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-13.54, 0, 89.92], "rot": 0, "scale": 0.81},
+    {"model": "decor_grass", "pos": [8.01, 0, 88.91], "rot": 310, "scale": 0.81},
+    {"model": "decor_grass", "pos": [27.75, 0, 65.79], "rot": 20, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-16.34, 0, 109.76], "rot": 250, "scale": 0.83},
+    {"model": "decor_grass", "pos": [37.98, 0, 83.72], "rot": 200, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-17.88, 0, 43.62], "rot": 250, "scale": 1.19},
+    {"model": "decor_grass", "pos": [11.24, 0, 112.89], "rot": 90, "scale": 0.74},
+    {"model": "decor_grass", "pos": [22.17, 0, 37.19], "rot": 120, "scale": 1.15},
+    {"model": "decor_grass", "pos": [23.63, 0, 85.23], "rot": 70, "scale": 0.89},
+    {"model": "decor_grass", "pos": [38.13, 0, 95.66], "rot": 60, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-1.71, 0, 93.86], "rot": 150, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-7.36, 0, 114.33], "rot": 270, "scale": 0.8},
+    {"model": "decor_grass", "pos": [15.82, 0, 110.24], "rot": 150, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-18.52, 0, 111.52], "rot": 160, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-20.27, 0, 112.2], "rot": 330, "scale": 0.82},
+    {"model": "decor_grass", "pos": [21.27, 0, 49.36], "rot": 200, "scale": 0.71},
+    {"model": "decor_grass", "pos": [6.76, 0, 100.79], "rot": 320, "scale": 1.19},
+    {"model": "decor_grass", "pos": [18.36, 0, 73.74], "rot": 110, "scale": 0.92},
+    {"model": "decor_grass", "pos": [21.45, 0, 86.7], "rot": 70, "scale": 0.88},
+    {"model": "decor_grass", "pos": [28.08, 0, 106.97], "rot": 270, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-8.38, 0, 76.34], "rot": 230, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-3.36, 0, 59.67], "rot": 220, "scale": 1.07},
+    {"model": "decor_grass", "pos": [2.01, 0, 74.18], "rot": 110, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-19.28, 0, 33.52], "rot": 340, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-32.51, 0, 91.29], "rot": 230, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-31.32, 0, 93.85], "rot": 200, "scale": 1.17},
+    {"model": "decor_grass", "pos": [0.68, 0, 71.16], "rot": 80, "scale": 1.24},
+    {"model": "decor_grass", "pos": [19.06, 0, 56.74], "rot": 260, "scale": 0.7},
+    {"model": "decor_grass", "pos": [40.1, 0, 107.06], "rot": 270, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-0.18, 0, 99.68], "rot": 130, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-10.77, 0, 57.06], "rot": 280, "scale": 0.91},
+    {"model": "decor_grass", "pos": [17.71, 0, 79.15], "rot": 200, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-29.93, 0, 111.05], "rot": 270, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-41.16, 0, 78.63], "rot": 300, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-6.71, 0, 90.38], "rot": 140, "scale": 1.21},
+    {"model": "decor_grass", "pos": [37.48, 0, 98.78], "rot": 290, "scale": 0.88},
+    {"model": "decor_grass", "pos": [37.61, 0, 112.0], "rot": 260, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-20.73, 0, 93.7], "rot": 320, "scale": 0.77},
+    {"model": "decor_grass", "pos": [23.0, 0, 115.06], "rot": 250, "scale": 0.93},
+    {"model": "decor_grass", "pos": [18.23, 0, 38.43], "rot": 160, "scale": 0.75},
+    {"model": "decor_grass", "pos": [1.34, 0, 94.5], "rot": 320, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-35.06, 0, 117.49], "rot": 140, "scale": 1.24},
+    {"model": "decor_grass", "pos": [29.52, 0, 94.59], "rot": 350, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-6.56, 0, 83.96], "rot": 320, "scale": 0.71},
+    {"model": "decor_grass", "pos": [17.09, 0, 114.45], "rot": 20, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-41.35, 0, 63.06], "rot": 260, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-42.26, 0, 73.71], "rot": 270, "scale": 1.01},
+    {"model": "decor_grass", "pos": [20.29, 0, 66.61], "rot": 10, "scale": 1.02},
+    {"model": "decor_grass", "pos": [27.34, 0, 89.22], "rot": 250, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-8.02, 0, 94.41], "rot": 80, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-11.94, 0, 62.49], "rot": 320, "scale": 1.05},
+    {"model": "decor_grass", "pos": [5.26, 0, 32.1], "rot": 350, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-42.76, 0, 35.65], "rot": 330, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-32.29, 0, 122.58], "rot": 10, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-11.8, 0, 93.29], "rot": 160, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-35.55, 0, 78.27], "rot": 160, "scale": 1.13},
+    {"model": "decor_grass", "pos": [2.41, 0, 91.48], "rot": 320, "scale": 1.18},
+    {"model": "decor_grass", "pos": [0.15, 0, 70.35], "rot": 350, "scale": 1.04},
+    {"model": "decor_grass", "pos": [38.81, 0, 60.98], "rot": 30, "scale": 1.0},
+    {"model": "decor_grass", "pos": [29.95, 0, 108.5], "rot": 20, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-6.19, 0, 103.35], "rot": 70, "scale": 0.71},
+    {"model": "decor_grass", "pos": [5.55, 0, 93.21], "rot": 220, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-21.11, 0, 97.72], "rot": 30, "scale": 0.88},
+    {"model": "decor_grass", "pos": [14.24, 0, 83.19], "rot": 210, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-7.09, 0, 68.3], "rot": 170, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-35.13, 0, 38.37], "rot": 330, "scale": 1.0},
+    {"model": "decor_grass", "pos": [32.24, 0, 38.4], "rot": 210, "scale": 0.98},
+    {"model": "decor_grass", "pos": [14.87, 0, 34.49], "rot": 320, "scale": 0.97},
+    {"model": "decor_grass", "pos": [43.38, 0, 122.09], "rot": 200, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-26.98, 0, 84.26], "rot": 80, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-30.02, 0, 122.59], "rot": 210, "scale": 0.99},
+    {"model": "decor_grass", "pos": [35.25, 0, 100.42], "rot": 110, "scale": 0.96},
+    {"model": "decor_grass", "pos": [6.09, 0, 112.76], "rot": 70, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-5.26, 0, 117.67], "rot": 70, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-11.9, 0, 68.59], "rot": 30, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-18.25, 0, 97.59], "rot": 120, "scale": 1.03},
+    {"model": "decor_grass", "pos": [22.0, 0, 78.87], "rot": 190, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-31.15, 0, 49.01], "rot": 220, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-22.61, 0, 35.83], "rot": 330, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-40.72, 0, 111.14], "rot": 70, "scale": 0.79},
+    {"model": "decor_grass", "pos": [42.43, 0, 75.41], "rot": 200, "scale": 1.25},
+    {"model": "decor_grass", "pos": [0.25, 0, 105.36], "rot": 140, "scale": 1.01},
+    {"model": "decor_grass", "pos": [29.26, 0, 53.16], "rot": 40, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-25.14, 0, 80.22], "rot": 340, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-13.99, 0, 31.4], "rot": 80, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-41.04, 0, 64.86], "rot": 120, "scale": 0.97},
+    {"model": "decor_grass", "pos": [16.89, 0, 48.15], "rot": 110, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-16.04, 0, 90.99], "rot": 70, "scale": 1.28},
+    {"model": "decor_grass", "pos": [4.0, 0, 120.55], "rot": 180, "scale": 1.07},
+    {"model": "decor_grass", "pos": [5.4, 0, 63.61], "rot": 60, "scale": 1.01},
+    {"model": "decor_grass", "pos": [28.61, 0, 99.3], "rot": 210, "scale": 1.13},
+    {"model": "decor_grass", "pos": [35.47, 0, 58.39], "rot": 180, "scale": 1.21},
+    {"model": "decor_grass", "pos": [39.84, 0, 88.82], "rot": 120, "scale": 1.29},
+    {"model": "decor_grass", "pos": [38.7, 0, 71.5], "rot": 70, "scale": 0.79},
+    {"model": "decor_grass", "pos": [6.9, 0, 69.83], "rot": 110, "scale": 1.27},
+    {"model": "decor_grass", "pos": [6.9, 0, 112.6], "rot": 320, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-9.34, 0, 43.09], "rot": 90, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-41.43, 0, 117.5], "rot": 30, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-11.07, 0, 58.93], "rot": 250, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-4.82, 0, 55.16], "rot": 320, "scale": 0.75},
+    {"model": "decor_grass", "pos": [5.95, 0, 58.13], "rot": 60, "scale": 0.7},
+    {"model": "decor_grass", "pos": [-30.04, 0, 123.64], "rot": 340, "scale": 1.05},
+    {"model": "decor_grass", "pos": [24.0, 0, 103.12], "rot": 310, "scale": 1.2},
+    {"model": "decor_grass", "pos": [1.12, 0, 72.55], "rot": 0, "scale": 0.9},
+    {"model": "decor_grass", "pos": [14.47, 0, 91.29], "rot": 120, "scale": 1.28},
+    {"model": "decor_grass", "pos": [31.85, 0, 76.88], "rot": 230, "scale": 0.79},
+    {"model": "decor_grass", "pos": [15.15, 0, 35.68], "rot": 300, "scale": 1.12},
+    {"model": "decor_grass", "pos": [38.52, 0, 79.92], "rot": 160, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-33.16, 0, 123.12], "rot": 240, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-29.58, 0, 42.11], "rot": 340, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-22.62, 0, 42.78], "rot": 30, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-26.79, 0, 81.42], "rot": 240, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-27.67, 0, 117.35], "rot": 220, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-42.02, 0, 37.5], "rot": 340, "scale": 0.81},
+    {"model": "decor_grass", "pos": [40.56, 0, 65.53], "rot": 160, "scale": 1.27},
+    {"model": "decor_grass", "pos": [23.43, 0, 45.14], "rot": 10, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-5.0, 0, 101.31], "rot": 170, "scale": 0.75},
+    {"model": "decor_grass", "pos": [10.7, 0, 90.2], "rot": 340, "scale": 1.09},
+    {"model": "decor_grass", "pos": [18.14, 0, 79.03], "rot": 350, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-42.94, 0, 115.88], "rot": 320, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-38.09, 0, 95.47], "rot": 240, "scale": 1.3},
+    {"model": "decor_grass", "pos": [-13.73, 0, 41.69], "rot": 100, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-18.38, 0, 87.98], "rot": 190, "scale": 1.15},
+    {"model": "decor_grass", "pos": [29.11, 0, 79.79], "rot": 270, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-7.04, 0, 34.07], "rot": 0, "scale": 1.24},
+    {"model": "decor_grass", "pos": [18.94, 0, 51.1], "rot": 250, "scale": 1.11},
+    {"model": "decor_grass", "pos": [9.77, 0, 35.37], "rot": 10, "scale": 1.05},
+    {"model": "decor_grass", "pos": [4.03, 0, 91.45], "rot": 300, "scale": 0.75},
+    {"model": "decor_grass", "pos": [39.02, 0, 114.44], "rot": 40, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-11.58, 0, 61.86], "rot": 170, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-9.73, 0, 114.33], "rot": 130, "scale": 1.3},
+    {"model": "decor_grass", "pos": [14.93, 0, 62.31], "rot": 150, "scale": 1.25},
+    {"model": "decor_grass", "pos": [27.41, 0, 79.84], "rot": 90, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-28.35, 0, 92.87], "rot": 80, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-31.68, 0, 84.93], "rot": 0, "scale": 1.1},
+    {"model": "decor_grass", "pos": [24.02, 0, 105.97], "rot": 260, "scale": 1.23},
+    {"model": "decor_grass", "pos": [41.93, 0, 37.33], "rot": 80, "scale": 0.82},
+    {"model": "decor_grass", "pos": [15.84, 0, 45.35], "rot": 210, "scale": 1.25},
+    {"model": "decor_grass", "pos": [43.24, 0, 88.52], "rot": 110, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-29.04, 0, 34.03], "rot": 240, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-25.59, 0, 83.92], "rot": 180, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-11.94, 0, 58.88], "rot": 90, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-22.54, 0, 37.69], "rot": 120, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-13.14, 0, 61.13], "rot": 310, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-22.25, 0, 118.18], "rot": 270, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-17.63, 0, 48.86], "rot": 320, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-5.63, 0, 62.75], "rot": 100, "scale": 1.22},
+    {"model": "decor_grass", "pos": [14.18, 0, 35.55], "rot": 290, "scale": 1.16},
+    {"model": "decor_grass", "pos": [42.58, 0, 48.5], "rot": 170, "scale": 0.94},
+    {"model": "decor_grass", "pos": [4.85, 0, 49.83], "rot": 160, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-12.35, 0, 70.26], "rot": 330, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-6.5, 0, 51.38], "rot": 320, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-40.8, 0, 53.45], "rot": 260, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-25.85, 0, 80.21], "rot": 160, "scale": 0.9},
+    {"model": "decor_grass", "pos": [15.31, 0, 39.31], "rot": 130, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-23.01, 0, 105.32], "rot": 310, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-14.05, 0, 64.63], "rot": 280, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-14.77, 0, 51.57], "rot": 40, "scale": 1.12},
+    {"model": "decor_grass", "pos": [8.96, 0, 84.23], "rot": 290, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-24.58, 0, 111.24], "rot": 140, "scale": 1.14},
+    {"model": "decor_grass", "pos": [2.99, 0, 109.79], "rot": 150, "scale": 0.91},
+    {"model": "decor_grass", "pos": [38.29, 0, 120.13], "rot": 350, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-10.85, 0, 99.73], "rot": 70, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-27.29, 0, 85.33], "rot": 110, "scale": 0.81},
+    {"model": "decor_grass", "pos": [13.89, 0, 97.16], "rot": 150, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-33.99, 0, 44.42], "rot": 310, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-26.97, 0, 83.19], "rot": 330, "scale": 0.87},
+    {"model": "decor_grass", "pos": [8.32, 0, 99.38], "rot": 120, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-20.0, 0, 120.08], "rot": 20, "scale": 1.16},
+    {"model": "decor_grass", "pos": [40.02, 0, 65.3], "rot": 30, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-38.47, 0, 100.35], "rot": 300, "scale": 0.97},
+    {"model": "decor_grass", "pos": [13.26, 0, 97.18], "rot": 300, "scale": 1.17},
+    {"model": "decor_grass", "pos": [4.31, 0, 113.46], "rot": 60, "scale": 0.71},
+    {"model": "decor_grass", "pos": [9.93, 0, 97.37], "rot": 260, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-37.9, 0, 107.55], "rot": 350, "scale": 1.05},
+    {"model": "decor_grass", "pos": [2.77, 0, 102.38], "rot": 290, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-41.07, 0, 85.64], "rot": 140, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-21.45, 0, 40.54], "rot": 340, "scale": 0.81},
+    {"model": "decor_grass", "pos": [28.07, 0, 39.76], "rot": 90, "scale": 1.03},
+    {"model": "decor_grass", "pos": [12.87, 0, 92.01], "rot": 230, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-35.64, 0, 117.57], "rot": 150, "scale": 1.09},
+    {"model": "decor_grass", "pos": [31.69, 0, 102.66], "rot": 50, "scale": 0.77},
+    {"model": "decor_grass", "pos": [0.35, 0, 53.18], "rot": 250, "scale": 0.71},
+    {"model": "decor_grass", "pos": [21.09, 0, 38.9], "rot": 90, "scale": 0.96},
+    {"model": "decor_grass", "pos": [7.94, 0, 44.11], "rot": 40, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-43.88, 0, 32.94], "rot": 90, "scale": 1.06},
+    {"model": "decor_grass", "pos": [33.39, 0, 67.84], "rot": 350, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-1.39, 0, 122.56], "rot": 300, "scale": 1.22},
+    {"model": "decor_grass", "pos": [15.67, 0, 69.71], "rot": 100, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-35.17, 0, 52.76], "rot": 210, "scale": 0.74},
+    {"model": "decor_grass", "pos": [9.16, 0, 72.79], "rot": 160, "scale": 1.0},
+    {"model": "decor_grass", "pos": [39.68, 0, 62.08], "rot": 90, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-8.75, 0, 60.86], "rot": 180, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-1.13, 0, 39.45], "rot": 60, "scale": 1.23},
+    {"model": "decor_grass", "pos": [6.55, 0, 80.45], "rot": 180, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-42.2, 0, 119.97], "rot": 290, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-22.19, 0, 116.36], "rot": 280, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-24.58, 0, 108.35], "rot": 320, "scale": 1.16},
+    {"model": "decor_grass", "pos": [41.45, 0, 105.58], "rot": 350, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-37.25, 0, 116.21], "rot": 240, "scale": 1.26},
+    {"model": "decor_grass", "pos": [30.49, 0, 86.33], "rot": 250, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-37.64, 0, 50.23], "rot": 170, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-18.56, 0, 120.8], "rot": 210, "scale": 0.95},
+    {"model": "decor_grass", "pos": [39.69, 0, 99.23], "rot": 150, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-20.43, 0, 94.18], "rot": 230, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-29.68, 0, 103.58], "rot": 60, "scale": 0.8},
+    {"model": "decor_grass", "pos": [19.89, 0, 88.11], "rot": 130, "scale": 1.21},
+    {"model": "decor_grass", "pos": [14.86, 0, 116.92], "rot": 140, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-4.48, 0, 81.82], "rot": 290, "scale": 0.93},
+    {"model": "decor_grass", "pos": [11.66, 0, 51.18], "rot": 320, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-40.21, 0, 57.7], "rot": 140, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-10.49, 0, 47.09], "rot": 0, "scale": 0.97},
+    {"model": "decor_grass", "pos": [32.35, 0, 120.89], "rot": 330, "scale": 0.89},
+    {"model": "decor_grass", "pos": [12.25, 0, 123.43], "rot": 270, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-12.81, 0, 32.93], "rot": 0, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-42.5, 0, 92.58], "rot": 180, "scale": 1.23},
+    {"model": "decor_grass", "pos": [22.44, 0, 68.4], "rot": 140, "scale": 0.76},
+    {"model": "decor_grass", "pos": [16.58, 0, 92.6], "rot": 300, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-2.09, 0, 108.52], "rot": 70, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-21.76, 0, 79.75], "rot": 230, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-23.76, 0, 98.31], "rot": 310, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-7.74, 0, 43.64], "rot": 170, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-39.98, 0, 39.57], "rot": 0, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-36.69, 0, 47.26], "rot": 300, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-18.2, 0, 109.17], "rot": 50, "scale": 0.71},
+    {"model": "decor_grass", "pos": [40.03, 0, 109.29], "rot": 170, "scale": 1.12},
+    {"model": "decor_grass", "pos": [37.45, 0, 102.66], "rot": 130, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-35.56, 0, 121.71], "rot": 50, "scale": 0.74},
+    {"model": "decor_grass", "pos": [31.88, 0, 117.54], "rot": 210, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-41.46, 0, 62.07], "rot": 100, "scale": 0.73},
+    {"model": "decor_grass", "pos": [43.19, 0, 49.67], "rot": 150, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-41.48, 0, 115.11], "rot": 100, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-15.59, 0, 34.02], "rot": 170, "scale": 1.17},
+    {"model": "decor_grass", "pos": [22.77, 0, 42.66], "rot": 120, "scale": 1.0},
+    {"model": "decor_grass", "pos": [30.75, 0, 73.02], "rot": 230, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-33.54, 0, 39.61], "rot": 170, "scale": 1.04},
+    {"model": "decor_grass", "pos": [12.13, 0, 108.67], "rot": 170, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-38.21, 0, 85.92], "rot": 110, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-9.78, 0, 103.74], "rot": 90, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-21.11, 0, 37.6], "rot": 190, "scale": 0.85},
+    {"model": "decor_grass", "pos": [13.37, 0, 103.35], "rot": 100, "scale": 0.74},
+    {"model": "decor_grass", "pos": [6.86, 0, 81.08], "rot": 280, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-39.02, 0, 41.76], "rot": 260, "scale": 1.16},
+    {"model": "decor_grass", "pos": [28.59, 0, 117.01], "rot": 250, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-41.42, 0, 60.95], "rot": 210, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-7.26, 0, 62.16], "rot": 160, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-20.05, 0, 93.42], "rot": 160, "scale": 0.7},
+    {"model": "decor_grass", "pos": [-17.0, 0, 121.73], "rot": 80, "scale": 0.83},
+    {"model": "decor_grass", "pos": [17.91, 0, 58.51], "rot": 320, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-7.3, 0, 101.24], "rot": 210, "scale": 1.2},
+    {"model": "decor_grass", "pos": [15.84, 0, 123.76], "rot": 340, "scale": 1.09},
+    {"model": "decor_grass", "pos": [1.17, 0, 42.15], "rot": 220, "scale": 1.23},
+    {"model": "decor_grass", "pos": [41.93, 0, 31.8], "rot": 160, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-4.66, 0, 71.92], "rot": 220, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-31.78, 0, 108.35], "rot": 330, "scale": 0.74},
+    {"model": "decor_grass", "pos": [21.57, 0, 59.27], "rot": 320, "scale": 0.86},
+    {"model": "decor_grass", "pos": [29.24, 0, 113.19], "rot": 230, "scale": 1.24},
+    {"model": "decor_grass", "pos": [9.57, 0, 108.76], "rot": 120, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-37.72, 0, 123.99], "rot": 180, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-2.99, 0, 100.44], "rot": 30, "scale": 1.14},
+    {"model": "decor_grass", "pos": [18.97, 0, 85.57], "rot": 260, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-11.68, 0, 105.71], "rot": 220, "scale": 0.89},
+    {"model": "decor_grass", "pos": [9.78, 0, 78.08], "rot": 90, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-11.52, 0, 65.81], "rot": 170, "scale": 1.05},
+    {"model": "decor_grass", "pos": [4.83, 0, 116.3], "rot": 180, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-11.34, 0, 89.8], "rot": 290, "scale": 0.74},
+    {"model": "decor_grass", "pos": [0.76, 0, 35.77], "rot": 210, "scale": 0.98},
+    {"model": "decor_grass", "pos": [32.02, 0, 53.19], "rot": 90, "scale": 0.87},
+    {"model": "decor_grass", "pos": [16.71, 0, 96.93], "rot": 110, "scale": 1.09},
+    {"model": "decor_grass", "pos": [31.57, 0, 87.16], "rot": 100, "scale": 0.85},
+    {"model": "decor_grass", "pos": [1.59, 0, 50.69], "rot": 300, "scale": 0.97},
+    {"model": "decor_grass", "pos": [37.03, 0, 86.52], "rot": 140, "scale": 0.76},
+    {"model": "decor_grass", "pos": [42.66, 0, 102.71], "rot": 160, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-20.62, 0, 119.52], "rot": 260, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-36.76, 0, 42.96], "rot": 220, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-28.61, 0, 46.15], "rot": 230, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-9.81, 0, 41.28], "rot": 260, "scale": 1.04},
+    {"model": "decor_grass", "pos": [31.86, 0, 63.8], "rot": 220, "scale": 1.05},
+    {"model": "decor_grass", "pos": [11.13, 0, 80.09], "rot": 190, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-40.36, 0, 83.25], "rot": 140, "scale": 0.98},
+    {"model": "decor_grass", "pos": [19.5, 0, 111.73], "rot": 0, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-18.43, 0, 48.86], "rot": 110, "scale": 0.92},
+    {"model": "decor_grass", "pos": [34.66, 0, 85.07], "rot": 60, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-13.94, 0, 91.99], "rot": 260, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-34.38, 0, 80.24], "rot": 30, "scale": 1.3},
+    {"model": "decor_grass", "pos": [-34.42, 0, 110.48], "rot": 70, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-27.47, 0, 103.45], "rot": 330, "scale": 1.26},
+    {"model": "decor_grass", "pos": [23.31, 0, 61.57], "rot": 80, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-31.22, 0, 123.86], "rot": 300, "scale": 0.72},
+    {"model": "decor_grass", "pos": [18.43, 0, 40.94], "rot": 180, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-4.48, 0, 99.2], "rot": 240, "scale": 1.18},
+    {"model": "decor_grass", "pos": [18.7, 0, 79.23], "rot": 20, "scale": 1.11},
+    {"model": "decor_grass", "pos": [38.35, 0, 88.1], "rot": 140, "scale": 0.85},
+    {"model": "decor_grass", "pos": [12.03, 0, 57.89], "rot": 240, "scale": 1.16},
+    {"model": "decor_grass", "pos": [36.9, 0, 118.19], "rot": 130, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-0.53, 0, 49.19], "rot": 90, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-16.04, 0, 110.54], "rot": 90, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-42.12, 0, 33.82], "rot": 70, "scale": 1.0},
+    {"model": "decor_grass", "pos": [33.87, 0, 84.32], "rot": 110, "scale": 0.78},
+    {"model": "decor_grass", "pos": [27.06, 0, 50.96], "rot": 150, "scale": 1.27},
+    {"model": "decor_grass", "pos": [40.03, 0, 91.01], "rot": 290, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-15.69, 0, 106.83], "rot": 110, "scale": 0.92},
+    {"model": "decor_grass", "pos": [9.12, 0, 71.42], "rot": 150, "scale": 1.1},
+    {"model": "decor_grass", "pos": [29.88, 0, 96.76], "rot": 190, "scale": 1.21},
+    {"model": "decor_grass", "pos": [18.4, 0, 39.59], "rot": 130, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-24.17, 0, 34.08], "rot": 120, "scale": 0.88},
+    {"model": "decor_grass", "pos": [12.22, 0, 60.78], "rot": 10, "scale": 1.14},
+    {"model": "decor_grass", "pos": [25.08, 0, 77.3], "rot": 340, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-22.31, 0, 123.07], "rot": 220, "scale": 1.08},
+    {"model": "decor_grass", "pos": [5.81, 0, 104.65], "rot": 240, "scale": 0.9},
+    {"model": "decor_grass", "pos": [26.94, 0, 114.22], "rot": 260, "scale": 1.18},
+    {"model": "decor_grass", "pos": [23.19, 0, 58.25], "rot": 220, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-30.19, 0, 93.88], "rot": 210, "scale": 1.07},
+    {"model": "decor_grass", "pos": [36.3, 0, 52.52], "rot": 30, "scale": 1.14},
+    {"model": "decor_grass", "pos": [32.82, 0, 53.11], "rot": 100, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-4.56, 0, 36.18], "rot": 90, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-20.42, 0, 117.75], "rot": 220, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-33.27, 0, 111.55], "rot": 120, "scale": 0.9},
+    {"model": "decor_grass", "pos": [26.86, 0, 53.76], "rot": 300, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-43.59, 0, 59.12], "rot": 210, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-17.49, 0, 37.4], "rot": 50, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-14.22, 0, 57.06], "rot": 90, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-10.74, 0, 101.75], "rot": 130, "scale": 0.87},
+    {"model": "decor_grass", "pos": [26.42, 0, 98.39], "rot": 30, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-43.32, 0, 91.28], "rot": 120, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-5.42, 0, 60.58], "rot": 90, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-8.05, 0, 106.86], "rot": 270, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-8.05, 0, 54.12], "rot": 290, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-4.38, 0, 43.02], "rot": 70, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-31.83, 0, 38.24], "rot": 250, "scale": 0.99},
+    {"model": "decor_grass", "pos": [27.55, 0, 66.54], "rot": 130, "scale": 1.17},
+    {"model": "decor_grass", "pos": [6.66, 0, 87.17], "rot": 130, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-14.42, 0, 104.52], "rot": 10, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-8.09, 0, 100.28], "rot": 340, "scale": 1.14},
+    {"model": "decor_grass", "pos": [5.83, 0, 121.69], "rot": 320, "scale": 1.3},
+    {"model": "decor_grass", "pos": [-28.31, 0, 31.1], "rot": 10, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-9.79, 0, 37.03], "rot": 190, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-3.14, 0, 86.37], "rot": 250, "scale": 1.02},
+    {"model": "decor_grass", "pos": [35.77, 0, 68.24], "rot": 110, "scale": 1.11},
+    {"model": "decor_grass", "pos": [41.56, 0, 95.97], "rot": 170, "scale": 1.25},
+    {"model": "decor_grass", "pos": [22.39, 0, 120.38], "rot": 250, "scale": 0.85},
+    {"model": "decor_grass", "pos": [39.56, 0, 80.47], "rot": 30, "scale": 1.27},
+    {"model": "decor_grass", "pos": [29.12, 0, 46.35], "rot": 280, "scale": 0.95},
+    {"model": "decor_grass", "pos": [43.06, 0, 67.37], "rot": 60, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-35.33, 0, 98.14], "rot": 50, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-0.61, 0, 72.28], "rot": 20, "scale": 0.99},
+    {"model": "decor_grass", "pos": [16.44, 0, 108.28], "rot": 160, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-18.32, 0, 35.87], "rot": 180, "scale": 0.96},
+    {"model": "decor_grass", "pos": [43.77, 0, 106.19], "rot": 100, "scale": 1.01},
+    {"model": "decor_grass", "pos": [6.67, 0, 64.32], "rot": 310, "scale": 0.77},
+    {"model": "decor_grass", "pos": [3.67, 0, 66.91], "rot": 270, "scale": 0.75},
+    {"model": "decor_grass", "pos": [13.16, 0, 38.01], "rot": 80, "scale": 1.21},
+    {"model": "decor_grass", "pos": [26.33, 0, 97.31], "rot": 110, "scale": 1.19},
+    {"model": "decor_grass", "pos": [14.87, 0, 110.24], "rot": 140, "scale": 1.28},
+    {"model": "decor_grass", "pos": [35.71, 0, 54.03], "rot": 250, "scale": 0.79},
+    {"model": "decor_grass", "pos": [38.18, 0, 114.75], "rot": 220, "scale": 1.11},
+    {"model": "decor_grass", "pos": [5.84, 0, 62.79], "rot": 240, "scale": 1.13},
+    {"model": "decor_grass", "pos": [17.72, 0, 85.61], "rot": 210, "scale": 0.97},
+    {"model": "decor_grass", "pos": [23.86, 0, 96.74], "rot": 260, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-38.31, 0, 36.95], "rot": 260, "scale": 1.0},
+    {"model": "decor_grass", "pos": [39.51, 0, 92.83], "rot": 200, "scale": 1.21},
+    {"model": "decor_grass", "pos": [26.83, 0, 46.07], "rot": 10, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-10.36, 0, 88.8], "rot": 60, "scale": 0.78},
+    {"model": "decor_grass", "pos": [13.21, 0, 62.95], "rot": 150, "scale": 0.8},
+    {"model": "decor_grass", "pos": [32.36, 0, 98.35], "rot": 320, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-29.27, 0, 85.43], "rot": 90, "scale": 0.89},
+    {"model": "decor_grass", "pos": [13.22, 0, 67.91], "rot": 0, "scale": 1.19},
+    {"model": "decor_grass", "pos": [29.24, 0, 102.88], "rot": 10, "scale": 1.1},
+    {"model": "decor_grass", "pos": [5.36, 0, 34.98], "rot": 260, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-2.16, 0, 112.42], "rot": 310, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-19.65, 0, 118.91], "rot": 160, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-2.29, 0, 60.3], "rot": 260, "scale": 0.74},
+    {"model": "decor_grass", "pos": [19.91, 0, 109.27], "rot": 180, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-14.49, 0, 31.44], "rot": 60, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-28.47, 0, 106.07], "rot": 200, "scale": 1.17},
+    {"model": "decor_grass", "pos": [20.29, 0, 58.01], "rot": 350, "scale": 0.99},
+    {"model": "decor_grass", "pos": [29.47, 0, 49.81], "rot": 10, "scale": 0.73},
+    {"model": "decor_grass", "pos": [16.11, 0, 66.2], "rot": 110, "scale": 0.99},
+    {"model": "decor_grass", "pos": [20.33, 0, 65.87], "rot": 290, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-36.69, 0, 104.24], "rot": 40, "scale": 1.08},
+    {"model": "decor_grass", "pos": [5.33, 0, 75.37], "rot": 70, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-10.94, 0, 86.33], "rot": 220, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-42.82, 0, 37.47], "rot": 290, "scale": 1.23},
+    {"model": "decor_grass", "pos": [20.95, 0, 75.63], "rot": 300, "scale": 1.07},
+    {"model": "decor_grass", "pos": [29.66, 0, 122.74], "rot": 200, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-24.28, 0, 111.84], "rot": 260, "scale": 1.15},
+    {"model": "decor_grass", "pos": [16.92, 0, 82.38], "rot": 160, "scale": 1.3},
+    {"model": "decor_grass", "pos": [12.95, 0, 61.52], "rot": 230, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-7.1, 0, 77.99], "rot": 30, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-14.22, 0, 37.36], "rot": 30, "scale": 1.23},
+    {"model": "decor_grass", "pos": [12.24, 0, 65.07], "rot": 20, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-41.75, 0, 69.4], "rot": 160, "scale": 0.84},
+    {"model": "decor_grass", "pos": [10.59, 0, 103.23], "rot": 70, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-35.62, 0, 94.14], "rot": 110, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-16.98, 0, 46.95], "rot": 290, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-5.3, 0, 95.58], "rot": 190, "scale": 1.07},
+    {"model": "decor_grass", "pos": [23.42, 0, 114.96], "rot": 270, "scale": 0.71},
+    {"model": "decor_grass", "pos": [42.19, 0, 67.55], "rot": 230, "scale": 0.72},
+    {"model": "decor_grass", "pos": [40.61, 0, 77.06], "rot": 0, "scale": 1.27},
+    {"model": "decor_grass", "pos": [39.62, 0, 101.07], "rot": 130, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-40.47, 0, 32.18], "rot": 260, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-34.78, 0, 79.05], "rot": 80, "scale": 1.22},
+    {"model": "decor_grass", "pos": [35.19, 0, 48.54], "rot": 300, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-41.52, 0, 35.48], "rot": 10, "scale": 1.18},
+    {"model": "decor_grass", "pos": [32.43, 0, 63.56], "rot": 0, "scale": 0.95},
+    {"model": "decor_grass", "pos": [28.48, 0, 106.96], "rot": 270, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-16.68, 0, 46.13], "rot": 0, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-16.75, 0, 92.25], "rot": 60, "scale": 1.3},
+    {"model": "decor_grass", "pos": [14.19, 0, 123.46], "rot": 10, "scale": 0.81},
+    {"model": "decor_grass", "pos": [18.97, 0, 117.17], "rot": 240, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-41.28, 0, 50.21], "rot": 280, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-13.96, 0, 36.09], "rot": 30, "scale": 0.97},
+    {"model": "decor_grass", "pos": [42.93, 0, 108.99], "rot": 70, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-39.96, 0, 103.08], "rot": 120, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-6.85, 0, 68.57], "rot": 250, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-17.15, 0, 89.38], "rot": 150, "scale": 1.21},
+    {"model": "decor_grass", "pos": [5.61, 0, 80.23], "rot": 20, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-36.97, 0, 98.43], "rot": 320, "scale": 0.85},
+    {"model": "decor_grass", "pos": [18.53, 0, 54.29], "rot": 230, "scale": 1.25},
+    {"model": "decor_grass", "pos": [19.33, 0, 110.62], "rot": 80, "scale": 1.12},
+    {"model": "decor_grass", "pos": [26.08, 0, 88.64], "rot": 70, "scale": 0.77},
+    {"model": "decor_grass", "pos": [1.18, 0, 114.64], "rot": 190, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-18.51, 0, 101.89], "rot": 230, "scale": 0.74},
+    {"model": "decor_grass", "pos": [10.74, 0, 35.58], "rot": 300, "scale": 1.26},
+    {"model": "decor_grass", "pos": [38.66, 0, 65.74], "rot": 140, "scale": 1.03},
+    {"model": "decor_grass", "pos": [17.68, 0, 94.25], "rot": 260, "scale": 0.72},
+    {"model": "decor_grass", "pos": [24.66, 0, 89.0], "rot": 20, "scale": 0.81},
+    {"model": "decor_grass", "pos": [3.42, 0, 94.46], "rot": 40, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-3.94, 0, 93.34], "rot": 50, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-43.29, 0, 85.21], "rot": 10, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-27.28, 0, 38.92], "rot": 50, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-8.54, 0, 46.85], "rot": 240, "scale": 0.88},
+    {"model": "decor_grass", "pos": [23.45, 0, 121.9], "rot": 340, "scale": 0.74},
+    {"model": "decor_grass", "pos": [29.44, 0, 38.37], "rot": 270, "scale": 1.28},
+    {"model": "decor_grass", "pos": [31.59, 0, 77.54], "rot": 280, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-14.2, 0, 122.02], "rot": 240, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-39.03, 0, 89.51], "rot": 350, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-6.55, 0, 55.1], "rot": 120, "scale": 0.91},
+    {"model": "decor_grass", "pos": [10.25, 0, 58.16], "rot": 190, "scale": 1.18},
+    {"model": "decor_grass", "pos": [30.72, 0, 71.68], "rot": 250, "scale": 0.97},
+    {"model": "decor_grass", "pos": [7.3, 0, 69.83], "rot": 90, "scale": 0.79},
+    {"model": "decor_grass", "pos": [0.98, 0, 105.63], "rot": 330, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-2.43, 0, 99.58], "rot": 50, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-7.29, 0, 65.61], "rot": 230, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-10.57, 0, 119.1], "rot": 300, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-18.59, 0, 33.88], "rot": 180, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-31.09, 0, 47.2], "rot": 110, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-1.13, 0, 118.6], "rot": 230, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-30.71, 0, 78.8], "rot": 160, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-28.54, 0, 33.57], "rot": 140, "scale": 0.79},
+    {"model": "decor_grass", "pos": [4.51, 0, 118.09], "rot": 80, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-21.13, 0, 107.38], "rot": 0, "scale": 1.23},
+    {"model": "decor_grass", "pos": [21.56, 0, 54.02], "rot": 210, "scale": 0.77},
+    {"model": "decor_grass", "pos": [41.03, 0, 68.16], "rot": 170, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-13.87, 0, 104.48], "rot": 110, "scale": 0.73},
+    {"model": "decor_grass", "pos": [43.34, 0, 115.81], "rot": 70, "scale": 1.15},
+    {"model": "decor_grass", "pos": [22.84, 0, 33.5], "rot": 60, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-27.69, 0, 112.99], "rot": 200, "scale": 1.12},
+    {"model": "decor_grass", "pos": [41.45, 0, 61.01], "rot": 30, "scale": 1.05},
+    {"model": "decor_grass", "pos": [34.07, 0, 123.03], "rot": 220, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-20.74, 0, 96.47], "rot": 210, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-33.34, 0, 45.05], "rot": 350, "scale": 0.82},
+    {"model": "decor_grass", "pos": [31.73, 0, 58.61], "rot": 100, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-24.19, 0, 84.2], "rot": 250, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-34.53, 0, 119.82], "rot": 30, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-3.57, 0, 43.73], "rot": 310, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-22.81, 0, 100.24], "rot": 160, "scale": 1.17},
+    {"model": "decor_grass", "pos": [38.76, 0, 57.93], "rot": 260, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-5.92, 0, 65.91], "rot": 170, "scale": 0.91},
+    {"model": "decor_grass", "pos": [2.32, 0, 65.31], "rot": 150, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-33.45, 0, 117.14], "rot": 160, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-24.52, 0, 51.23], "rot": 100, "scale": 0.92},
+    {"model": "decor_grass", "pos": [16.29, 0, 78.44], "rot": 110, "scale": 1.06},
+    {"model": "decor_grass", "pos": [24.3, 0, 104.9], "rot": 340, "scale": 0.96},
+    {"model": "decor_grass", "pos": [38.12, 0, 63.38], "rot": 80, "scale": 1.18},
+    {"model": "decor_grass", "pos": [36.86, 0, 81.08], "rot": 190, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-19.21, 0, 100.01], "rot": 240, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-42.95, 0, 74.15], "rot": 240, "scale": 1.03},
+    {"model": "decor_grass", "pos": [42.52, 0, 100.0], "rot": 340, "scale": 1.05},
+    {"model": "decor_grass", "pos": [40.71, 0, 53.35], "rot": 110, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-20.13, 0, 110.86], "rot": 30, "scale": 1.16},
+    {"model": "decor_grass", "pos": [17.34, 0, 74.86], "rot": 200, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-31.1, 0, 44.23], "rot": 10, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-7.33, 0, 48.24], "rot": 280, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-2.24, 0, 88.55], "rot": 10, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-22.23, 0, 122.25], "rot": 40, "scale": 0.95},
+    {"model": "decor_grass", "pos": [11.41, 0, 118.19], "rot": 320, "scale": 0.87},
+    {"model": "decor_grass", "pos": [16.09, 0, 116.08], "rot": 50, "scale": 0.96},
+    {"model": "decor_grass", "pos": [36.3, 0, 122.62], "rot": 20, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-26.99, 0, 46.83], "rot": 270, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-14.65, 0, 121.03], "rot": 70, "scale": 1.22},
+    {"model": "decor_grass", "pos": [26.0, 0, 93.81], "rot": 310, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-12.2, 0, 39.17], "rot": 150, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-28.19, 0, 82.87], "rot": 200, "scale": 0.71},
+    {"model": "decor_grass", "pos": [17.95, 0, 101.78], "rot": 200, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-20.72, 0, 50.74], "rot": 90, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-22.46, 0, 91.24], "rot": 180, "scale": 0.82},
+    {"model": "decor_grass", "pos": [7.68, 0, 54.54], "rot": 320, "scale": 1.27},
+    {"model": "decor_grass", "pos": [42.62, 0, 33.88], "rot": 80, "scale": 0.83},
+    {"model": "decor_grass", "pos": [17.28, 0, 77.07], "rot": 60, "scale": 1.0},
+    {"model": "decor_grass", "pos": [30.64, 0, 75.44], "rot": 20, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-26.86, 0, 43.22], "rot": 350, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-24.33, 0, 46.36], "rot": 100, "scale": 0.84},
+    {"model": "decor_grass", "pos": [3.3, 0, 66.11], "rot": 210, "scale": 1.13},
+    {"model": "decor_grass", "pos": [9.97, 0, 90.72], "rot": 40, "scale": 1.14},
+    {"model": "decor_grass", "pos": [29.42, 0, 32.87], "rot": 60, "scale": 1.24},
+    {"model": "decor_grass", "pos": [36.12, 0, 104.38], "rot": 160, "scale": 0.9},
+    {"model": "decor_grass", "pos": [42.51, 0, 66.63], "rot": 90, "scale": 1.2},
+    {"model": "decor_grass", "pos": [21.98, 0, 56.66], "rot": 330, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-42.38, 0, 46.07], "rot": 190, "scale": 0.79},
+    {"model": "decor_grass", "pos": [20.41, 0, 32.48], "rot": 230, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-9.62, 0, 74.72], "rot": 110, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-14.43, 0, 58.16], "rot": 340, "scale": 1.13},
+    {"model": "decor_grass", "pos": [2.0, 0, 80.37], "rot": 200, "scale": 0.81},
+    {"model": "decor_grass", "pos": [30.95, 0, 32.38], "rot": 180, "scale": 1.18},
+    {"model": "decor_grass", "pos": [34.03, 0, 64.65], "rot": 260, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-35.1, 0, 47.17], "rot": 0, "scale": 1.09},
+    {"model": "decor_grass", "pos": [42.49, 0, 110.76], "rot": 200, "scale": 0.71},
+    {"model": "decor_grass", "pos": [12.06, 0, 88.65], "rot": 250, "scale": 1.11},
+    {"model": "decor_grass", "pos": [28.46, 0, 64.17], "rot": 230, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-8.91, 0, 56.0], "rot": 310, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-1.87, 0, 89.92], "rot": 170, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-20.68, 0, 97.46], "rot": 290, "scale": 0.82},
+    {"model": "decor_grass", "pos": [35.41, 0, 108.65], "rot": 140, "scale": 0.78},
+    {"model": "decor_grass", "pos": [11.24, 0, 43.58], "rot": 130, "scale": 0.81},
+    {"model": "decor_grass", "pos": [3.36, 0, 115.87], "rot": 160, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-39.67, 0, 92.14], "rot": 160, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-18.48, 0, 83.72], "rot": 100, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-1.48, 0, 66.39], "rot": 20, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-19.84, 0, 118.11], "rot": 220, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-14.62, 0, 101.03], "rot": 10, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-35.47, 0, 107.57], "rot": 160, "scale": 1.12},
+    {"model": "decor_grass", "pos": [36.74, 0, 76.11], "rot": 120, "scale": 0.76},
+    {"model": "decor_grass", "pos": [32.0, 0, 52.7], "rot": 30, "scale": 1.02},
+    {"model": "decor_grass", "pos": [37.41, 0, 50.47], "rot": 70, "scale": 0.86},
+    {"model": "decor_grass", "pos": [32.76, 0, 70.32], "rot": 180, "scale": 1.2},
+    {"model": "decor_grass", "pos": [33.61, 0, 94.58], "rot": 100, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-33.02, 0, 101.41], "rot": 140, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-7.66, 0, 74.31], "rot": 310, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-24.63, 0, 88.45], "rot": 200, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-36.36, 0, 43.24], "rot": 170, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-9.57, 0, 96.01], "rot": 330, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-25.06, 0, 114.27], "rot": 150, "scale": 1.25},
+    {"model": "decor_grass", "pos": [42.69, 0, 103.4], "rot": 270, "scale": 1.14},
+    {"model": "decor_grass", "pos": [35.04, 0, 75.76], "rot": 20, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-34.68, 0, 39.14], "rot": 90, "scale": 1.18},
+    {"model": "decor_grass", "pos": [17.73, 0, 94.8], "rot": 140, "scale": 0.8},
+    {"model": "decor_grass", "pos": [26.09, 0, 69.69], "rot": 330, "scale": 1.15},
+    {"model": "decor_grass", "pos": [6.86, 0, 83.17], "rot": 60, "scale": 1.11},
+    {"model": "decor_grass", "pos": [0.53, 0, 31.58], "rot": 40, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-0.35, 0, 75.39], "rot": 240, "scale": 1.06},
+    {"model": "decor_grass", "pos": [20.3, 0, 85.97], "rot": 260, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-37.42, 0, 119.2], "rot": 140, "scale": 0.95},
+    {"model": "decor_grass", "pos": [43.93, 0, 48.58], "rot": 10, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-27.95, 0, 108.62], "rot": 180, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-9.5, 0, 42.61], "rot": 350, "scale": 1.29},
+    {"model": "decor_grass", "pos": [14.72, 0, 35.45], "rot": 230, "scale": 0.71},
+    {"model": "decor_grass", "pos": [12.63, 0, 113.66], "rot": 100, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-21.51, 0, 80.01], "rot": 190, "scale": 0.8},
+    {"model": "decor_grass", "pos": [37.49, 0, 95.96], "rot": 120, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-28.4, 0, 107.85], "rot": 30, "scale": 1.13},
+    {"model": "decor_grass", "pos": [40.79, 0, 75.18], "rot": 10, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-11.2, 0, 95.43], "rot": 60, "scale": 1.03},
+    {"model": "decor_grass", "pos": [35.81, 0, 91.72], "rot": 280, "scale": 1.17},
+    {"model": "decor_grass", "pos": [20.25, 0, 75.76], "rot": 40, "scale": 1.22},
+    {"model": "decor_grass", "pos": [9.43, 0, 38.68], "rot": 130, "scale": 1.11},
+    {"model": "decor_grass", "pos": [38.52, 0, 60.15], "rot": 310, "scale": 0.93},
+    {"model": "decor_grass", "pos": [13.85, 0, 45.34], "rot": 80, "scale": 0.82},
+    {"model": "decor_grass", "pos": [19.95, 0, 115.15], "rot": 0, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-35.08, 0, 97.35], "rot": 130, "scale": 1.18},
+    {"model": "decor_grass", "pos": [7.69, 0, 57.64], "rot": 270, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-21.66, 0, 100.18], "rot": 250, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-22.49, 0, 31.76], "rot": 250, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-2.04, 0, 118.26], "rot": 110, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-43.82, 0, 116.23], "rot": 320, "scale": 0.87},
+    {"model": "decor_grass", "pos": [9.97, 0, 36.16], "rot": 220, "scale": 1.2},
+    {"model": "decor_grass", "pos": [28.64, 0, 36.4], "rot": 340, "scale": 0.8},
+    {"model": "decor_grass", "pos": [32.8, 0, 38.17], "rot": 330, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-14.94, 0, 111.4], "rot": 320, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-30.22, 0, 79.56], "rot": 230, "scale": 1.27},
+    {"model": "decor_grass", "pos": [8.42, 0, 34.21], "rot": 260, "scale": 1.26},
+    {"model": "decor_grass", "pos": [26.19, 0, 120.71], "rot": 330, "scale": 0.76},
+    {"model": "decor_grass", "pos": [12.73, 0, 38.69], "rot": 110, "scale": 0.96},
+    {"model": "decor_grass", "pos": [34.45, 0, 79.6], "rot": 280, "scale": 1.29},
+    {"model": "decor_grass", "pos": [33.07, 0, 120.76], "rot": 210, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-6.99, 0, 81.19], "rot": 30, "scale": 0.92},
+    {"model": "decor_grass", "pos": [6.55, 0, 72.93], "rot": 240, "scale": 1.18},
+    {"model": "decor_grass", "pos": [23.33, 0, 47.87], "rot": 320, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-18.15, 0, 100.49], "rot": 180, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-1.12, 0, 77.62], "rot": 10, "scale": 0.82},
+    {"model": "decor_grass", "pos": [14.48, 0, 81.8], "rot": 90, "scale": 0.71},
+    {"model": "decor_grass", "pos": [5.03, 0, 123.37], "rot": 300, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-8.37, 0, 107.94], "rot": 120, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-15.01, 0, 85.8], "rot": 330, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-40.63, 0, 109.11], "rot": 230, "scale": 1.13},
+    {"model": "decor_grass", "pos": [32.44, 0, 113.78], "rot": 120, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-1.58, 0, 66.95], "rot": 190, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-30.71, 0, 37.34], "rot": 260, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-13.88, 0, 35.41], "rot": 200, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-19.92, 0, 115.42], "rot": 270, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-13.11, 0, 90.55], "rot": 40, "scale": 0.73},
+    {"model": "decor_grass", "pos": [3.15, 0, 121.93], "rot": 200, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-13.04, 0, 120.75], "rot": 70, "scale": 1.06},
+    {"model": "decor_grass", "pos": [43.28, 0, 102.01], "rot": 200, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-12.82, 0, 31.2], "rot": 310, "scale": 0.85},
+    {"model": "decor_grass", "pos": [17.98, 0, 67.87], "rot": 190, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-31.35, 0, 111.25], "rot": 0, "scale": 0.83},
+    {"model": "decor_grass", "pos": [36.44, 0, 71.02], "rot": 350, "scale": 0.94},
+    {"model": "decor_grass", "pos": [11.61, 0, 87.01], "rot": 310, "scale": 1.21},
+    {"model": "decor_grass", "pos": [39.64, 0, 93.21], "rot": 220, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-38.54, 0, 96.63], "rot": 300, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-25.05, 0, 105.76], "rot": 290, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-39.1, 0, 113.07], "rot": 240, "scale": 0.78},
+    {"model": "decor_grass", "pos": [3.93, 0, 90.6], "rot": 60, "scale": 1.11},
+    {"model": "decor_grass", "pos": [28.86, 0, 60.48], "rot": 50, "scale": 0.8},
+    {"model": "decor_grass", "pos": [4.87, 0, 118.1], "rot": 40, "scale": 0.81},
+    {"model": "decor_grass", "pos": [20.68, 0, 109.89], "rot": 260, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-12.61, 0, 91.17], "rot": 40, "scale": 1.09},
+    {"model": "decor_grass", "pos": [2.75, 0, 37.8], "rot": 70, "scale": 0.86},
+    {"model": "decor_grass", "pos": [33.94, 0, 103.03], "rot": 310, "scale": 0.83},
+    {"model": "decor_grass", "pos": [26.14, 0, 107.73], "rot": 330, "scale": 1.27},
+    {"model": "decor_grass", "pos": [5.95, 0, 116.43], "rot": 270, "scale": 0.75},
+    {"model": "decor_grass", "pos": [34.05, 0, 78.39], "rot": 200, "scale": 0.84},
+    {"model": "decor_grass", "pos": [21.94, 0, 35.35], "rot": 50, "scale": 1.29},
+    {"model": "decor_grass", "pos": [32.55, 0, 107.37], "rot": 40, "scale": 1.04},
+    {"model": "decor_grass", "pos": [26.92, 0, 50.51], "rot": 260, "scale": 0.99},
+    {"model": "decor_grass", "pos": [13.15, 0, 111.74], "rot": 330, "scale": 1.04},
+    {"model": "decor_grass", "pos": [0.94, 0, 71.88], "rot": 170, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-36.16, 0, 35.56], "rot": 350, "scale": 1.11},
+    {"model": "decor_grass", "pos": [36.81, 0, 89.47], "rot": 310, "scale": 1.29},
+    {"model": "decor_grass", "pos": [22.11, 0, 73.01], "rot": 70, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-1.36, 0, 51.7], "rot": 270, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-5.58, 0, 94.54], "rot": 250, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-42.88, 0, 111.13], "rot": 180, "scale": 1.09},
+    {"model": "decor_grass", "pos": [9.82, 0, 105.75], "rot": 120, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-4.64, 0, 63.84], "rot": 280, "scale": 0.93},
+    {"model": "decor_grass", "pos": [35.1, 0, 45.48], "rot": 70, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-29.33, 0, 107.21], "rot": 100, "scale": 0.81},
+    {"model": "decor_grass", "pos": [43.51, 0, 78.83], "rot": 110, "scale": 0.72},
+    {"model": "decor_grass", "pos": [16.72, 0, 79.08], "rot": 270, "scale": 1.13},
+    {"model": "decor_grass", "pos": [38.18, 0, 85.77], "rot": 100, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-17.91, 0, 108.33], "rot": 150, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-3.11, 0, 122.25], "rot": 250, "scale": 0.7},
+    {"model": "decor_grass", "pos": [-15.27, 0, 97.22], "rot": 40, "scale": 1.17},
+    {"model": "decor_grass", "pos": [4.49, 0, 115.41], "rot": 180, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-22.07, 0, 96.17], "rot": 350, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-19.49, 0, 34.61], "rot": 10, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-31.34, 0, 98.76], "rot": 290, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-42.58, 0, 95.78], "rot": 340, "scale": 1.19},
+    {"model": "decor_grass", "pos": [25.2, 0, 80.04], "rot": 40, "scale": 0.97},
+    {"model": "decor_grass", "pos": [28.66, 0, 56.87], "rot": 0, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-17.77, 0, 46.08], "rot": 270, "scale": 1.3},
+    {"model": "decor_grass", "pos": [17.48, 0, 51.39], "rot": 350, "scale": 1.15},
+    {"model": "decor_grass", "pos": [28.28, 0, 117.88], "rot": 10, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-15.74, 0, 50.43], "rot": 110, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-13.3, 0, 109.44], "rot": 190, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-4.54, 0, 89.06], "rot": 150, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-30.33, 0, 45.86], "rot": 80, "scale": 0.81},
+    {"model": "decor_grass", "pos": [12.69, 0, 59.9], "rot": 160, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-36.75, 0, 95.29], "rot": 320, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-40.24, 0, 84.19], "rot": 140, "scale": 0.71},
+    {"model": "decor_grass", "pos": [35.65, 0, 85.3], "rot": 200, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-4.54, 0, 81.05], "rot": 120, "scale": 1.18},
+    {"model": "decor_grass", "pos": [34.58, 0, 72.37], "rot": 290, "scale": 0.74},
+    {"model": "decor_grass", "pos": [35.87, 0, 46.12], "rot": 330, "scale": 1.11},
+    {"model": "decor_grass", "pos": [19.76, 0, 69.9], "rot": 330, "scale": 1.05},
+    {"model": "decor_grass", "pos": [16.84, 0, 41.89], "rot": 80, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-11.46, 0, 35.44], "rot": 130, "scale": 0.83},
+    {"model": "decor_grass", "pos": [13.81, 0, 35.08], "rot": 60, "scale": 1.15},
+    {"model": "decor_grass", "pos": [32.63, 0, 54.51], "rot": 20, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-9.99, 0, 55.22], "rot": 10, "scale": 0.75},
+    {"model": "decor_grass", "pos": [11.54, 0, 79.84], "rot": 240, "scale": 1.25},
+    {"model": "decor_grass", "pos": [16.93, 0, 39.57], "rot": 160, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-1.41, 0, 98.6], "rot": 230, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-13.51, 0, 50.18], "rot": 320, "scale": 0.79},
+    {"model": "decor_grass", "pos": [8.04, 0, 71.74], "rot": 120, "scale": 0.81},
+    {"model": "decor_grass", "pos": [37.51, 0, 50.09], "rot": 230, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-12.11, 0, 47.86], "rot": 60, "scale": 1.17},
+    {"model": "decor_grass", "pos": [8.21, 0, 38.76], "rot": 270, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-38.6, 0, 80.08], "rot": 40, "scale": 1.11},
+    {"model": "decor_grass", "pos": [39.97, 0, 54.17], "rot": 160, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-30.21, 0, 83.17], "rot": 0, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-14.6, 0, 88.03], "rot": 120, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-13.11, 0, 53.61], "rot": 110, "scale": 1.18},
+    {"model": "decor_grass", "pos": [23.59, 0, 113.62], "rot": 240, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-16.63, 0, 33.43], "rot": 170, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-20.44, 0, 91.05], "rot": 80, "scale": 1.25},
+    {"model": "decor_grass", "pos": [6.87, 0, 85.81], "rot": 260, "scale": 1.28},
+    {"model": "decor_grass", "pos": [15.14, 0, 101.52], "rot": 310, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-24.97, 0, 82.69], "rot": 300, "scale": 0.79},
+    {"model": "decor_grass", "pos": [37.26, 0, 85.02], "rot": 330, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-4.42, 0, 53.26], "rot": 340, "scale": 1.14},
+    {"model": "decor_grass", "pos": [30.13, 0, 81.0], "rot": 40, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-43.09, 0, 49.7], "rot": 350, "scale": 1.01},
+    {"model": "decor_grass", "pos": [15.0, 0, 75.14], "rot": 80, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-35.72, 0, 89.47], "rot": 350, "scale": 0.7},
+    {"model": "decor_grass", "pos": [15.79, 0, 47.57], "rot": 150, "scale": 0.94},
+    {"model": "decor_grass", "pos": [38.77, 0, 47.38], "rot": 130, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-42.64, 0, 50.53], "rot": 290, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-26.28, 0, 111.88], "rot": 240, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-14.25, 0, 88.23], "rot": 250, "scale": 0.78},
+    {"model": "decor_grass", "pos": [16.49, 0, 95.0], "rot": 200, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-3.9, 0, 55.66], "rot": 230, "scale": 0.84},
+    {"model": "decor_grass", "pos": [41.48, 0, 46.33], "rot": 330, "scale": 1.2},
+    {"model": "decor_grass", "pos": [37.68, 0, 114.37], "rot": 330, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-11.02, 0, 119.97], "rot": 300, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-43.65, 0, 58.1], "rot": 180, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-5.56, 0, 50.73], "rot": 230, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-16.26, 0, 32.88], "rot": 300, "scale": 1.12},
+    {"model": "decor_grass", "pos": [40.81, 0, 92.41], "rot": 330, "scale": 1.25},
+    {"model": "decor_grass", "pos": [29.09, 0, 74.51], "rot": 100, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-40.27, 0, 121.3], "rot": 200, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-27.23, 0, 37.36], "rot": 350, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-28.33, 0, 43.57], "rot": 130, "scale": 1.18},
+    {"model": "decor_grass", "pos": [17.9, 0, 69.78], "rot": 330, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-23.32, 0, 38.11], "rot": 160, "scale": 1.15},
+    {"model": "decor_grass", "pos": [34.65, 0, 80.85], "rot": 0, "scale": 1.26},
+    {"model": "decor_grass", "pos": [37.23, 0, 71.3], "rot": 250, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-34.92, 0, 93.6], "rot": 130, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-29.59, 0, 36.19], "rot": 50, "scale": 1.06},
+    {"model": "decor_grass", "pos": [36.54, 0, 79.7], "rot": 290, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-41.23, 0, 118.24], "rot": 280, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-14.36, 0, 38.52], "rot": 350, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-11.01, 0, 63.99], "rot": 230, "scale": 0.97},
+    {"model": "decor_grass", "pos": [4.32, 0, 56.26], "rot": 350, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-21.05, 0, 101.85], "rot": 110, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-32.3, 0, 96.14], "rot": 150, "scale": 0.86},
+    {"model": "decor_grass", "pos": [33.42, 0, 116.81], "rot": 60, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-15.22, 0, 100.38], "rot": 120, "scale": 1.01},
+    {"model": "decor_grass", "pos": [6.95, 0, 110.11], "rot": 330, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-40.49, 0, 101.69], "rot": 70, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-40.15, 0, 77.13], "rot": 270, "scale": 0.74},
+    {"model": "decor_grass", "pos": [24.49, 0, 102.27], "rot": 270, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-6.73, 0, 60.62], "rot": 100, "scale": 0.82},
+    {"model": "decor_grass", "pos": [3.19, 0, 70.83], "rot": 140, "scale": 1.02},
+    {"model": "decor_grass", "pos": [2.85, 0, 123.52], "rot": 170, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-16.64, 0, 105.16], "rot": 190, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-13.58, 0, 40.91], "rot": 350, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-24.28, 0, 38.69], "rot": 320, "scale": 0.72},
+    {"model": "decor_grass", "pos": [40.87, 0, 97.96], "rot": 220, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-8.38, 0, 85.31], "rot": 100, "scale": 0.76},
+    {"model": "decor_grass", "pos": [39.7, 0, 71.04], "rot": 100, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-12.57, 0, 114.88], "rot": 170, "scale": 1.07},
+    {"model": "decor_grass", "pos": [0.99, 0, 49.08], "rot": 120, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-12.49, 0, 112.42], "rot": 310, "scale": 0.89},
+    {"model": "decor_grass", "pos": [35.06, 0, 93.64], "rot": 50, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-16.44, 0, 110.68], "rot": 0, "scale": 1.0},
+    {"model": "decor_grass", "pos": [35.65, 0, 49.46], "rot": 280, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-25.8, 0, 82.37], "rot": 150, "scale": 0.86},
+    {"model": "decor_grass", "pos": [32.48, 0, 35.73], "rot": 210, "scale": 0.87},
+    {"model": "decor_grass", "pos": [34.05, 0, 109.28], "rot": 260, "scale": 1.07},
+    {"model": "decor_grass", "pos": [20.42, 0, 89.61], "rot": 70, "scale": 1.3},
+    {"model": "decor_grass", "pos": [36.86, 0, 109.12], "rot": 230, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-6.28, 0, 69.59], "rot": 0, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-34.72, 0, 82.02], "rot": 310, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-10.67, 0, 59.52], "rot": 120, "scale": 0.78},
+    {"model": "decor_grass", "pos": [37.42, 0, 78.36], "rot": 180, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-29.51, 0, 81.42], "rot": 350, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-33.21, 0, 102.62], "rot": 320, "scale": 1.29},
+    {"model": "decor_grass", "pos": [5.95, 0, 46.61], "rot": 320, "scale": 1.3},
+    {"model": "decor_grass", "pos": [-17.48, 0, 31.43], "rot": 100, "scale": 1.28},
+    {"model": "decor_grass", "pos": [25.33, 0, 59.6], "rot": 130, "scale": 1.05},
+    {"model": "decor_grass", "pos": [37.51, 0, 74.85], "rot": 330, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-23.45, 0, 79.43], "rot": 210, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-14.82, 0, 68.34], "rot": 280, "scale": 1.28},
+    {"model": "decor_grass", "pos": [30.53, 0, 79.44], "rot": 90, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-12.34, 0, 108.04], "rot": 250, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-22.11, 0, 111.86], "rot": 150, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-14.38, 0, 111.5], "rot": 240, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-40.21, 0, 69.82], "rot": 180, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-35.85, 0, 107.66], "rot": 270, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-3.71, 0, 32.96], "rot": 140, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-2.67, 0, 116.24], "rot": 20, "scale": 1.15},
+    {"model": "decor_grass", "pos": [14.24, 0, 47.72], "rot": 210, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-25.36, 0, 86.36], "rot": 80, "scale": 1.11},
+    {"model": "decor_grass", "pos": [8.7, 0, 80.51], "rot": 180, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-25.56, 0, 99.46], "rot": 130, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-2.21, 0, 110.9], "rot": 200, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-31.91, 0, 98.6], "rot": 110, "scale": 0.95},
+    {"model": "decor_grass", "pos": [2.19, 0, 88.39], "rot": 210, "scale": 1.29},
+    {"model": "decor_grass", "pos": [16.04, 0, 120.49], "rot": 320, "scale": 0.71},
+    {"model": "decor_grass", "pos": [17.78, 0, 41.44], "rot": 210, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-7.89, 0, 105.06], "rot": 190, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-27.98, 0, 34.4], "rot": 190, "scale": 0.93},
+    {"model": "decor_grass", "pos": [16.15, 0, 60.89], "rot": 330, "scale": 0.85},
+    {"model": "decor_grass", "pos": [14.67, 0, 111.64], "rot": 20, "scale": 0.79},
+    {"model": "decor_grass", "pos": [42.59, 0, 54.32], "rot": 350, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-1.18, 0, 101.26], "rot": 200, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-31.99, 0, 51.43], "rot": 190, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-42.3, 0, 102.58], "rot": 180, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-7.42, 0, 84.65], "rot": 300, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-33.86, 0, 81.6], "rot": 120, "scale": 0.79},
+    {"model": "decor_grass", "pos": [11.15, 0, 37.02], "rot": 280, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-8.11, 0, 50.34], "rot": 190, "scale": 1.15},
+    {"model": "decor_grass", "pos": [43.66, 0, 52.06], "rot": 320, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-12.33, 0, 81.89], "rot": 40, "scale": 1.29},
+    {"model": "decor_grass", "pos": [23.03, 0, 74.1], "rot": 260, "scale": 1.18},
+    {"model": "decor_grass", "pos": [33.39, 0, 88.2], "rot": 140, "scale": 0.74},
+    {"model": "decor_grass", "pos": [29.88, 0, 119.52], "rot": 30, "scale": 1.15},
+    {"model": "decor_grass", "pos": [7.5, 0, 66.22], "rot": 340, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-32.69, 0, 111.68], "rot": 80, "scale": 1.03},
+    {"model": "decor_grass", "pos": [42.92, 0, 53.86], "rot": 70, "scale": 0.97},
+    {"model": "decor_grass", "pos": [26.09, 0, 64.79], "rot": 330, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-43.55, 0, 114.66], "rot": 140, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-30.16, 0, 105.57], "rot": 130, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-4.45, 0, 112.82], "rot": 50, "scale": 0.96},
+    {"model": "decor_grass", "pos": [9.72, 0, 87.74], "rot": 250, "scale": 1.28},
+    {"model": "decor_grass", "pos": [39.91, 0, 105.44], "rot": 30, "scale": 1.0},
+    {"model": "decor_grass", "pos": [19.23, 0, 103.5], "rot": 70, "scale": 1.0},
+    {"model": "decor_grass", "pos": [7.86, 0, 90.33], "rot": 190, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-40.08, 0, 96.52], "rot": 40, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-13.64, 0, 85.62], "rot": 290, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-2.97, 0, 41.32], "rot": 80, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-16.62, 0, 43.97], "rot": 310, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-11.66, 0, 110.29], "rot": 300, "scale": 0.7},
+    {"model": "decor_grass", "pos": [-25.83, 0, 42.35], "rot": 90, "scale": 0.83},
+    {"model": "decor_grass", "pos": [15.06, 0, 83.8], "rot": 150, "scale": 1.0},
+    {"model": "decor_grass", "pos": [42.99, 0, 90.05], "rot": 40, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-30.2, 0, 86.41], "rot": 220, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-43.94, 0, 46.12], "rot": 300, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-35.61, 0, 53.14], "rot": 280, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-32.72, 0, 88.78], "rot": 100, "scale": 1.07},
+    {"model": "decor_grass", "pos": [34.15, 0, 102.7], "rot": 170, "scale": 1.13},
+    {"model": "decor_grass", "pos": [12.5, 0, 97.02], "rot": 240, "scale": 0.9},
+    {"model": "decor_grass", "pos": [23.9, 0, 71.35], "rot": 140, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-43.51, 0, 73.53], "rot": 290, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-26.97, 0, 33.27], "rot": 90, "scale": 0.72},
+    {"model": "decor_grass", "pos": [2.81, 0, 115.92], "rot": 310, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-19.66, 0, 104.97], "rot": 80, "scale": 1.13},
+    {"model": "decor_grass", "pos": [4.77, 0, 116.7], "rot": 60, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-15.18, 0, 96.2], "rot": 100, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-38.05, 0, 48.81], "rot": 160, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-13.56, 0, 120.51], "rot": 240, "scale": 0.77},
+    {"model": "decor_grass", "pos": [29.03, 0, 49.17], "rot": 40, "scale": 0.85},
+    {"model": "decor_grass", "pos": [3.81, 0, 96.21], "rot": 170, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-41.32, 0, 84.62], "rot": 200, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-12.52, 0, 71.49], "rot": 320, "scale": 1.19},
+    {"model": "decor_grass", "pos": [2.75, 0, 80.14], "rot": 30, "scale": 1.05},
+    {"model": "decor_grass", "pos": [17.78, 0, 87.12], "rot": 280, "scale": 1.04},
+    {"model": "decor_grass", "pos": [36.7, 0, 108.13], "rot": 100, "scale": 0.86},
+    {"model": "decor_grass", "pos": [12.94, 0, 50.74], "rot": 250, "scale": 0.81},
+    {"model": "decor_grass", "pos": [36.12, 0, 92.54], "rot": 290, "scale": 0.85},
+    {"model": "decor_grass", "pos": [32.55, 0, 100.64], "rot": 200, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-27.67, 0, 94.92], "rot": 280, "scale": 0.9},
+    {"model": "decor_grass", "pos": [7.94, 0, 44.86], "rot": 60, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-26.69, 0, 93.74], "rot": 140, "scale": 0.95},
+    {"model": "decor_grass", "pos": [3.05, 0, 118.37], "rot": 230, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-18.54, 0, 87.54], "rot": 300, "scale": 0.94},
+    {"model": "decor_grass", "pos": [1.85, 0, 106.5], "rot": 300, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-18.58, 0, 85.14], "rot": 320, "scale": 1.24},
+    {"model": "decor_grass", "pos": [40.57, 0, 123.49], "rot": 310, "scale": 0.89},
+    {"model": "decor_grass", "pos": [16.41, 0, 90.63], "rot": 170, "scale": 0.81},
+    {"model": "decor_grass", "pos": [12.59, 0, 98.92], "rot": 130, "scale": 0.76},
+    {"model": "decor_grass", "pos": [3.92, 0, 123.25], "rot": 290, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-26.0, 0, 84.01], "rot": 190, "scale": 1.11},
+    {"model": "decor_grass", "pos": [3.32, 0, 107.11], "rot": 180, "scale": 0.89},
+    {"model": "decor_grass", "pos": [16.65, 0, 73.67], "rot": 110, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-32.14, 0, 111.39], "rot": 220, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-10.18, 0, 59.32], "rot": 300, "scale": 0.74},
+    {"model": "decor_grass", "pos": [43.78, 0, 81.72], "rot": 80, "scale": 0.94},
+    {"model": "decor_grass", "pos": [21.95, 0, 79.33], "rot": 180, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-2.95, 0, 114.97], "rot": 140, "scale": 1.1},
+    {"model": "decor_grass", "pos": [8.79, 0, 66.36], "rot": 230, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-7.98, 0, 98.86], "rot": 200, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-4.96, 0, 92.23], "rot": 320, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-8.5, 0, 77.92], "rot": 300, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-0.63, 0, 119.6], "rot": 110, "scale": 1.19},
+    {"model": "decor_grass", "pos": [29.18, 0, 107.45], "rot": 120, "scale": 0.73},
+    {"model": "decor_grass", "pos": [35.38, 0, 68.15], "rot": 320, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-20.27, 0, 106.72], "rot": 30, "scale": 1.12},
+    {"model": "decor_grass", "pos": [0.63, 0, 73.71], "rot": 340, "scale": 0.91},
+    {"model": "decor_grass", "pos": [10.39, 0, 100.15], "rot": 0, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-16.27, 0, 44.01], "rot": 280, "scale": 1.01},
+    {"model": "decor_grass", "pos": [43.8, 0, 117.9], "rot": 190, "scale": 1.24},
+    {"model": "decor_grass", "pos": [22.21, 0, 67.47], "rot": 80, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-6.03, 0, 120.89], "rot": 250, "scale": 1.15},
+    {"model": "decor_grass", "pos": [28.55, 0, 97.13], "rot": 150, "scale": 1.23},
+    {"model": "decor_grass", "pos": [38.26, 0, 108.02], "rot": 280, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-24.79, 0, 36.44], "rot": 30, "scale": 0.88},
+    {"model": "decor_grass", "pos": [18.8, 0, 45.27], "rot": 270, "scale": 0.82},
+    {"model": "decor_grass", "pos": [14.42, 0, 50.23], "rot": 60, "scale": 1.2},
+    {"model": "decor_grass", "pos": [31.32, 0, 120.3], "rot": 170, "scale": 1.06},
+    {"model": "decor_grass", "pos": [15.9, 0, 34.7], "rot": 220, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-17.93, 0, 31.1], "rot": 80, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-15.29, 0, 57.3], "rot": 320, "scale": 1.14},
+    {"model": "decor_grass", "pos": [40.33, 0, 110.38], "rot": 190, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-10.51, 0, 94.58], "rot": 260, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-33.34, 0, 38.49], "rot": 270, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-8.4, 0, 92.13], "rot": 130, "scale": 1.11},
+    {"model": "decor_grass", "pos": [42.79, 0, 80.69], "rot": 40, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-2.83, 0, 99.96], "rot": 270, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-37.52, 0, 39.03], "rot": 330, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-10.06, 0, 36.08], "rot": 310, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-42.91, 0, 90.06], "rot": 110, "scale": 0.82},
+    {"model": "decor_grass", "pos": [27.59, 0, 78.18], "rot": 60, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-15.97, 0, 84.56], "rot": 20, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-10.84, 0, 95.86], "rot": 280, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-41.21, 0, 101.18], "rot": 240, "scale": 1.3},
+    {"model": "decor_grass", "pos": [41.55, 0, 54.9], "rot": 150, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-10.7, 0, 80.06], "rot": 320, "scale": 0.91},
+    {"model": "decor_grass", "pos": [38.44, 0, 96.49], "rot": 260, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-10.81, 0, 70.37], "rot": 200, "scale": 0.95},
+    {"model": "decor_grass", "pos": [21.58, 0, 102.8], "rot": 330, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-15.18, 0, 92.82], "rot": 210, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-7.74, 0, 123.71], "rot": 290, "scale": 1.21},
+    {"model": "decor_grass", "pos": [21.47, 0, 91.57], "rot": 110, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-11.25, 0, 104.34], "rot": 210, "scale": 1.23},
+    {"model": "decor_grass", "pos": [41.22, 0, 120.87], "rot": 190, "scale": 0.73},
+    {"model": "decor_grass", "pos": [14.75, 0, 95.01], "rot": 90, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-31.59, 0, 93.25], "rot": 320, "scale": 0.76},
+    {"model": "decor_grass", "pos": [1.49, 0, 107.03], "rot": 300, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-8.06, 0, 113.86], "rot": 70, "scale": 0.75},
+    {"model": "decor_grass", "pos": [21.35, 0, 40.44], "rot": 140, "scale": 1.19},
+    {"model": "decor_grass", "pos": [11.29, 0, 83.72], "rot": 170, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-0.91, 0, 75.3], "rot": 310, "scale": 1.18},
+    {"model": "decor_grass", "pos": [24.54, 0, 69.72], "rot": 260, "scale": 1.21},
+    {"model": "decor_grass", "pos": [27.33, 0, 119.48], "rot": 170, "scale": 0.85},
+    {"model": "decor_grass", "pos": [29.29, 0, 63.07], "rot": 70, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-21.03, 0, 110.34], "rot": 80, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-11.84, 0, 64.18], "rot": 60, "scale": 1.25},
+    {"model": "decor_grass", "pos": [25.41, 0, 60.99], "rot": 220, "scale": 0.99},
+    {"model": "decor_grass", "pos": [17.49, 0, 105.22], "rot": 290, "scale": 1.02},
+    {"model": "decor_grass", "pos": [31.4, 0, 90.99], "rot": 50, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-12.32, 0, 35.56], "rot": 40, "scale": 0.99},
+    {"model": "decor_grass", "pos": [22.43, 0, 76.14], "rot": 310, "scale": 1.15},
+    {"model": "decor_grass", "pos": [26.75, 0, 106.54], "rot": 220, "scale": 1.08},
+    {"model": "decor_grass", "pos": [24.3, 0, 94.73], "rot": 130, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-6.68, 0, 44.39], "rot": 210, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-38.6, 0, 104.99], "rot": 160, "scale": 0.94},
+    {"model": "decor_grass", "pos": [37.73, 0, 86.46], "rot": 170, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-4.44, 0, 123.48], "rot": 190, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-33.75, 0, 47.63], "rot": 130, "scale": 0.98},
+    {"model": "decor_grass", "pos": [39.23, 0, 51.46], "rot": 180, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-0.77, 0, 53.95], "rot": 90, "scale": 0.74},
+    {"model": "decor_grass", "pos": [22.14, 0, 43.03], "rot": 350, "scale": 1.04},
+    {"model": "decor_grass", "pos": [11.24, 0, 75.01], "rot": 290, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-34.38, 0, 43.28], "rot": 20, "scale": 1.04},
+    {"model": "decor_grass", "pos": [3.73, 0, 98.56], "rot": 270, "scale": 0.83},
+    {"model": "decor_grass", "pos": [30.32, 0, 34.35], "rot": 330, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-27.3, 0, 37.94], "rot": 120, "scale": 0.9},
+    {"model": "decor_grass", "pos": [18.88, 0, 78.23], "rot": 10, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-11.72, 0, 63.7], "rot": 170, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-11.03, 0, 81.43], "rot": 140, "scale": 1.16},
+    {"model": "decor_grass", "pos": [26.93, 0, 92.04], "rot": 260, "scale": 0.92},
+    {"model": "decor_grass", "pos": [19.03, 0, 33.41], "rot": 200, "scale": 0.79},
+    {"model": "decor_grass", "pos": [6.58, 0, 46.29], "rot": 70, "scale": 1.18},
+    {"model": "decor_grass", "pos": [17.97, 0, 61.68], "rot": 40, "scale": 0.85},
+    {"model": "decor_grass", "pos": [13.25, 0, 119.44], "rot": 110, "scale": 0.89},
+    {"model": "decor_grass", "pos": [22.86, 0, 75.71], "rot": 50, "scale": 0.88},
+    {"model": "decor_grass", "pos": [17.84, 0, 88.46], "rot": 350, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-26.58, 0, 47.08], "rot": 10, "scale": 1.2},
+    {"model": "decor_grass", "pos": [8.0, 0, 109.06], "rot": 100, "scale": 1.1},
+    {"model": "decor_grass", "pos": [6.02, 0, 49.96], "rot": 0, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-15.6, 0, 64.75], "rot": 230, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-0.57, 0, 38.41], "rot": 160, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-22.05, 0, 91.22], "rot": 170, "scale": 0.7},
+    {"model": "decor_grass", "pos": [-0.4, 0, 36.01], "rot": 150, "scale": 1.06},
+    {"model": "decor_grass", "pos": [22.13, 0, 96.34], "rot": 30, "scale": 1.25},
+    {"model": "decor_grass", "pos": [6.27, 0, 80.97], "rot": 220, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-19.28, 0, 85.57], "rot": 10, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-28.61, 0, 51.19], "rot": 180, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-22.69, 0, 104.85], "rot": 340, "scale": 0.84},
+    {"model": "decor_grass", "pos": [14.32, 0, 106.19], "rot": 340, "scale": 0.81},
+    {"model": "decor_grass", "pos": [5.36, 0, 95.97], "rot": 0, "scale": 0.96},
+    {"model": "decor_grass", "pos": [8.5, 0, 85.59], "rot": 140, "scale": 0.99},
+    {"model": "decor_grass", "pos": [34.19, 0, 69.67], "rot": 220, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-0.38, 0, 73.93], "rot": 280, "scale": 1.24},
+    {"model": "decor_grass", "pos": [39.15, 0, 74.16], "rot": 150, "scale": 1.17},
+    {"model": "decor_grass", "pos": [13.78, 0, 69.1], "rot": 10, "scale": 1.2},
+    {"model": "decor_grass", "pos": [13.11, 0, 83.86], "rot": 240, "scale": 0.93},
+    {"model": "decor_grass", "pos": [12.77, 0, 50.39], "rot": 130, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-33.36, 0, 96.82], "rot": 50, "scale": 1.21},
+    {"model": "decor_grass", "pos": [4.68, 0, 50.87], "rot": 130, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-37.28, 0, 53.57], "rot": 40, "scale": 1.09},
+    {"model": "decor_grass", "pos": [5.89, 0, 99.05], "rot": 110, "scale": 1.14},
+    {"model": "decor_grass", "pos": [22.57, 0, 38.88], "rot": 190, "scale": 1.09},
+    {"model": "decor_grass", "pos": [34.33, 0, 67.52], "rot": 240, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-11.57, 0, 56.07], "rot": 170, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-19.87, 0, 106.49], "rot": 130, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-12.46, 0, 105.95], "rot": 40, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-30.5, 0, 105.34], "rot": 180, "scale": 1.13},
+    {"model": "decor_grass", "pos": [41.66, 0, 49.66], "rot": 260, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-26.03, 0, 101.01], "rot": 100, "scale": 1.13},
+    {"model": "decor_grass", "pos": [16.73, 0, 87.77], "rot": 50, "scale": 1.04},
+    {"model": "decor_grass", "pos": [16.39, 0, 42.24], "rot": 160, "scale": 1.25},
+    {"model": "decor_grass", "pos": [28.84, 0, 121.36], "rot": 210, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-28.84, 0, 40.18], "rot": 320, "scale": 0.73},
+    {"model": "decor_grass", "pos": [30.61, 0, 112.72], "rot": 130, "scale": 0.81},
+    {"model": "decor_grass", "pos": [5.35, 0, 51.79], "rot": 300, "scale": 1.19},
+    {"model": "decor_grass", "pos": [8.25, 0, 123.26], "rot": 220, "scale": 0.97},
+    {"model": "decor_grass", "pos": [1.87, 0, 80.79], "rot": 50, "scale": 0.8},
+    {"model": "decor_grass", "pos": [1.94, 0, 31.38], "rot": 150, "scale": 1.13},
+    {"model": "decor_grass", "pos": [36.32, 0, 33.04], "rot": 20, "scale": 1.12},
+    {"model": "decor_grass", "pos": [32.45, 0, 101.29], "rot": 130, "scale": 1.16},
+    {"model": "decor_grass", "pos": [35.72, 0, 38.75], "rot": 80, "scale": 0.88},
+    {"model": "decor_grass", "pos": [1.57, 0, 96.03], "rot": 140, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-33.52, 0, 95.62], "rot": 310, "scale": 0.76},
+    {"model": "decor_grass", "pos": [20.46, 0, 84.02], "rot": 170, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-21.46, 0, 81.99], "rot": 120, "scale": 0.89},
+    {"model": "decor_grass", "pos": [36.65, 0, 80.31], "rot": 150, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-37.1, 0, 52.07], "rot": 240, "scale": 1.0},
+    {"model": "decor_grass", "pos": [11.9, 0, 90.24], "rot": 50, "scale": 0.97},
+    {"model": "decor_grass", "pos": [40.91, 0, 76.71], "rot": 270, "scale": 1.11},
+    {"model": "decor_grass", "pos": [22.57, 0, 99.48], "rot": 110, "scale": 0.71},
+    {"model": "decor_grass", "pos": [40.29, 0, 78.54], "rot": 20, "scale": 0.74},
+    {"model": "decor_grass", "pos": [30.16, 0, 104.61], "rot": 320, "scale": 0.8},
+    {"model": "decor_grass", "pos": [30.95, 0, 111.0], "rot": 330, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-28.63, 0, 121.47], "rot": 170, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-24.1, 0, 102.17], "rot": 320, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-2.83, 0, 31.44], "rot": 310, "scale": 0.95},
+    {"model": "decor_grass", "pos": [5.32, 0, 88.56], "rot": 40, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-34.75, 0, 53.29], "rot": 180, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-34.33, 0, 40.56], "rot": 270, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-20.56, 0, 107.61], "rot": 210, "scale": 0.79},
+    {"model": "decor_grass", "pos": [16.02, 0, 89.44], "rot": 210, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-1.31, 0, 73.99], "rot": 300, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-31.83, 0, 95.05], "rot": 350, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-9.46, 0, 115.3], "rot": 270, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-0.36, 0, 82.18], "rot": 320, "scale": 0.72},
+    {"model": "decor_grass", "pos": [35.45, 0, 45.67], "rot": 170, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-0.23, 0, 70.16], "rot": 30, "scale": 0.81},
+    {"model": "decor_grass", "pos": [28.41, 0, 113.96], "rot": 230, "scale": 1.21},
+    {"model": "decor_grass", "pos": [42.3, 0, 91.01], "rot": 150, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-17.04, 0, 85.77], "rot": 250, "scale": 0.93},
+    {"model": "decor_grass", "pos": [22.43, 0, 57.69], "rot": 250, "scale": 0.7},
+    {"model": "decor_grass", "pos": [21.08, 0, 105.64], "rot": 250, "scale": 1.24},
+    {"model": "decor_grass", "pos": [31.18, 0, 42.08], "rot": 20, "scale": 0.88},
+    {"model": "decor_grass", "pos": [32.09, 0, 34.69], "rot": 260, "scale": 1.24},
+    {"model": "decor_grass", "pos": [12.83, 0, 105.12], "rot": 80, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-27.19, 0, 86.88], "rot": 110, "scale": 1.12},
+    {"model": "decor_grass", "pos": [15.05, 0, 91.05], "rot": 290, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-13.47, 0, 31.21], "rot": 140, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-12.12, 0, 34.05], "rot": 110, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-4.5, 0, 31.39], "rot": 230, "scale": 1.17},
+    {"model": "decor_grass", "pos": [0.6, 0, 39.45], "rot": 100, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-19.61, 0, 107.09], "rot": 80, "scale": 1.27},
+    {"model": "decor_grass", "pos": [10.29, 0, 35.94], "rot": 190, "scale": 0.96},
+    {"model": "decor_grass", "pos": [1.06, 0, 67.88], "rot": 170, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-33.53, 0, 97.48], "rot": 10, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-11.14, 0, 33.95], "rot": 190, "scale": 0.84},
+    {"model": "decor_grass", "pos": [13.28, 0, 92.8], "rot": 20, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-27.41, 0, 52.37], "rot": 190, "scale": 0.93},
+    {"model": "decor_grass", "pos": [23.67, 0, 110.38], "rot": 150, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-38.47, 0, 83.03], "rot": 230, "scale": 1.09},
+    {"model": "decor_grass", "pos": [2.57, 0, 33.09], "rot": 270, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-41.58, 0, 108.88], "rot": 10, "scale": 0.85},
+    {"model": "decor_grass", "pos": [23.96, 0, 89.19], "rot": 320, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-30.3, 0, 111.35], "rot": 110, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-9.74, 0, 32.01], "rot": 150, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-7.2, 0, 93.06], "rot": 40, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-15.24, 0, 99.62], "rot": 140, "scale": 0.74},
+    {"model": "decor_grass", "pos": [7.54, 0, 104.63], "rot": 270, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-30.62, 0, 123.1], "rot": 150, "scale": 0.91},
+    {"model": "decor_grass", "pos": [12.93, 0, 60.9], "rot": 310, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-23.82, 0, 38.63], "rot": 170, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-11.82, 0, 60.34], "rot": 340, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-31.4, 0, 102.96], "rot": 320, "scale": 0.81},
+    {"model": "decor_grass", "pos": [2.4, 0, 38.99], "rot": 200, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-38.37, 0, 78.74], "rot": 190, "scale": 1.28},
+    {"model": "decor_grass", "pos": [5.01, 0, 42.94], "rot": 50, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-27.46, 0, 44.35], "rot": 100, "scale": 1.04},
+    {"model": "decor_grass", "pos": [17.8, 0, 31.31], "rot": 150, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-37.13, 0, 120.49], "rot": 90, "scale": 1.06},
+    {"model": "decor_grass", "pos": [5.68, 0, 43.1], "rot": 270, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-29.82, 0, 86.53], "rot": 130, "scale": 1.17},
+    {"model": "decor_grass", "pos": [14.87, 0, 63.56], "rot": 240, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-21.15, 0, 98.78], "rot": 310, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-26.86, 0, 48.05], "rot": 290, "scale": 1.11},
+    {"model": "decor_grass", "pos": [1.83, 0, 72.71], "rot": 190, "scale": 1.09},
+    {"model": "decor_grass", "pos": [17.28, 0, 119.38], "rot": 300, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-16.16, 0, 117.06], "rot": 310, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-1.24, 0, 49.23], "rot": 40, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-10.83, 0, 84.74], "rot": 140, "scale": 0.73},
+    {"model": "decor_grass", "pos": [6.09, 0, 37.77], "rot": 190, "scale": 1.17},
+    {"model": "decor_grass", "pos": [36.6, 0, 36.77], "rot": 150, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-3.06, 0, 69.47], "rot": 0, "scale": 0.98},
+    {"model": "decor_grass", "pos": [35.84, 0, 44.21], "rot": 340, "scale": 0.8},
+    {"model": "decor_grass", "pos": [11.19, 0, 57.71], "rot": 300, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-12.13, 0, 71.65], "rot": 350, "scale": 0.77},
+    {"model": "decor_grass", "pos": [35.52, 0, 31.48], "rot": 20, "scale": 1.09},
+    {"model": "decor_grass", "pos": [0.06, 0, 34.68], "rot": 80, "scale": 1.14},
+    {"model": "decor_grass", "pos": [10.29, 0, 87.8], "rot": 100, "scale": 0.74},
+    {"model": "decor_grass", "pos": [33.9, 0, 110.36], "rot": 20, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-20.37, 0, 33.59], "rot": 90, "scale": 1.23},
+    {"model": "decor_grass", "pos": [41.37, 0, 72.95], "rot": 110, "scale": 0.72},
+    {"model": "decor_grass", "pos": [29.48, 0, 92.83], "rot": 110, "scale": 0.74},
+    {"model": "decor_grass", "pos": [23.81, 0, 87.97], "rot": 140, "scale": 1.11},
+    {"model": "decor_grass", "pos": [32.37, 0, 51.71], "rot": 110, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-7.42, 0, 76.07], "rot": 130, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-8.32, 0, 61.62], "rot": 310, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-32.97, 0, 81.16], "rot": 320, "scale": 1.06},
+    {"model": "decor_grass", "pos": [26.08, 0, 80.35], "rot": 250, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-21.2, 0, 89.02], "rot": 270, "scale": 0.98},
+    {"model": "decor_grass", "pos": [0.94, 0, 85.57], "rot": 230, "scale": 0.96},
+    {"model": "decor_grass", "pos": [20.94, 0, 115.5], "rot": 330, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-42.68, 0, 89.66], "rot": 60, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-16.41, 0, 107.04], "rot": 350, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-1.83, 0, 71.53], "rot": 240, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-16.83, 0, 40.62], "rot": 80, "scale": 0.82},
+    {"model": "decor_grass", "pos": [2.41, 0, 92.91], "rot": 110, "scale": 1.1},
+    {"model": "decor_grass", "pos": [18.38, 0, 54.82], "rot": 40, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-3.05, 0, 121.74], "rot": 240, "scale": 0.85},
+    {"model": "decor_grass", "pos": [39.39, 0, 117.88], "rot": 170, "scale": 1.28},
+    {"model": "decor_grass", "pos": [29.8, 0, 57.51], "rot": 210, "scale": 1.2},
+    {"model": "decor_grass", "pos": [34.99, 0, 65.0], "rot": 140, "scale": 1.09},
+    {"model": "decor_grass", "pos": [20.12, 0, 97.29], "rot": 270, "scale": 1.0},
+    {"model": "decor_grass", "pos": [28.76, 0, 112.59], "rot": 220, "scale": 1.29},
+    {"model": "decor_grass", "pos": [37.82, 0, 87.78], "rot": 130, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-42.02, 0, 115.59], "rot": 250, "scale": 1.2},
+    {"model": "decor_grass", "pos": [13.38, 0, 121.15], "rot": 120, "scale": 1.29},
+    {"model": "decor_grass", "pos": [23.66, 0, 117.52], "rot": 140, "scale": 0.71},
+    {"model": "decor_grass", "pos": [43.15, 0, 73.59], "rot": 120, "scale": 0.87},
+    {"model": "decor_grass", "pos": [38.16, 0, 108.66], "rot": 230, "scale": 0.9},
+    {"model": "decor_grass", "pos": [9.01, 0, 78.77], "rot": 110, "scale": 1.2},
+    {"model": "decor_grass", "pos": [31.75, 0, 75.72], "rot": 310, "scale": 1.14},
+    {"model": "decor_grass", "pos": [31.07, 0, 104.62], "rot": 210, "scale": 1.2},
+    {"model": "decor_grass", "pos": [17.78, 0, 32.93], "rot": 140, "scale": 1.13},
+    {"model": "decor_grass", "pos": [24.12, 0, 47.82], "rot": 180, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-9.91, 0, 57.58], "rot": 240, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-15.62, 0, 107.97], "rot": 330, "scale": 1.13},
+    {"model": "decor_grass", "pos": [5.18, 0, 86.48], "rot": 140, "scale": 1.04},
+    {"model": "decor_grass", "pos": [38.89, 0, 86.35], "rot": 110, "scale": 1.05},
+    {"model": "decor_grass", "pos": [37.55, 0, 53.22], "rot": 220, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-24.26, 0, 101.24], "rot": 170, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-21.29, 0, 113.9], "rot": 40, "scale": 0.7},
+    {"model": "decor_grass", "pos": [-0.51, 0, 82.81], "rot": 350, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-20.4, 0, 31.62], "rot": 160, "scale": 0.7},
+    {"model": "decor_grass", "pos": [-29.99, 0, 95.84], "rot": 290, "scale": 1.29},
+    {"model": "decor_grass", "pos": [29.51, 0, 64.21], "rot": 300, "scale": 0.89},
+    {"model": "decor_grass", "pos": [11.45, 0, 76.58], "rot": 220, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-33.97, 0, 95.45], "rot": 20, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-12.8, 0, 80.07], "rot": 40, "scale": 1.23},
+    {"model": "decor_grass", "pos": [6.03, 0, 60.25], "rot": 20, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-15.76, 0, 55.12], "rot": 70, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-16.84, 0, 82.24], "rot": 120, "scale": 0.98},
+    {"model": "decor_grass", "pos": [25.29, 0, 53.12], "rot": 250, "scale": 1.21},
+    {"model": "decor_grass", "pos": [5.26, 0, 38.73], "rot": 120, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-30.86, 0, 108.7], "rot": 170, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-10.09, 0, 46.49], "rot": 80, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-42.25, 0, 103.91], "rot": 80, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-28.49, 0, 86.62], "rot": 280, "scale": 1.16},
+    {"model": "decor_grass", "pos": [16.81, 0, 53.21], "rot": 130, "scale": 1.16},
+    {"model": "decor_grass", "pos": [27.61, 0, 111.38], "rot": 350, "scale": 1.2},
+    {"model": "decor_grass", "pos": [21.29, 0, 45.06], "rot": 70, "scale": 1.09},
+    {"model": "decor_grass", "pos": [32.39, 0, 108.29], "rot": 160, "scale": 1.15},
+    {"model": "decor_grass", "pos": [35.78, 0, 43.19], "rot": 220, "scale": 0.83},
+    {"model": "decor_grass", "pos": [40.6, 0, 32.07], "rot": 260, "scale": 0.88},
+    {"model": "decor_grass", "pos": [10.25, 0, 95.9], "rot": 290, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-29.38, 0, 87.98], "rot": 340, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-43.04, 0, 96.87], "rot": 250, "scale": 1.17},
+    {"model": "decor_grass", "pos": [18.94, 0, 93.15], "rot": 300, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-6.37, 0, 106.18], "rot": 80, "scale": 0.75},
+    {"model": "decor_grass", "pos": [38.78, 0, 76.34], "rot": 200, "scale": 0.72},
+    {"model": "decor_grass", "pos": [38.8, 0, 110.99], "rot": 20, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-37.44, 0, 101.66], "rot": 110, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-17.28, 0, 98.65], "rot": 60, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-18.42, 0, 34.69], "rot": 40, "scale": 0.87},
+    {"model": "decor_grass", "pos": [28.46, 0, 95.77], "rot": 120, "scale": 0.93},
+    {"model": "decor_grass", "pos": [22.0, 0, 74.65], "rot": 150, "scale": 1.21},
+    {"model": "decor_grass", "pos": [15.57, 0, 119.53], "rot": 60, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-25.01, 0, 96.22], "rot": 0, "scale": 1.17},
+    {"model": "decor_grass", "pos": [30.19, 0, 55.24], "rot": 190, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-13.33, 0, 52.82], "rot": 170, "scale": 0.83},
+    {"model": "decor_grass", "pos": [39.83, 0, 94.91], "rot": 330, "scale": 1.12},
+    {"model": "decor_grass", "pos": [33.11, 0, 74.57], "rot": 110, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-35.65, 0, 104.75], "rot": 310, "scale": 1.22},
+    {"model": "decor_grass", "pos": [4.53, 0, 36.22], "rot": 110, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-30.7, 0, 91.46], "rot": 250, "scale": 1.15},
+    {"model": "decor_grass", "pos": [43.63, 0, 47.0], "rot": 60, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-4.59, 0, 40.16], "rot": 330, "scale": 1.21},
+    {"model": "decor_grass", "pos": [23.32, 0, 31.64], "rot": 250, "scale": 1.21},
+    {"model": "decor_grass", "pos": [5.56, 0, 69.65], "rot": 20, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-31.4, 0, 121.92], "rot": 350, "scale": 1.03},
+    {"model": "decor_grass", "pos": [9.7, 0, 107.42], "rot": 190, "scale": 1.09},
+    {"model": "decor_grass", "pos": [12.42, 0, 96.4], "rot": 340, "scale": 0.91},
+    {"model": "decor_grass", "pos": [33.76, 0, 69.44], "rot": 290, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-4.65, 0, 67.01], "rot": 80, "scale": 1.24},
+    {"model": "decor_grass", "pos": [16.36, 0, 115.77], "rot": 180, "scale": 1.01},
+    {"model": "decor_grass", "pos": [17.13, 0, 95.25], "rot": 20, "scale": 0.87},
+    {"model": "decor_grass", "pos": [39.14, 0, 69.3], "rot": 220, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-15.24, 0, 55.14], "rot": 0, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-5.07, 0, 82.77], "rot": 10, "scale": 1.22},
+    {"model": "decor_grass", "pos": [18.33, 0, 36.16], "rot": 60, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-40.66, 0, 61.3], "rot": 240, "scale": 1.02},
+    {"model": "decor_grass", "pos": [3.86, 0, 97.5], "rot": 70, "scale": 0.85},
+    {"model": "decor_grass", "pos": [25.08, 0, 58.61], "rot": 270, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-3.96, 0, 106.29], "rot": 100, "scale": 1.03},
+    {"model": "decor_grass", "pos": [9.42, 0, 114.08], "rot": 270, "scale": 1.04},
+    {"model": "decor_grass", "pos": [36.9, 0, 110.53], "rot": 290, "scale": 0.82},
+    {"model": "decor_grass", "pos": [16.67, 0, 113.64], "rot": 330, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-40.8, 0, 112.07], "rot": 10, "scale": 1.19},
+    {"model": "decor_grass", "pos": [2.03, 0, 64.64], "rot": 140, "scale": 1.16},
+    {"model": "decor_grass", "pos": [12.37, 0, 38.51], "rot": 350, "scale": 0.87},
+    {"model": "decor_grass", "pos": [42.0, 0, 81.44], "rot": 240, "scale": 0.92},
+    {"model": "decor_grass", "pos": [25.72, 0, 61.47], "rot": 180, "scale": 0.94},
+    {"model": "decor_grass", "pos": [3.79, 0, 46.78], "rot": 260, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-12.65, 0, 36.25], "rot": 100, "scale": 0.93},
+    {"model": "decor_grass", "pos": [17.73, 0, 50.76], "rot": 60, "scale": 0.93},
+    {"model": "decor_grass", "pos": [3.45, 0, 88.25], "rot": 310, "scale": 0.82},
+    {"model": "decor_grass", "pos": [5.97, 0, 110.52], "rot": 80, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-40.02, 0, 48.51], "rot": 0, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-9.68, 0, 80.18], "rot": 100, "scale": 1.06},
+    {"model": "decor_grass", "pos": [40.65, 0, 91.02], "rot": 140, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-20.56, 0, 85.7], "rot": 170, "scale": 0.93},
+    {"model": "decor_grass", "pos": [33.02, 0, 36.91], "rot": 220, "scale": 1.15},
+    {"model": "decor_grass", "pos": [11.26, 0, 107.23], "rot": 310, "scale": 1.24},
+    {"model": "decor_grass", "pos": [24.61, 0, 57.55], "rot": 100, "scale": 0.81},
+    {"model": "decor_grass", "pos": [5.75, 0, 113.55], "rot": 300, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-15.38, 0, 40.34], "rot": 320, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-29.81, 0, 79.47], "rot": 20, "scale": 1.18},
+    {"model": "decor_grass", "pos": [29.36, 0, 54.52], "rot": 280, "scale": 1.22},
+    {"model": "decor_grass", "pos": [7.63, 0, 107.99], "rot": 100, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-27.58, 0, 121.87], "rot": 0, "scale": 0.86},
+    {"model": "decor_grass", "pos": [3.86, 0, 45.02], "rot": 160, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-21.35, 0, 85.51], "rot": 270, "scale": 0.79},
+    {"model": "decor_grass", "pos": [11.21, 0, 97.54], "rot": 70, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-26.64, 0, 105.2], "rot": 340, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-37.42, 0, 89.32], "rot": 310, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-29.14, 0, 109.06], "rot": 140, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-1.29, 0, 111.2], "rot": 290, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-11.31, 0, 57.34], "rot": 10, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-17.69, 0, 92.38], "rot": 350, "scale": 1.05},
+    {"model": "decor_grass", "pos": [34.97, 0, 86.28], "rot": 200, "scale": 0.96},
+    {"model": "decor_grass", "pos": [8.71, 0, 33.26], "rot": 300, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-43.25, 0, 119.48], "rot": 30, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-34.89, 0, 45.85], "rot": 60, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-18.09, 0, 114.19], "rot": 40, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-15.69, 0, 31.05], "rot": 250, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-37.32, 0, 105.67], "rot": 140, "scale": 0.89},
+    {"model": "decor_grass", "pos": [36.45, 0, 48.72], "rot": 100, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-10.54, 0, 52.93], "rot": 190, "scale": 1.15},
+    {"model": "decor_grass", "pos": [18.62, 0, 66.79], "rot": 170, "scale": 1.14},
+    {"model": "decor_grass", "pos": [19.84, 0, 55.92], "rot": 240, "scale": 1.07},
+    {"model": "decor_grass", "pos": [29.97, 0, 102.96], "rot": 310, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-43.9, 0, 107.04], "rot": 260, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-37.32, 0, 48.94], "rot": 90, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-40.15, 0, 43.09], "rot": 350, "scale": 1.1},
+    {"model": "decor_grass", "pos": [41.33, 0, 38.2], "rot": 290, "scale": 1.16},
+    {"model": "decor_grass", "pos": [19.96, 0, 88.97], "rot": 50, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-22.71, 0, 90.34], "rot": 90, "scale": 0.73},
+    {"model": "decor_grass", "pos": [34.74, 0, 94.03], "rot": 330, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-13.25, 0, 31.51], "rot": 350, "scale": 0.87},
+    {"model": "decor_grass", "pos": [17.75, 0, 53.28], "rot": 330, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-29.03, 0, 78.4], "rot": 290, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-40.24, 0, 65.44], "rot": 90, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-10.6, 0, 79.15], "rot": 200, "scale": 1.27},
+    {"model": "decor_grass", "pos": [33.86, 0, 40.92], "rot": 240, "scale": 0.87},
+    {"model": "decor_grass", "pos": [34.16, 0, 52.2], "rot": 240, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-23.4, 0, 42.1], "rot": 180, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-33.41, 0, 46.87], "rot": 320, "scale": 0.85},
+    {"model": "decor_grass", "pos": [23.58, 0, 58.94], "rot": 90, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-36.66, 0, 82.86], "rot": 120, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-3.97, 0, 64.23], "rot": 350, "scale": 1.3},
+    {"model": "decor_grass", "pos": [14.87, 0, 91.91], "rot": 70, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-6.08, 0, 83.78], "rot": 90, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-39.88, 0, 113.34], "rot": 70, "scale": 1.25},
+    {"model": "decor_grass", "pos": [36.09, 0, 94.27], "rot": 310, "scale": 0.78},
+    {"model": "decor_grass", "pos": [16.14, 0, 68.35], "rot": 140, "scale": 1.29},
+    {"model": "decor_grass", "pos": [16.19, 0, 58.46], "rot": 310, "scale": 1.16},
+    {"model": "decor_grass", "pos": [41.94, 0, 77.43], "rot": 320, "scale": 1.03},
+    {"model": "decor_grass", "pos": [13.3, 0, 66.92], "rot": 0, "scale": 1.16},
+    {"model": "decor_grass", "pos": [16.34, 0, 106.16], "rot": 280, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-12.94, 0, 41.09], "rot": 200, "scale": 0.99},
+    {"model": "decor_grass", "pos": [6.63, 0, 52.8], "rot": 180, "scale": 1.06},
+    {"model": "decor_grass", "pos": [3.49, 0, 37.63], "rot": 160, "scale": 0.82},
+    {"model": "decor_grass", "pos": [40.42, 0, 79.96], "rot": 230, "scale": 1.13},
+    {"model": "decor_grass", "pos": [2.2, 0, 111.99], "rot": 90, "scale": 0.99},
+    {"model": "decor_grass", "pos": [31.88, 0, 65.28], "rot": 90, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-3.19, 0, 117.6], "rot": 160, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-3.69, 0, 82.36], "rot": 300, "scale": 0.81},
+    {"model": "decor_grass", "pos": [27.84, 0, 83.34], "rot": 150, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-35.49, 0, 112.99], "rot": 150, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-8.14, 0, 56.65], "rot": 160, "scale": 0.97},
+    {"model": "decor_grass", "pos": [31.28, 0, 82.4], "rot": 300, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-41.72, 0, 71.78], "rot": 220, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-28.2, 0, 102.24], "rot": 240, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-26.07, 0, 45.93], "rot": 270, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-27.45, 0, 79.65], "rot": 200, "scale": 0.73},
+    {"model": "decor_grass", "pos": [22.93, 0, 69.4], "rot": 270, "scale": 1.28},
+    {"model": "decor_grass", "pos": [43.3, 0, 113.67], "rot": 220, "scale": 0.73},
+    {"model": "decor_grass", "pos": [5.07, 0, 117.65], "rot": 90, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-34.05, 0, 101.57], "rot": 190, "scale": 0.78},
+    {"model": "decor_grass", "pos": [7.38, 0, 71.56], "rot": 170, "scale": 0.89},
+    {"model": "decor_grass", "pos": [41.88, 0, 118.06], "rot": 200, "scale": 0.98},
+    {"model": "decor_grass", "pos": [5.62, 0, 68.55], "rot": 40, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-32.02, 0, 119.52], "rot": 330, "scale": 0.9},
+    {"model": "decor_grass", "pos": [4.81, 0, 68.22], "rot": 300, "scale": 1.16},
+    {"model": "decor_grass", "pos": [12.76, 0, 53.35], "rot": 250, "scale": 0.75},
+    {"model": "decor_grass", "pos": [17.48, 0, 31.5], "rot": 0, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-9.99, 0, 122.85], "rot": 80, "scale": 1.28},
+    {"model": "decor_grass", "pos": [43.54, 0, 98.84], "rot": 290, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-5.15, 0, 42.91], "rot": 200, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-42.44, 0, 75.84], "rot": 300, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-3.25, 0, 60.49], "rot": 230, "scale": 0.76},
+    {"model": "decor_grass", "pos": [36.34, 0, 99.81], "rot": 340, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-11.52, 0, 67.13], "rot": 90, "scale": 0.79},
+    {"model": "decor_grass", "pos": [11.69, 0, 83.28], "rot": 170, "scale": 1.29},
+    {"model": "decor_grass", "pos": [34.67, 0, 83.88], "rot": 90, "scale": 1.29},
+    {"model": "decor_grass", "pos": [7.85, 0, 102.09], "rot": 210, "scale": 1.26},
+    {"model": "decor_grass", "pos": [17.84, 0, 69.27], "rot": 180, "scale": 1.03},
+    {"model": "decor_grass", "pos": [21.07, 0, 47.77], "rot": 240, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-4.12, 0, 101.54], "rot": 100, "scale": 1.11},
+    {"model": "decor_grass", "pos": [2.43, 0, 39.99], "rot": 310, "scale": 1.14},
+    {"model": "decor_grass", "pos": [25.91, 0, 56.8], "rot": 320, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-0.05, 0, 109.14], "rot": 10, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-5.73, 0, 63.97], "rot": 290, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-29.59, 0, 114.75], "rot": 190, "scale": 1.08},
+    {"model": "decor_grass", "pos": [30.06, 0, 76.1], "rot": 250, "scale": 0.91},
+    {"model": "decor_grass", "pos": [2.66, 0, 60.81], "rot": 180, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-11.74, 0, 109.49], "rot": 180, "scale": 1.07},
+    {"model": "decor_grass", "pos": [35.07, 0, 110.12], "rot": 210, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-21.77, 0, 79.11], "rot": 60, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-24.51, 0, 107.61], "rot": 170, "scale": 0.9},
+    {"model": "decor_grass", "pos": [33.01, 0, 106.09], "rot": 10, "scale": 1.13},
+    {"model": "decor_grass", "pos": [41.94, 0, 54.21], "rot": 310, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-15.81, 0, 80.08], "rot": 40, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-37.02, 0, 38.16], "rot": 290, "scale": 0.83},
+    {"model": "decor_grass", "pos": [27.62, 0, 102.06], "rot": 20, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-28.47, 0, 112.83], "rot": 130, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-14.25, 0, 57.76], "rot": 140, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-22.76, 0, 93.57], "rot": 140, "scale": 0.73},
+    {"model": "decor_grass", "pos": [33.26, 0, 66.7], "rot": 330, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-39.76, 0, 119.52], "rot": 100, "scale": 0.89},
+    {"model": "decor_grass", "pos": [18.8, 0, 94.15], "rot": 70, "scale": 0.72},
+    {"model": "decor_grass", "pos": [23.75, 0, 39.63], "rot": 230, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-16.15, 0, 123.83], "rot": 260, "scale": 0.72},
+    {"model": "decor_grass", "pos": [25.98, 0, 116.29], "rot": 260, "scale": 1.3},
+    {"model": "decor_grass", "pos": [-33.58, 0, 92.78], "rot": 50, "scale": 1.13},
+    {"model": "decor_grass", "pos": [0.64, 0, 98.3], "rot": 90, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-0.36, 0, 94.93], "rot": 80, "scale": 0.9},
+    {"model": "decor_grass", "pos": [31.52, 0, 47.15], "rot": 100, "scale": 0.84},
+    {"model": "decor_grass", "pos": [0.32, 0, 109.2], "rot": 350, "scale": 0.75},
+    {"model": "decor_grass", "pos": [0.65, 0, 109.81], "rot": 170, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-29.37, 0, 102.54], "rot": 180, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-26.8, 0, 116.88], "rot": 340, "scale": 0.88},
+    {"model": "decor_grass", "pos": [43.19, 0, 108.48], "rot": 0, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-32.71, 0, 103.74], "rot": 270, "scale": 0.74},
+    {"model": "decor_grass", "pos": [21.29, 0, 42.32], "rot": 0, "scale": 1.1},
+    {"model": "decor_grass", "pos": [41.51, 0, 116.63], "rot": 140, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-39.75, 0, 45.0], "rot": 350, "scale": 1.22},
+    {"model": "decor_grass", "pos": [31.36, 0, 73.58], "rot": 220, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-8.3, 0, 60.49], "rot": 160, "scale": 0.95},
+    {"model": "decor_grass", "pos": [38.72, 0, 101.85], "rot": 270, "scale": 0.97},
+    {"model": "decor_grass", "pos": [14.03, 0, 110.86], "rot": 170, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-39.25, 0, 116.86], "rot": 210, "scale": 1.14},
+    {"model": "decor_grass", "pos": [17.98, 0, 44.23], "rot": 100, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-15.08, 0, 87.7], "rot": 240, "scale": 1.29},
+    {"model": "decor_grass", "pos": [16.87, 0, 46.45], "rot": 80, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-14.67, 0, 41.33], "rot": 260, "scale": 0.8},
+    {"model": "decor_grass", "pos": [27.18, 0, 78.53], "rot": 150, "scale": 1.28},
+    {"model": "decor_grass", "pos": [36.03, 0, 56.68], "rot": 250, "scale": 1.05},
+    {"model": "decor_grass", "pos": [10.92, 0, 44.07], "rot": 290, "scale": 1.03},
+    {"model": "decor_grass", "pos": [38.64, 0, 75.62], "rot": 80, "scale": 0.79},
+    {"model": "decor_grass", "pos": [19.57, 0, 63.48], "rot": 230, "scale": 1.18},
+    {"model": "decor_grass", "pos": [12.93, 0, 97.68], "rot": 60, "scale": 0.75},
+    {"model": "decor_grass", "pos": [22.55, 0, 89.54], "rot": 50, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-6.47, 0, 85.12], "rot": 80, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-13.78, 0, 51.41], "rot": 250, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-31.76, 0, 87.28], "rot": 80, "scale": 0.8},
+    {"model": "decor_grass", "pos": [36.82, 0, 66.04], "rot": 50, "scale": 1.03},
+    {"model": "decor_grass", "pos": [38.53, 0, 45.87], "rot": 240, "scale": 0.93},
+    {"model": "decor_grass", "pos": [42.75, 0, 89.28], "rot": 70, "scale": 0.7},
+    {"model": "decor_grass", "pos": [42.61, 0, 100.97], "rot": 140, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-6.45, 0, 123.56], "rot": 90, "scale": 1.3},
+    {"model": "decor_grass", "pos": [-0.28, 0, 94.22], "rot": 270, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-0.91, 0, 87.35], "rot": 230, "scale": 0.96},
+    {"model": "decor_grass", "pos": [40.23, 0, 116.23], "rot": 120, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-34.13, 0, 32.18], "rot": 100, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-40.17, 0, 31.32], "rot": 120, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-39.86, 0, 35.85], "rot": 150, "scale": 1.19},
+    {"model": "decor_grass", "pos": [16.79, 0, 32.77], "rot": 190, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-11.74, 0, 99.47], "rot": 160, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-43.04, 0, 103.45], "rot": 260, "scale": 0.96},
+    {"model": "decor_grass", "pos": [33.39, 0, 76.73], "rot": 100, "scale": 1.16},
+    {"model": "decor_grass", "pos": [36.1, 0, 76.15], "rot": 330, "scale": 0.87},
+    {"model": "decor_grass", "pos": [9.21, 0, 65.0], "rot": 200, "scale": 1.27},
+    {"model": "decor_grass", "pos": [6.74, 0, 70.35], "rot": 30, "scale": 1.12},
+    {"model": "decor_grass", "pos": [37.34, 0, 39.0], "rot": 10, "scale": 1.04},
+    {"model": "decor_grass", "pos": [23.47, 0, 107.23], "rot": 270, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-43.92, 0, 116.73], "rot": 100, "scale": 0.95},
+    {"model": "decor_grass", "pos": [2.61, 0, 84.52], "rot": 90, "scale": 1.28},
+    {"model": "decor_grass", "pos": [18.43, 0, 118.35], "rot": 110, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-27.1, 0, 34.45], "rot": 250, "scale": 0.87},
+    {"model": "decor_grass", "pos": [38.17, 0, 54.09], "rot": 290, "scale": 0.77},
+    {"model": "decor_grass", "pos": [37.71, 0, 91.81], "rot": 70, "scale": 1.27},
+    {"model": "decor_grass", "pos": [27.39, 0, 65.43], "rot": 200, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-41.95, 0, 108.33], "rot": 280, "scale": 1.1},
+    {"model": "decor_grass", "pos": [11.0, 0, 73.05], "rot": 150, "scale": 0.83},
+    {"model": "decor_grass", "pos": [6.09, 0, 107.17], "rot": 40, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-12.47, 0, 47.07], "rot": 320, "scale": 1.19},
+    {"model": "decor_grass", "pos": [18.78, 0, 100.57], "rot": 40, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-9.26, 0, 111.04], "rot": 0, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-17.97, 0, 115.38], "rot": 160, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-10.95, 0, 36.37], "rot": 280, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-10.81, 0, 119.41], "rot": 110, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-37.08, 0, 102.72], "rot": 130, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-10.75, 0, 93.38], "rot": 100, "scale": 0.92},
+    {"model": "decor_grass", "pos": [33.68, 0, 45.46], "rot": 340, "scale": 0.91},
+    {"model": "decor_grass", "pos": [23.89, 0, 50.64], "rot": 60, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-27.67, 0, 78.85], "rot": 260, "scale": 1.2},
+    {"model": "decor_grass", "pos": [0.65, 0, 108.9], "rot": 100, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-14.69, 0, 105.92], "rot": 150, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-43.59, 0, 65.39], "rot": 90, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-39.67, 0, 43.3], "rot": 0, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-25.17, 0, 103.94], "rot": 60, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-34.3, 0, 52.06], "rot": 300, "scale": 0.94},
+    {"model": "decor_grass", "pos": [27.87, 0, 47.0], "rot": 310, "scale": 0.78},
+    {"model": "decor_grass", "pos": [20.9, 0, 55.07], "rot": 340, "scale": 0.77},
+    {"model": "decor_grass", "pos": [28.0, 0, 80.56], "rot": 330, "scale": 0.76},
+    {"model": "decor_grass", "pos": [22.72, 0, 88.69], "rot": 300, "scale": 0.92},
+    {"model": "decor_grass", "pos": [5.63, 0, 86.92], "rot": 260, "scale": 0.99},
+    {"model": "decor_grass", "pos": [18.51, 0, 52.11], "rot": 290, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-5.8, 0, 113.73], "rot": 260, "scale": 1.02},
+    {"model": "decor_grass", "pos": [37.29, 0, 45.1], "rot": 30, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-40.76, 0, 64.02], "rot": 70, "scale": 1.02},
+    {"model": "decor_grass", "pos": [0.5, 0, 42.03], "rot": 320, "scale": 1.1},
+    {"model": "decor_grass", "pos": [36.17, 0, 98.32], "rot": 10, "scale": 1.24},
+    {"model": "decor_grass", "pos": [2.78, 0, 83.6], "rot": 210, "scale": 0.72},
+    {"model": "decor_grass", "pos": [6.95, 0, 65.17], "rot": 330, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-35.02, 0, 119.26], "rot": 90, "scale": 1.23},
+    {"model": "decor_grass", "pos": [0.56, 0, 103.78], "rot": 290, "scale": 0.8},
+    {"model": "decor_grass", "pos": [17.32, 0, 59.21], "rot": 330, "scale": 1.16},
+    {"model": "decor_grass", "pos": [32.92, 0, 90.62], "rot": 260, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-42.46, 0, 84.87], "rot": 40, "scale": 1.24},
+    {"model": "decor_grass", "pos": [40.52, 0, 39.13], "rot": 160, "scale": 1.13},
+    {"model": "decor_grass", "pos": [5.55, 0, 60.7], "rot": 130, "scale": 0.77},
+    {"model": "decor_grass", "pos": [31.18, 0, 78.6], "rot": 140, "scale": 1.29},
+    {"model": "decor_grass", "pos": [34.96, 0, 67.53], "rot": 280, "scale": 0.74},
+    {"model": "decor_grass", "pos": [39.99, 0, 89.19], "rot": 190, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-13.04, 0, 34.75], "rot": 170, "scale": 0.9},
+    {"model": "decor_grass", "pos": [26.53, 0, 42.34], "rot": 10, "scale": 1.16},
+    {"model": "decor_grass", "pos": [43.11, 0, 109.88], "rot": 160, "scale": 0.87},
+    {"model": "decor_grass", "pos": [29.65, 0, 33.33], "rot": 300, "scale": 1.04},
+    {"model": "decor_grass", "pos": [9.56, 0, 95.02], "rot": 30, "scale": 1.3},
+    {"model": "decor_grass", "pos": [-10.12, 0, 57.9], "rot": 310, "scale": 0.87},
+    {"model": "decor_grass", "pos": [2.06, 0, 55.15], "rot": 170, "scale": 1.04},
+    {"model": "decor_grass", "pos": [29.68, 0, 84.3], "rot": 200, "scale": 1.15},
+    {"model": "decor_grass", "pos": [0.82, 0, 96.5], "rot": 40, "scale": 1.08},
+    {"model": "decor_grass", "pos": [30.54, 0, 43.25], "rot": 50, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-39.2, 0, 82.31], "rot": 160, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-26.15, 0, 97.51], "rot": 340, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-29.13, 0, 119.67], "rot": 310, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-38.9, 0, 84.74], "rot": 330, "scale": 1.17},
+    {"model": "decor_grass", "pos": [6.0, 0, 45.91], "rot": 110, "scale": 1.16},
+    {"model": "decor_grass", "pos": [42.85, 0, 39.21], "rot": 170, "scale": 0.76},
+    {"model": "decor_grass", "pos": [10.6, 0, 67.43], "rot": 90, "scale": 1.3},
+    {"model": "decor_grass", "pos": [-15.17, 0, 46.94], "rot": 180, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-8.83, 0, 111.93], "rot": 100, "scale": 1.2},
+    {"model": "decor_grass", "pos": [2.83, 0, 46.06], "rot": 120, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-42.23, 0, 78.1], "rot": 200, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-10.03, 0, 56.31], "rot": 100, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-34.82, 0, 86.57], "rot": 100, "scale": 0.88},
+    {"model": "decor_grass", "pos": [37.07, 0, 60.48], "rot": 130, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-5.17, 0, 53.03], "rot": 270, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-42.11, 0, 65.41], "rot": 50, "scale": 0.86},
+    {"model": "decor_grass", "pos": [41.83, 0, 32.8], "rot": 30, "scale": 1.11},
+    {"model": "decor_grass", "pos": [35.14, 0, 107.41], "rot": 310, "scale": 0.78},
+    {"model": "decor_grass", "pos": [1.76, 0, 46.3], "rot": 280, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-29.07, 0, 36.81], "rot": 340, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-22.72, 0, 103.03], "rot": 260, "scale": 1.05},
+    {"model": "decor_grass", "pos": [36.63, 0, 68.13], "rot": 210, "scale": 1.19},
+    {"model": "decor_grass", "pos": [6.38, 0, 63.61], "rot": 50, "scale": 1.05},
+    {"model": "decor_grass", "pos": [41.55, 0, 45.37], "rot": 60, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-36.88, 0, 38.75], "rot": 20, "scale": 0.74},
+    {"model": "decor_grass", "pos": [41.57, 0, 40.32], "rot": 230, "scale": 1.26},
+    {"model": "decor_grass", "pos": [7.74, 0, 114.25], "rot": 340, "scale": 0.91},
+    {"model": "decor_grass", "pos": [0.72, 0, 110.82], "rot": 20, "scale": 0.77},
+    {"model": "decor_grass", "pos": [15.19, 0, 120.88], "rot": 220, "scale": 1.09},
+    {"model": "decor_grass", "pos": [6.39, 0, 117.19], "rot": 80, "scale": 0.91},
+    {"model": "decor_grass", "pos": [38.24, 0, 61.1], "rot": 90, "scale": 1.2},
+    {"model": "decor_grass", "pos": [18.17, 0, 107.79], "rot": 40, "scale": 0.79},
+    {"model": "decor_grass", "pos": [9.07, 0, 54.61], "rot": 50, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-23.2, 0, 81.22], "rot": 110, "scale": 0.88},
+    {"model": "decor_grass", "pos": [15.0, 0, 74.76], "rot": 250, "scale": 1.22},
+    {"model": "decor_grass", "pos": [8.39, 0, 106.23], "rot": 290, "scale": 1.13},
+    {"model": "decor_grass", "pos": [37.43, 0, 62.23], "rot": 330, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-19.79, 0, 49.46], "rot": 30, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-8.89, 0, 103.04], "rot": 0, "scale": 0.97},
+    {"model": "decor_grass", "pos": [6.36, 0, 38.03], "rot": 160, "scale": 0.99},
+    {"model": "decor_grass", "pos": [7.51, 0, 54.0], "rot": 300, "scale": 1.27},
+    {"model": "decor_grass", "pos": [4.19, 0, 74.96], "rot": 190, "scale": 1.24},
+    {"model": "decor_grass", "pos": [41.38, 0, 62.48], "rot": 200, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-42.33, 0, 112.03], "rot": 350, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-9.72, 0, 94.31], "rot": 110, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-38.2, 0, 83.4], "rot": 200, "scale": 1.18},
+    {"model": "decor_grass", "pos": [5.31, 0, 61.02], "rot": 320, "scale": 0.93},
+    {"model": "decor_grass", "pos": [27.69, 0, 35.51], "rot": 110, "scale": 0.84},
+    {"model": "decor_grass", "pos": [35.79, 0, 72.82], "rot": 40, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-18.64, 0, 123.14], "rot": 290, "scale": 0.78},
+    {"model": "decor_grass", "pos": [39.77, 0, 65.73], "rot": 240, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-23.67, 0, 35.18], "rot": 240, "scale": 1.16},
+    {"model": "decor_grass", "pos": [42.76, 0, 95.09], "rot": 310, "scale": 0.96},
+    {"model": "decor_grass", "pos": [3.12, 0, 102.29], "rot": 220, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-5.2, 0, 85.47], "rot": 340, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-43.67, 0, 55.03], "rot": 190, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-41.34, 0, 96.92], "rot": 80, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-3.65, 0, 76.63], "rot": 160, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-10.03, 0, 61.71], "rot": 180, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-25.42, 0, 49.57], "rot": 240, "scale": 0.73},
+    {"model": "decor_grass", "pos": [42.46, 0, 53.47], "rot": 350, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-30.29, 0, 97.56], "rot": 250, "scale": 1.08},
+    {"model": "decor_grass", "pos": [36.54, 0, 54.76], "rot": 40, "scale": 0.89},
+    {"model": "decor_grass", "pos": [1.53, 0, 116.2], "rot": 150, "scale": 0.88},
+    {"model": "decor_grass", "pos": [7.58, 0, 72.26], "rot": 340, "scale": 0.72},
+    {"model": "decor_grass", "pos": [16.47, 0, 119.49], "rot": 260, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-13.35, 0, 110.85], "rot": 170, "scale": 0.88},
+    {"model": "decor_grass", "pos": [7.0, 0, 60.42], "rot": 160, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-25.4, 0, 50.54], "rot": 290, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-26.52, 0, 86.79], "rot": 0, "scale": 0.87},
+    {"model": "decor_grass", "pos": [23.77, 0, 90.49], "rot": 110, "scale": 1.11},
+    {"model": "decor_grass", "pos": [6.15, 0, 99.79], "rot": 60, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-35.95, 0, 82.16], "rot": 160, "scale": 0.84},
+    {"model": "decor_grass", "pos": [39.0, 0, 31.91], "rot": 170, "scale": 1.14},
+    {"model": "decor_grass", "pos": [2.44, 0, 57.99], "rot": 350, "scale": 0.71},
+    {"model": "decor_grass", "pos": [43.09, 0, 52.68], "rot": 340, "scale": 0.72},
+    {"model": "decor_grass", "pos": [14.53, 0, 73.02], "rot": 210, "scale": 1.08},
+    {"model": "decor_grass", "pos": [41.72, 0, 58.36], "rot": 200, "scale": 0.94},
+    {"model": "decor_grass", "pos": [11.36, 0, 35.27], "rot": 20, "scale": 0.94},
+    {"model": "decor_grass", "pos": [35.55, 0, 102.59], "rot": 310, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-8.81, 0, 67.05], "rot": 340, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-16.39, 0, 45.63], "rot": 120, "scale": 0.88},
+    {"model": "decor_grass", "pos": [39.25, 0, 59.79], "rot": 70, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-11.43, 0, 64.02], "rot": 250, "scale": 1.15},
+    {"model": "decor_grass", "pos": [28.45, 0, 70.0], "rot": 100, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-31.93, 0, 120.16], "rot": 290, "scale": 1.14},
+    {"model": "decor_grass", "pos": [11.21, 0, 44.35], "rot": 130, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-12.83, 0, 85.0], "rot": 290, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-26.21, 0, 51.62], "rot": 140, "scale": 1.29},
+    {"model": "decor_grass", "pos": [20.46, 0, 87.27], "rot": 260, "scale": 0.87},
+    {"model": "decor_grass", "pos": [12.54, 0, 77.74], "rot": 260, "scale": 0.73},
+    {"model": "decor_grass", "pos": [21.5, 0, 96.73], "rot": 100, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-6.95, 0, 36.26], "rot": 340, "scale": 0.8},
+    {"model": "decor_grass", "pos": [5.82, 0, 66.25], "rot": 100, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-18.5, 0, 84.33], "rot": 0, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-5.66, 0, 82.49], "rot": 310, "scale": 1.03},
+    {"model": "decor_grass", "pos": [37.18, 0, 91.25], "rot": 220, "scale": 0.74},
+    {"model": "decor_grass", "pos": [41.76, 0, 50.14], "rot": 310, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-2.61, 0, 86.6], "rot": 350, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-26.32, 0, 91.11], "rot": 70, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-27.56, 0, 93.09], "rot": 60, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-11.82, 0, 71.23], "rot": 80, "scale": 1.15},
+    {"model": "decor_grass", "pos": [16.53, 0, 68.75], "rot": 110, "scale": 0.87},
+    {"model": "decor_grass", "pos": [17.16, 0, 46.24], "rot": 20, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-8.81, 0, 96.35], "rot": 340, "scale": 0.76},
+    {"model": "decor_grass", "pos": [21.02, 0, 111.99], "rot": 70, "scale": 1.07},
+    {"model": "decor_grass", "pos": [33.2, 0, 110.25], "rot": 170, "scale": 0.71},
+    {"model": "decor_grass", "pos": [32.49, 0, 80.97], "rot": 160, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-22.81, 0, 86.21], "rot": 340, "scale": 0.86},
+    {"model": "decor_grass", "pos": [15.4, 0, 98.31], "rot": 40, "scale": 0.89},
+    {"model": "decor_grass", "pos": [23.64, 0, 105.47], "rot": 310, "scale": 0.85},
+    {"model": "decor_grass", "pos": [42.29, 0, 88.03], "rot": 10, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-28.07, 0, 88.24], "rot": 80, "scale": 1.2},
+    {"model": "decor_grass", "pos": [42.83, 0, 44.48], "rot": 350, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-13.85, 0, 39.19], "rot": 140, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-22.54, 0, 42.34], "rot": 120, "scale": 0.85},
+    {"model": "decor_grass", "pos": [11.24, 0, 110.79], "rot": 60, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-34.3, 0, 123.23], "rot": 320, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-9.19, 0, 81.58], "rot": 130, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-11.04, 0, 94.7], "rot": 140, "scale": 0.88},
+    {"model": "decor_grass", "pos": [2.39, 0, 106.24], "rot": 70, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-6.41, 0, 65.32], "rot": 50, "scale": 1.23},
+    {"model": "decor_grass", "pos": [32.89, 0, 65.93], "rot": 160, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-20.44, 0, 53.46], "rot": 180, "scale": 1.16},
+    {"model": "decor_grass", "pos": [34.88, 0, 48.76], "rot": 110, "scale": 1.22},
+    {"model": "decor_grass", "pos": [43.06, 0, 40.57], "rot": 200, "scale": 1.2},
+    {"model": "decor_grass", "pos": [40.86, 0, 103.5], "rot": 110, "scale": 1.17},
+    {"model": "decor_grass", "pos": [7.59, 0, 73.62], "rot": 180, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-26.85, 0, 86.23], "rot": 350, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-4.0, 0, 63.38], "rot": 240, "scale": 0.93},
+    {"model": "decor_grass", "pos": [43.49, 0, 107.12], "rot": 240, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-22.93, 0, 82.76], "rot": 70, "scale": 0.82},
+    {"model": "decor_grass", "pos": [4.72, 0, 88.14], "rot": 140, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-6.51, 0, 67.02], "rot": 220, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-30.03, 0, 35.37], "rot": 260, "scale": 1.2},
+    {"model": "decor_grass", "pos": [27.9, 0, 62.26], "rot": 270, "scale": 0.76},
+    {"model": "decor_grass", "pos": [25.03, 0, 82.89], "rot": 40, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-32.27, 0, 87.2], "rot": 300, "scale": 0.81},
+    {"model": "decor_grass", "pos": [35.46, 0, 119.7], "rot": 190, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-16.19, 0, 53.85], "rot": 350, "scale": 0.72},
+    {"model": "decor_grass", "pos": [25.95, 0, 79.84], "rot": 270, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-22.19, 0, 47.99], "rot": 220, "scale": 1.11},
+    {"model": "decor_grass", "pos": [36.89, 0, 31.3], "rot": 340, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-35.94, 0, 112.16], "rot": 180, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-7.19, 0, 94.17], "rot": 60, "scale": 1.15},
+    {"model": "decor_grass", "pos": [39.66, 0, 104.98], "rot": 340, "scale": 1.25},
+    {"model": "decor_grass", "pos": [2.81, 0, 87.57], "rot": 0, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-39.32, 0, 115.91], "rot": 130, "scale": 0.71},
+    {"model": "decor_grass", "pos": [38.07, 0, 65.11], "rot": 190, "scale": 1.23},
+    {"model": "decor_grass", "pos": [0.21, 0, 95.76], "rot": 300, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-10.22, 0, 118.34], "rot": 210, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-38.6, 0, 34.86], "rot": 20, "scale": 1.11},
+    {"model": "decor_grass", "pos": [10.25, 0, 82.9], "rot": 330, "scale": 1.29},
+    {"model": "decor_grass", "pos": [35.24, 0, 120.92], "rot": 290, "scale": 1.21},
+    {"model": "decor_grass", "pos": [43.03, 0, 100.71], "rot": 210, "scale": 1.21},
+    {"model": "decor_grass", "pos": [5.49, 0, 45.79], "rot": 170, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-38.31, 0, 88.37], "rot": 220, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-4.97, 0, 118.58], "rot": 200, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-7.16, 0, 88.23], "rot": 270, "scale": 0.98},
+    {"model": "decor_grass", "pos": [31.19, 0, 91.76], "rot": 350, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-38.52, 0, 42.12], "rot": 240, "scale": 1.07},
+    {"model": "decor_grass", "pos": [22.66, 0, 80.85], "rot": 330, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-9.59, 0, 116.66], "rot": 10, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-8.52, 0, 90.17], "rot": 320, "scale": 1.19},
+    {"model": "decor_grass", "pos": [28.61, 0, 58.07], "rot": 40, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-14.96, 0, 73.71], "rot": 300, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-29.3, 0, 92.62], "rot": 180, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-28.28, 0, 103.63], "rot": 100, "scale": 0.86},
+    {"model": "decor_grass", "pos": [22.73, 0, 120.69], "rot": 280, "scale": 0.98},
+    {"model": "decor_grass", "pos": [34.81, 0, 47.87], "rot": 190, "scale": 1.0},
+    {"model": "decor_grass", "pos": [16.39, 0, 35.14], "rot": 180, "scale": 0.92},
+    {"model": "decor_grass", "pos": [26.82, 0, 95.17], "rot": 270, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-33.15, 0, 48.15], "rot": 60, "scale": 1.18},
+    {"model": "decor_grass", "pos": [28.33, 0, 57.66], "rot": 80, "scale": 1.04},
+    {"model": "decor_grass", "pos": [5.97, 0, 40.05], "rot": 300, "scale": 0.81},
+    {"model": "decor_grass", "pos": [1.47, 0, 47.76], "rot": 210, "scale": 0.99},
+    {"model": "decor_grass", "pos": [17.95, 0, 54.28], "rot": 60, "scale": 1.24},
+    {"model": "decor_grass", "pos": [10.74, 0, 62.33], "rot": 10, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-17.6, 0, 89.51], "rot": 210, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-0.94, 0, 103.51], "rot": 10, "scale": 1.02},
+    {"model": "decor_grass", "pos": [41.15, 0, 113.89], "rot": 250, "scale": 1.06},
+    {"model": "decor_grass", "pos": [31.15, 0, 50.8], "rot": 40, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-4.85, 0, 92.72], "rot": 190, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-41.07, 0, 37.51], "rot": 240, "scale": 1.0},
+    {"model": "decor_grass", "pos": [23.69, 0, 111.4], "rot": 190, "scale": 1.21},
+    {"model": "decor_grass", "pos": [34.46, 0, 42.41], "rot": 10, "scale": 1.04},
+    {"model": "decor_grass", "pos": [17.91, 0, 34.46], "rot": 130, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-14.6, 0, 79.04], "rot": 150, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-28.1, 0, 51.09], "rot": 140, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-40.51, 0, 120.13], "rot": 350, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-29.98, 0, 87.57], "rot": 280, "scale": 1.27},
+    {"model": "decor_grass", "pos": [16.23, 0, 111.81], "rot": 210, "scale": 1.06},
+    {"model": "decor_grass", "pos": [5.45, 0, 68.98], "rot": 300, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-28.05, 0, 113.12], "rot": 170, "scale": 1.26},
+    {"model": "decor_grass", "pos": [5.22, 0, 81.18], "rot": 220, "scale": 1.19},
+    {"model": "decor_grass", "pos": [31.24, 0, 51.45], "rot": 340, "scale": 1.29},
+    {"model": "decor_grass", "pos": [8.88, 0, 81.76], "rot": 310, "scale": 1.3},
+    {"model": "decor_grass", "pos": [-0.13, 0, 62.37], "rot": 60, "scale": 1.17},
+    {"model": "decor_grass", "pos": [11.65, 0, 42.24], "rot": 200, "scale": 1.07},
+    {"model": "decor_grass", "pos": [32.18, 0, 119.44], "rot": 130, "scale": 1.23},
+    {"model": "decor_grass", "pos": [30.61, 0, 77.69], "rot": 180, "scale": 1.27},
+    {"model": "decor_grass", "pos": [36.02, 0, 111.41], "rot": 290, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-38.81, 0, 92.14], "rot": 10, "scale": 0.71},
+    {"model": "decor_grass", "pos": [22.54, 0, 46.5], "rot": 310, "scale": 1.0},
+    {"model": "decor_grass", "pos": [8.68, 0, 61.82], "rot": 330, "scale": 1.07},
+    {"model": "decor_grass", "pos": [35.68, 0, 120.49], "rot": 170, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-7.07, 0, 67.59], "rot": 240, "scale": 0.72},
+    {"model": "decor_grass", "pos": [3.59, 0, 59.81], "rot": 190, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-21.23, 0, 81.65], "rot": 290, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-24.7, 0, 89.61], "rot": 20, "scale": 0.74},
+    {"model": "decor_grass", "pos": [12.2, 0, 118.24], "rot": 0, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-43.15, 0, 48.56], "rot": 140, "scale": 0.71},
+    {"model": "decor_grass", "pos": [20.53, 0, 117.05], "rot": 140, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-34.9, 0, 121.9], "rot": 150, "scale": 1.03},
+    {"model": "decor_grass", "pos": [21.89, 0, 113.94], "rot": 290, "scale": 0.74},
+    {"model": "decor_grass", "pos": [42.23, 0, 59.01], "rot": 70, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-22.84, 0, 119.8], "rot": 220, "scale": 1.24},
+    {"model": "decor_grass", "pos": [21.48, 0, 100.95], "rot": 130, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-24.68, 0, 117.5], "rot": 160, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-37.42, 0, 105.33], "rot": 0, "scale": 1.15},
+    {"model": "decor_grass", "pos": [30.31, 0, 40.87], "rot": 170, "scale": 0.8},
+    {"model": "decor_grass", "pos": [42.66, 0, 122.79], "rot": 40, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-17.37, 0, 87.07], "rot": 50, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-2.78, 0, 71.37], "rot": 330, "scale": 0.78},
+    {"model": "decor_grass", "pos": [37.14, 0, 74.97], "rot": 80, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-11.19, 0, 51.62], "rot": 80, "scale": 1.11},
+    {"model": "decor_grass", "pos": [30.31, 0, 108.0], "rot": 60, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-5.71, 0, 69.54], "rot": 180, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-36.64, 0, 109.74], "rot": 130, "scale": 0.74},
+    {"model": "decor_grass", "pos": [3.29, 0, 56.01], "rot": 30, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-15.95, 0, 41.81], "rot": 250, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-16.6, 0, 103.12], "rot": 120, "scale": 0.86},
+    {"model": "decor_grass", "pos": [22.76, 0, 111.21], "rot": 70, "scale": 0.7},
+    {"model": "decor_grass", "pos": [32.12, 0, 113.12], "rot": 250, "scale": 0.78},
+    {"model": "decor_grass", "pos": [2.81, 0, 38.28], "rot": 70, "scale": 0.77},
+    {"model": "decor_grass", "pos": [7.67, 0, 60.48], "rot": 130, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-29.81, 0, 118.65], "rot": 220, "scale": 1.16},
+    {"model": "decor_grass", "pos": [31.78, 0, 111.05], "rot": 250, "scale": 1.26},
+    {"model": "decor_grass", "pos": [26.78, 0, 63.39], "rot": 240, "scale": 0.97},
+    {"model": "decor_grass", "pos": [40.39, 0, 96.76], "rot": 70, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-17.61, 0, 83.33], "rot": 220, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-6.78, 0, 45.66], "rot": 40, "scale": 0.7},
+    {"model": "decor_grass", "pos": [0.03, 0, 106.1], "rot": 180, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-29.49, 0, 34.54], "rot": 160, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-30.71, 0, 32.9], "rot": 50, "scale": 1.02},
+    {"model": "decor_grass", "pos": [13.97, 0, 101.91], "rot": 130, "scale": 1.16},
+    {"model": "decor_grass", "pos": [22.69, 0, 63.58], "rot": 340, "scale": 0.78},
+    {"model": "decor_grass", "pos": [21.0, 0, 46.22], "rot": 130, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-2.32, 0, 93.56], "rot": 170, "scale": 1.03},
+    {"model": "decor_grass", "pos": [3.82, 0, 98.92], "rot": 240, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-1.85, 0, 88.13], "rot": 280, "scale": 0.72},
+    {"model": "decor_grass", "pos": [40.5, 0, 120.13], "rot": 160, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-36.77, 0, 53.21], "rot": 210, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-5.39, 0, 104.37], "rot": 110, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-16.56, 0, 106.54], "rot": 270, "scale": 0.9},
+    {"model": "decor_grass", "pos": [32.82, 0, 80.07], "rot": 330, "scale": 1.25},
+    {"model": "decor_grass", "pos": [30.82, 0, 86.84], "rot": 350, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-4.2, 0, 61.12], "rot": 260, "scale": 1.25},
+    {"model": "decor_grass", "pos": [5.77, 0, 65.69], "rot": 150, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-28.09, 0, 98.73], "rot": 330, "scale": 1.1},
+    {"model": "decor_grass", "pos": [21.92, 0, 91.01], "rot": 270, "scale": 0.83},
+    {"model": "decor_grass", "pos": [42.02, 0, 106.25], "rot": 350, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-19.28, 0, 83.46], "rot": 300, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-6.43, 0, 48.25], "rot": 80, "scale": 0.92},
+    {"model": "decor_grass", "pos": [11.96, 0, 121.6], "rot": 0, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-26.02, 0, 81.22], "rot": 190, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-4.68, 0, 104.21], "rot": 340, "scale": 0.95},
+    {"model": "decor_grass", "pos": [26.5, 0, 54.68], "rot": 0, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-37.78, 0, 44.9], "rot": 30, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-20.1, 0, 88.92], "rot": 130, "scale": 0.83},
+    {"model": "decor_grass", "pos": [42.89, 0, 35.99], "rot": 260, "scale": 0.77},
+    {"model": "decor_grass", "pos": [34.73, 0, 43.03], "rot": 90, "scale": 1.21},
+    {"model": "decor_grass", "pos": [35.22, 0, 106.54], "rot": 190, "scale": 1.26},
+    {"model": "decor_grass", "pos": [10.53, 0, 119.92], "rot": 290, "scale": 0.76},
+    {"model": "decor_grass", "pos": [14.75, 0, 47.21], "rot": 230, "scale": 0.92},
+    {"model": "decor_grass", "pos": [4.15, 0, 90.0], "rot": 0, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-3.14, 0, 62.1], "rot": 230, "scale": 0.73},
+    {"model": "decor_grass", "pos": [19.18, 0, 47.64], "rot": 340, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-38.91, 0, 99.47], "rot": 130, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-34.67, 0, 113.33], "rot": 90, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-35.27, 0, 89.81], "rot": 340, "scale": 1.23},
+    {"model": "decor_grass", "pos": [10.42, 0, 106.91], "rot": 260, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-39.33, 0, 107.89], "rot": 310, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-10.22, 0, 113.42], "rot": 170, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-41.2, 0, 91.3], "rot": 20, "scale": 1.13},
+    {"model": "decor_grass", "pos": [16.11, 0, 110.86], "rot": 50, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-34.14, 0, 42.76], "rot": 350, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-7.13, 0, 122.32], "rot": 340, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-23.63, 0, 114.17], "rot": 250, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-2.33, 0, 56.42], "rot": 190, "scale": 0.74},
+    {"model": "decor_grass", "pos": [34.47, 0, 73.07], "rot": 90, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-37.0, 0, 82.02], "rot": 0, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-37.17, 0, 92.03], "rot": 280, "scale": 1.24},
+    {"model": "decor_grass", "pos": [20.53, 0, 64.08], "rot": 0, "scale": 0.94},
+    {"model": "decor_grass", "pos": [33.64, 0, 98.88], "rot": 70, "scale": 0.7},
+    {"model": "decor_grass", "pos": [-5.24, 0, 111.49], "rot": 30, "scale": 0.98},
+    {"model": "decor_grass", "pos": [25.75, 0, 78.43], "rot": 320, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-0.12, 0, 41.03], "rot": 70, "scale": 0.95},
+    {"model": "decor_grass", "pos": [4.1, 0, 45.41], "rot": 250, "scale": 0.76},
+    {"model": "decor_grass", "pos": [6.45, 0, 114.39], "rot": 110, "scale": 0.99},
+    {"model": "decor_grass", "pos": [16.82, 0, 103.75], "rot": 230, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-8.21, 0, 98.47], "rot": 20, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-0.42, 0, 118.1], "rot": 30, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-7.57, 0, 107.25], "rot": 10, "scale": 0.87},
+    {"model": "decor_grass", "pos": [22.54, 0, 74.19], "rot": 300, "scale": 0.99},
+    {"model": "decor_grass", "pos": [8.71, 0, 40.3], "rot": 30, "scale": 0.92},
+    {"model": "decor_grass", "pos": [35.37, 0, 40.84], "rot": 60, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-19.33, 0, 97.65], "rot": 130, "scale": 0.8},
+    {"model": "decor_grass", "pos": [29.52, 0, 59.19], "rot": 80, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-25.71, 0, 89.87], "rot": 70, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-34.25, 0, 39.12], "rot": 10, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-35.92, 0, 46.08], "rot": 160, "scale": 0.88},
+    {"model": "decor_grass", "pos": [35.19, 0, 111.69], "rot": 50, "scale": 0.74},
+    {"model": "decor_grass", "pos": [12.49, 0, 105.69], "rot": 240, "scale": 0.92},
+    {"model": "decor_grass", "pos": [1.99, 0, 119.88], "rot": 140, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-11.28, 0, 69.86], "rot": 60, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-7.97, 0, 67.2], "rot": 70, "scale": 0.73},
+    {"model": "decor_grass", "pos": [8.96, 0, 52.85], "rot": 190, "scale": 0.73},
+    {"model": "decor_grass", "pos": [24.56, 0, 33.02], "rot": 60, "scale": 1.22},
+    {"model": "decor_grass", "pos": [9.34, 0, 32.16], "rot": 300, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-4.24, 0, 108.05], "rot": 270, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-33.43, 0, 41.23], "rot": 100, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-14.49, 0, 64.5], "rot": 140, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-19.57, 0, 36.63], "rot": 350, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-15.62, 0, 117.83], "rot": 40, "scale": 1.29},
+    {"model": "decor_grass", "pos": [22.06, 0, 33.32], "rot": 20, "scale": 0.95},
+    {"model": "decor_grass", "pos": [32.93, 0, 92.34], "rot": 130, "scale": 1.16},
+    {"model": "decor_grass", "pos": [39.03, 0, 110.53], "rot": 30, "scale": 0.7},
+    {"model": "decor_grass", "pos": [-3.12, 0, 58.7], "rot": 60, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-9.16, 0, 94.77], "rot": 180, "scale": 0.86},
+    {"model": "decor_grass", "pos": [25.98, 0, 91.62], "rot": 70, "scale": 0.71},
+    {"model": "decor_grass", "pos": [42.38, 0, 78.29], "rot": 40, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-21.86, 0, 101.54], "rot": 100, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-8.04, 0, 40.38], "rot": 340, "scale": 1.12},
+    {"model": "decor_grass", "pos": [28.22, 0, 105.05], "rot": 270, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-42.05, 0, 111.63], "rot": 350, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-38.39, 0, 87.06], "rot": 0, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-40.35, 0, 58.88], "rot": 140, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-11.22, 0, 43.7], "rot": 300, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-14.96, 0, 47.95], "rot": 130, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-17.55, 0, 92.97], "rot": 80, "scale": 1.0},
+    {"model": "decor_grass", "pos": [16.13, 0, 115.12], "rot": 200, "scale": 0.85},
+    {"model": "decor_grass", "pos": [4.76, 0, 105.47], "rot": 140, "scale": 0.77},
+    {"model": "decor_grass", "pos": [15.77, 0, 52.53], "rot": 210, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-30.54, 0, 108.34], "rot": 140, "scale": 1.17},
+    {"model": "decor_grass", "pos": [17.38, 0, 45.1], "rot": 110, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-35.77, 0, 101.43], "rot": 300, "scale": 1.27},
+    {"model": "decor_grass", "pos": [2.44, 0, 93.93], "rot": 150, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-36.11, 0, 34.14], "rot": 350, "scale": 1.06},
+    {"model": "decor_grass", "pos": [3.94, 0, 106.85], "rot": 50, "scale": 0.74},
+    {"model": "decor_grass", "pos": [8.83, 0, 57.71], "rot": 230, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-33.35, 0, 107.88], "rot": 110, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-11.32, 0, 116.7], "rot": 40, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-3.69, 0, 39.02], "rot": 100, "scale": 0.96},
+    {"model": "decor_grass", "pos": [31.07, 0, 84.08], "rot": 250, "scale": 0.72},
+    {"model": "decor_grass", "pos": [20.68, 0, 118.9], "rot": 180, "scale": 0.72},
+    {"model": "decor_grass", "pos": [15.7, 0, 37.1], "rot": 130, "scale": 0.77},
+    {"model": "decor_grass", "pos": [40.61, 0, 99.95], "rot": 240, "scale": 0.97},
+    {"model": "decor_grass", "pos": [29.35, 0, 43.28], "rot": 300, "scale": 0.91},
+    {"model": "decor_grass", "pos": [9.82, 0, 58.96], "rot": 60, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-32.61, 0, 43.47], "rot": 320, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-10.48, 0, 66.75], "rot": 110, "scale": 0.94},
+    {"model": "decor_grass", "pos": [13.65, 0, 36.7], "rot": 340, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-30.47, 0, 40.49], "rot": 260, "scale": 0.7},
+    {"model": "decor_grass", "pos": [15.01, 0, 89.37], "rot": 200, "scale": 0.95},
+    {"model": "decor_grass", "pos": [43.53, 0, 105.33], "rot": 270, "scale": 1.23},
+    {"model": "decor_grass", "pos": [34.98, 0, 78.35], "rot": 330, "scale": 1.02},
+    {"model": "decor_grass", "pos": [32.63, 0, 95.38], "rot": 220, "scale": 0.84},
+    {"model": "decor_grass", "pos": [43.99, 0, 72.0], "rot": 80, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-29.62, 0, 46.4], "rot": 70, "scale": 1.09},
+    {"model": "decor_grass", "pos": [0.08, 0, 103.99], "rot": 320, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-23.07, 0, 106.95], "rot": 200, "scale": 1.04},
+    {"model": "decor_grass", "pos": [10.36, 0, 47.98], "rot": 70, "scale": 0.86},
+    {"model": "decor_grass", "pos": [43.26, 0, 66.93], "rot": 310, "scale": 0.7},
+    {"model": "decor_grass", "pos": [-37.67, 0, 34.85], "rot": 50, "scale": 0.93},
+    {"model": "decor_grass", "pos": [38.93, 0, 84.74], "rot": 70, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-16.87, 0, 95.67], "rot": 90, "scale": 0.98},
+    {"model": "decor_grass", "pos": [13.33, 0, 104.17], "rot": 190, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-24.2, 0, 36.49], "rot": 250, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-34.68, 0, 52.1], "rot": 180, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-5.49, 0, 92.27], "rot": 300, "scale": 1.19},
+    {"model": "decor_grass", "pos": [18.21, 0, 39.9], "rot": 260, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-42.99, 0, 50.9], "rot": 300, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-8.69, 0, 116.48], "rot": 110, "scale": 0.94},
+    {"model": "decor_grass", "pos": [11.6, 0, 120.4], "rot": 80, "scale": 1.07},
+    {"model": "decor_grass", "pos": [3.97, 0, 79.36], "rot": 280, "scale": 1.01},
+    {"model": "decor_grass", "pos": [15.91, 0, 119.27], "rot": 260, "scale": 0.99},
+    {"model": "decor_grass", "pos": [5.79, 0, 78.17], "rot": 90, "scale": 1.01},
+    {"model": "decor_grass", "pos": [25.2, 0, 50.9], "rot": 0, "scale": 1.15},
+    {"model": "decor_grass", "pos": [30.22, 0, 56.25], "rot": 110, "scale": 1.18},
+    {"model": "decor_grass", "pos": [13.08, 0, 98.35], "rot": 100, "scale": 1.17},
+    {"model": "decor_grass", "pos": [28.54, 0, 118.3], "rot": 100, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-38.85, 0, 117.2], "rot": 230, "scale": 0.88},
+    {"model": "decor_grass", "pos": [38.98, 0, 83.22], "rot": 80, "scale": 1.13},
+    {"model": "decor_grass", "pos": [21.52, 0, 41.7], "rot": 170, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-4.23, 0, 39.86], "rot": 70, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-15.97, 0, 119.57], "rot": 110, "scale": 0.84},
+    {"model": "decor_grass", "pos": [17.42, 0, 83.47], "rot": 170, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-34.48, 0, 113.82], "rot": 190, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-28.01, 0, 116.59], "rot": 30, "scale": 1.22},
+    {"model": "decor_grass", "pos": [18.98, 0, 44.52], "rot": 260, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-23.7, 0, 110.92], "rot": 220, "scale": 0.93},
+    {"model": "decor_grass", "pos": [31.86, 0, 44.9], "rot": 280, "scale": 0.83},
+    {"model": "decor_grass", "pos": [23.25, 0, 82.34], "rot": 200, "scale": 0.81},
+    {"model": "decor_grass", "pos": [31.93, 0, 71.96], "rot": 190, "scale": 0.73},
+    {"model": "decor_grass", "pos": [13.26, 0, 38.48], "rot": 280, "scale": 0.92},
+    {"model": "decor_grass", "pos": [36.26, 0, 93.56], "rot": 0, "scale": 1.18},
+    {"model": "decor_grass", "pos": [1.58, 0, 68.9], "rot": 100, "scale": 0.74},
+    {"model": "decor_grass", "pos": [3.34, 0, 57.78], "rot": 130, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-0.98, 0, 37.62], "rot": 330, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-37.36, 0, 41.5], "rot": 140, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-33.47, 0, 80.04], "rot": 200, "scale": 1.27},
+    {"model": "decor_grass", "pos": [13.88, 0, 51.86], "rot": 200, "scale": 0.87},
+    {"model": "decor_grass", "pos": [19.39, 0, 53.85], "rot": 110, "scale": 0.9},
+    {"model": "decor_grass", "pos": [30.1, 0, 60.0], "rot": 20, "scale": 0.89},
+    {"model": "decor_grass", "pos": [6.66, 0, 111.63], "rot": 60, "scale": 0.75},
+    {"model": "decor_grass", "pos": [10.71, 0, 121.5], "rot": 50, "scale": 0.75},
+    {"model": "decor_grass", "pos": [33.67, 0, 83.36], "rot": 320, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-24.69, 0, 120.39], "rot": 260, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-37.64, 0, 118.6], "rot": 220, "scale": 0.97},
+    {"model": "decor_grass", "pos": [4.41, 0, 103.37], "rot": 150, "scale": 1.11},
+    {"model": "decor_grass", "pos": [38.32, 0, 55.97], "rot": 230, "scale": 1.01},
+    {"model": "decor_grass", "pos": [11.02, 0, 64.09], "rot": 50, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-6.46, 0, 91.04], "rot": 30, "scale": 0.92},
+    {"model": "decor_grass", "pos": [24.55, 0, 66.44], "rot": 220, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-26.46, 0, 89.53], "rot": 90, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-26.61, 0, 35.1], "rot": 350, "scale": 1.06},
+    {"model": "decor_grass", "pos": [35.17, 0, 54.98], "rot": 130, "scale": 1.14},
+    {"model": "decor_grass", "pos": [9.45, 0, 46.42], "rot": 70, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-12.17, 0, 69.05], "rot": 180, "scale": 1.19},
+    {"model": "decor_grass", "pos": [41.12, 0, 44.03], "rot": 180, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-5.77, 0, 80.72], "rot": 170, "scale": 1.15},
+    {"model": "decor_grass", "pos": [36.94, 0, 90.88], "rot": 350, "scale": 1.3},
+    {"model": "decor_grass", "pos": [-26.15, 0, 41.99], "rot": 210, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-27.63, 0, 81.51], "rot": 160, "scale": 1.13},
+    {"model": "decor_grass", "pos": [7.24, 0, 93.93], "rot": 350, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-10.77, 0, 100.55], "rot": 190, "scale": 1.2},
+    {"model": "decor_grass", "pos": [31.82, 0, 78.79], "rot": 0, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-21.9, 0, 50.49], "rot": 110, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-5.85, 0, 63.1], "rot": 230, "scale": 0.8},
+    {"model": "decor_grass", "pos": [34.84, 0, 41.4], "rot": 330, "scale": 1.29},
+    {"model": "decor_grass", "pos": [0.28, 0, 114.46], "rot": 60, "scale": 1.18},
+    {"model": "decor_grass", "pos": [1.84, 0, 66.54], "rot": 0, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-32.7, 0, 100.49], "rot": 10, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-6.49, 0, 88.36], "rot": 110, "scale": 0.8},
+    {"model": "decor_grass", "pos": [18.39, 0, 57.65], "rot": 160, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-14.05, 0, 54.7], "rot": 330, "scale": 0.73},
+    {"model": "decor_grass", "pos": [10.3, 0, 99.62], "rot": 230, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-9.49, 0, 52.59], "rot": 310, "scale": 0.74},
+    {"model": "decor_grass", "pos": [1.58, 0, 100.12], "rot": 340, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-6.44, 0, 104.98], "rot": 100, "scale": 0.85},
+    {"model": "decor_grass", "pos": [15.48, 0, 120.51], "rot": 200, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-43.16, 0, 45.51], "rot": 50, "scale": 0.85},
+    {"model": "decor_grass", "pos": [2.11, 0, 101.82], "rot": 300, "scale": 1.25},
+    {"model": "decor_grass", "pos": [40.0, 0, 121.61], "rot": 350, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-5.17, 0, 116.03], "rot": 140, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-6.55, 0, 87.35], "rot": 300, "scale": 0.71},
+    {"model": "decor_grass", "pos": [15.83, 0, 89.01], "rot": 230, "scale": 1.05},
+    {"model": "decor_grass", "pos": [22.7, 0, 42.27], "rot": 40, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-17.98, 0, 78.56], "rot": 270, "scale": 1.03},
+    {"model": "decor_grass", "pos": [0.81, 0, 119.1], "rot": 140, "scale": 0.8},
+    {"model": "decor_grass", "pos": [38.23, 0, 75.03], "rot": 260, "scale": 0.78},
+    {"model": "decor_grass", "pos": [4.81, 0, 66.06], "rot": 220, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-36.11, 0, 37.11], "rot": 240, "scale": 1.11},
+    {"model": "decor_grass", "pos": [5.61, 0, 81.22], "rot": 220, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-40.97, 0, 80.09], "rot": 300, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-6.85, 0, 57.01], "rot": 290, "scale": 0.7},
+    {"model": "decor_grass", "pos": [29.04, 0, 59.5], "rot": 40, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-34.23, 0, 91.61], "rot": 310, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-27.51, 0, 80.01], "rot": 110, "scale": 0.94},
+    {"model": "decor_grass", "pos": [5.24, 0, 48.31], "rot": 260, "scale": 0.94},
+    {"model": "decor_grass", "pos": [9.92, 0, 66.77], "rot": 310, "scale": 1.12},
+    {"model": "decor_grass", "pos": [11.27, 0, 109.99], "rot": 120, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-3.36, 0, 41.09], "rot": 280, "scale": 0.76},
+    {"model": "decor_grass", "pos": [11.04, 0, 49.11], "rot": 120, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-28.93, 0, 122.03], "rot": 160, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-12.33, 0, 85.58], "rot": 30, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-7.31, 0, 56.5], "rot": 50, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-40.89, 0, 99.05], "rot": 100, "scale": 1.27},
+    {"model": "decor_grass", "pos": [29.07, 0, 44.93], "rot": 180, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-32.36, 0, 84.8], "rot": 250, "scale": 0.78},
+    {"model": "decor_grass", "pos": [24.19, 0, 50.99], "rot": 40, "scale": 0.79},
+    {"model": "decor_grass", "pos": [26.11, 0, 88.18], "rot": 260, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-27.72, 0, 88.19], "rot": 140, "scale": 1.06},
+    {"model": "decor_grass", "pos": [12.83, 0, 102.35], "rot": 350, "scale": 1.18},
+    {"model": "decor_grass", "pos": [31.16, 0, 36.09], "rot": 280, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-21.57, 0, 45.28], "rot": 70, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-29.26, 0, 115.03], "rot": 130, "scale": 0.81},
+    {"model": "decor_grass", "pos": [21.4, 0, 55.33], "rot": 220, "scale": 0.79},
+    {"model": "decor_grass", "pos": [32.61, 0, 35.03], "rot": 80, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-40.85, 0, 117.34], "rot": 10, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-9.76, 0, 95.51], "rot": 310, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-40.23, 0, 89.58], "rot": 260, "scale": 1.27},
+    {"model": "decor_grass", "pos": [7.3, 0, 59.63], "rot": 160, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-31.2, 0, 40.76], "rot": 230, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-32.3, 0, 109.61], "rot": 310, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-10.19, 0, 86.98], "rot": 60, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-31.75, 0, 95.84], "rot": 300, "scale": 1.01},
+    {"model": "decor_grass", "pos": [15.5, 0, 51.05], "rot": 10, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-28.78, 0, 42.37], "rot": 180, "scale": 0.97},
+    {"model": "decor_grass", "pos": [3.42, 0, 33.66], "rot": 320, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-12.15, 0, 74.09], "rot": 110, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-29.94, 0, 121.1], "rot": 210, "scale": 0.71},
+    {"model": "decor_grass", "pos": [14.38, 0, 72.25], "rot": 60, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-28.17, 0, 83.45], "rot": 250, "scale": 1.29},
+    {"model": "decor_grass", "pos": [35.95, 0, 78.79], "rot": 0, "scale": 1.28},
+    {"model": "decor_grass", "pos": [32.78, 0, 75.38], "rot": 210, "scale": 0.91},
+    {"model": "decor_grass", "pos": [6.13, 0, 90.81], "rot": 110, "scale": 1.29},
+    {"model": "decor_grass", "pos": [32.71, 0, 52.64], "rot": 70, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-33.67, 0, 118.58], "rot": 220, "scale": 0.96},
+    {"model": "decor_grass", "pos": [16.23, 0, 92.62], "rot": 270, "scale": 0.97},
+    {"model": "decor_grass", "pos": [37.93, 0, 122.48], "rot": 150, "scale": 1.22},
+    {"model": "decor_grass", "pos": [30.61, 0, 68.92], "rot": 280, "scale": 1.05},
+    {"model": "decor_grass", "pos": [34.61, 0, 75.66], "rot": 160, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-26.04, 0, 92.8], "rot": 230, "scale": 1.23},
+    {"model": "decor_grass", "pos": [35.55, 0, 99.59], "rot": 60, "scale": 1.18},
+    {"model": "decor_grass", "pos": [43.35, 0, 102.92], "rot": 210, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-12.78, 0, 40.24], "rot": 180, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-14.62, 0, 116.3], "rot": 200, "scale": 1.12},
+    {"model": "decor_grass", "pos": [35.07, 0, 87.45], "rot": 140, "scale": 0.95},
+    {"model": "decor_grass", "pos": [39.23, 0, 77.35], "rot": 290, "scale": 0.93},
+    {"model": "decor_grass", "pos": [20.72, 0, 49.23], "rot": 150, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-17.23, 0, 81.62], "rot": 240, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-38.26, 0, 33.63], "rot": 250, "scale": 0.79},
+    {"model": "decor_grass", "pos": [21.63, 0, 85.9], "rot": 140, "scale": 1.07},
+    {"model": "decor_grass", "pos": [40.98, 0, 45.18], "rot": 270, "scale": 1.01},
+    {"model": "decor_grass", "pos": [15.8, 0, 98.94], "rot": 110, "scale": 0.96},
+    {"model": "decor_grass", "pos": [35.29, 0, 73.77], "rot": 160, "scale": 1.04},
+    {"model": "decor_grass", "pos": [1.33, 0, 111.44], "rot": 350, "scale": 1.01},
+    {"model": "decor_grass", "pos": [32.82, 0, 86.19], "rot": 160, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-40.4, 0, 119.71], "rot": 50, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-38.86, 0, 106.37], "rot": 340, "scale": 0.77},
+    {"model": "decor_grass", "pos": [32.0, 0, 66.78], "rot": 0, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-35.8, 0, 51.13], "rot": 250, "scale": 0.88},
+    {"model": "decor_grass", "pos": [16.13, 0, 60.05], "rot": 0, "scale": 0.86},
+    {"model": "decor_grass", "pos": [35.41, 0, 94.0], "rot": 350, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-21.18, 0, 79.82], "rot": 240, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-2.53, 0, 101.46], "rot": 140, "scale": 1.07},
+    {"model": "decor_grass", "pos": [1.82, 0, 109.11], "rot": 110, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-41.47, 0, 55.94], "rot": 250, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-27.55, 0, 111.19], "rot": 170, "scale": 1.17},
+    {"model": "decor_grass", "pos": [42.72, 0, 40.06], "rot": 140, "scale": 0.72},
+    {"model": "decor_grass", "pos": [32.89, 0, 41.87], "rot": 320, "scale": 0.88},
+    {"model": "decor_grass", "pos": [27.99, 0, 73.4], "rot": 230, "scale": 1.18},
+    {"model": "decor_flowers", "pos": [-13.14, 0, 42.61], "rot": 340, "scale": 0.81},
+    {"model": "decor_flowers", "pos": [26.79, 0, 58.13], "rot": 260, "scale": 1.13},
+    {"model": "decor_flowers", "pos": [-32.65, 0, 44.95], "rot": 80, "scale": 1.23},
+    {"model": "decor_flowers", "pos": [-37.72, 0, 114.13], "rot": 200, "scale": 1.18},
+    {"model": "decor_flowers", "pos": [-0.67, 0, 79.44], "rot": 0, "scale": 1.09},
+    {"model": "decor_flowers", "pos": [2.17, 0, 104.45], "rot": 300, "scale": 0.86},
+    {"model": "decor_flowers", "pos": [15.05, 0, 38.99], "rot": 340, "scale": 1.26},
+    {"model": "decor_flowers", "pos": [13.74, 0, 68.98], "rot": 340, "scale": 0.89},
+    {"model": "decor_flowers", "pos": [38.29, 0, 48.28], "rot": 80, "scale": 0.79},
+    {"model": "decor_flowers", "pos": [-42.07, 0, 116.19], "rot": 110, "scale": 1.13},
+    {"model": "decor_flowers", "pos": [-21.75, 0, 101.44], "rot": 110, "scale": 0.75},
+    {"model": "decor_flowers", "pos": [18.89, 0, 34.05], "rot": 270, "scale": 0.9},
+    {"model": "decor_flowers", "pos": [-17.21, 0, 49.52], "rot": 150, "scale": 0.95},
+    {"model": "decor_flowers", "pos": [21.8, 0, 65.51], "rot": 310, "scale": 1.18},
+    {"model": "decor_flowers", "pos": [5.88, 0, 66.97], "rot": 270, "scale": 0.97},
+    {"model": "decor_flowers", "pos": [-26.13, 0, 102.51], "rot": 180, "scale": 1.2},
+    {"model": "decor_flowers", "pos": [-10.23, 0, 33.36], "rot": 220, "scale": 0.88},
+    {"model": "decor_flowers", "pos": [7.34, 0, 41.21], "rot": 340, "scale": 0.9},
+    {"model": "decor_flowers", "pos": [21.27, 0, 48.95], "rot": 100, "scale": 1.18},
+    {"model": "decor_flowers", "pos": [-29.51, 0, 90.57], "rot": 0, "scale": 1.27},
+    {"model": "decor_flowers", "pos": [0.83, 0, 105.33], "rot": 110, "scale": 1.25},
+    {"model": "decor_flowers", "pos": [-36.06, 0, 94.23], "rot": 300, "scale": 0.85},
+    {"model": "decor_flowers", "pos": [22.06, 0, 77.59], "rot": 10, "scale": 1.13},
+    {"model": "decor_flowers", "pos": [28.61, 0, 60.71], "rot": 320, "scale": 0.97},
+    {"model": "decor_flowers", "pos": [24.8, 0, 119.33], "rot": 260, "scale": 1.12},
+    {"model": "decor_flowers", "pos": [-7.27, 0, 112.53], "rot": 280, "scale": 0.82},
+    {"model": "decor_flowers", "pos": [30.07, 0, 60.21], "rot": 180, "scale": 1.3},
+    {"model": "decor_flowers", "pos": [24.42, 0, 66.41], "rot": 350, "scale": 0.74},
+    {"model": "decor_flowers", "pos": [-26.22, 0, 109.48], "rot": 340, "scale": 1.11},
+    {"model": "decor_flowers", "pos": [41.43, 0, 115.91], "rot": 210, "scale": 0.87},
+    {"model": "decor_flowers", "pos": [41.33, 0, 122.02], "rot": 250, "scale": 1.05},
+    {"model": "decor_flowers", "pos": [-34.32, 0, 96.92], "rot": 160, "scale": 1.26},
+    {"model": "decor_flowers", "pos": [-30.42, 0, 39.44], "rot": 110, "scale": 0.93},
+    {"model": "decor_flowers", "pos": [2.96, 0, 111.81], "rot": 30, "scale": 0.88},
+    {"model": "decor_flowers", "pos": [39.36, 0, 49.16], "rot": 250, "scale": 1.11},
+    {"model": "decor_flowers", "pos": [-38.56, 0, 31.73], "rot": 280, "scale": 1.22},
+    {"model": "decor_flowers", "pos": [13.62, 0, 94.49], "rot": 170, "scale": 0.93},
+    {"model": "decor_flowers", "pos": [29.58, 0, 58.39], "rot": 100, "scale": 0.97},
+    {"model": "decor_flowers", "pos": [21.42, 0, 84.58], "rot": 190, "scale": 0.82},
+    {"model": "decor_flowers", "pos": [-27.74, 0, 40.04], "rot": 150, "scale": 1.02},
+    {"model": "decor_flowers", "pos": [5.94, 0, 102.22], "rot": 40, "scale": 1.06},
+    {"model": "decor_flowers", "pos": [26.99, 0, 56.17], "rot": 120, "scale": 1.18},
+    {"model": "decor_flowers", "pos": [2.13, 0, 79.47], "rot": 320, "scale": 0.96},
+    {"model": "decor_flowers", "pos": [34.69, 0, 116.48], "rot": 50, "scale": 1.06},
+    {"model": "decor_flowers", "pos": [-16.26, 0, 80.02], "rot": 220, "scale": 1.15},
+    {"model": "decor_flowers", "pos": [38.59, 0, 32.12], "rot": 70, "scale": 0.77},
+    {"model": "decor_flowers", "pos": [26.5, 0, 93.9], "rot": 290, "scale": 0.82},
+    {"model": "decor_flowers", "pos": [31.94, 0, 90.01], "rot": 80, "scale": 1.02},
+    {"model": "decor_flowers", "pos": [-29.16, 0, 40.69], "rot": 350, "scale": 0.92},
+    {"model": "decor_flowers", "pos": [42.31, 0, 110.56], "rot": 220, "scale": 1.07},
+    {"model": "decor_flowers", "pos": [20.45, 0, 97.07], "rot": 10, "scale": 0.77},
+    {"model": "decor_flowers", "pos": [24.34, 0, 67.21], "rot": 110, "scale": 1.21},
+    {"model": "decor_flowers", "pos": [42.88, 0, 33.01], "rot": 30, "scale": 0.79},
+    {"model": "decor_flowers", "pos": [42.6, 0, 106.41], "rot": 290, "scale": 0.7},
+    {"model": "decor_flowers", "pos": [-43.38, 0, 117.41], "rot": 180, "scale": 1.11},
+    {"model": "decor_flowers", "pos": [-5.69, 0, 68.47], "rot": 200, "scale": 1.24},
+    {"model": "decor_flowers", "pos": [11.19, 0, 43.51], "rot": 140, "scale": 1.12},
+    {"model": "decor_flowers", "pos": [-28.38, 0, 119.26], "rot": 150, "scale": 1.23},
+    {"model": "decor_flowers", "pos": [13.02, 0, 83.44], "rot": 230, "scale": 0.87},
+    {"model": "decor_flowers", "pos": [26.9, 0, 68.5], "rot": 280, "scale": 1.21},
+    {"model": "decor_flowers", "pos": [-19.28, 0, 116.71], "rot": 90, "scale": 1.14},
+    {"model": "decor_flowers", "pos": [38.76, 0, 99.21], "rot": 20, "scale": 0.89},
+    {"model": "decor_flowers", "pos": [41.93, 0, 107.25], "rot": 60, "scale": 0.77},
+    {"model": "decor_flowers", "pos": [-28.19, 0, 91.51], "rot": 120, "scale": 1.02},
+    {"model": "decor_flowers", "pos": [23.21, 0, 86.54], "rot": 330, "scale": 0.86},
+    {"model": "decor_flowers", "pos": [-42.98, 0, 108.49], "rot": 60, "scale": 0.96},
+    {"model": "decor_flowers", "pos": [-18.02, 0, 110.54], "rot": 250, "scale": 0.74},
+    {"model": "decor_flowers", "pos": [-43.31, 0, 112.45], "rot": 330, "scale": 1.16},
+    {"model": "decor_flowers", "pos": [-16.99, 0, 78.89], "rot": 150, "scale": 0.8},
+    {"model": "decor_flowers", "pos": [16.57, 0, 41.84], "rot": 180, "scale": 1.18},
+    {"model": "decor_flowers", "pos": [-36.47, 0, 119.64], "rot": 10, "scale": 1.04},
+    {"model": "decor_flowers", "pos": [14.35, 0, 54.96], "rot": 130, "scale": 0.74},
+    {"model": "decor_flowers", "pos": [10.44, 0, 76.13], "rot": 330, "scale": 1.04},
+    {"model": "decor_flowers", "pos": [-6.95, 0, 31.56], "rot": 110, "scale": 1.02},
+    {"model": "decor_flowers", "pos": [-0.06, 0, 120.97], "rot": 270, "scale": 1.19},
+    {"model": "decor_flowers", "pos": [33.07, 0, 77.64], "rot": 0, "scale": 1.3},
+    {"model": "decor_flowers", "pos": [-29.05, 0, 89.42], "rot": 130, "scale": 0.7},
+    {"model": "decor_flowers", "pos": [-26.91, 0, 111.96], "rot": 160, "scale": 1.17},
+    {"model": "decor_flowers", "pos": [25.04, 0, 86.5], "rot": 260, "scale": 0.72},
+    {"model": "decor_flowers", "pos": [-7.68, 0, 116.4], "rot": 50, "scale": 0.84},
+    {"model": "decor_flowers", "pos": [-21.83, 0, 113.35], "rot": 170, "scale": 1.29},
+    {"model": "decor_flowers", "pos": [-2.65, 0, 123.6], "rot": 0, "scale": 1.28},
+    {"model": "decor_flowers", "pos": [4.76, 0, 123.57], "rot": 310, "scale": 1.23},
+    {"model": "decor_flowers", "pos": [-31.26, 0, 80.94], "rot": 160, "scale": 0.78},
+    {"model": "decor_flowers", "pos": [31.16, 0, 106.23], "rot": 180, "scale": 1.22},
+    {"model": "decor_flowers", "pos": [4.26, 0, 32.88], "rot": 170, "scale": 1.09},
+    {"model": "decor_flowers", "pos": [-15.87, 0, 36.96], "rot": 120, "scale": 0.72},
+    {"model": "decor_flowers", "pos": [39.99, 0, 45.65], "rot": 150, "scale": 1.19},
+    {"model": "decor_flowers", "pos": [29.83, 0, 33.61], "rot": 80, "scale": 1.04},
+    {"model": "decor_flowers", "pos": [32.98, 0, 35.24], "rot": 330, "scale": 1.18},
+    {"model": "decor_flowers", "pos": [21.38, 0, 38.94], "rot": 10, "scale": 1.21},
+    {"model": "decor_flowers", "pos": [-14.74, 0, 61.51], "rot": 290, "scale": 1.23},
+    {"model": "decor_flowers", "pos": [31.58, 0, 40.53], "rot": 220, "scale": 0.88},
+    {"model": "decor_flowers", "pos": [12.8, 0, 112.19], "rot": 310, "scale": 1.15},
+    {"model": "decor_flowers", "pos": [16.08, 0, 43.23], "rot": 110, "scale": 1.13},
+    {"model": "decor_flowers", "pos": [-9.2, 0, 77.13], "rot": 90, "scale": 1.23},
+    {"model": "decor_flowers", "pos": [-0.31, 0, 56.29], "rot": 120, "scale": 0.8},
+    {"model": "decor_flowers", "pos": [11.46, 0, 79.23], "rot": 320, "scale": 1.09},
+    {"model": "decor_flowers", "pos": [37.77, 0, 122.77], "rot": 160, "scale": 0.82},
+    {"model": "decor_flowers", "pos": [27.82, 0, 102.89], "rot": 60, "scale": 1.05},
+    {"model": "decor_flowers", "pos": [2.0, 0, 38.76], "rot": 330, "scale": 0.84},
+    {"model": "decor_flowers", "pos": [7.89, 0, 56.91], "rot": 70, "scale": 0.7},
+    {"model": "decor_flowers", "pos": [-15.04, 0, 79.13], "rot": 200, "scale": 1.07},
+    {"model": "decor_flowers", "pos": [-0.68, 0, 54.55], "rot": 130, "scale": 1.03},
+    {"model": "decor_flowers", "pos": [-30.56, 0, 91.77], "rot": 320, "scale": 1.15},
+    {"model": "decor_flowers", "pos": [40.14, 0, 93.04], "rot": 200, "scale": 0.97},
+    {"model": "decor_flowers", "pos": [20.86, 0, 56.97], "rot": 150, "scale": 0.92},
+    {"model": "decor_flowers", "pos": [-11.11, 0, 38.3], "rot": 90, "scale": 0.77},
+    {"model": "decor_flowers", "pos": [-22.88, 0, 90.21], "rot": 310, "scale": 1.1},
+    {"model": "decor_flowers", "pos": [-9.26, 0, 65.51], "rot": 20, "scale": 0.99},
+    {"model": "decor_flowers", "pos": [-13.34, 0, 122.87], "rot": 60, "scale": 0.75},
+    {"model": "decor_flowers", "pos": [-18.33, 0, 51.7], "rot": 330, "scale": 0.71},
+    {"model": "decor_flowers", "pos": [35.68, 0, 79.41], "rot": 320, "scale": 1.26},
+    {"model": "decor_flowers", "pos": [0.46, 0, 36.8], "rot": 210, "scale": 1.25},
+    {"model": "decor_flowers", "pos": [-20.09, 0, 121.62], "rot": 260, "scale": 0.81},
+    {"model": "decor_flowers", "pos": [0.27, 0, 40.57], "rot": 170, "scale": 0.97},
+    {"model": "decor_flowers", "pos": [-7.71, 0, 40.41], "rot": 250, "scale": 0.98},
+    {"model": "decor_flowers", "pos": [35.44, 0, 92.52], "rot": 160, "scale": 1.23},
+    {"model": "decor_flowers", "pos": [18.06, 0, 69.24], "rot": 220, "scale": 1.25},
+    {"model": "decor_flowers", "pos": [24.59, 0, 101.67], "rot": 270, "scale": 0.8},
+    {"model": "decor_flowers", "pos": [-15.12, 0, 53.41], "rot": 120, "scale": 0.72},
+    {"model": "decor_flowers", "pos": [-22.07, 0, 46.75], "rot": 350, "scale": 1.04},
+    {"model": "decor_flowers", "pos": [-34.1, 0, 98.41], "rot": 310, "scale": 0.83},
+    {"model": "decor_flowers", "pos": [-9.95, 0, 69.15], "rot": 340, "scale": 0.97},
+    {"model": "decor_flowers", "pos": [34.61, 0, 105.58], "rot": 40, "scale": 0.77},
+    {"model": "decor_flowers", "pos": [37.88, 0, 47.19], "rot": 60, "scale": 0.97},
+    {"model": "decor_flowers", "pos": [-24.47, 0, 118.68], "rot": 340, "scale": 0.73},
+    {"model": "decor_flowers", "pos": [-9.38, 0, 93.9], "rot": 270, "scale": 1.03},
+    {"model": "decor_flowers", "pos": [-3.4, 0, 65.91], "rot": 290, "scale": 0.96},
+    {"model": "decor_flowers", "pos": [-30.46, 0, 120.2], "rot": 0, "scale": 1.19},
+    {"model": "decor_flowers", "pos": [-23.96, 0, 117.68], "rot": 190, "scale": 1.11},
+    {"model": "decor_flowers", "pos": [18.83, 0, 114.05], "rot": 20, "scale": 0.92},
+    {"model": "decor_flowers", "pos": [4.85, 0, 112.27], "rot": 270, "scale": 0.73},
+    {"model": "decor_flowers", "pos": [-43.54, 0, 104.4], "rot": 50, "scale": 1.07},
+    {"model": "decor_flowers", "pos": [27.28, 0, 93.58], "rot": 230, "scale": 0.9},
+    {"model": "decor_flowers", "pos": [43.78, 0, 66.81], "rot": 0, "scale": 1.21},
+    {"model": "decor_flowers", "pos": [23.81, 0, 54.76], "rot": 340, "scale": 1.14},
+    {"model": "decor_flowers", "pos": [15.82, 0, 39.42], "rot": 290, "scale": 1.17},
+    {"model": "decor_flowers", "pos": [7.32, 0, 31.81], "rot": 50, "scale": 1.18},
+    {"model": "decor_flowers", "pos": [7.92, 0, 68.64], "rot": 130, "scale": 1.2},
+    {"model": "decor_flowers", "pos": [7.31, 0, 101.89], "rot": 330, "scale": 1.28},
+    {"model": "decor_flowers", "pos": [28.46, 0, 113.62], "rot": 330, "scale": 1.13},
+    {"model": "decor_flowers", "pos": [37.08, 0, 89.26], "rot": 220, "scale": 1.23},
+    {"model": "decor_flowers", "pos": [-15.61, 0, 69.38], "rot": 310, "scale": 1.26},
+    {"model": "decor_flowers", "pos": [-32.05, 0, 33.9], "rot": 20, "scale": 1.08},
+    {"model": "decor_flowers", "pos": [3.47, 0, 123.27], "rot": 220, "scale": 0.79},
+    {"model": "decor_flowers", "pos": [2.95, 0, 110.64], "rot": 290, "scale": 0.85},
+    {"model": "decor_flowers", "pos": [-2.66, 0, 103.19], "rot": 290, "scale": 1.27},
+    {"model": "decor_flowers", "pos": [1.73, 0, 55.11], "rot": 120, "scale": 1.12},
+    {"model": "decor_flowers", "pos": [32.99, 0, 81.45], "rot": 130, "scale": 1.09},
+    {"model": "decor_flowers", "pos": [5.45, 0, 100.08], "rot": 220, "scale": 1.13},
+    {"model": "decor_flowers", "pos": [17.0, 0, 69.61], "rot": 250, "scale": 1.1},
+    {"model": "decor_flowers", "pos": [-28.47, 0, 94.24], "rot": 130, "scale": 1.09},
+    {"model": "decor_flowers", "pos": [-17.38, 0, 46.35], "rot": 90, "scale": 0.99},
+    {"model": "decor_flowers", "pos": [37.12, 0, 78.68], "rot": 210, "scale": 0.81},
+    {"model": "decor_flowers", "pos": [-27.34, 0, 33.25], "rot": 70, "scale": 1.14},
+    {"model": "decor_flowers", "pos": [-13.92, 0, 95.54], "rot": 220, "scale": 1.01},
+    {"model": "decor_flowers", "pos": [13.56, 0, 59.86], "rot": 200, "scale": 0.84},
+    {"model": "decor_flowers", "pos": [33.89, 0, 50.99], "rot": 90, "scale": 0.99},
+    {"model": "decor_flowers", "pos": [-25.06, 0, 80.63], "rot": 0, "scale": 0.85},
+    {"model": "decor_flowers", "pos": [37.22, 0, 83.62], "rot": 80, "scale": 0.87},
+    {"model": "decor_flowers", "pos": [-2.29, 0, 42.05], "rot": 150, "scale": 0.76},
+    {"model": "decor_flowers", "pos": [-28.44, 0, 38.8], "rot": 210, "scale": 0.8},
+    {"model": "decor_flowers", "pos": [-38.92, 0, 112.46], "rot": 160, "scale": 1.05},
+    {"model": "decor_flowers", "pos": [-27.98, 0, 36.05], "rot": 280, "scale": 1.29},
+    {"model": "decor_flowers", "pos": [13.82, 0, 57.08], "rot": 110, "scale": 0.98},
+    {"model": "decor_flowers", "pos": [5.71, 0, 69.85], "rot": 290, "scale": 1.23},
+    {"model": "decor_flowers", "pos": [8.76, 0, 75.17], "rot": 260, "scale": 0.98},
+    {"model": "decor_flowers", "pos": [-27.94, 0, 39.46], "rot": 20, "scale": 1.05},
+    {"model": "decor_flowers", "pos": [21.64, 0, 38.63], "rot": 170, "scale": 0.89},
+    {"model": "decor_flowers", "pos": [-43.1, 0, 78.18], "rot": 280, "scale": 0.72},
+    {"model": "decor_flowers", "pos": [-7.34, 0, 53.36], "rot": 150, "scale": 0.81},
+    {"model": "decor_flowers", "pos": [-34.42, 0, 116.85], "rot": 340, "scale": 0.82},
+    {"model": "decor_flowers", "pos": [42.29, 0, 106.11], "rot": 70, "scale": 1.12},
+    {"model": "decor_flowers", "pos": [-21.14, 0, 118.47], "rot": 50, "scale": 1.3},
+    {"model": "decor_flowers", "pos": [8.55, 0, 57.06], "rot": 110, "scale": 1.03},
+    {"model": "decor_flowers", "pos": [40.09, 0, 50.2], "rot": 0, "scale": 0.89},
+    {"model": "decor_flowers", "pos": [23.42, 0, 111.36], "rot": 170, "scale": 1.26},
+    {"model": "decor_flowers", "pos": [29.43, 0, 94.55], "rot": 340, "scale": 1.24},
+    {"model": "decor_flowers", "pos": [37.1, 0, 35.89], "rot": 40, "scale": 0.88},
+    {"model": "decor_flowers", "pos": [3.58, 0, 32.01], "rot": 190, "scale": 1.22},
+    {"model": "decor_flowers", "pos": [37.04, 0, 51.06], "rot": 300, "scale": 0.93},
+    {"model": "decor_flowers", "pos": [-43.04, 0, 41.45], "rot": 90, "scale": 0.76},
+    {"model": "decor_flowers", "pos": [-7.51, 0, 36.64], "rot": 200, "scale": 0.84},
+    {"model": "decor_flowers", "pos": [-1.04, 0, 89.37], "rot": 150, "scale": 1.28},
+    {"model": "decor_flowers", "pos": [5.42, 0, 74.2], "rot": 130, "scale": 0.9},
+    {"model": "decor_flowers", "pos": [32.89, 0, 71.69], "rot": 0, "scale": 0.89},
+    {"model": "decor_flowers", "pos": [21.75, 0, 111.25], "rot": 280, "scale": 0.77},
+    {"model": "decor_flowers", "pos": [19.66, 0, 95.09], "rot": 10, "scale": 0.97},
+    {"model": "decor_flowers", "pos": [11.59, 0, 57.5], "rot": 40, "scale": 0.99},
+    {"model": "decor_flowers", "pos": [5.74, 0, 109.97], "rot": 150, "scale": 0.77},
+    {"model": "decor_flowers", "pos": [-35.53, 0, 119.35], "rot": 200, "scale": 1.18},
+    {"model": "decor_flowers", "pos": [-18.75, 0, 50.69], "rot": 20, "scale": 0.71},
+    {"model": "decor_flowers", "pos": [-14.26, 0, 118.38], "rot": 300, "scale": 0.7},
+    {"model": "decor_flowers", "pos": [22.83, 0, 41.19], "rot": 180, "scale": 1.27},
+    {"model": "decor_flowers", "pos": [-33.67, 0, 32.8], "rot": 130, "scale": 0.94},
+    {"model": "decor_flowers", "pos": [17.27, 0, 77.03], "rot": 230, "scale": 0.92},
+    {"model": "decor_flowers", "pos": [-35.45, 0, 49.48], "rot": 280, "scale": 0.94},
+    {"model": "decor_flowers", "pos": [14.59, 0, 86.98], "rot": 330, "scale": 0.93},
+    {"model": "decor_flowers", "pos": [17.75, 0, 76.22], "rot": 30, "scale": 1.22},
+    {"model": "decor_flowers", "pos": [-15.09, 0, 92.27], "rot": 150, "scale": 1.07},
+    {"model": "decor_flowers", "pos": [3.45, 0, 38.26], "rot": 320, "scale": 0.96},
+    {"model": "decor_flowers", "pos": [-43.33, 0, 50.65], "rot": 330, "scale": 1.09},
+    {"model": "decor_flowers", "pos": [24.36, 0, 87.32], "rot": 140, "scale": 0.91},
+    {"model": "decor_flowers", "pos": [-12.78, 0, 69.1], "rot": 190, "scale": 0.92},
+    {"model": "decor_flowers", "pos": [0.18, 0, 94.94], "rot": 110, "scale": 1.19},
+    {"model": "decor_flowers", "pos": [39.28, 0, 64.68], "rot": 280, "scale": 0.82},
+    {"model": "decor_flowers", "pos": [9.22, 0, 32.24], "rot": 60, "scale": 1.22},
+    {"model": "decor_flowers", "pos": [-32.88, 0, 39.49], "rot": 120, "scale": 0.85},
+    {"model": "decor_flowers", "pos": [15.54, 0, 118.95], "rot": 340, "scale": 1.21},
+    {"model": "decor_flowers", "pos": [-34.24, 0, 50.51], "rot": 60, "scale": 0.75},
+    {"model": "decor_flowers", "pos": [-35.97, 0, 86.79], "rot": 330, "scale": 0.71},
+    {"model": "decor_flowers", "pos": [13.63, 0, 76.94], "rot": 10, "scale": 0.95},
+    {"model": "decor_flowers", "pos": [8.38, 0, 79.87], "rot": 220, "scale": 0.76},
+    {"model": "decor_flowers", "pos": [11.06, 0, 83.21], "rot": 200, "scale": 1.16},
+    {"model": "decor_flowers", "pos": [-35.99, 0, 90.53], "rot": 140, "scale": 0.86},
+    {"model": "decor_flowers", "pos": [-2.62, 0, 41.9], "rot": 50, "scale": 1.16},
+    {"model": "decor_flowers", "pos": [39.14, 0, 109.41], "rot": 70, "scale": 0.92},
+    {"model": "decor_flowers", "pos": [-4.59, 0, 41.33], "rot": 50, "scale": 1.22},
+    {"model": "decor_flowers", "pos": [5.54, 0, 80.68], "rot": 40, "scale": 1.22},
+    {"model": "decor_flowers", "pos": [-20.34, 0, 111.76], "rot": 240, "scale": 1.16},
+    {"model": "decor_flowers", "pos": [30.16, 0, 102.7], "rot": 120, "scale": 1.24},
+    {"model": "decor_flowers", "pos": [40.11, 0, 31.36], "rot": 230, "scale": 0.99},
+    {"model": "decor_flowers", "pos": [4.96, 0, 116.65], "rot": 240, "scale": 0.92},
+    {"model": "decor_flowers", "pos": [-6.99, 0, 82.06], "rot": 140, "scale": 0.95},
+    {"model": "decor_flowers", "pos": [33.4, 0, 83.51], "rot": 170, "scale": 1.25},
+    {"model": "decor_flowers", "pos": [5.78, 0, 42.29], "rot": 300, "scale": 0.98},
+    {"model": "decor_flowers", "pos": [22.54, 0, 108.06], "rot": 340, "scale": 0.74},
+    {"model": "decor_flowers", "pos": [5.99, 0, 82.26], "rot": 40, "scale": 0.89},
+    {"model": "decor_flowers", "pos": [-39.85, 0, 99.86], "rot": 260, "scale": 1.06},
+    {"model": "decor_flowers", "pos": [-33.18, 0, 97.84], "rot": 250, "scale": 1.05},
+    {"model": "decor_flowers", "pos": [30.74, 0, 100.76], "rot": 200, "scale": 1.07},
+    {"model": "decor_flowers", "pos": [12.81, 0, 38.35], "rot": 120, "scale": 1.23},
+    {"model": "decor_flowers", "pos": [2.02, 0, 69.37], "rot": 150, "scale": 0.82},
+    {"model": "decor_flowers", "pos": [43.52, 0, 115.07], "rot": 40, "scale": 0.72},
+    {"model": "decor_flowers", "pos": [15.02, 0, 48.9], "rot": 290, "scale": 0.96},
+    {"model": "decor_flowers", "pos": [24.88, 0, 104.96], "rot": 290, "scale": 0.87},
+    {"model": "decor_flowers", "pos": [32.13, 0, 90.52], "rot": 130, "scale": 0.88},
+    {"model": "decor_flowers", "pos": [-3.62, 0, 102.13], "rot": 160, "scale": 0.92},
+    {"model": "decor_flowers", "pos": [36.94, 0, 49.0], "rot": 340, "scale": 0.77},
+    {"model": "decor_flowers", "pos": [8.72, 0, 122.53], "rot": 70, "scale": 0.99},
+    {"model": "decor_flowers", "pos": [-7.63, 0, 37.37], "rot": 70, "scale": 0.78},
+    {"model": "decor_flowers", "pos": [28.07, 0, 96.78], "rot": 340, "scale": 0.73},
+    {"model": "decor_flowers", "pos": [35.17, 0, 38.88], "rot": 20, "scale": 1.22},
+    {"model": "decor_flowers", "pos": [15.02, 0, 70.49], "rot": 300, "scale": 1.28},
+    {"model": "decor_flowers", "pos": [26.37, 0, 117.74], "rot": 120, "scale": 0.8},
+    {"model": "decor_flowers", "pos": [-11.2, 0, 75.22], "rot": 80, "scale": 1.08},
+    {"model": "decor_flowers", "pos": [29.77, 0, 52.94], "rot": 190, "scale": 1.12},
+    {"model": "decor_flowers", "pos": [-14.98, 0, 47.71], "rot": 290, "scale": 0.8},
+    {"model": "decor_flowers", "pos": [-27.94, 0, 95.48], "rot": 60, "scale": 0.79},
+    {"model": "decor_flowers", "pos": [10.11, 0, 103.07], "rot": 260, "scale": 0.94},
+    {"model": "decor_flowers", "pos": [27.29, 0, 64.92], "rot": 100, "scale": 1.04},
+    {"model": "decor_flowers", "pos": [-21.01, 0, 86.24], "rot": 300, "scale": 0.78},
+    {"model": "decor_flowers", "pos": [4.53, 0, 104.98], "rot": 250, "scale": 1.25},
+    {"model": "decor_flowers", "pos": [-38.32, 0, 84.36], "rot": 180, "scale": 0.94},
+    {"model": "decor_flowers", "pos": [-9.7, 0, 121.32], "rot": 80, "scale": 0.98},
+    {"model": "decor_flowers", "pos": [33.26, 0, 109.27], "rot": 140, "scale": 0.8},
+    {"model": "decor_flowers", "pos": [29.8, 0, 116.96], "rot": 160, "scale": 0.75},
+    {"model": "decor_flowers", "pos": [-34.0, 0, 117.25], "rot": 60, "scale": 1.19},
+    {"model": "decor_flowers", "pos": [-38.4, 0, 34.67], "rot": 220, "scale": 1.28},
+    {"model": "decor_flowers", "pos": [-42.57, 0, 47.47], "rot": 210, "scale": 1.08},
+    {"model": "decor_flowers", "pos": [36.14, 0, 119.24], "rot": 350, "scale": 1.28},
+    {"model": "decor_flowers", "pos": [-21.22, 0, 49.51], "rot": 260, "scale": 0.97},
+    {"model": "decor_flowers", "pos": [31.87, 0, 101.63], "rot": 60, "scale": 1.13},
+    {"model": "decor_flowers", "pos": [-14.54, 0, 52.73], "rot": 330, "scale": 1.22},
+    {"model": "decor_flowers", "pos": [-12.76, 0, 82.53], "rot": 310, "scale": 1.07},
+    {"model": "decor_flowers", "pos": [29.11, 0, 98.93], "rot": 0, "scale": 0.96},
+    {"model": "decor_flowers", "pos": [-14.21, 0, 94.9], "rot": 70, "scale": 0.83},
+    {"model": "decor_flowers", "pos": [26.57, 0, 84.02], "rot": 260, "scale": 1.23},
+    {"model": "decor_flowers", "pos": [-4.42, 0, 48.32], "rot": 60, "scale": 1.17},
+    {"model": "decor_flowers", "pos": [-5.63, 0, 33.9], "rot": 240, "scale": 0.7},
+    {"model": "decor_flowers", "pos": [8.02, 0, 44.42], "rot": 270, "scale": 1.16},
+    {"model": "decor_flowers", "pos": [-1.87, 0, 44.39], "rot": 20, "scale": 1.05},
+    {"model": "decor_flowers", "pos": [-34.81, 0, 41.5], "rot": 80, "scale": 0.81},
+    {"model": "decor_flowers", "pos": [-2.22, 0, 96.58], "rot": 10, "scale": 1.09},
+    {"model": "decor_flowers", "pos": [-20.6, 0, 102.05], "rot": 110, "scale": 0.72},
+    {"model": "decor_flowers", "pos": [22.15, 0, 97.58], "rot": 300, "scale": 1.2},
+    {"model": "decor_flowers", "pos": [30.33, 0, 74.62], "rot": 310, "scale": 1.19},
+    {"model": "decor_flowers", "pos": [18.44, 0, 55.79], "rot": 220, "scale": 0.82},
+    {"model": "decor_flowers", "pos": [-34.26, 0, 86.53], "rot": 300, "scale": 1.2},
+    {"model": "decor_flowers", "pos": [25.4, 0, 83.34], "rot": 230, "scale": 0.76},
+    {"model": "decor_flowers", "pos": [-7.49, 0, 113.08], "rot": 290, "scale": 1.02},
+    {"model": "decor_flowers", "pos": [-3.11, 0, 85.55], "rot": 230, "scale": 0.94},
+    {"model": "decor_flowers", "pos": [1.86, 0, 57.65], "rot": 320, "scale": 1.04},
+    {"model": "decor_flowers", "pos": [40.32, 0, 96.26], "rot": 80, "scale": 0.73},
+    {"model": "decor_flowers", "pos": [37.07, 0, 70.84], "rot": 40, "scale": 1.1},
+    {"model": "decor_flowers", "pos": [24.92, 0, 33.27], "rot": 330, "scale": 1.01},
+    {"model": "decor_flowers", "pos": [-20.44, 0, 44.91], "rot": 180, "scale": 0.89},
+    {"model": "decor_flowers", "pos": [-9.03, 0, 38.9], "rot": 320, "scale": 1.28},
+    {"model": "decor_flowers", "pos": [22.23, 0, 37.7], "rot": 310, "scale": 0.82},
+    {"model": "decor_flowers", "pos": [33.88, 0, 99.17], "rot": 100, "scale": 1.27},
+    {"model": "decor_flowers", "pos": [-3.11, 0, 42.68], "rot": 350, "scale": 1.3},
+    {"model": "decor_flowers", "pos": [40.04, 0, 40.81], "rot": 0, "scale": 0.92},
+    {"model": "decor_flowers", "pos": [29.21, 0, 105.75], "rot": 280, "scale": 1.18},
+    {"model": "decor_flowers", "pos": [8.05, 0, 78.72], "rot": 230, "scale": 0.88},
+    {"model": "decor_flowers", "pos": [-6.35, 0, 112.55], "rot": 70, "scale": 1.06},
+    {"model": "decor_flowers", "pos": [-11.05, 0, 47.17], "rot": 80, "scale": 0.89},
+    {"model": "decor_flowers", "pos": [31.81, 0, 83.0], "rot": 250, "scale": 0.73},
+    {"model": "decor_flowers", "pos": [24.87, 0, 107.67], "rot": 150, "scale": 1.15},
+    {"model": "decor_flowers", "pos": [-18.2, 0, 93.19], "rot": 70, "scale": 0.79},
+    {"model": "decor_flowers", "pos": [26.14, 0, 112.11], "rot": 0, "scale": 1.22},
+    {"model": "decor_flowers", "pos": [36.73, 0, 63.07], "rot": 50, "scale": 0.82},
+    {"model": "decor_flowers", "pos": [-28.95, 0, 49.31], "rot": 80, "scale": 0.84},
+    {"model": "decor_flowers", "pos": [-18.18, 0, 95.86], "rot": 310, "scale": 0.93},
+    {"model": "decor_flowers", "pos": [36.76, 0, 50.31], "rot": 190, "scale": 0.78},
+    {"model": "decor_flowers", "pos": [-26.31, 0, 92.89], "rot": 240, "scale": 1.02},
+    {"model": "decor_flowers", "pos": [-1.24, 0, 100.83], "rot": 120, "scale": 0.72},
+    {"model": "decor_flowers", "pos": [-29.59, 0, 38.18], "rot": 220, "scale": 0.95},
+    {"model": "decor_flowers", "pos": [4.58, 0, 63.49], "rot": 270, "scale": 1.27},
+    {"model": "decor_flowers", "pos": [21.57, 0, 69.51], "rot": 120, "scale": 0.76},
+    {"model": "decor_flowers", "pos": [-21.79, 0, 34.62], "rot": 100, "scale": 0.98},
+    {"model": "decor_flowers", "pos": [0.41, 0, 34.73], "rot": 240, "scale": 0.82},
+    {"model": "decor_flowers", "pos": [-29.53, 0, 98.37], "rot": 340, "scale": 1.25},
+    {"model": "decor_flowers", "pos": [-18.72, 0, 46.17], "rot": 90, "scale": 0.73},
+    {"model": "decor_flowers", "pos": [42.26, 0, 38.44], "rot": 140, "scale": 0.93},
+    {"model": "decor_flowers", "pos": [-12.04, 0, 76.11], "rot": 280, "scale": 0.98},
+    {"model": "decor_flowers", "pos": [-41.36, 0, 64.84], "rot": 250, "scale": 1.17},
+    {"model": "decor_flowers", "pos": [12.38, 0, 119.45], "rot": 180, "scale": 0.74},
+    {"model": "decor_flowers", "pos": [-39.54, 0, 106.42], "rot": 150, "scale": 0.84},
+    {"model": "decor_flowers", "pos": [-19.14, 0, 101.76], "rot": 310, "scale": 0.84},
+    {"model": "decor_flowers", "pos": [42.39, 0, 55.58], "rot": 260, "scale": 0.99},
+    {"model": "decor_flowers", "pos": [18.67, 0, 90.49], "rot": 0, "scale": 0.94},
+    {"model": "decor_flowers", "pos": [-41.86, 0, 82.77], "rot": 190, "scale": 1.12},
+    {"model": "decor_flowers", "pos": [-40.91, 0, 79.18], "rot": 170, "scale": 0.91},
+    {"model": "decor_flowers", "pos": [29.04, 0, 120.68], "rot": 250, "scale": 0.81},
+    {"model": "decor_flowers", "pos": [15.96, 0, 37.39], "rot": 240, "scale": 0.92},
+    {"model": "decor_flowers", "pos": [-11.87, 0, 59.49], "rot": 140, "scale": 0.9},
+    {"model": "decor_flowers", "pos": [43.03, 0, 77.34], "rot": 340, "scale": 1.21},
+    {"model": "decor_flowers", "pos": [32.52, 0, 40.41], "rot": 260, "scale": 1.22},
+    {"model": "decor_flowers", "pos": [21.36, 0, 97.2], "rot": 180, "scale": 0.75},
+    {"model": "decor_flowers", "pos": [3.69, 0, 92.4], "rot": 300, "scale": 0.92},
+    {"model": "decor_flowers", "pos": [42.26, 0, 62.18], "rot": 170, "scale": 1.15},
+    {"model": "decor_flowers", "pos": [-14.08, 0, 121.91], "rot": 40, "scale": 0.77},
+    {"model": "decor_flowers", "pos": [2.49, 0, 34.35], "rot": 350, "scale": 0.86},
+    {"model": "decor_flowers", "pos": [-21.74, 0, 81.97], "rot": 230, "scale": 0.89},
+    {"model": "decor_flowers", "pos": [-22.25, 0, 43.94], "rot": 260, "scale": 0.76},
+    {"model": "decor_flowers", "pos": [-15.46, 0, 91.19], "rot": 70, "scale": 1.06},
+    {"model": "decor_flowers", "pos": [-14.02, 0, 119.53], "rot": 120, "scale": 0.81},
+    {"model": "decor_flowers", "pos": [37.05, 0, 75.56], "rot": 40, "scale": 1.25},
+    {"model": "decor_flowers", "pos": [-31.89, 0, 82.05], "rot": 160, "scale": 0.78},
+    {"model": "decor_flowers", "pos": [-37.72, 0, 84.74], "rot": 210, "scale": 1.25},
+    {"model": "decor_flowers", "pos": [27.09, 0, 80.83], "rot": 160, "scale": 1.13},
+    {"model": "decor_flowers", "pos": [28.15, 0, 41.52], "rot": 0, "scale": 1.11},
+    {"model": "decor_flowers", "pos": [9.4, 0, 106.18], "rot": 0, "scale": 0.76},
+    {"model": "decor_flowers", "pos": [30.03, 0, 76.84], "rot": 60, "scale": 0.92},
+    {"model": "decor_flowers", "pos": [23.7, 0, 107.62], "rot": 280, "scale": 1.16},
+    {"model": "decor_flowers", "pos": [14.24, 0, 58.29], "rot": 30, "scale": 0.81},
+    {"model": "decor_flowers", "pos": [33.29, 0, 56.01], "rot": 160, "scale": 1.2},
+    {"model": "decor_flowers", "pos": [-43.26, 0, 115.17], "rot": 130, "scale": 1.29},
+    {"model": "decor_flowers", "pos": [-0.34, 0, 64.92], "rot": 350, "scale": 1.21},
+    {"model": "decor_flowers", "pos": [41.62, 0, 68.3], "rot": 30, "scale": 1.07},
+    {"model": "decor_flowers", "pos": [-9.08, 0, 117.51], "rot": 340, "scale": 0.72},
+    {"model": "decor_flowers", "pos": [5.64, 0, 56.99], "rot": 270, "scale": 0.99},
+    {"model": "decor_flowers", "pos": [28.84, 0, 33.35], "rot": 310, "scale": 0.89},
+    {"model": "decor_flowers", "pos": [-21.53, 0, 112.63], "rot": 250, "scale": 1.05},
+    {"model": "decor_flowers", "pos": [-42.33, 0, 106.28], "rot": 240, "scale": 1.0},
+    {"model": "decor_flowers", "pos": [21.64, 0, 58.86], "rot": 150, "scale": 1.11},
+    {"model": "decor_flowers", "pos": [-26.35, 0, 86.76], "rot": 260, "scale": 0.77},
+    {"model": "decor_flowers", "pos": [3.17, 0, 121.34], "rot": 210, "scale": 1.25},
+    {"model": "decor_flowers", "pos": [-26.83, 0, 116.19], "rot": 350, "scale": 1.2},
+    {"model": "decor_flowers", "pos": [1.37, 0, 119.33], "rot": 320, "scale": 1.13},
+    {"model": "decor_flowers", "pos": [7.7, 0, 101.79], "rot": 200, "scale": 1.02},
+    {"model": "decor_flowers", "pos": [26.18, 0, 69.44], "rot": 110, "scale": 1.18},
+    {"model": "decor_flowers", "pos": [16.01, 0, 89.93], "rot": 50, "scale": 1.06},
+    {"model": "decor_flowers", "pos": [-13.14, 0, 83.61], "rot": 190, "scale": 0.76},
+    {"model": "decor_flowers", "pos": [20.98, 0, 111.76], "rot": 110, "scale": 1.06},
+    {"model": "decor_flowers", "pos": [-8.58, 0, 93.03], "rot": 260, "scale": 0.71},
+    {"model": "decor_flowers", "pos": [-39.18, 0, 120.2], "rot": 170, "scale": 1.16},
+    {"model": "decor_flowers", "pos": [35.44, 0, 62.74], "rot": 70, "scale": 1.18},
+    {"model": "decor_flowers", "pos": [11.83, 0, 47.34], "rot": 350, "scale": 1.06},
+    {"model": "decor_flowers", "pos": [-20.53, 0, 48.32], "rot": 60, "scale": 0.96},
+    {"model": "decor_flowers", "pos": [20.83, 0, 91.05], "rot": 160, "scale": 0.81},
+    {"model": "decor_flowers", "pos": [27.35, 0, 69.44], "rot": 60, "scale": 1.22},
+    {"model": "decor_flowers", "pos": [36.55, 0, 98.83], "rot": 110, "scale": 0.94},
+    {"model": "decor_flowers", "pos": [40.99, 0, 45.22], "rot": 330, "scale": 0.78},
+    {"model": "decor_flowers", "pos": [9.1, 0, 103.25], "rot": 200, "scale": 0.9},
+    {"model": "decor_flowers", "pos": [36.05, 0, 118.6], "rot": 20, "scale": 1.11},
+    {"model": "decor_flowers", "pos": [40.56, 0, 49.49], "rot": 150, "scale": 1.3},
+    {"model": "decor_flowers", "pos": [-41.5, 0, 71.86], "rot": 20, "scale": 1.24},
+    {"model": "decor_flowers", "pos": [-19.69, 0, 48.73], "rot": 120, "scale": 0.9},
+    {"model": "decor_flowers", "pos": [32.87, 0, 73.47], "rot": 70, "scale": 1.2},
+    {"model": "decor_flowers", "pos": [10.98, 0, 88.74], "rot": 170, "scale": 0.73},
+    {"model": "decor_flowers", "pos": [-41.35, 0, 101.12], "rot": 50, "scale": 0.9},
+    {"model": "decor_flowers", "pos": [23.7, 0, 40.41], "rot": 180, "scale": 1.17},
+    {"model": "decor_flowers", "pos": [18.75, 0, 56.79], "rot": 250, "scale": 1.16},
+    {"model": "decor_flowers", "pos": [37.16, 0, 79.7], "rot": 260, "scale": 0.76},
+    {"model": "decor_flowers", "pos": [-26.83, 0, 85.71], "rot": 100, "scale": 1.11},
+    {"model": "decor_flowers", "pos": [-36.06, 0, 31.35], "rot": 210, "scale": 1.03},
+    {"model": "decor_flowers", "pos": [-17.91, 0, 81.18], "rot": 160, "scale": 1.16},
+    {"model": "decor_flowers", "pos": [11.38, 0, 92.79], "rot": 10, "scale": 0.89},
+    {"model": "decor_flowers", "pos": [-4.61, 0, 75.39], "rot": 200, "scale": 0.74},
+    {"model": "decor_flowers", "pos": [-27.63, 0, 106.32], "rot": 160, "scale": 1.1},
+    {"model": "decor_flowers", "pos": [-13.62, 0, 36.91], "rot": 190, "scale": 0.98},
+    {"model": "decor_flowers", "pos": [-24.81, 0, 49.28], "rot": 100, "scale": 0.77},
+    {"model": "decor_flowers", "pos": [-30.36, 0, 97.85], "rot": 0, "scale": 0.86},
+    {"model": "decor_flowers", "pos": [18.63, 0, 52.57], "rot": 300, "scale": 1.25},
+    {"model": "decor_flowers", "pos": [-27.27, 0, 95.47], "rot": 180, "scale": 0.73},
+    {"model": "decor_flowers", "pos": [28.64, 0, 90.47], "rot": 220, "scale": 1.01},
+    {"model": "decor_flowers", "pos": [-11.11, 0, 68.8], "rot": 200, "scale": 0.73},
+    {"model": "decor_flowers", "pos": [21.75, 0, 122.23], "rot": 190, "scale": 1.12},
+    {"model": "decor_stones", "pos": [-40.88, 0, 63.4], "rot": 250, "scale": 1.04},
+    {"model": "decor_stones", "pos": [21.77, 0, 103.62], "rot": 250, "scale": 1.17},
+    {"model": "decor_stones", "pos": [-21.6, 0, 89.91], "rot": 170, "scale": 0.83},
+    {"model": "decor_stones", "pos": [-28.86, 0, 41.88], "rot": 60, "scale": 1.13},
+    {"model": "decor_stones", "pos": [30.74, 0, 95.77], "rot": 40, "scale": 0.88},
+    {"model": "decor_stones", "pos": [-30.9, 0, 118.81], "rot": 100, "scale": 1.05},
+    {"model": "decor_stones", "pos": [2.43, 0, 103.74], "rot": 310, "scale": 1.24},
+    {"model": "decor_stones", "pos": [33.36, 0, 68.08], "rot": 220, "scale": 0.77},
+    {"model": "decor_stones", "pos": [-29.38, 0, 91.06], "rot": 90, "scale": 1.24},
+    {"model": "decor_stones", "pos": [-17.91, 0, 45.05], "rot": 280, "scale": 1.02},
+    {"model": "decor_stones", "pos": [-19.39, 0, 99.01], "rot": 100, "scale": 0.74},
+    {"model": "decor_stones", "pos": [-17.01, 0, 35.78], "rot": 10, "scale": 1.12},
+    {"model": "decor_stones", "pos": [16.94, 0, 104.91], "rot": 290, "scale": 0.88},
+    {"model": "decor_stones", "pos": [-13.81, 0, 120.06], "rot": 0, "scale": 1.04},
+    {"model": "decor_stones", "pos": [0.42, 0, 86.83], "rot": 10, "scale": 1.18},
+    {"model": "decor_stones", "pos": [-0.89, 0, 61.6], "rot": 250, "scale": 0.72},
+    {"model": "decor_stones", "pos": [15.73, 0, 107.07], "rot": 230, "scale": 1.11},
+    {"model": "decor_stones", "pos": [3.38, 0, 97.98], "rot": 170, "scale": 1.25},
+    {"model": "decor_stones", "pos": [-27.16, 0, 46.85], "rot": 260, "scale": 0.78},
+    {"model": "decor_stones", "pos": [-10.09, 0, 113.41], "rot": 40, "scale": 0.82},
+    {"model": "decor_stones", "pos": [-43.04, 0, 117.25], "rot": 260, "scale": 1.28},
+    {"model": "decor_stones", "pos": [24.39, 0, 67.59], "rot": 210, "scale": 1.13},
+    {"model": "decor_stones", "pos": [15.33, 0, 58.13], "rot": 80, "scale": 1.27},
+    {"model": "decor_stones", "pos": [-23.09, 0, 51.05], "rot": 70, "scale": 1.01},
+    {"model": "decor_stones", "pos": [-35.72, 0, 104.29], "rot": 350, "scale": 0.8},
+    {"model": "decor_stones", "pos": [28.36, 0, 102.66], "rot": 250, "scale": 1.02},
+    {"model": "decor_stones", "pos": [-22.1, 0, 96.47], "rot": 320, "scale": 1.19},
+    {"model": "decor_stones", "pos": [-27.46, 0, 43.86], "rot": 10, "scale": 0.98},
+    {"model": "decor_stones", "pos": [-42.99, 0, 120.34], "rot": 100, "scale": 1.21},
+    {"model": "decor_stones", "pos": [1.86, 0, 40.73], "rot": 260, "scale": 1.08},
+    {"model": "decor_stones", "pos": [-0.66, 0, 67.94], "rot": 100, "scale": 1.16},
+    {"model": "decor_stones", "pos": [-5.05, 0, 41.34], "rot": 240, "scale": 0.73},
+    {"model": "decor_stones", "pos": [-9.23, 0, 67.8], "rot": 20, "scale": 0.83},
+    {"model": "decor_stones", "pos": [30.38, 0, 106.62], "rot": 170, "scale": 0.93},
+    {"model": "decor_stones", "pos": [-12.54, 0, 122.3], "rot": 330, "scale": 0.73},
+    {"model": "decor_stones", "pos": [-32.39, 0, 35.99], "rot": 130, "scale": 0.75},
+    {"model": "decor_stones", "pos": [14.35, 0, 69.85], "rot": 20, "scale": 1.25},
+    {"model": "decor_stones", "pos": [34.35, 0, 97.23], "rot": 10, "scale": 1.27},
+    {"model": "decor_stones", "pos": [-24.84, 0, 87.21], "rot": 80, "scale": 0.91},
+    {"model": "decor_stones", "pos": [35.69, 0, 38.44], "rot": 210, "scale": 0.9},
+    {"model": "decor_stones", "pos": [5.16, 0, 92.11], "rot": 0, "scale": 0.91},
+    {"model": "decor_stones", "pos": [-3.83, 0, 44.71], "rot": 20, "scale": 1.04},
+    {"model": "decor_stones", "pos": [34.61, 0, 114.3], "rot": 300, "scale": 0.91},
+    {"model": "decor_stones", "pos": [-1.14, 0, 31.54], "rot": 150, "scale": 0.94},
+    {"model": "decor_stones", "pos": [3.03, 0, 68.72], "rot": 250, "scale": 0.87},
+    {"model": "decor_stones", "pos": [-38.55, 0, 52.86], "rot": 310, "scale": 1.1},
+    {"model": "decor_stones", "pos": [40.73, 0, 34.98], "rot": 50, "scale": 0.82},
+    {"model": "decor_stones", "pos": [22.22, 0, 83.35], "rot": 210, "scale": 1.23},
+    {"model": "decor_stones", "pos": [27.19, 0, 43.92], "rot": 10, "scale": 1.05},
+    {"model": "decor_stones", "pos": [-0.01, 0, 101.62], "rot": 50, "scale": 0.83},
+    {"model": "decor_stones", "pos": [-35.11, 0, 40.79], "rot": 170, "scale": 1.19},
+    {"model": "decor_stones", "pos": [-29.72, 0, 112.92], "rot": 120, "scale": 0.9},
+    {"model": "decor_stones", "pos": [-16.2, 0, 121.68], "rot": 290, "scale": 0.76},
+    {"model": "decor_stones", "pos": [16.42, 0, 34.2], "rot": 180, "scale": 0.7},
+    {"model": "decor_stones", "pos": [-29.7, 0, 114.47], "rot": 330, "scale": 1.29},
+    {"model": "decor_stones", "pos": [-15.2, 0, 33.11], "rot": 330, "scale": 1.25},
+    {"model": "decor_stones", "pos": [-2.41, 0, 69.72], "rot": 110, "scale": 0.88},
+    {"model": "decor_stones", "pos": [-16.1, 0, 117.31], "rot": 300, "scale": 1.05},
+    {"model": "decor_stones", "pos": [24.25, 0, 120.35], "rot": 160, "scale": 0.79},
+    {"model": "decor_stones", "pos": [10.02, 0, 48.57], "rot": 0, "scale": 1.05},
+    {"model": "decor_stones", "pos": [-11.85, 0, 79.87], "rot": 240, "scale": 0.91},
+    {"model": "decor_stones", "pos": [-0.54, 0, 69.55], "rot": 130, "scale": 0.84},
+    {"model": "decor_stones", "pos": [9.87, 0, 96.67], "rot": 220, "scale": 1.13},
+    {"model": "decor_stones", "pos": [-39.04, 0, 116.43], "rot": 330, "scale": 0.85},
+    {"model": "decor_stones", "pos": [4.33, 0, 75.41], "rot": 140, "scale": 0.78},
+    {"model": "decor_stones", "pos": [4.32, 0, 98.98], "rot": 210, "scale": 0.84},
+    {"model": "decor_stones", "pos": [41.52, 0, 42.99], "rot": 310, "scale": 0.86},
+    {"model": "decor_stones", "pos": [27.53, 0, 122.12], "rot": 330, "scale": 1.13},
+    {"model": "decor_stones", "pos": [28.42, 0, 37.27], "rot": 50, "scale": 0.72},
+    {"model": "decor_stones", "pos": [-7.73, 0, 89.98], "rot": 150, "scale": 0.9},
+    {"model": "decor_stones", "pos": [26.39, 0, 107.46], "rot": 280, "scale": 1.11},
+    {"model": "decor_stones", "pos": [35.72, 0, 60.63], "rot": 50, "scale": 1.22},
+    {"model": "decor_stones", "pos": [25.54, 0, 104.41], "rot": 40, "scale": 0.96},
+    {"model": "decor_stones", "pos": [2.07, 0, 62.48], "rot": 150, "scale": 1.05},
+    {"model": "decor_stones", "pos": [-18.32, 0, 88.15], "rot": 10, "scale": 0.74},
+    {"model": "decor_stones", "pos": [-14.73, 0, 107.06], "rot": 330, "scale": 1.11},
+    {"model": "decor_stones", "pos": [3.43, 0, 63.11], "rot": 320, "scale": 0.96},
+    {"model": "decor_stones", "pos": [26.33, 0, 37.46], "rot": 310, "scale": 0.87},
+    {"model": "decor_stones", "pos": [1.35, 0, 35.18], "rot": 200, "scale": 1.11},
+    {"model": "decor_stones", "pos": [39.59, 0, 32.35], "rot": 20, "scale": 0.94},
+    {"model": "decor_stones", "pos": [3.93, 0, 46.33], "rot": 340, "scale": 1.3},
+    {"model": "decor_stones", "pos": [-38.01, 0, 44.5], "rot": 210, "scale": 1.07},
+    {"model": "decor_stones", "pos": [23.47, 0, 92.68], "rot": 230, "scale": 1.02},
+    {"model": "decor_stones", "pos": [-13.82, 0, 33.2], "rot": 290, "scale": 0.84},
+    {"model": "decor_stones", "pos": [-38.75, 0, 40.19], "rot": 70, "scale": 0.95},
+    {"model": "decor_stones", "pos": [35.67, 0, 42.91], "rot": 310, "scale": 1.29},
+    {"model": "decor_stones", "pos": [-33.4, 0, 100.47], "rot": 20, "scale": 0.81},
+    {"model": "decor_stones", "pos": [-28.78, 0, 35.73], "rot": 50, "scale": 1.01},
+    {"model": "decor_stones", "pos": [6.74, 0, 90.06], "rot": 40, "scale": 1.06},
+    {"model": "decor_stones", "pos": [-14.47, 0, 71.68], "rot": 100, "scale": 1.08},
+    {"model": "decor_stones", "pos": [23.41, 0, 113.21], "rot": 140, "scale": 1.26},
+    {"model": "decor_stones", "pos": [36.02, 0, 86.2], "rot": 140, "scale": 1.11},
+    {"model": "decor_stones", "pos": [34.59, 0, 41.54], "rot": 20, "scale": 1.16},
+    {"model": "decor_stones", "pos": [-2.46, 0, 88.21], "rot": 110, "scale": 0.87},
+    {"model": "decor_stones", "pos": [41.68, 0, 58.47], "rot": 350, "scale": 1.04},
+    {"model": "decor_stones", "pos": [-29.19, 0, 114.77], "rot": 260, "scale": 0.86},
+    {"model": "decor_stones", "pos": [43.88, 0, 120.33], "rot": 150, "scale": 1.23},
+    {"model": "decor_stones", "pos": [36.28, 0, 88.1], "rot": 250, "scale": 1.13},
+    {"model": "decor_stones", "pos": [-16.6, 0, 123.77], "rot": 20, "scale": 1.14},
+    {"model": "decor_stones", "pos": [-2.33, 0, 61.04], "rot": 250, "scale": 1.09},
+    {"model": "decor_stones", "pos": [19.32, 0, 123.6], "rot": 160, "scale": 1.26},
+    {"model": "decor_stones", "pos": [16.7, 0, 120.03], "rot": 300, "scale": 1.28},
+    {"model": "decor_stones", "pos": [38.35, 0, 73.43], "rot": 80, "scale": 0.83},
+    {"model": "decor_stones", "pos": [31.88, 0, 123.65], "rot": 320, "scale": 1.15},
+    {"model": "decor_stones", "pos": [-4.3, 0, 89.35], "rot": 350, "scale": 0.87},
+    {"model": "decor_stones", "pos": [-40.83, 0, 87.66], "rot": 130, "scale": 1.13},
+    {"model": "decor_stones", "pos": [22.27, 0, 88.3], "rot": 320, "scale": 0.95},
+    {"model": "decor_stones", "pos": [-6.72, 0, 110.07], "rot": 130, "scale": 1.27},
+    {"model": "decor_stones", "pos": [-42.98, 0, 109.69], "rot": 230, "scale": 0.78},
+    {"model": "decor_stones", "pos": [40.91, 0, 116.33], "rot": 300, "scale": 0.93},
+    {"model": "decor_stones", "pos": [28.03, 0, 58.16], "rot": 200, "scale": 1.14},
+    {"model": "decor_stones", "pos": [-17.22, 0, 105.84], "rot": 320, "scale": 1.29},
+    {"model": "decor_stones", "pos": [9.57, 0, 31.35], "rot": 110, "scale": 1.23},
+    {"model": "decor_stones", "pos": [26.67, 0, 99.66], "rot": 190, "scale": 1.22},
+    {"model": "decor_stones", "pos": [-37.3, 0, 101.83], "rot": 300, "scale": 1.14},
+    {"model": "decor_stones", "pos": [5.15, 0, 80.69], "rot": 120, "scale": 0.9},
+    {"model": "decor_stones", "pos": [6.2, 0, 72.03], "rot": 70, "scale": 0.84},
+    {"model": "decor_stones", "pos": [16.88, 0, 35.57], "rot": 170, "scale": 1.23},
+    {"model": "decor_stones", "pos": [7.37, 0, 116.94], "rot": 20, "scale": 1.22},
+    {"model": "decor_stones", "pos": [40.62, 0, 93.14], "rot": 260, "scale": 1.11},
+    {"model": "decor_stones", "pos": [34.11, 0, 38.15], "rot": 140, "scale": 1.06},
+    {"model": "decor_stones", "pos": [1.28, 0, 72.73], "rot": 30, "scale": 0.85},
+    {"model": "decor_stones", "pos": [38.21, 0, 76.71], "rot": 320, "scale": 1.01},
+    {"model": "decor_stones", "pos": [-34.13, 0, 32.48], "rot": 210, "scale": 1.24},
+    {"model": "decor_stones", "pos": [24.82, 0, 43.18], "rot": 250, "scale": 1.28},
+    {"model": "decor_stones", "pos": [-35.02, 0, 122.33], "rot": 330, "scale": 0.89},
+    {"model": "decor_stones", "pos": [28.04, 0, 123.82], "rot": 90, "scale": 0.95},
+    {"model": "decor_stones", "pos": [-35.37, 0, 119.21], "rot": 10, "scale": 0.81},
+    {"model": "decor_stones", "pos": [-7.75, 0, 105.41], "rot": 30, "scale": 0.76},
+    {"model": "decor_stones", "pos": [-22.32, 0, 35.85], "rot": 50, "scale": 1.14},
+    {"model": "decor_stones", "pos": [20.22, 0, 60.91], "rot": 90, "scale": 0.76},
+    {"model": "decor_stones", "pos": [27.92, 0, 60.39], "rot": 340, "scale": 1.21},
+    {"model": "decor_stones", "pos": [23.42, 0, 96.81], "rot": 340, "scale": 0.74},
+    {"model": "decor_stones", "pos": [10.43, 0, 99.21], "rot": 160, "scale": 0.98},
+    {"model": "decor_stones", "pos": [36.49, 0, 41.87], "rot": 290, "scale": 1.0},
+    {"model": "decor_stones", "pos": [12.27, 0, 118.77], "rot": 10, "scale": 1.08},
+    {"model": "decor_stones", "pos": [24.97, 0, 44.21], "rot": 40, "scale": 1.17},
+    {"model": "decor_stones", "pos": [-1.29, 0, 50.39], "rot": 80, "scale": 1.21},
+    {"model": "decor_stones", "pos": [24.49, 0, 101.11], "rot": 190, "scale": 1.0},
+    {"model": "decor_stones", "pos": [-4.14, 0, 100.79], "rot": 280, "scale": 0.78},
+    {"model": "decor_stones", "pos": [4.8, 0, 49.49], "rot": 150, "scale": 1.24},
+    {"model": "decor_stones", "pos": [-6.19, 0, 62.21], "rot": 140, "scale": 0.91},
+    {"model": "decor_stones", "pos": [-8.08, 0, 109.79], "rot": 110, "scale": 0.71},
+    {"model": "decor_stones", "pos": [-12.05, 0, 90.02], "rot": 140, "scale": 1.07},
+    {"model": "decor_stones", "pos": [-41.54, 0, 33.36], "rot": 10, "scale": 1.1},
+    {"model": "decor_stones", "pos": [6.9, 0, 56.06], "rot": 340, "scale": 0.73},
+    {"model": "decor_stones", "pos": [43.63, 0, 104.28], "rot": 330, "scale": 1.27},
+    {"model": "decor_stones", "pos": [30.89, 0, 75.09], "rot": 120, "scale": 1.3},
+    {"model": "decor_stones", "pos": [-10.63, 0, 81.12], "rot": 30, "scale": 1.19},
+    {"model": "decor_stones", "pos": [34.71, 0, 104.57], "rot": 330, "scale": 1.27},
+    {"model": "decor_leaves", "pos": [26.15, 0, 58.74], "rot": 260, "scale": 1.21},
+    {"model": "decor_leaves", "pos": [37.48, 0, 65.77], "rot": 0, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [42.06, 0, 36.34], "rot": 30, "scale": 0.78},
+    {"model": "decor_leaves", "pos": [27.53, 0, 81.74], "rot": 280, "scale": 0.93},
+    {"model": "decor_leaves", "pos": [36.48, 0, 68.77], "rot": 170, "scale": 0.88},
+    {"model": "decor_leaves", "pos": [20.44, 0, 63.7], "rot": 260, "scale": 1.05},
+    {"model": "decor_leaves", "pos": [27.03, 0, 76.89], "rot": 100, "scale": 1.0},
+    {"model": "decor_leaves", "pos": [24.25, 0, 51.48], "rot": 220, "scale": 0.97},
+    {"model": "decor_leaves", "pos": [33.49, 0, 86.76], "rot": 350, "scale": 0.96},
+    {"model": "decor_leaves", "pos": [39.93, 0, 52.29], "rot": 230, "scale": 1.1},
+    {"model": "decor_leaves", "pos": [36.06, 0, 51.73], "rot": 140, "scale": 0.89},
+    {"model": "decor_leaves", "pos": [20.99, 0, 71.61], "rot": 150, "scale": 1.1},
+    {"model": "decor_leaves", "pos": [20.66, 0, 41.07], "rot": 200, "scale": 0.93},
+    {"model": "decor_leaves", "pos": [26.87, 0, 52.56], "rot": 120, "scale": 0.92},
+    {"model": "decor_leaves", "pos": [21.46, 0, 38.93], "rot": 210, "scale": 0.91},
+    {"model": "decor_leaves", "pos": [27.3, 0, 59.04], "rot": 340, "scale": 1.21},
+    {"model": "decor_leaves", "pos": [31.29, 0, 66.93], "rot": 270, "scale": 1.16},
+    {"model": "decor_leaves", "pos": [31.91, 0, 54.19], "rot": 80, "scale": 1.12},
+    {"model": "decor_leaves", "pos": [22.65, 0, 60.59], "rot": 160, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [29.94, 0, 55.47], "rot": 320, "scale": 1.3},
+    {"model": "decor_leaves", "pos": [24.72, 0, 78.91], "rot": 340, "scale": 1.19},
+    {"model": "decor_leaves", "pos": [37.57, 0, 50.65], "rot": 340, "scale": 0.82},
+    {"model": "decor_leaves", "pos": [22.83, 0, 52.9], "rot": 50, "scale": 0.76},
+    {"model": "decor_leaves", "pos": [28.41, 0, 46.82], "rot": 250, "scale": 0.9},
+    {"model": "decor_leaves", "pos": [35.82, 0, 87.24], "rot": 60, "scale": 1.05},
+    {"model": "decor_leaves", "pos": [37.13, 0, 59.61], "rot": 20, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [19.44, 0, 43.33], "rot": 0, "scale": 1.29},
+    {"model": "decor_leaves", "pos": [34.94, 0, 42.61], "rot": 100, "scale": 0.87},
+    {"model": "decor_leaves", "pos": [26.06, 0, 65.96], "rot": 340, "scale": 0.78},
+    {"model": "decor_leaves", "pos": [20.25, 0, 57.68], "rot": 30, "scale": 0.81},
+    {"model": "decor_leaves", "pos": [20.83, 0, 76.56], "rot": 80, "scale": 1.12},
+    {"model": "decor_leaves", "pos": [28.86, 0, 86.57], "rot": 290, "scale": 1.17},
+    {"model": "decor_leaves", "pos": [37.43, 0, 87.91], "rot": 140, "scale": 0.85},
+    {"model": "decor_leaves", "pos": [22.48, 0, 69.77], "rot": 40, "scale": 0.81},
+    {"model": "decor_leaves", "pos": [38.42, 0, 80.21], "rot": 230, "scale": 0.84},
+    {"model": "decor_leaves", "pos": [37.22, 0, 78.05], "rot": 180, "scale": 0.86},
+    {"model": "decor_leaves", "pos": [35.41, 0, 55.46], "rot": 20, "scale": 1.11},
+    {"model": "decor_leaves", "pos": [22.58, 0, 61.36], "rot": 210, "scale": 0.85},
+    {"model": "decor_leaves", "pos": [36.1, 0, 71.56], "rot": 240, "scale": 0.83},
+    {"model": "decor_leaves", "pos": [23.78, 0, 70.16], "rot": 150, "scale": 0.91},
+    {"model": "decor_leaves", "pos": [29.35, 0, 39.66], "rot": 280, "scale": 0.9},
+    {"model": "decor_leaves", "pos": [30.73, 0, 42.65], "rot": 90, "scale": 0.96},
+    {"model": "decor_leaves", "pos": [18.47, 0, 62.26], "rot": 340, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [26.81, 0, 66.93], "rot": 20, "scale": 0.86},
+    {"model": "decor_leaves", "pos": [41.32, 0, 46.94], "rot": 40, "scale": 0.91},
+    {"model": "decor_leaves", "pos": [25.17, 0, 45.9], "rot": 150, "scale": 0.91},
+    {"model": "decor_leaves", "pos": [19.7, 0, 56.43], "rot": 30, "scale": 1.1},
+    {"model": "decor_leaves", "pos": [39.39, 0, 66.45], "rot": 70, "scale": 1.25},
+    {"model": "decor_leaves", "pos": [25.69, 0, 71.22], "rot": 300, "scale": 1.29},
+    {"model": "decor_leaves", "pos": [28.92, 0, 64.25], "rot": 250, "scale": 1.12},
+    {"model": "decor_leaves", "pos": [23.69, 0, 53.03], "rot": 0, "scale": 1.17},
+    {"model": "decor_leaves", "pos": [19.09, 0, 74.76], "rot": 340, "scale": 1.09},
+    {"model": "decor_leaves", "pos": [18.02, 0, 49.93], "rot": 30, "scale": 0.71},
+    {"model": "decor_leaves", "pos": [30.09, 0, 58.39], "rot": 130, "scale": 1.22},
+    {"model": "decor_leaves", "pos": [29.19, 0, 42.59], "rot": 210, "scale": 0.72},
+    {"model": "decor_leaves", "pos": [23.82, 0, 49.87], "rot": 240, "scale": 1.23},
+    {"model": "decor_leaves", "pos": [27.04, 0, 67.73], "rot": 140, "scale": 0.83},
+    {"model": "decor_leaves", "pos": [27.87, 0, 36.41], "rot": 120, "scale": 1.1},
+    {"model": "decor_leaves", "pos": [29.8, 0, 70.71], "rot": 290, "scale": 1.13},
+    {"model": "decor_leaves", "pos": [22.32, 0, 71.16], "rot": 340, "scale": 0.99},
+    {"model": "decor_leaves", "pos": [34.34, 0, 57.93], "rot": 100, "scale": 1.15},
+    {"model": "decor_leaves", "pos": [42.88, 0, 41.64], "rot": 10, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [30.61, 0, 65.75], "rot": 0, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [35.78, 0, 60.16], "rot": 140, "scale": 1.22},
+    {"model": "decor_leaves", "pos": [38.19, 0, 79.32], "rot": 280, "scale": 0.87},
+    {"model": "decor_leaves", "pos": [30.14, 0, 75.62], "rot": 70, "scale": 1.2},
+    {"model": "decor_leaves", "pos": [22.56, 0, 79.99], "rot": 240, "scale": 0.96},
+    {"model": "decor_leaves", "pos": [36.49, 0, 75.13], "rot": 270, "scale": 0.82},
+    {"model": "decor_leaves", "pos": [36.32, 0, 60.75], "rot": 210, "scale": 0.76},
+    {"model": "decor_leaves", "pos": [24.29, 0, 86.03], "rot": 20, "scale": 0.99},
+    {"model": "decor_leaves", "pos": [35.88, 0, 80.75], "rot": 20, "scale": 0.72},
+    {"model": "decor_leaves", "pos": [27.23, 0, 36.87], "rot": 130, "scale": 1.15},
+    {"model": "decor_leaves", "pos": [23.93, 0, 82.03], "rot": 80, "scale": 0.73},
+    {"model": "decor_leaves", "pos": [42.92, 0, 73.01], "rot": 90, "scale": 1.26},
+    {"model": "decor_leaves", "pos": [22.79, 0, 69.55], "rot": 0, "scale": 0.71},
+    {"model": "decor_leaves", "pos": [38.54, 0, 83.27], "rot": 250, "scale": 1.11},
+    {"model": "decor_leaves", "pos": [25.58, 0, 58.59], "rot": 40, "scale": 1.03},
+    {"model": "decor_leaves", "pos": [24.17, 0, 73.13], "rot": 300, "scale": 0.93},
+    {"model": "decor_leaves", "pos": [24.43, 0, 73.76], "rot": 230, "scale": 1.28},
+    {"model": "decor_leaves", "pos": [38.77, 0, 77.59], "rot": 150, "scale": 1.19},
+    {"model": "decor_leaves", "pos": [18.02, 0, 69.28], "rot": 100, "scale": 0.91},
+    {"model": "decor_leaves", "pos": [35.01, 0, 54.28], "rot": 250, "scale": 1.01},
+    {"model": "decor_leaves", "pos": [35.87, 0, 63.5], "rot": 320, "scale": 1.21},
+    {"model": "decor_leaves", "pos": [21.17, 0, 36.74], "rot": 60, "scale": 1.17},
+    {"model": "decor_leaves", "pos": [19.44, 0, 71.87], "rot": 50, "scale": 0.81},
+    {"model": "decor_leaves", "pos": [28.97, 0, 78.95], "rot": 220, "scale": 0.92},
+    {"model": "decor_leaves", "pos": [27.78, 0, 55.26], "rot": 330, "scale": 1.18},
+    {"model": "decor_leaves", "pos": [30.72, 0, 70.05], "rot": 170, "scale": 1.0},
+    {"model": "decor_leaves", "pos": [38.2, 0, 75.79], "rot": 60, "scale": 0.76},
+    {"model": "decor_leaves", "pos": [24.14, 0, 38.8], "rot": 140, "scale": 0.97},
+    {"model": "decor_leaves", "pos": [27.52, 0, 37.24], "rot": 320, "scale": 1.29},
+    {"model": "decor_leaves", "pos": [29.93, 0, 66.69], "rot": 110, "scale": 1.07},
+    {"model": "decor_leaves", "pos": [29.23, 0, 87.26], "rot": 200, "scale": 1.25},
+    {"model": "decor_leaves", "pos": [26.66, 0, 59.81], "rot": 140, "scale": 0.83},
+    {"model": "decor_leaves", "pos": [41.63, 0, 86.97], "rot": 10, "scale": 1.19},
+    {"model": "decor_leaves", "pos": [29.83, 0, 49.23], "rot": 90, "scale": 0.9},
+    {"model": "decor_leaves", "pos": [27.78, 0, 59.99], "rot": 80, "scale": 1.12},
+    {"model": "decor_leaves", "pos": [25.51, 0, 56.27], "rot": 170, "scale": 0.74},
+    {"model": "decor_leaves", "pos": [20.27, 0, 49.79], "rot": 40, "scale": 1.17},
+    {"model": "decor_leaves", "pos": [32.32, 0, 76.29], "rot": 120, "scale": 1.12},
+    {"model": "decor_leaves", "pos": [32.19, 0, 58.6], "rot": 200, "scale": 1.13},
+    {"model": "decor_leaves", "pos": [23.04, 0, 73.92], "rot": 200, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [35.97, 0, 64.97], "rot": 270, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [38.94, 0, 43.7], "rot": 270, "scale": 0.82},
+    {"model": "decor_leaves", "pos": [27.67, 0, 38.65], "rot": 110, "scale": 0.93},
+    {"model": "decor_leaves", "pos": [19.88, 0, 55.94], "rot": 240, "scale": 1.21},
+    {"model": "decor_leaves", "pos": [35.13, 0, 58.54], "rot": 40, "scale": 0.74},
+    {"model": "decor_leaves", "pos": [40.77, 0, 74.47], "rot": 70, "scale": 1.23},
+    {"model": "decor_leaves", "pos": [31.2, 0, 57.07], "rot": 210, "scale": 0.96},
+    {"model": "decor_leaves", "pos": [26.59, 0, 83.15], "rot": 300, "scale": 1.25},
+    {"model": "decor_leaves", "pos": [41.69, 0, 58.86], "rot": 250, "scale": 0.84},
+    {"model": "decor_leaves", "pos": [24.87, 0, 85.8], "rot": 50, "scale": 0.87},
+    {"model": "decor_leaves", "pos": [29.69, 0, 60.92], "rot": 210, "scale": 0.76},
+    {"model": "decor_leaves", "pos": [37.98, 0, 40.31], "rot": 260, "scale": 1.2},
+    {"model": "decor_leaves", "pos": [20.36, 0, 80.51], "rot": 110, "scale": 1.13},
+    {"model": "decor_leaves", "pos": [36.02, 0, 40.52], "rot": 310, "scale": 1.02},
+    {"model": "decor_leaves", "pos": [39.07, 0, 51.22], "rot": 350, "scale": 0.89},
+    {"model": "decor_leaves", "pos": [22.41, 0, 46.74], "rot": 240, "scale": 1.11},
+    {"model": "decor_leaves", "pos": [39.72, 0, 49.84], "rot": 320, "scale": 1.01},
+    {"model": "decor_leaves", "pos": [22.28, 0, 50.46], "rot": 90, "scale": 0.7},
+    {"model": "decor_leaves", "pos": [34.81, 0, 44.94], "rot": 50, "scale": 0.78},
+    {"model": "decor_leaves", "pos": [40.85, 0, 59.72], "rot": 330, "scale": 1.09},
+    {"model": "decor_leaves", "pos": [34.34, 0, 53.88], "rot": 50, "scale": 1.02},
+    {"model": "decor_leaves", "pos": [32.56, 0, 41.33], "rot": 190, "scale": 0.81},
+    {"model": "decor_leaves", "pos": [38.41, 0, 38.08], "rot": 0, "scale": 0.78},
+    {"model": "decor_leaves", "pos": [25.95, 0, 54.03], "rot": 10, "scale": 0.94},
+    {"model": "decor_leaves", "pos": [29.97, 0, 86.33], "rot": 290, "scale": 0.88},
+    {"model": "decor_leaves", "pos": [25.92, 0, 37.55], "rot": 40, "scale": 0.91},
+    {"model": "decor_leaves", "pos": [34.15, 0, 78.74], "rot": 300, "scale": 1.03},
+    {"model": "decor_leaves", "pos": [21.0, 0, 73.06], "rot": 110, "scale": 0.97},
+    {"model": "decor_leaves", "pos": [39.28, 0, 44.86], "rot": 210, "scale": 1.01},
+    {"model": "decor_leaves", "pos": [22.41, 0, 87.65], "rot": 120, "scale": 1.08},
+    {"model": "decor_leaves", "pos": [42.58, 0, 63.92], "rot": 330, "scale": 1.17},
+    {"model": "decor_leaves", "pos": [39.55, 0, 54.73], "rot": 160, "scale": 0.81},
+    {"model": "decor_leaves", "pos": [39.48, 0, 58.42], "rot": 0, "scale": 1.14},
+    {"model": "decor_leaves", "pos": [27.64, 0, 73.97], "rot": 190, "scale": 1.16},
+    {"model": "decor_leaves", "pos": [41.31, 0, 66.68], "rot": 60, "scale": 1.07},
+    {"model": "decor_leaves", "pos": [21.58, 0, 62.44], "rot": 200, "scale": 1.0},
+    {"model": "decor_leaves", "pos": [32.12, 0, 38.95], "rot": 270, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [30.45, 0, 79.68], "rot": 10, "scale": 0.96},
+    {"model": "decor_leaves", "pos": [30.65, 0, 52.1], "rot": 110, "scale": 1.17},
+    {"model": "decor_leaves", "pos": [29.39, 0, 79.04], "rot": 150, "scale": 1.07},
+    {"model": "decor_leaves", "pos": [36.26, 0, 84.21], "rot": 290, "scale": 1.08},
+    {"model": "decor_leaves", "pos": [24.52, 0, 60.89], "rot": 20, "scale": 0.8},
+    {"model": "decor_leaves", "pos": [30.92, 0, 68.69], "rot": 350, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [38.04, 0, 75.24], "rot": 80, "scale": 0.84},
+    {"model": "decor_leaves", "pos": [18.12, 0, 39.15], "rot": 150, "scale": 1.25},
+    {"model": "decor_leaves", "pos": [36.88, 0, 62.12], "rot": 130, "scale": 1.0},
+    {"model": "decor_leaves", "pos": [30.39, 0, 41.44], "rot": 90, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [33.94, 0, 79.4], "rot": 300, "scale": 0.87},
+    {"model": "decor_leaves", "pos": [31.96, 0, 44.47], "rot": 330, "scale": 1.28},
+    {"model": "decor_leaves", "pos": [41.11, 0, 40.82], "rot": 60, "scale": 0.83},
+    {"model": "decor_leaves", "pos": [35.4, 0, 78.61], "rot": 70, "scale": 0.97},
+    {"model": "decor_leaves", "pos": [25.37, 0, 47.98], "rot": 310, "scale": 1.21},
+    {"model": "decor_leaves", "pos": [19.39, 0, 37.11], "rot": 200, "scale": 1.19},
+    {"model": "decor_leaves", "pos": [41.32, 0, 56.3], "rot": 150, "scale": 0.92},
+    {"model": "decor_leaves", "pos": [31.86, 0, 68.32], "rot": 200, "scale": 1.24},
+    {"model": "decor_leaves", "pos": [33.67, 0, 78.23], "rot": 270, "scale": 1.08},
+    {"model": "decor_leaves", "pos": [26.25, 0, 51.92], "rot": 330, "scale": 1.25},
+    {"model": "decor_leaves", "pos": [26.47, 0, 69.17], "rot": 90, "scale": 0.79},
+    {"model": "decor_leaves", "pos": [34.2, 0, 64.47], "rot": 310, "scale": 0.7},
+    {"model": "decor_leaves", "pos": [18.91, 0, 47.58], "rot": 130, "scale": 0.98},
+    {"model": "decor_leaves", "pos": [21.8, 0, 54.46], "rot": 190, "scale": 1.27},
+    {"model": "decor_leaves", "pos": [41.01, 0, 56.96], "rot": 320, "scale": 0.9},
+    {"model": "decor_leaves", "pos": [36.67, 0, 76.83], "rot": 300, "scale": 1.04},
+    {"model": "decor_leaves", "pos": [40.97, 0, 50.38], "rot": 90, "scale": 1.08},
+    {"model": "decor_leaves", "pos": [38.67, 0, 81.6], "rot": 270, "scale": 0.94},
+    {"model": "decor_leaves", "pos": [27.7, 0, 76.38], "rot": 240, "scale": 0.92},
+    {"model": "decor_leaves", "pos": [23.68, 0, 57.28], "rot": 220, "scale": 0.86},
+    {"model": "decor_leaves", "pos": [27.74, 0, 66.78], "rot": 70, "scale": 1.04},
+    {"model": "decor_leaves", "pos": [29.04, 0, 77.44], "rot": 170, "scale": 1.3},
+    {"model": "decor_leaves", "pos": [35.62, 0, 73.24], "rot": 220, "scale": 0.94},
+    {"model": "decor_leaves", "pos": [25.73, 0, 83.03], "rot": 220, "scale": 0.97},
+    {"model": "decor_leaves", "pos": [26.3, 0, 49.28], "rot": 70, "scale": 0.81},
+    {"model": "decor_leaves", "pos": [26.84, 0, 64.88], "rot": 130, "scale": 0.84},
+    {"model": "decor_leaves", "pos": [26.14, 0, 43.92], "rot": 130, "scale": 0.87},
+    {"model": "decor_leaves", "pos": [24.5, 0, 53.42], "rot": 10, "scale": 0.73},
+    {"model": "decor_leaves", "pos": [21.23, 0, 70.02], "rot": 40, "scale": 0.79},
+    {"model": "decor_leaves", "pos": [25.47, 0, 46.46], "rot": 120, "scale": 1.29},
+    {"model": "decor_leaves", "pos": [39.12, 0, 60.17], "rot": 270, "scale": 1.2},
+    {"model": "decor_leaves", "pos": [32.21, 0, 46.71], "rot": 210, "scale": 1.24},
+    {"model": "decor_leaves", "pos": [31.46, 0, 46.71], "rot": 310, "scale": 1.22},
+    {"model": "decor_leaves", "pos": [39.92, 0, 54.67], "rot": 200, "scale": 1.14},
+    {"model": "decor_leaves", "pos": [35.45, 0, 44.75], "rot": 20, "scale": 0.99},
+    {"model": "decor_leaves", "pos": [27.22, 0, 80.86], "rot": 10, "scale": 0.72},
+    {"model": "decor_leaves", "pos": [31.32, 0, 81.14], "rot": 290, "scale": 0.85},
+    {"model": "decor_leaves", "pos": [19.83, 0, 51.21], "rot": 90, "scale": 0.89},
+    {"model": "decor_leaves", "pos": [20.73, 0, 52.42], "rot": 30, "scale": 1.07},
+    {"model": "decor_leaves", "pos": [34.72, 0, 72.23], "rot": 20, "scale": 1.18},
+    {"model": "decor_leaves", "pos": [34.94, 0, 81.2], "rot": 170, "scale": 1.07},
+    {"model": "decor_leaves", "pos": [31.84, 0, 67.4], "rot": 100, "scale": 0.74},
+    {"model": "decor_leaves", "pos": [33.67, 0, 77.14], "rot": 110, "scale": 0.74},
+    {"model": "decor_leaves", "pos": [20.58, 0, 67.26], "rot": 220, "scale": 1.12},
+    {"model": "decor_leaves", "pos": [41.57, 0, 83.87], "rot": 300, "scale": 1.1},
+    {"model": "decor_leaves", "pos": [24.33, 0, 63.6], "rot": 340, "scale": 0.92},
+    {"model": "decor_leaves", "pos": [21.44, 0, 46.33], "rot": 30, "scale": 0.89},
+    {"model": "decor_leaves", "pos": [39.98, 0, 44.24], "rot": 90, "scale": 0.73},
+    {"model": "decor_leaves", "pos": [36.53, 0, 50.89], "rot": 240, "scale": 0.83},
+    {"model": "decor_leaves", "pos": [30.27, 0, 47.42], "rot": 320, "scale": 1.26},
+    {"model": "decor_leaves", "pos": [18.26, 0, 76.4], "rot": 330, "scale": 0.82},
+    {"model": "decor_leaves", "pos": [36.08, 0, 69.8], "rot": 130, "scale": 1.2},
+    {"model": "decor_leaves", "pos": [30.51, 0, 59.15], "rot": 140, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [34.68, 0, 38.96], "rot": 60, "scale": 0.96},
+    {"model": "decor_leaves", "pos": [38.89, 0, 49.7], "rot": 250, "scale": 1.11},
+    {"model": "decor_leaves", "pos": [36.8, 0, 73.16], "rot": 20, "scale": 1.29},
+    {"model": "decor_leaves", "pos": [35.86, 0, 42.86], "rot": 210, "scale": 1.09},
+    {"model": "decor_leaves", "pos": [40.82, 0, 49.08], "rot": 40, "scale": 1.15},
+    {"model": "decor_leaves", "pos": [23.16, 0, 84.38], "rot": 330, "scale": 1.25},
+    {"model": "decor_leaves", "pos": [29.05, 0, 44.58], "rot": 310, "scale": 0.98},
+    {"model": "decor_leaves", "pos": [31.32, 0, 58.65], "rot": 310, "scale": 1.26},
+    {"model": "decor_leaves", "pos": [37.87, 0, 60.08], "rot": 160, "scale": 1.29},
+    {"model": "decor_leaves", "pos": [29.83, 0, 47.17], "rot": 250, "scale": 0.82},
+    {"model": "decor_leaves", "pos": [37.76, 0, 73.62], "rot": 160, "scale": 1.17},
+    {"model": "decor_leaves", "pos": [22.91, 0, 61.78], "rot": 330, "scale": 1.09},
+    {"model": "decor_leaves", "pos": [31.4, 0, 51.48], "rot": 80, "scale": 0.74},
+    {"model": "decor_leaves", "pos": [40.43, 0, 59.18], "rot": 140, "scale": 1.24},
+    {"model": "decor_leaves", "pos": [18.7, 0, 48.82], "rot": 150, "scale": 0.86},
+    {"model": "decor_leaves", "pos": [20.65, 0, 40.56], "rot": 150, "scale": 0.76},
+    {"model": "decor_leaves", "pos": [26.87, 0, 62.02], "rot": 70, "scale": 1.15},
+    {"model": "decor_leaves", "pos": [40.19, 0, 63.3], "rot": 280, "scale": 1.0},
+    {"model": "decor_leaves", "pos": [30.69, 0, 60.05], "rot": 270, "scale": 1.3},
+    {"model": "decor_leaves", "pos": [20.22, 0, 36.39], "rot": 190, "scale": 1.26},
+    {"model": "decor_leaves", "pos": [37.78, 0, 42.26], "rot": 120, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [40.52, 0, 56.49], "rot": 210, "scale": 1.18},
+    {"model": "decor_leaves", "pos": [34.36, 0, 69.42], "rot": 160, "scale": 1.25},
+    {"model": "decor_leaves", "pos": [23.19, 0, 52.17], "rot": 340, "scale": 0.98},
+    {"model": "decor_leaves", "pos": [27.35, 0, 87.88], "rot": 30, "scale": 1.14},
+    {"model": "decor_leaves", "pos": [32.64, 0, 69.17], "rot": 300, "scale": 0.81},
+    {"model": "decor_leaves", "pos": [42.67, 0, 67.3], "rot": 40, "scale": 0.94},
+    {"model": "decor_leaves", "pos": [41.22, 0, 63.34], "rot": 210, "scale": 0.76},
+    {"model": "decor_leaves", "pos": [40.69, 0, 58.12], "rot": 140, "scale": 0.84},
+    {"model": "decor_leaves", "pos": [38.38, 0, 83.61], "rot": 80, "scale": 0.99},
+    {"model": "decor_leaves", "pos": [18.33, 0, 51.33], "rot": 310, "scale": 0.82},
+    {"model": "decor_leaves", "pos": [39.18, 0, 42.86], "rot": 100, "scale": 1.13},
+    {"model": "decor_leaves", "pos": [36.55, 0, 63.61], "rot": 190, "scale": 0.89},
+    {"model": "decor_leaves", "pos": [23.36, 0, 62.18], "rot": 140, "scale": 0.87},
+    {"model": "decor_leaves", "pos": [18.11, 0, 60.1], "rot": 290, "scale": 0.86},
+    {"model": "decor_leaves", "pos": [32.36, 0, 48.44], "rot": 150, "scale": 1.12},
+    {"model": "decor_leaves", "pos": [40.01, 0, 49.01], "rot": 40, "scale": 1.03},
+    {"model": "decor_leaves", "pos": [19.97, 0, 81.01], "rot": 80, "scale": 1.0},
+    {"model": "decor_leaves", "pos": [37.68, 0, 39.56], "rot": 0, "scale": 1.09},
+    {"model": "decor_leaves", "pos": [18.54, 0, 42.12], "rot": 310, "scale": 0.86},
+    {"model": "decor_leaves", "pos": [34.83, 0, 46.67], "rot": 280, "scale": 1.27},
+    {"model": "decor_leaves", "pos": [18.33, 0, 78.71], "rot": 10, "scale": 0.95},
+    {"model": "decor_leaves", "pos": [31.65, 0, 65.31], "rot": 220, "scale": 1.14},
+    {"model": "decor_leaves", "pos": [26.9, 0, 77.95], "rot": 340, "scale": 0.74},
+    {"model": "decor_leaves", "pos": [32.83, 0, 58.98], "rot": 20, "scale": 1.09},
+    {"model": "decor_leaves", "pos": [19.19, 0, 52.39], "rot": 100, "scale": 0.84},
+    {"model": "decor_leaves", "pos": [19.97, 0, 73.37], "rot": 120, "scale": 0.81},
+    {"model": "decor_leaves", "pos": [28.83, 0, 71.35], "rot": 260, "scale": 1.05},
+    {"model": "decor_leaves", "pos": [20.83, 0, 84.12], "rot": 190, "scale": 1.12},
+    {"model": "decor_leaves", "pos": [41.99, 0, 39.96], "rot": 170, "scale": 0.93},
+    {"model": "decor_leaves", "pos": [19.64, 0, 71.23], "rot": 170, "scale": 1.17},
+    {"model": "decor_leaves", "pos": [31.86, 0, 44.91], "rot": 100, "scale": 0.79},
+    {"model": "decor_leaves", "pos": [39.04, 0, 71.78], "rot": 330, "scale": 1.11},
+    {"model": "decor_leaves", "pos": [36.46, 0, 44.37], "rot": 260, "scale": 0.86},
+    {"model": "decor_leaves", "pos": [31.74, 0, 71.7], "rot": 60, "scale": 0.95},
+    {"model": "decor_leaves", "pos": [23.66, 0, 83.1], "rot": 290, "scale": 0.97},
+    {"model": "decor_leaves", "pos": [27.78, 0, 57.1], "rot": 0, "scale": 0.79},
+    {"model": "decor_leaves", "pos": [27.08, 0, 53.29], "rot": 190, "scale": 1.19},
+    {"model": "decor_leaves", "pos": [30.3, 0, 82.46], "rot": 190, "scale": 0.88},
+    {"model": "decor_leaves", "pos": [27.53, 0, 39.03], "rot": 170, "scale": 1.02},
+    {"model": "decor_leaves", "pos": [24.42, 0, 53.84], "rot": 210, "scale": 0.82},
+    {"model": "decor_leaves", "pos": [39.76, 0, 69.58], "rot": 190, "scale": 1.19},
+    {"model": "decor_leaves", "pos": [27.28, 0, 84.56], "rot": 280, "scale": 0.86},
+    {"model": "decor_leaves", "pos": [42.46, 0, 86.61], "rot": 340, "scale": 0.93},
+    {"model": "decor_leaves", "pos": [24.14, 0, 44.21], "rot": 170, "scale": 1.12},
+    {"model": "decor_leaves", "pos": [22.7, 0, 72.14], "rot": 30, "scale": 1.26},
+    {"model": "decor_leaves", "pos": [36.82, 0, 62.6], "rot": 40, "scale": 1.19},
+    {"model": "decor_leaves", "pos": [21.95, 0, 56.72], "rot": 120, "scale": 1.09},
+    {"model": "decor_leaves", "pos": [20.77, 0, 53.66], "rot": 330, "scale": 1.11},
+    {"model": "decor_leaves", "pos": [29.4, 0, 73.17], "rot": 280, "scale": 1.16},
+    {"model": "decor_leaves", "pos": [27.79, 0, 78.09], "rot": 180, "scale": 0.73},
+    {"model": "decor_leaves", "pos": [31.53, 0, 38.77], "rot": 270, "scale": 0.89},
+    {"model": "decor_leaves", "pos": [37.02, 0, 78.45], "rot": 180, "scale": 1.16},
+    {"model": "decor_leaves", "pos": [21.56, 0, 85.84], "rot": 10, "scale": 1.14},
+    {"model": "decor_leaves", "pos": [37.75, 0, 67.26], "rot": 330, "scale": 1.06},
+    {"model": "decor_leaves", "pos": [37.73, 0, 78.16], "rot": 270, "scale": 1.22},
+    {"model": "decor_leaves", "pos": [35.51, 0, 46.16], "rot": 100, "scale": 1.19},
+    {"model": "decor_leaves", "pos": [41.67, 0, 57.67], "rot": 190, "scale": 0.93},
+    {"model": "decor_leaves", "pos": [32.71, 0, 70.21], "rot": 150, "scale": 0.92},
+    {"model": "decor_leaves", "pos": [42.23, 0, 60.59], "rot": 30, "scale": 0.93},
+    {"model": "decor_leaves", "pos": [24.56, 0, 46.1], "rot": 130, "scale": 0.94},
+    {"model": "decor_leaves", "pos": [18.05, 0, 83.45], "rot": 280, "scale": 1.11},
+    {"model": "decor_leaves", "pos": [26.09, 0, 61.66], "rot": 340, "scale": 0.88},
+    {"model": "decor_leaves", "pos": [22.54, 0, 64.33], "rot": 120, "scale": 1.16},
+    {"model": "decor_leaves", "pos": [23.95, 0, 87.96], "rot": 120, "scale": 0.96},
+    {"model": "decor_leaves", "pos": [33.55, 0, 63.3], "rot": 320, "scale": 1.1},
+    {"model": "decor_leaves", "pos": [18.93, 0, 74.35], "rot": 290, "scale": 1.2},
+    {"model": "decor_leaves", "pos": [32.36, 0, 64.87], "rot": 30, "scale": 0.84},
+    {"model": "decor_leaves", "pos": [38.57, 0, 59.4], "rot": 230, "scale": 1.05},
+    {"model": "decor_leaves", "pos": [42.85, 0, 70.96], "rot": 140, "scale": 0.97},
+    {"model": "decor_leaves", "pos": [24.28, 0, 74.45], "rot": 70, "scale": 0.87},
+    {"model": "decor_leaves", "pos": [21.88, 0, 67.68], "rot": 60, "scale": 1.15},
+    {"model": "decor_leaves", "pos": [40.28, 0, 43.81], "rot": 320, "scale": 1.03},
+    {"model": "decor_leaves", "pos": [20.42, 0, 49.0], "rot": 300, "scale": 1.24},
+    {"model": "decor_leaves", "pos": [37.94, 0, 42.6], "rot": 80, "scale": 1.08},
+    {"model": "decor_leaves", "pos": [22.77, 0, 49.48], "rot": 210, "scale": 1.14},
+    {"model": "decor_leaves", "pos": [32.11, 0, 47.7], "rot": 10, "scale": 1.26},
+    {"model": "decor_leaves", "pos": [24.1, 0, 65.6], "rot": 310, "scale": 1.28},
+    {"model": "decor_reeds", "pos": [-40.45, 0, 72.16], "rot": 210, "scale": 1.1},
+    {"model": "decor_reeds", "pos": [-26.57, 0, 79.95], "rot": 90, "scale": 0.86},
+    {"model": "decor_reeds", "pos": [-40.94, 0, 65.03], "rot": 330, "scale": 0.76},
+    {"model": "decor_reeds", "pos": [-40.2, 0, 67.1], "rot": 100, "scale": 0.73},
+    {"model": "decor_reeds", "pos": [-14.44, 0, 66.52], "rot": 170, "scale": 0.71},
+    {"model": "decor_reeds", "pos": [-15.37, 0, 71.41], "rot": 50, "scale": 1.1},
+    {"model": "decor_reeds", "pos": [-39.9, 0, 53.41], "rot": 60, "scale": 0.74},
+    {"model": "decor_reeds", "pos": [-40.24, 0, 75.98], "rot": 0, "scale": 0.91},
+    {"model": "decor_reeds", "pos": [-22.68, 0, 53.04], "rot": 320, "scale": 1.22},
+    {"model": "decor_reeds", "pos": [-33.55, 0, 79.57], "rot": 20, "scale": 1.22},
+    {"model": "decor_reeds", "pos": [-14.92, 0, 77.75], "rot": 50, "scale": 0.93},
+    {"model": "decor_reeds", "pos": [-33.26, 0, 78.66], "rot": 120, "scale": 1.0},
+    {"model": "decor_reeds", "pos": [-32.24, 0, 79.11], "rot": 140, "scale": 1.2},
+    {"model": "decor_reeds", "pos": [-31.05, 0, 78.64], "rot": 210, "scale": 1.17},
+    {"model": "decor_reeds", "pos": [-14.05, 0, 69.42], "rot": 80, "scale": 1.26},
+    {"model": "decor_reeds", "pos": [-14.63, 0, 74.01], "rot": 100, "scale": 1.06},
+    {"model": "decor_reeds", "pos": [-31.35, 0, 79.92], "rot": 180, "scale": 1.04},
+    {"model": "decor_reeds", "pos": [-33.89, 0, 79.05], "rot": 330, "scale": 0.91},
+    {"model": "decor_reeds", "pos": [-24.06, 0, 79.25], "rot": 210, "scale": 0.78},
+    {"model": "decor_reeds", "pos": [-34.58, 0, 79.86], "rot": 280, "scale": 1.02},
+    {"model": "decor_reeds", "pos": [-37.78, 0, 52.12], "rot": 310, "scale": 0.94},
+    {"model": "decor_reeds", "pos": [-14.82, 0, 73.11], "rot": 300, "scale": 1.15},
+    {"model": "decor_reeds", "pos": [-41.07, 0, 67.34], "rot": 180, "scale": 1.16},
+    {"model": "decor_reeds", "pos": [-35.15, 0, 78.8], "rot": 290, "scale": 0.84},
+    {"model": "decor_reeds", "pos": [-29.55, 0, 52.09], "rot": 110, "scale": 0.82},
+    {"model": "decor_reeds", "pos": [-16.06, 0, 52.98], "rot": 310, "scale": 1.1},
+    {"model": "decor_reeds", "pos": [-40.58, 0, 58.7], "rot": 210, "scale": 0.89},
+    {"model": "decor_reeds", "pos": [-15.45, 0, 68.87], "rot": 260, "scale": 1.04},
+    {"model": "decor_reeds", "pos": [-31.54, 0, 78.53], "rot": 260, "scale": 1.04},
+    {"model": "decor_reeds", "pos": [-27.1, 0, 79.23], "rot": 30, "scale": 1.22},
+    {"model": "decor_reeds", "pos": [-15.29, 0, 68.19], "rot": 320, "scale": 0.78},
+    {"model": "decor_reeds", "pos": [-41.7, 0, 62.27], "rot": 50, "scale": 1.23},
+    {"model": "decor_reeds", "pos": [-40.91, 0, 66.56], "rot": 30, "scale": 0.93},
+    {"model": "decor_reeds", "pos": [-41.55, 0, 59.12], "rot": 300, "scale": 0.9},
+    {"model": "decor_reeds", "pos": [-37.7, 0, 78.45], "rot": 190, "scale": 0.92},
+    {"model": "decor_reeds", "pos": [-15.67, 0, 52.32], "rot": 290, "scale": 0.86},
+    {"model": "decor_reeds", "pos": [-41.97, 0, 52.11], "rot": 40, "scale": 1.12},
+    {"model": "decor_reeds", "pos": [-15.35, 0, 76.09], "rot": 120, "scale": 0.94},
+    {"model": "decor_reeds", "pos": [-15.09, 0, 55.82], "rot": 330, "scale": 1.09},
+    {"model": "decor_reeds", "pos": [-34.67, 0, 52.88], "rot": 160, "scale": 0.71},
+    {"model": "decor_reeds", "pos": [-14.07, 0, 78.15], "rot": 150, "scale": 0.96},
+    {"model": "decor_reeds", "pos": [-14.67, 0, 61.09], "rot": 80, "scale": 1.17},
+    {"model": "decor_reeds", "pos": [-15.4, 0, 61.71], "rot": 310, "scale": 0.83},
+    {"model": "decor_reeds", "pos": [-40.94, 0, 55.37], "rot": 330, "scale": 1.11},
+    {"model": "decor_reeds", "pos": [-31.89, 0, 78.16], "rot": 10, "scale": 0.84},
+    {"model": "decor_reeds", "pos": [-14.16, 0, 53.53], "rot": 110, "scale": 0.77},
+    {"model": "decor_reeds", "pos": [-24.88, 0, 79.68], "rot": 190, "scale": 0.86},
+    {"model": "decor_reeds", "pos": [-18.57, 0, 53.63], "rot": 330, "scale": 0.98},
+    {"model": "decor_reeds", "pos": [-39.97, 0, 79.48], "rot": 200, "scale": 1.21},
+    {"model": "decor_reeds", "pos": [-33.39, 0, 53.0], "rot": 270, "scale": 1.25},
+    {"model": "decor_reeds", "pos": [-40.9, 0, 56.35], "rot": 70, "scale": 1.02},
+    {"model": "decor_reeds", "pos": [-15.05, 0, 53.77], "rot": 230, "scale": 1.29},
+    {"model": "decor_reeds", "pos": [-14.64, 0, 62.57], "rot": 230, "scale": 1.2},
+    {"model": "decor_reeds", "pos": [-17.21, 0, 53.81], "rot": 160, "scale": 0.88},
+    {"model": "decor_reeds", "pos": [-35.07, 0, 52.44], "rot": 120, "scale": 1.16},
+    {"model": "decor_reeds", "pos": [-41.04, 0, 53.74], "rot": 250, "scale": 0.99},
+    {"model": "decor_reeds", "pos": [-25.24, 0, 53.38], "rot": 200, "scale": 1.23},
+    {"model": "decor_reeds", "pos": [-14.54, 0, 67.39], "rot": 310, "scale": 1.1},
+    {"model": "decor_reeds", "pos": [-14.35, 0, 79.5], "rot": 350, "scale": 0.98},
+    {"model": "decor_reeds", "pos": [-27.94, 0, 53.13], "rot": 350, "scale": 1.28},
+    {"model": "decor_reeds", "pos": [-14.27, 0, 74.37], "rot": 50, "scale": 0.83},
+    {"model": "decor_reeds", "pos": [-14.63, 0, 63.17], "rot": 280, "scale": 1.0},
+    {"model": "decor_reeds", "pos": [-41.49, 0, 65.66], "rot": 110, "scale": 1.2},
+    {"model": "decor_reeds", "pos": [-40.84, 0, 78.94], "rot": 190, "scale": 1.07},
+    {"model": "decor_reeds", "pos": [-20.4, 0, 53.51], "rot": 200, "scale": 0.87},
+    {"model": "decor_reeds", "pos": [-21.62, 0, 52.5], "rot": 230, "scale": 0.93},
+    {"model": "decor_reeds", "pos": [-15.04, 0, 57.23], "rot": 0, "scale": 1.23},
+    {"model": "decor_reeds", "pos": [-36.22, 0, 53.76], "rot": 70, "scale": 0.87},
+    {"model": "decor_reeds", "pos": [-34.7, 0, 78.48], "rot": 310, "scale": 0.72},
+    {"model": "decor_reeds", "pos": [-38.47, 0, 53.45], "rot": 150, "scale": 0.91},
+    {"model": "decor_reeds", "pos": [-15.19, 0, 61.1], "rot": 90, "scale": 0.73},
+    {"model": "decor_reeds", "pos": [-38.74, 0, 78.63], "rot": 210, "scale": 0.93},
+    {"model": "decor_reeds", "pos": [-39.34, 0, 53.65], "rot": 320, "scale": 1.06},
+    {"model": "decor_reeds", "pos": [-41.3, 0, 73.64], "rot": 260, "scale": 1.25},
+    {"model": "decor_reeds", "pos": [-41.8, 0, 61.21], "rot": 50, "scale": 1.04},
+    {"model": "decor_reeds", "pos": [-41.92, 0, 54.87], "rot": 290, "scale": 1.09},
+    {"model": "decor_reeds", "pos": [-40.55, 0, 75.51], "rot": 330, "scale": 0.7},
+    {"model": "decor_reeds", "pos": [-23.6, 0, 79.47], "rot": 240, "scale": 1.17},
+    {"model": "decor_reeds", "pos": [-30.34, 0, 52.93], "rot": 150, "scale": 1.01},
+    {"model": "decor_reeds", "pos": [-40.59, 0, 52.17], "rot": 250, "scale": 1.01},
+    {"model": "decor_reeds", "pos": [-15.4, 0, 64.99], "rot": 100, "scale": 0.95},
+    {"model": "decor_reeds", "pos": [-15.81, 0, 73.38], "rot": 340, "scale": 0.74},
+    {"model": "decor_reeds", "pos": [-23.42, 0, 52.79], "rot": 190, "scale": 1.12},
+    {"model": "decor_reeds", "pos": [-28.84, 0, 78.26], "rot": 170, "scale": 0.79},
+    {"model": "decor_reeds", "pos": [-41.56, 0, 74.12], "rot": 130, "scale": 1.25},
+    {"model": "decor_reeds", "pos": [-15.35, 0, 72.57], "rot": 270, "scale": 0.9},
+    {"model": "decor_reeds", "pos": [-14.86, 0, 52.59], "rot": 80, "scale": 0.96},
+    {"model": "decor_reeds", "pos": [-41.47, 0, 66.86], "rot": 100, "scale": 1.21},
+    {"model": "decor_reeds", "pos": [-37.98, 0, 53.71], "rot": 260, "scale": 0.8},
+    {"model": "decor_reeds", "pos": [-40.94, 0, 54.3], "rot": 330, "scale": 0.93},
+    {"model": "decor_reeds", "pos": [-41.66, 0, 55.83], "rot": 300, "scale": 0.71},
+    {"model": "decor_reeds", "pos": [-15.76, 0, 64.63], "rot": 10, "scale": 0.99},
+    {"model": "decor_reeds", "pos": [-30.02, 0, 79.04], "rot": 60, "scale": 0.99},
+    {"model": "decor_reeds", "pos": [-36.58, 0, 79.02], "rot": 180, "scale": 1.24},
+    {"model": "decor_reeds", "pos": [-30.64, 0, 79.13], "rot": 240, "scale": 1.07},
+    {"model": "decor_reeds", "pos": [-16.14, 0, 78.19], "rot": 60, "scale": 1.18},
+    {"model": "decor_reeds", "pos": [-15.2, 0, 58.57], "rot": 150, "scale": 1.08},
+    {"model": "decor_reeds", "pos": [-27.68, 0, 79.6], "rot": 310, "scale": 1.28},
+    {"model": "decor_reeds", "pos": [-32.06, 0, 52.37], "rot": 210, "scale": 1.16},
+    {"model": "decor_reeds", "pos": [-36.25, 0, 53.25], "rot": 170, "scale": 1.0},
+    {"model": "decor_reeds", "pos": [-41.13, 0, 64.1], "rot": 340, "scale": 1.29},
+    {"model": "decor_reeds", "pos": [-15.58, 0, 58.19], "rot": 190, "scale": 1.07},
+    {"model": "decor_reeds", "pos": [-18.03, 0, 78.71], "rot": 200, "scale": 0.91},
+    {"model": "decor_reeds", "pos": [-35.98, 0, 52.6], "rot": 210, "scale": 0.74},
+    {"model": "decor_reeds", "pos": [-32.61, 0, 52.96], "rot": 30, "scale": 0.76},
+    {"model": "decor_reeds", "pos": [-15.48, 0, 56.68], "rot": 240, "scale": 0.74},
+    {"model": "decor_reeds", "pos": [-15.0, 0, 54.79], "rot": 70, "scale": 0.76},
+    {"model": "decor_reeds", "pos": [-41.02, 0, 59.58], "rot": 130, "scale": 1.04},
+    {"model": "decor_reeds", "pos": [-14.85, 0, 74.63], "rot": 170, "scale": 1.09},
+    {"model": "decor_reeds", "pos": [-37.4, 0, 79.4], "rot": 220, "scale": 0.79},
+    {"model": "decor_reeds", "pos": [-16.35, 0, 78.78], "rot": 150, "scale": 1.21},
+    {"model": "decor_reeds", "pos": [-14.35, 0, 78.68], "rot": 130, "scale": 0.81},
+    {"model": "decor_reeds", "pos": [-41.74, 0, 56.57], "rot": 150, "scale": 1.25},
+    {"model": "decor_reeds", "pos": [-38.04, 0, 53.17], "rot": 180, "scale": 1.14},
+    {"model": "decor_reeds", "pos": [-16.85, 0, 53.13], "rot": 80, "scale": 1.19},
+    {"model": "decor_reeds", "pos": [-27.01, 0, 52.46], "rot": 120, "scale": 0.74},
+    {"model": "decor_reeds", "pos": [-40.75, 0, 52.79], "rot": 290, "scale": 0.96},
+    {"model": "decor_reeds", "pos": [-41.42, 0, 77.52], "rot": 350, "scale": 0.76},
+    {"model": "decor_reeds", "pos": [-26.31, 0, 78.87], "rot": 170, "scale": 1.26},
+    {"model": "decor_reeds", "pos": [-14.89, 0, 71.78], "rot": 80, "scale": 1.06},
+    {"model": "decor_reeds", "pos": [-40.38, 0, 73.74], "rot": 120, "scale": 1.0},
+    {"model": "decor_reeds", "pos": [-37.97, 0, 79.46], "rot": 280, "scale": 1.18},
+    {"model": "decor_reeds", "pos": [-20.49, 0, 79.16], "rot": 240, "scale": 0.99},
+    {"model": "decor_reeds", "pos": [-15.63, 0, 70.72], "rot": 70, "scale": 0.92},
+    {"model": "decor_reeds", "pos": [-19.51, 0, 52.75], "rot": 70, "scale": 0.74},
+    {"model": "decor_reeds", "pos": [-32.77, 0, 78.16], "rot": 170, "scale": 0.74},
+    {"model": "decor_reeds", "pos": [-41.22, 0, 66.14], "rot": 0, "scale": 1.13},
+    {"model": "decor_reeds", "pos": [-30.95, 0, 52.96], "rot": 180, "scale": 1.21},
+    {"model": "decor_reeds", "pos": [-32.0, 0, 79.68], "rot": 190, "scale": 0.91},
+    {"model": "decor_reeds", "pos": [-15.0, 0, 75.53], "rot": 60, "scale": 1.1},
+    {"model": "decor_reeds", "pos": [-41.78, 0, 64.59], "rot": 290, "scale": 0.88},
+    {"model": "decor_reeds", "pos": [-28.31, 0, 53.53], "rot": 170, "scale": 1.14},
+    {"model": "decor_reeds", "pos": [-41.44, 0, 55.37], "rot": 20, "scale": 0.93},
+    {"model": "decor_reeds", "pos": [-41.6, 0, 54.46], "rot": 310, "scale": 0.86},
+    {"model": "decor_reeds", "pos": [-41.86, 0, 57.84], "rot": 240, "scale": 1.14},
+    {"model": "decor_reeds", "pos": [-41.87, 0, 69.53], "rot": 80, "scale": 1.12},
+    {"model": "decor_reeds", "pos": [-41.46, 0, 67.66], "rot": 190, "scale": 1.25},
+    {"model": "decor_reeds", "pos": [-35.64, 0, 53.15], "rot": 200, "scale": 0.71},
+    {"model": "decor_reeds", "pos": [-14.96, 0, 79.79], "rot": 160, "scale": 1.06},
+    {"model": "decor_reeds", "pos": [-26.34, 0, 52.13], "rot": 50, "scale": 0.96},
+    {"model": "decor_reeds", "pos": [-37.1, 0, 52.93], "rot": 350, "scale": 1.07},
+    {"model": "decor_reeds", "pos": [-21.23, 0, 78.73], "rot": 240, "scale": 0.81},
+    {"model": "decor_reeds", "pos": [-15.72, 0, 79.66], "rot": 180, "scale": 1.28},
+    {"model": "decor_reeds", "pos": [-40.2, 0, 77.28], "rot": 90, "scale": 0.73},
+    {"model": "decor_reeds", "pos": [-14.2, 0, 71.74], "rot": 240, "scale": 0.83},
+    {"model": "decor_reeds", "pos": [-19.44, 0, 78.48], "rot": 90, "scale": 0.7},
+    {"model": "decor_reeds", "pos": [-17.8, 0, 53.7], "rot": 330, "scale": 1.23},
+    {"model": "decor_reeds", "pos": [-14.52, 0, 57.75], "rot": 330, "scale": 0.85},
+    {"model": "decor_reeds", "pos": [-15.68, 0, 54.73], "rot": 150, "scale": 1.26},
+    {"model": "decor_reeds", "pos": [-39.61, 0, 78.98], "rot": 240, "scale": 1.26},
+    {"model": "decor_reeds", "pos": [-20.67, 0, 78.28], "rot": 330, "scale": 0.84},
+    {"model": "decor_reeds", "pos": [-41.24, 0, 68.36], "rot": 320, "scale": 0.92},
+    {"model": "decor_reeds", "pos": [-15.8, 0, 66.69], "rot": 130, "scale": 1.21},
+    {"model": "decor_reeds", "pos": [-24.55, 0, 53.84], "rot": 80, "scale": 1.22},
+    {"model": "decor_reeds", "pos": [-40.58, 0, 60.86], "rot": 210, "scale": 1.02},
+    {"model": "decor_reeds", "pos": [-34.57, 0, 52.25], "rot": 230, "scale": 0.87},
+    {"model": "decor_reeds", "pos": [-23.11, 0, 52.27], "rot": 80, "scale": 1.21},
+    {"model": "decor_reeds", "pos": [-30.96, 0, 53.74], "rot": 260, "scale": 0.71},
+    {"model": "decor_reeds", "pos": [-22.05, 0, 53.66], "rot": 120, "scale": 1.2},
+    {"model": "decor_reeds", "pos": [-41.8, 0, 68.97], "rot": 210, "scale": 1.11}
   ]
 }
 ```
@@ -19574,115 +23038,115 @@ if __name__ == "__main__":
     {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-59.95, 0, 194.0], "rot": 90},
     {"model": "boat_upturned", "pos": [-8, 0, 170], "rot": 30, "colliders": [{"size": [1.6, 0.12, 4.2], "offset": [0, 0.6, 0]}, {"size": [0.12, 0.6, 4.2], "offset": [-0.74, 0.3, 0]}, {"size": [0.12, 0.6, 4.2], "offset": [0.74, 0.3, 0]}]},
     {"colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}], "model": "lamp", "pos": [-30, 0, 172], "rot": 0},
-    {"outline": true, "model": "box", "pos": [20.7, 0, 191.1], "rot": 255},
-    {"outline": true, "model": "box", "pos": [28.3, 0, 201.0], "rot": 90},
-    {"outline": true, "model": "box", "pos": [19.3, 0, 163.8], "rot": 345},
-    {"outline": true, "model": "box", "pos": [29.2, 0, 157.8], "rot": 135},
-    {"outline": true, "model": "box", "pos": [32.2, 0, 192.2], "rot": 300},
-    {"outline": true, "model": "box", "pos": [31.5, 0, 152.6], "rot": 30},
-    {"outline": true, "model": "box", "pos": [32.2, 0, 160.0], "rot": 240},
-    {"outline": true, "model": "box", "pos": [33.5, 0, 199.5], "rot": 0},
-    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-43.3, 0, 132.6], "rot": 0},
-    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-10.7, 0, 143.3], "rot": 0},
-    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [7.5, 0, 139.6], "rot": 0},
-    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [50.9, 0, 136.4], "rot": 0},
-    {"outline": true, "model": "box", "pos": [-51.9, 0, 133.6], "rot": 270},
-    {"outline": true, "model": "box", "pos": [-17.7, 0, 128.8], "rot": 195},
-    {"outline": true, "model": "box", "pos": [-1.1, 0, 137.5], "rot": 15},
-    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-17.3, 0, 132.3], "rot": 90},
-    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-38.7, 0, 143.0], "rot": 0},
-    {"model": "deckchair", "pos": [1.0, 0, 188.6], "rot": 90},
-    {"model": "deckchair", "pos": [-13.0, 0, 156.5], "rot": 270},
-    {"model": "deckchair", "pos": [-40.6, 0, 185.0], "rot": 180},
-    {"model": "deckchair", "pos": [-54.9, 0, 162.3], "rot": 285},
-    {"model": "deckchair", "pos": [-3.4, 0, 162.3], "rot": 15},
-    {"model": "deckchair", "pos": [-6.1, 0, 182.8], "rot": 255},
-    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [1.2, 0, 157.5], "rot": 135},
-    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [-48.9, 0, 173.8], "rot": 120},
-    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [-4.4, 0, 173.8], "rot": 30},
-    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [-38.2, 0, 190.5], "rot": 165},
-    {"outline": true, "model": "box", "pos": [-2.6, 0, 159.0], "rot": 120},
-    {"outline": true, "model": "box", "pos": [-54.5, 0, 172.5], "rot": 105}
+    {"outline": true, "model": "box", "pos": [21.9, 0, 195.5], "rot": 255},
+    {"outline": true, "model": "box", "pos": [19.5, 0, 200.2], "rot": 15},
+    {"outline": true, "model": "box", "pos": [21.7, 0, 151.3], "rot": 240},
+    {"outline": true, "model": "box", "pos": [18.3, 0, 164.7], "rot": 345},
+    {"outline": true, "model": "box", "pos": [30.7, 0, 174.4], "rot": 105},
+    {"outline": true, "model": "box", "pos": [28.7, 0, 204.2], "rot": 210},
+    {"outline": true, "model": "box", "pos": [16.4, 0, 154.5], "rot": 135},
+    {"outline": true, "model": "box", "pos": [28.4, 0, 193.1], "rot": 90},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [49.5, 0, 130.3], "rot": 0},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [53.0, 0, 139.8], "rot": 0},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-18.8, 0, 136.9], "rot": 0},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-52.5, 0, 141.0], "rot": 0},
+    {"outline": true, "model": "box", "pos": [-18.1, 0, 133.7], "rot": 30},
+    {"outline": true, "model": "box", "pos": [-27.2, 0, 127.6], "rot": 150},
+    {"outline": true, "model": "box", "pos": [10.1, 0, 132.3], "rot": 255},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-1.2, 0, 138.8], "rot": 270},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-57.2, 0, 131.3], "rot": 180},
+    {"model": "deckchair", "pos": [-18.7, 0, 176.6], "rot": 45},
+    {"model": "deckchair", "pos": [-33.0, 0, 179.9], "rot": 225},
+    {"model": "deckchair", "pos": [-17.0, 0, 167.8], "rot": 225},
+    {"model": "deckchair", "pos": [-50.7, 0, 168.5], "rot": 30},
+    {"model": "deckchair", "pos": [-20.7, 0, 155.3], "rot": 60},
+    {"model": "deckchair", "pos": [-25.8, 0, 190.9], "rot": 150},
+    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [-46.9, 0, 158.7], "rot": 165},
+    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [-54.7, 0, 177.0], "rot": 90},
+    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [-1.0, 0, 187.8], "rot": 120},
+    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [-44.7, 0, 181.5], "rot": 15},
+    {"outline": true, "model": "box", "pos": [-49.2, 0, 191.9], "rot": 270},
+    {"outline": true, "model": "box", "pos": [-42.0, 0, 159.4], "rot": 345}
   ],
   "hideouts": [
     {"kind": "barrel", "pos": [44, 0.2, 132.75], "size": [0.6, 0.4, 0.6]},
     {"kind": "barrel", "pos": [-48, 0.2, 140.75], "size": [0.6, 0.4, 0.6]},
     {"kind": "boat", "pos": [-8, 0.2, 170], "rot": 30, "size": [1.2, 0.4, 3.6]},
-    {"kind": "box", "pos": [32.2, 0.2, 192.85], "size": [0.6, 0.4, 0.6]},
-    {"kind": "box", "pos": [31.5, 0.2, 153.25], "size": [0.6, 0.4, 0.6]},
-    {"kind": "box", "pos": [32.2, 0.2, 160.65], "size": [0.6, 0.4, 0.6]},
-    {"kind": "box", "pos": [33.5, 0.2, 200.15], "size": [0.6, 0.4, 0.6]},
-    {"kind": "box", "pos": [-51.9, 0.2, 134.25], "size": [0.6, 0.4, 0.6]},
-    {"kind": "box", "pos": [-17.7, 0.2, 129.45], "size": [0.6, 0.4, 0.6]},
-    {"kind": "box", "pos": [-1.1, 0.2, 138.15], "size": [0.6, 0.4, 0.6]},
-    {"kind": "bench", "pos": [-17.3, 0.2, 132.3], "rot": 90, "size": [1.3, 0.4, 0.4]},
-    {"kind": "bench", "pos": [-38.7, 0.2, 143.0], "rot": 0, "size": [1.3, 0.4, 0.4]},
-    {"kind": "box", "pos": [-2.6, 0.2, 159.65], "size": [0.6, 0.4, 0.6]},
-    {"kind": "box", "pos": [-54.5, 0.2, 173.15], "size": [0.6, 0.4, 0.6]}
+    {"kind": "box", "pos": [30.7, 0.2, 175.05], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [28.7, 0.2, 204.85], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [16.4, 0.2, 155.15], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [28.4, 0.2, 193.75], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [-18.1, 0.2, 134.35], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [-27.2, 0.2, 128.25], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [10.1, 0.2, 132.95], "size": [0.6, 0.4, 0.6]},
+    {"kind": "bench", "pos": [-1.2, 0.2, 138.8], "rot": 270, "size": [1.3, 0.4, 0.4]},
+    {"kind": "bench", "pos": [-57.2, 0.2, 131.3], "rot": 180, "size": [1.3, 0.4, 0.4]},
+    {"kind": "box", "pos": [-49.2, 0.2, 192.55], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [-42.0, 0.2, 160.05], "size": [0.6, 0.4, 0.6]}
   ],
   "spawn_points": [
     {"pos": [37.3, -1.55, 164], "allowed": [1], "foods": ["squid"], "snap": false},
     {"pos": [12.7, -1.55, 177], "allowed": [1], "foods": ["squid", "fish_sandwich"], "snap": false},
     {"pos": [37.3, -1.55, 182], "allowed": [2], "foods": ["sushi"], "snap": false},
     {"pos": [-30, 0, 133.6], "allowed": [0], "foods": ["fries"]},
-    {"pos": [16.5, 0, 157.6], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
-    {"pos": [28.3, 0, 209.9], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
-    {"pos": [17.5, 0, 197.6], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
-    {"pos": [32.0, 0, 165.7], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
-    {"pos": [18.5, 0, 202.6], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
-    {"pos": [32.2, 0, 183.0], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
-    {"pos": [32.0, 0, 188.3], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
-    {"pos": [20.7, 0, 176.9], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
-    {"pos": [40.8, 0, 127.6], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-20.9, 0, 129.8], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [6.9, 0, 136.6], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [37.6, 0, 131.0], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-34.0, 0, 141.4], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-14.4, 0, 139.9], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-39.8, 0, 129.6], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-33.0, 0, 134.6], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-30.7, 0, 140.9], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [10.7, 0, 134.7], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [16.3, 0, 134.7], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-54.6, 0, 154.2], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-10.0, 0, 157.2], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-10.7, 0, 186.8], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [8.0, 0, 184.6], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-30.0, 0, 177.3], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-3.0, 0, 180.9], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-50.8, 0, 165.0], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [7.7, 0, 171.4], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-28.3, 0, 153.1], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-1.7, 0, 169.2], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-26.1, 0, 163.2], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
-    {"pos": [-27.6, 0, 188.2], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]}
+    {"pos": [20.5, 0, 169.9], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
+    {"pos": [18.1, 0, 204.7], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
+    {"pos": [28.0, 0, 154.8], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
+    {"pos": [30.8, 0, 163.0], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
+    {"pos": [31.9, 0, 178.1], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
+    {"pos": [21.9, 0, 162.4], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
+    {"pos": [17.7, 0, 173.3], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
+    {"pos": [33.6, 0, 196.5], "allowed": [0, 1, 2], "foods": ["shrimp", "fries", "squid", "fish_sandwich", "sushi"]},
+    {"pos": [18.1, 0, 143.1], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [27.5, 0, 138.2], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-34.5, 0, 131.8], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-38.0, 0, 140.1], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [3.6, 0, 127.2], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-49.0, 0, 127.4], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-31.1, 0, 132.4], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [33.4, 0, 137.5], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-48.0, 0, 137.7], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-46.0, 0, 128.2], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-20.6, 0, 142.5], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [4.8, 0, 175.1], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-13.8, 0, 163.1], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-3.4, 0, 172.1], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-26.8, 0, 154.8], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-26.7, 0, 160.1], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [0.5, 0, 163.2], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-44.0, 0, 172.8], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-33.4, 0, 160.6], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-14.8, 0, 174.6], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-21.9, 0, 160.7], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-43.9, 0, 168.9], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]},
+    {"pos": [-13.2, 0, 180.4], "allowed": [0, 1], "foods": ["shrimp", "fries", "squid", "fish_sandwich"]}
   ],
   "yarn": [
     {"pos": [37.3, -1.55, 166.5], "snap": false},
     {"pos": [12.7, -1.55, 174.5], "snap": false},
-    {"pos": [19.2, 0, 171.4]},
-    {"pos": [24.3, 0, 150.1]},
-    {"pos": [20.0, 0, 179.9]},
-    {"pos": [28.6, 0, 176.7]},
-    {"pos": [29.7, 0, 171.0]},
-    {"pos": [28.7, 0, 187.8]},
-    {"pos": [-21.2, 0, 135.3]},
-    {"pos": [-50.0, 0, 127.8]},
-    {"pos": [48.9, 0, 138.8]},
-    {"pos": [57.0, 0, 134.0]},
-    {"pos": [-50.9, 0, 136.5]},
-    {"pos": [52.4, 0, 129.7]},
-    {"pos": [-22.6, 0, 160.6]},
-    {"pos": [-33.2, 0, 171.6]},
-    {"pos": [-45.4, 0, 175.3]},
-    {"pos": [-55.7, 0, 185.0]},
-    {"pos": [-46.2, 0, 157.0]},
-    {"pos": [-19.1, 0, 165.0]},
-    {"pos": [0.4, 0, 172.4]},
-    {"pos": [-23.6, 0, 185.5]},
-    {"pos": [-43.9, 0, 182.1]},
-    {"pos": [-15.2, 0, 169.7]},
-    {"pos": [5.3, 0, 153.9]}
+    {"pos": [30.9, 0, 152.4]},
+    {"pos": [30.7, 0, 198.0]},
+    {"pos": [30.7, 0, 181.1]},
+    {"pos": [32.6, 0, 203.6]},
+    {"pos": [31.8, 0, 171.4]},
+    {"pos": [16.4, 0, 183.2]},
+    {"pos": [36.3, 0, 143.2]},
+    {"pos": [-12.8, 0, 142.4]},
+    {"pos": [40.0, 0, 142.4]},
+    {"pos": [-56.3, 0, 142.8]},
+    {"pos": [-16.5, 0, 139.6]},
+    {"pos": [-14.4, 0, 127.8]},
+    {"pos": [-10.6, 0, 158.9]},
+    {"pos": [4.9, 0, 183.5]},
+    {"pos": [-17.6, 0, 164.0]},
+    {"pos": [-51.6, 0, 164.3]},
+    {"pos": [-47.8, 0, 184.8]},
+    {"pos": [-46.7, 0, 163.1]},
+    {"pos": [-10.7, 0, 155.6]},
+    {"pos": [-36.7, 0, 169.2]},
+    {"pos": [7.2, 0, 161.0]},
+    {"pos": [-1.9, 0, 165.1]},
+    {"pos": [-56.8, 0, 155.4]}
   ],
   "hazards": [
     {"type": "forklift", "pos": [25, 0, 153], "rot": 0, "path": [[25, 153], [25, 207]]},
@@ -19741,6 +23205,868 @@ if __name__ == "__main__":
     {"model": "buoy", "pos": [-10, -2.3, 215], "rot": 0, "amp": 0.08, "period": 2.9, "phase": -1.0, "solid": false},
     {"model": "buoy", "pos": [20, -2.3, 215], "rot": 0, "amp": 0.08, "period": 2.9, "phase": 2.0, "solid": false},
     {"model": "buoy", "pos": [50, -2.3, 215], "rot": 0, "amp": 0.08, "period": 2.9, "phase": 5.0, "solid": false}
+  ],
+  "decor": [
+    {"model": "decor_shell", "pos": [-40.91, 0, 179.47], "rot": 110, "scale": 1.09},
+    {"model": "decor_shell", "pos": [-14.03, 0, 187.38], "rot": 110, "scale": 0.78},
+    {"model": "decor_shell", "pos": [-22.93, 0, 159.2], "rot": 180, "scale": 0.72},
+    {"model": "decor_shell", "pos": [-49.66, 0, 179.42], "rot": 0, "scale": 1.3},
+    {"model": "decor_shell", "pos": [-2.93, 0, 153.65], "rot": 160, "scale": 1.2},
+    {"model": "decor_shell", "pos": [-8.85, 0, 190.82], "rot": 160, "scale": 0.91},
+    {"model": "decor_shell", "pos": [-42.55, 0, 188.62], "rot": 350, "scale": 1.04},
+    {"model": "decor_shell", "pos": [-29.65, 0, 165.66], "rot": 270, "scale": 1.08},
+    {"model": "decor_shell", "pos": [-14.75, 0, 164.88], "rot": 160, "scale": 1.11},
+    {"model": "decor_shell", "pos": [-21.42, 0, 182.18], "rot": 80, "scale": 0.96},
+    {"model": "decor_shell", "pos": [-9.89, 0, 173.05], "rot": 180, "scale": 0.82},
+    {"model": "decor_shell", "pos": [-23.5, 0, 160.89], "rot": 290, "scale": 0.86},
+    {"model": "decor_shell", "pos": [-39.51, 0, 188.24], "rot": 310, "scale": 1.03},
+    {"model": "decor_shell", "pos": [-20.69, 0, 188.12], "rot": 230, "scale": 0.78},
+    {"model": "decor_shell", "pos": [-29.59, 0, 177.05], "rot": 290, "scale": 0.93},
+    {"model": "decor_shell", "pos": [-10.55, 0, 190.12], "rot": 20, "scale": 0.83},
+    {"model": "decor_shell", "pos": [-25.13, 0, 180.02], "rot": 280, "scale": 1.08},
+    {"model": "decor_shell", "pos": [-47.46, 0, 167.78], "rot": 160, "scale": 1.23},
+    {"model": "decor_shell", "pos": [-4.99, 0, 158.73], "rot": 230, "scale": 1.01},
+    {"model": "decor_shell", "pos": [-14.65, 0, 188.76], "rot": 150, "scale": 1.13},
+    {"model": "decor_shell", "pos": [-44.03, 0, 176.54], "rot": 20, "scale": 0.92},
+    {"model": "decor_shell", "pos": [-9.97, 0, 164.68], "rot": 180, "scale": 0.82},
+    {"model": "decor_shell", "pos": [-6.03, 0, 173.88], "rot": 140, "scale": 0.8},
+    {"model": "decor_shell", "pos": [-29.68, 0, 175.59], "rot": 340, "scale": 1.12},
+    {"model": "decor_shell", "pos": [6.09, 0, 185.49], "rot": 50, "scale": 1.02},
+    {"model": "decor_shell", "pos": [-49.65, 0, 163.36], "rot": 260, "scale": 0.88},
+    {"model": "decor_shell", "pos": [-40.25, 0, 175.68], "rot": 40, "scale": 1.26},
+    {"model": "decor_shell", "pos": [-23.55, 0, 186.62], "rot": 20, "scale": 0.7},
+    {"model": "decor_shell", "pos": [-35.91, 0, 171.35], "rot": 340, "scale": 1.01},
+    {"model": "decor_shell", "pos": [-26.7, 0, 178.79], "rot": 180, "scale": 1.18},
+    {"model": "decor_shell", "pos": [-33.17, 0, 180.71], "rot": 100, "scale": 1.14},
+    {"model": "decor_shell", "pos": [-1.96, 0, 161.12], "rot": 150, "scale": 0.91},
+    {"model": "decor_shell", "pos": [-41.88, 0, 162.36], "rot": 130, "scale": 1.08},
+    {"model": "decor_shell", "pos": [-29.92, 0, 163.63], "rot": 290, "scale": 0.75},
+    {"model": "decor_shell", "pos": [-7.96, 0, 175.79], "rot": 0, "scale": 1.09},
+    {"model": "decor_shell", "pos": [-37.78, 0, 169.33], "rot": 350, "scale": 0.93},
+    {"model": "decor_shell", "pos": [-53.95, 0, 172.71], "rot": 80, "scale": 0.79},
+    {"model": "decor_shell", "pos": [-54.53, 0, 165.85], "rot": 100, "scale": 0.83},
+    {"model": "decor_shell", "pos": [-37.98, 0, 166.7], "rot": 20, "scale": 0.91},
+    {"model": "decor_shell", "pos": [-51.42, 0, 171.11], "rot": 270, "scale": 0.73},
+    {"model": "decor_shell", "pos": [-22.69, 0, 155.56], "rot": 30, "scale": 0.89},
+    {"model": "decor_shell", "pos": [0.93, 0, 173.45], "rot": 80, "scale": 1.24},
+    {"model": "decor_shell", "pos": [1.04, 0, 189.23], "rot": 90, "scale": 0.75},
+    {"model": "decor_shell", "pos": [3.5, 0, 153.03], "rot": 160, "scale": 1.18},
+    {"model": "decor_shell", "pos": [-43.89, 0, 180.89], "rot": 150, "scale": 1.01},
+    {"model": "decor_shell", "pos": [2.75, 0, 168.94], "rot": 250, "scale": 1.07},
+    {"model": "decor_shell", "pos": [-2.58, 0, 188.6], "rot": 70, "scale": 1.07},
+    {"model": "decor_shell", "pos": [4.21, 0, 182.68], "rot": 230, "scale": 1.02},
+    {"model": "decor_shell", "pos": [-38.23, 0, 191.36], "rot": 190, "scale": 0.86},
+    {"model": "decor_shell", "pos": [-33.4, 0, 190.06], "rot": 100, "scale": 1.14},
+    {"model": "decor_shell", "pos": [-50.93, 0, 180.79], "rot": 50, "scale": 1.3},
+    {"model": "decor_shell", "pos": [-4.6, 0, 168.25], "rot": 180, "scale": 1.25},
+    {"model": "decor_shell", "pos": [-55.31, 0, 154.07], "rot": 250, "scale": 1.3},
+    {"model": "decor_shell", "pos": [-26.9, 0, 161.51], "rot": 90, "scale": 0.97},
+    {"model": "decor_shell", "pos": [-57.76, 0, 151.26], "rot": 160, "scale": 0.87},
+    {"model": "decor_shell", "pos": [-43.06, 0, 192.66], "rot": 230, "scale": 0.95},
+    {"model": "decor_shell", "pos": [7.55, 0, 182.76], "rot": 300, "scale": 0.95},
+    {"model": "decor_shell", "pos": [-47.77, 0, 174.86], "rot": 340, "scale": 0.98},
+    {"model": "decor_shell", "pos": [-7.43, 0, 180.71], "rot": 120, "scale": 0.72},
+    {"model": "decor_shell", "pos": [1.78, 0, 170.72], "rot": 320, "scale": 0.81},
+    {"model": "decor_shell", "pos": [-51.21, 0, 175.32], "rot": 190, "scale": 0.75},
+    {"model": "decor_shell", "pos": [1.64, 0, 174.56], "rot": 30, "scale": 0.83},
+    {"model": "decor_shell", "pos": [-8.81, 0, 177.91], "rot": 270, "scale": 0.72},
+    {"model": "decor_shell", "pos": [-22.91, 0, 183.41], "rot": 90, "scale": 0.88},
+    {"model": "decor_shell", "pos": [-17.12, 0, 177.96], "rot": 320, "scale": 0.96},
+    {"model": "decor_shell", "pos": [-8.44, 0, 159.71], "rot": 10, "scale": 1.06},
+    {"model": "decor_shell", "pos": [-41.92, 0, 172.81], "rot": 0, "scale": 1.04},
+    {"model": "decor_shell", "pos": [-14.91, 0, 176.15], "rot": 330, "scale": 1.12},
+    {"model": "decor_shell", "pos": [-29.81, 0, 189.3], "rot": 0, "scale": 0.76},
+    {"model": "decor_shell", "pos": [2.33, 0, 190.07], "rot": 220, "scale": 1.2},
+    {"model": "decor_shell", "pos": [-13.03, 0, 181.0], "rot": 180, "scale": 1.05},
+    {"model": "decor_shell", "pos": [-41.02, 0, 155.74], "rot": 110, "scale": 1.06},
+    {"model": "decor_shell", "pos": [-54.27, 0, 177.59], "rot": 320, "scale": 0.72},
+    {"model": "decor_shell", "pos": [-27.51, 0, 165.32], "rot": 310, "scale": 1.18},
+    {"model": "decor_shell", "pos": [-24.13, 0, 152.9], "rot": 280, "scale": 1.02},
+    {"model": "decor_shell", "pos": [-39.49, 0, 166.32], "rot": 70, "scale": 1.25},
+    {"model": "decor_shell", "pos": [-12.88, 0, 166.14], "rot": 40, "scale": 1.16},
+    {"model": "decor_shell", "pos": [3.49, 0, 162.91], "rot": 10, "scale": 1.29},
+    {"model": "decor_shell", "pos": [-28.45, 0, 167.65], "rot": 30, "scale": 0.75},
+    {"model": "decor_shell", "pos": [-43.78, 0, 156.27], "rot": 200, "scale": 1.29},
+    {"model": "decor_shell", "pos": [-2.55, 0, 172.83], "rot": 270, "scale": 1.26},
+    {"model": "decor_shell", "pos": [-38.56, 0, 158.77], "rot": 50, "scale": 1.15},
+    {"model": "decor_shell", "pos": [-14.7, 0, 191.1], "rot": 350, "scale": 0.93},
+    {"model": "decor_shell", "pos": [-43.98, 0, 156.84], "rot": 10, "scale": 0.8},
+    {"model": "decor_shell", "pos": [-45.78, 0, 152.39], "rot": 270, "scale": 1.04},
+    {"model": "decor_shell", "pos": [0.31, 0, 178.36], "rot": 260, "scale": 1.12},
+    {"model": "decor_shell", "pos": [-5.39, 0, 186.68], "rot": 90, "scale": 0.77},
+    {"model": "decor_shell", "pos": [-34.99, 0, 152.23], "rot": 330, "scale": 1.17},
+    {"model": "decor_shell", "pos": [-8.5, 0, 153.94], "rot": 270, "scale": 0.88},
+    {"model": "decor_shell", "pos": [-38.37, 0, 161.28], "rot": 350, "scale": 0.95},
+    {"model": "decor_shell", "pos": [-39.33, 0, 181.96], "rot": 130, "scale": 0.76},
+    {"model": "decor_shell", "pos": [-14.97, 0, 156.91], "rot": 70, "scale": 1.28},
+    {"model": "decor_shell", "pos": [-41.21, 0, 184.75], "rot": 140, "scale": 1.07},
+    {"model": "decor_shell", "pos": [-18.48, 0, 151.97], "rot": 340, "scale": 0.95},
+    {"model": "decor_shell", "pos": [-11.15, 0, 160.03], "rot": 210, "scale": 1.2},
+    {"model": "decor_shell", "pos": [-49.76, 0, 180.64], "rot": 310, "scale": 0.75},
+    {"model": "decor_shell", "pos": [-51.33, 0, 184.31], "rot": 170, "scale": 0.97},
+    {"model": "decor_shell", "pos": [-30.19, 0, 155.99], "rot": 0, "scale": 1.08},
+    {"model": "decor_shell", "pos": [-48.74, 0, 164.96], "rot": 270, "scale": 1.24},
+    {"model": "decor_shell", "pos": [-56.73, 0, 165.58], "rot": 220, "scale": 1.15},
+    {"model": "decor_shell", "pos": [-50.94, 0, 181.91], "rot": 100, "scale": 1.08},
+    {"model": "decor_shell", "pos": [4.26, 0, 184.34], "rot": 270, "scale": 1.16},
+    {"model": "decor_shell", "pos": [-25.54, 0, 173.72], "rot": 90, "scale": 1.07},
+    {"model": "decor_shell", "pos": [-33.15, 0, 150.88], "rot": 250, "scale": 0.9},
+    {"model": "decor_shell", "pos": [-29.68, 0, 162.36], "rot": 350, "scale": 0.85},
+    {"model": "decor_shell", "pos": [-46.88, 0, 191.14], "rot": 350, "scale": 0.73},
+    {"model": "decor_shell", "pos": [-27.55, 0, 154.43], "rot": 320, "scale": 1.13},
+    {"model": "decor_shell", "pos": [-8.92, 0, 188.31], "rot": 350, "scale": 0.73},
+    {"model": "decor_shell", "pos": [-10.3, 0, 151.16], "rot": 270, "scale": 0.73},
+    {"model": "decor_shell", "pos": [-39.99, 0, 168.26], "rot": 220, "scale": 0.81},
+    {"model": "decor_shell", "pos": [1.94, 0, 167.21], "rot": 100, "scale": 0.96},
+    {"model": "decor_shell", "pos": [-44.4, 0, 182.42], "rot": 250, "scale": 0.73},
+    {"model": "decor_shell", "pos": [-31.41, 0, 184.52], "rot": 120, "scale": 1.04},
+    {"model": "decor_shell", "pos": [-30.09, 0, 151.68], "rot": 10, "scale": 0.97},
+    {"model": "decor_shell", "pos": [-10.21, 0, 176.31], "rot": 250, "scale": 1.25},
+    {"model": "decor_shell", "pos": [-24.7, 0, 187.22], "rot": 290, "scale": 0.75},
+    {"model": "decor_shell", "pos": [5.96, 0, 175.23], "rot": 280, "scale": 0.75},
+    {"model": "decor_shell", "pos": [-22.71, 0, 179.65], "rot": 0, "scale": 0.74},
+    {"model": "decor_shell", "pos": [-5.36, 0, 177.49], "rot": 150, "scale": 1.13},
+    {"model": "decor_shell", "pos": [-56.19, 0, 180.18], "rot": 350, "scale": 1.22},
+    {"model": "decor_shell", "pos": [-27.28, 0, 151.54], "rot": 20, "scale": 0.82},
+    {"model": "decor_shell", "pos": [5.6, 0, 156.35], "rot": 10, "scale": 0.81},
+    {"model": "decor_shell", "pos": [-53.6, 0, 157.26], "rot": 300, "scale": 1.28},
+    {"model": "decor_shell", "pos": [-14.04, 0, 171.24], "rot": 150, "scale": 0.74},
+    {"model": "decor_shell", "pos": [-6.48, 0, 152.78], "rot": 40, "scale": 0.93},
+    {"model": "decor_shell", "pos": [-11.98, 0, 158.26], "rot": 30, "scale": 1.14},
+    {"model": "decor_shell", "pos": [-32.8, 0, 158.83], "rot": 280, "scale": 1.11},
+    {"model": "decor_shell", "pos": [7.71, 0, 156.14], "rot": 110, "scale": 1.23},
+    {"model": "decor_shell", "pos": [-2.61, 0, 174.92], "rot": 40, "scale": 1.0},
+    {"model": "decor_shell", "pos": [-29.64, 0, 184.93], "rot": 250, "scale": 1.07},
+    {"model": "decor_shell", "pos": [-41.79, 0, 163.28], "rot": 280, "scale": 1.16},
+    {"model": "decor_shell", "pos": [-57.57, 0, 182.86], "rot": 290, "scale": 0.84},
+    {"model": "decor_shell", "pos": [-13.71, 0, 185.08], "rot": 160, "scale": 0.71},
+    {"model": "decor_shell", "pos": [-7.15, 0, 191.23], "rot": 350, "scale": 0.87},
+    {"model": "decor_shell", "pos": [-22.49, 0, 184.69], "rot": 0, "scale": 1.1},
+    {"model": "decor_shell", "pos": [-36.21, 0, 192.29], "rot": 10, "scale": 1.12},
+    {"model": "decor_shell", "pos": [-40.11, 0, 155.95], "rot": 210, "scale": 0.97},
+    {"model": "decor_shell", "pos": [-53.34, 0, 188.3], "rot": 70, "scale": 1.26},
+    {"model": "decor_shell", "pos": [-52.4, 0, 182.89], "rot": 110, "scale": 1.15},
+    {"model": "decor_shell", "pos": [-25.93, 0, 174.58], "rot": 0, "scale": 0.98},
+    {"model": "decor_shell", "pos": [-10.71, 0, 191.19], "rot": 210, "scale": 1.03},
+    {"model": "decor_shell", "pos": [5.55, 0, 153.42], "rot": 260, "scale": 1.16},
+    {"model": "decor_shell", "pos": [-1.38, 0, 187.57], "rot": 130, "scale": 1.27},
+    {"model": "decor_shell", "pos": [-53.1, 0, 175.08], "rot": 310, "scale": 0.87},
+    {"model": "decor_shell", "pos": [-44.97, 0, 158.31], "rot": 340, "scale": 0.93},
+    {"model": "decor_shell", "pos": [-54.91, 0, 163.15], "rot": 120, "scale": 0.98},
+    {"model": "decor_shell", "pos": [-12.91, 0, 168.34], "rot": 40, "scale": 0.98},
+    {"model": "decor_shell", "pos": [-37.82, 0, 177.58], "rot": 200, "scale": 0.71},
+    {"model": "decor_shell", "pos": [4.44, 0, 150.89], "rot": 100, "scale": 1.02},
+    {"model": "decor_shell", "pos": [-55.49, 0, 162.55], "rot": 270, "scale": 0.7},
+    {"model": "decor_shell", "pos": [-30.07, 0, 179.39], "rot": 270, "scale": 0.73},
+    {"model": "decor_shell", "pos": [-47.86, 0, 182.29], "rot": 240, "scale": 0.85},
+    {"model": "decor_shell", "pos": [-0.79, 0, 172.15], "rot": 130, "scale": 0.71},
+    {"model": "decor_shell", "pos": [-37.25, 0, 157.26], "rot": 150, "scale": 0.83},
+    {"model": "decor_shell", "pos": [-34.48, 0, 188.41], "rot": 250, "scale": 1.21},
+    {"model": "decor_shell", "pos": [-16.36, 0, 150.5], "rot": 120, "scale": 1.15},
+    {"model": "decor_shell", "pos": [-40.94, 0, 189.61], "rot": 350, "scale": 1.14},
+    {"model": "decor_shell", "pos": [-42.05, 0, 154.49], "rot": 250, "scale": 0.97},
+    {"model": "decor_shell", "pos": [-38.56, 0, 174.09], "rot": 40, "scale": 1.12},
+    {"model": "decor_shell", "pos": [-39.29, 0, 159.78], "rot": 270, "scale": 0.77},
+    {"model": "decor_shell", "pos": [-44.37, 0, 164.35], "rot": 100, "scale": 1.11},
+    {"model": "decor_shell", "pos": [6.01, 0, 164.89], "rot": 150, "scale": 0.81},
+    {"model": "decor_shell", "pos": [-24.03, 0, 155.33], "rot": 200, "scale": 1.28},
+    {"model": "decor_shell", "pos": [-27.17, 0, 168.13], "rot": 250, "scale": 0.75},
+    {"model": "decor_shell", "pos": [-20.54, 0, 171.84], "rot": 160, "scale": 0.88},
+    {"model": "decor_shell", "pos": [-12.42, 0, 170.62], "rot": 40, "scale": 1.02},
+    {"model": "decor_shell", "pos": [-14.7, 0, 180.73], "rot": 0, "scale": 1.08},
+    {"model": "decor_shell", "pos": [-34.53, 0, 174.93], "rot": 260, "scale": 1.15},
+    {"model": "decor_shell", "pos": [-32.45, 0, 156.76], "rot": 130, "scale": 1.27},
+    {"model": "decor_shell", "pos": [-10.45, 0, 167.12], "rot": 320, "scale": 0.76},
+    {"model": "decor_shell", "pos": [-10.58, 0, 155.35], "rot": 250, "scale": 0.95},
+    {"model": "decor_shell", "pos": [-31.39, 0, 153.11], "rot": 170, "scale": 0.97},
+    {"model": "decor_shell", "pos": [-29.03, 0, 165.76], "rot": 120, "scale": 1.19},
+    {"model": "decor_shell", "pos": [-25.14, 0, 161.82], "rot": 110, "scale": 0.92},
+    {"model": "decor_shell", "pos": [-39.04, 0, 164.5], "rot": 160, "scale": 1.19},
+    {"model": "decor_shell", "pos": [-55.11, 0, 190.29], "rot": 90, "scale": 1.28},
+    {"model": "decor_shell", "pos": [-8.18, 0, 187.21], "rot": 160, "scale": 1.24},
+    {"model": "decor_shell", "pos": [-1.09, 0, 165.72], "rot": 300, "scale": 0.75},
+    {"model": "decor_shell", "pos": [-20.14, 0, 169.98], "rot": 220, "scale": 1.29},
+    {"model": "decor_shell", "pos": [-51.51, 0, 190.75], "rot": 110, "scale": 1.29},
+    {"model": "decor_shell", "pos": [-57.4, 0, 154.6], "rot": 150, "scale": 0.8},
+    {"model": "decor_shell", "pos": [5.43, 0, 191.51], "rot": 210, "scale": 0.76},
+    {"model": "decor_shell", "pos": [-5.77, 0, 172.58], "rot": 70, "scale": 0.95},
+    {"model": "decor_shell", "pos": [-17.65, 0, 167.15], "rot": 30, "scale": 0.97},
+    {"model": "decor_shell", "pos": [-38.6, 0, 188.5], "rot": 190, "scale": 0.85},
+    {"model": "decor_shell", "pos": [-18.2, 0, 170.14], "rot": 180, "scale": 1.14},
+    {"model": "decor_shell", "pos": [-7.03, 0, 186.01], "rot": 160, "scale": 1.22},
+    {"model": "decor_shell", "pos": [-23.17, 0, 167.85], "rot": 200, "scale": 1.21},
+    {"model": "decor_shell", "pos": [-33.25, 0, 163.86], "rot": 350, "scale": 0.72},
+    {"model": "decor_shell", "pos": [-25.65, 0, 185.41], "rot": 340, "scale": 1.21},
+    {"model": "decor_shell", "pos": [-7.87, 0, 162.59], "rot": 270, "scale": 1.07},
+    {"model": "decor_shell", "pos": [-44.57, 0, 174.41], "rot": 30, "scale": 1.16},
+    {"model": "decor_shell", "pos": [-31.14, 0, 188.22], "rot": 0, "scale": 1.15},
+    {"model": "decor_shell", "pos": [-36.09, 0, 187.51], "rot": 190, "scale": 0.75},
+    {"model": "decor_shell", "pos": [-29.97, 0, 173.7], "rot": 190, "scale": 1.14},
+    {"model": "decor_shell", "pos": [-13.9, 0, 179.28], "rot": 40, "scale": 1.03},
+    {"model": "decor_shell", "pos": [-56.68, 0, 169.86], "rot": 130, "scale": 0.7},
+    {"model": "decor_shell", "pos": [-50.9, 0, 188.73], "rot": 20, "scale": 1.0},
+    {"model": "decor_shell", "pos": [-38.53, 0, 162.82], "rot": 280, "scale": 1.27},
+    {"model": "decor_shell", "pos": [-28.66, 0, 162.74], "rot": 140, "scale": 1.23},
+    {"model": "decor_shell", "pos": [-6.37, 0, 188.04], "rot": 330, "scale": 0.81},
+    {"model": "decor_shell", "pos": [-45.85, 0, 151.32], "rot": 210, "scale": 1.03},
+    {"model": "decor_shell", "pos": [-56.21, 0, 161.61], "rot": 100, "scale": 0.87},
+    {"model": "decor_shell", "pos": [-16.14, 0, 176.77], "rot": 220, "scale": 0.84},
+    {"model": "decor_shell", "pos": [-36.6, 0, 166.43], "rot": 20, "scale": 0.78},
+    {"model": "decor_shell", "pos": [-22.83, 0, 191.3], "rot": 290, "scale": 1.27},
+    {"model": "decor_shell", "pos": [-27.01, 0, 160.97], "rot": 50, "scale": 0.73},
+    {"model": "decor_shell", "pos": [-13.26, 0, 153.1], "rot": 170, "scale": 1.25},
+    {"model": "decor_shell", "pos": [-51.5, 0, 177.75], "rot": 220, "scale": 0.85},
+    {"model": "decor_shell", "pos": [3.45, 0, 151.1], "rot": 80, "scale": 0.9},
+    {"model": "decor_shell", "pos": [-23.76, 0, 157.49], "rot": 240, "scale": 0.85},
+    {"model": "decor_shell", "pos": [-30.37, 0, 172.93], "rot": 100, "scale": 0.83},
+    {"model": "decor_shell", "pos": [-46.87, 0, 170.11], "rot": 330, "scale": 1.21},
+    {"model": "decor_shell", "pos": [-48.11, 0, 177.27], "rot": 90, "scale": 0.73},
+    {"model": "decor_shell", "pos": [-48.65, 0, 177.69], "rot": 60, "scale": 1.12},
+    {"model": "decor_shell", "pos": [0.85, 0, 180.55], "rot": 280, "scale": 1.27},
+    {"model": "decor_shell", "pos": [-24.16, 0, 165.66], "rot": 130, "scale": 0.71},
+    {"model": "decor_shell", "pos": [-23.79, 0, 168.02], "rot": 190, "scale": 0.93},
+    {"model": "decor_shell", "pos": [-41.42, 0, 186.34], "rot": 30, "scale": 1.05},
+    {"model": "decor_shell", "pos": [-11.09, 0, 163.96], "rot": 100, "scale": 0.77},
+    {"model": "decor_shell", "pos": [-50.45, 0, 181.15], "rot": 300, "scale": 1.11},
+    {"model": "decor_shell", "pos": [-13.58, 0, 186.95], "rot": 260, "scale": 0.79},
+    {"model": "decor_shell", "pos": [-19.86, 0, 180.53], "rot": 130, "scale": 1.11},
+    {"model": "decor_shell", "pos": [-23.42, 0, 183.5], "rot": 0, "scale": 0.73},
+    {"model": "decor_shell", "pos": [-43.5, 0, 170.11], "rot": 150, "scale": 1.15},
+    {"model": "decor_shell", "pos": [-39.58, 0, 172.69], "rot": 130, "scale": 1.1},
+    {"model": "decor_shell", "pos": [-54.02, 0, 167.74], "rot": 170, "scale": 1.01},
+    {"model": "decor_shell", "pos": [-14.12, 0, 178.54], "rot": 280, "scale": 0.97},
+    {"model": "decor_shell", "pos": [-37.08, 0, 155.49], "rot": 140, "scale": 1.09},
+    {"model": "decor_shell", "pos": [-8.3, 0, 163.52], "rot": 110, "scale": 0.91},
+    {"model": "decor_shell", "pos": [-35.48, 0, 187.73], "rot": 20, "scale": 1.22},
+    {"model": "decor_shell", "pos": [-32.11, 0, 166.07], "rot": 250, "scale": 1.04},
+    {"model": "decor_shell", "pos": [-18.79, 0, 188.34], "rot": 310, "scale": 0.73},
+    {"model": "decor_shell", "pos": [6.28, 0, 154.09], "rot": 350, "scale": 1.12},
+    {"model": "decor_shell", "pos": [-0.29, 0, 154.18], "rot": 20, "scale": 0.75},
+    {"model": "decor_shell", "pos": [-16.38, 0, 153.72], "rot": 270, "scale": 1.03},
+    {"model": "decor_shell", "pos": [-49.99, 0, 186.78], "rot": 130, "scale": 0.9},
+    {"model": "decor_shell", "pos": [-16.59, 0, 151.75], "rot": 340, "scale": 0.88},
+    {"model": "decor_shell", "pos": [-35.93, 0, 155.25], "rot": 170, "scale": 0.81},
+    {"model": "decor_shell", "pos": [-49.66, 0, 189.35], "rot": 350, "scale": 1.19},
+    {"model": "decor_shell", "pos": [-31.51, 0, 155.53], "rot": 110, "scale": 0.85},
+    {"model": "decor_shell", "pos": [-19.49, 0, 172.22], "rot": 120, "scale": 0.89},
+    {"model": "decor_shell", "pos": [-28.52, 0, 154.74], "rot": 60, "scale": 0.92},
+    {"model": "decor_shell", "pos": [-42.03, 0, 164.22], "rot": 10, "scale": 1.1},
+    {"model": "decor_shell", "pos": [-50.41, 0, 188.01], "rot": 10, "scale": 1.02},
+    {"model": "decor_shell", "pos": [-3.12, 0, 177.85], "rot": 0, "scale": 0.87},
+    {"model": "decor_shell", "pos": [-50.27, 0, 157.45], "rot": 280, "scale": 0.79},
+    {"model": "decor_shell", "pos": [-13.38, 0, 190.65], "rot": 50, "scale": 1.3},
+    {"model": "decor_shell", "pos": [-15.23, 0, 166.71], "rot": 130, "scale": 1.21},
+    {"model": "decor_shell", "pos": [-35.54, 0, 156.96], "rot": 30, "scale": 0.88},
+    {"model": "decor_shell", "pos": [5.36, 0, 192.62], "rot": 140, "scale": 1.0},
+    {"model": "decor_shell", "pos": [4.76, 0, 190.74], "rot": 30, "scale": 0.78},
+    {"model": "decor_shell", "pos": [-28.47, 0, 177.99], "rot": 40, "scale": 0.85},
+    {"model": "decor_shell", "pos": [-33.52, 0, 170.82], "rot": 190, "scale": 0.79},
+    {"model": "decor_shell", "pos": [-15.32, 0, 171.65], "rot": 80, "scale": 1.16},
+    {"model": "decor_shell", "pos": [-14.16, 0, 177.55], "rot": 340, "scale": 1.22},
+    {"model": "decor_shell", "pos": [-28.24, 0, 178.96], "rot": 290, "scale": 1.08},
+    {"model": "decor_shell", "pos": [-34.17, 0, 152.26], "rot": 290, "scale": 1.28},
+    {"model": "decor_shell", "pos": [-26.03, 0, 182.14], "rot": 10, "scale": 0.85},
+    {"model": "decor_shell", "pos": [-54.62, 0, 181.31], "rot": 290, "scale": 1.12},
+    {"model": "decor_shell", "pos": [-42.71, 0, 162.07], "rot": 20, "scale": 0.87},
+    {"model": "decor_shell", "pos": [-48.08, 0, 176.76], "rot": 220, "scale": 1.3},
+    {"model": "decor_shell", "pos": [2.01, 0, 159.75], "rot": 10, "scale": 0.92},
+    {"model": "decor_shell", "pos": [3.58, 0, 155.42], "rot": 130, "scale": 1.12},
+    {"model": "decor_shell", "pos": [-50.42, 0, 162.01], "rot": 340, "scale": 1.17},
+    {"model": "decor_shell", "pos": [-22.11, 0, 186.27], "rot": 190, "scale": 0.79},
+    {"model": "decor_shell", "pos": [-37.99, 0, 185.59], "rot": 70, "scale": 0.9},
+    {"model": "decor_shell", "pos": [-40.77, 0, 156.77], "rot": 300, "scale": 1.06},
+    {"model": "decor_shell", "pos": [-49.85, 0, 158.89], "rot": 320, "scale": 0.83},
+    {"model": "decor_shell", "pos": [-48.32, 0, 160.67], "rot": 100, "scale": 1.19},
+    {"model": "decor_shell", "pos": [-50.54, 0, 150.04], "rot": 230, "scale": 1.28},
+    {"model": "decor_shell", "pos": [-54.89, 0, 171.9], "rot": 110, "scale": 0.73},
+    {"model": "decor_shell", "pos": [-43.53, 0, 166.69], "rot": 210, "scale": 1.2},
+    {"model": "decor_shell", "pos": [4.9, 0, 169.49], "rot": 330, "scale": 0.84},
+    {"model": "decor_shell", "pos": [-6.74, 0, 156.18], "rot": 190, "scale": 0.87},
+    {"model": "decor_shell", "pos": [-22.66, 0, 153.36], "rot": 40, "scale": 0.8},
+    {"model": "decor_shell", "pos": [-48.59, 0, 161.47], "rot": 160, "scale": 1.28},
+    {"model": "decor_shell", "pos": [-14.89, 0, 182.8], "rot": 300, "scale": 1.01},
+    {"model": "decor_shell", "pos": [-47.71, 0, 152.04], "rot": 230, "scale": 1.3},
+    {"model": "decor_shell", "pos": [-27.27, 0, 164.81], "rot": 80, "scale": 0.87},
+    {"model": "decor_shell", "pos": [-8.34, 0, 166.16], "rot": 320, "scale": 1.0},
+    {"model": "decor_shell", "pos": [-9.92, 0, 179.29], "rot": 290, "scale": 0.87},
+    {"model": "decor_shell", "pos": [-6.67, 0, 176.02], "rot": 280, "scale": 1.11},
+    {"model": "decor_shell", "pos": [-1.99, 0, 160.36], "rot": 0, "scale": 1.06},
+    {"model": "decor_shell", "pos": [-16.89, 0, 157.6], "rot": 40, "scale": 0.86},
+    {"model": "decor_shell", "pos": [-47.27, 0, 181.94], "rot": 80, "scale": 0.8},
+    {"model": "decor_shell", "pos": [-7.04, 0, 152.23], "rot": 30, "scale": 0.94},
+    {"model": "decor_shell", "pos": [-20.34, 0, 178.33], "rot": 230, "scale": 0.93},
+    {"model": "decor_shell", "pos": [0.1, 0, 191.11], "rot": 250, "scale": 0.94},
+    {"model": "decor_shell", "pos": [-17.61, 0, 178.14], "rot": 240, "scale": 0.91},
+    {"model": "decor_shell", "pos": [-15.68, 0, 179.68], "rot": 100, "scale": 0.75},
+    {"model": "decor_shell", "pos": [-31.86, 0, 175.35], "rot": 140, "scale": 0.82},
+    {"model": "decor_shell", "pos": [-36.34, 0, 153.74], "rot": 190, "scale": 1.14},
+    {"model": "decor_shell", "pos": [-43.49, 0, 175.28], "rot": 20, "scale": 0.74},
+    {"model": "decor_shell", "pos": [-17.52, 0, 151.0], "rot": 110, "scale": 1.05},
+    {"model": "decor_shell", "pos": [-22.26, 0, 156.91], "rot": 320, "scale": 1.21},
+    {"model": "decor_shell", "pos": [-32.58, 0, 170.68], "rot": 210, "scale": 0.97},
+    {"model": "decor_shell", "pos": [-0.53, 0, 151.95], "rot": 280, "scale": 0.76},
+    {"model": "decor_shell", "pos": [-4.9, 0, 179.05], "rot": 40, "scale": 1.11},
+    {"model": "decor_shell", "pos": [7.1, 0, 182.31], "rot": 240, "scale": 1.21},
+    {"model": "decor_shell", "pos": [-27.86, 0, 172.14], "rot": 320, "scale": 0.97},
+    {"model": "decor_shell", "pos": [0.93, 0, 166.04], "rot": 30, "scale": 1.17},
+    {"model": "decor_shell", "pos": [-42.17, 0, 184.91], "rot": 200, "scale": 1.28},
+    {"model": "decor_shell", "pos": [-3.77, 0, 179.27], "rot": 110, "scale": 1.0},
+    {"model": "decor_shell", "pos": [-1.52, 0, 175.24], "rot": 130, "scale": 0.83},
+    {"model": "decor_shell", "pos": [-1.36, 0, 192.95], "rot": 300, "scale": 0.71},
+    {"model": "decor_shell", "pos": [-47.87, 0, 179.93], "rot": 250, "scale": 1.25},
+    {"model": "decor_shell", "pos": [-48.97, 0, 172.59], "rot": 130, "scale": 0.86},
+    {"model": "decor_shell", "pos": [-51.77, 0, 189.67], "rot": 280, "scale": 1.0},
+    {"model": "decor_shell", "pos": [2.4, 0, 175.79], "rot": 30, "scale": 1.27},
+    {"model": "decor_shell", "pos": [-32.34, 0, 155.95], "rot": 310, "scale": 1.26},
+    {"model": "decor_shell", "pos": [-54.54, 0, 167.4], "rot": 330, "scale": 1.17},
+    {"model": "decor_shell", "pos": [-43.24, 0, 169.07], "rot": 230, "scale": 0.97},
+    {"model": "decor_shell", "pos": [-43.08, 0, 154.18], "rot": 160, "scale": 1.18},
+    {"model": "decor_shell", "pos": [-11.64, 0, 192.36], "rot": 90, "scale": 1.01},
+    {"model": "decor_shell", "pos": [-13.77, 0, 162.6], "rot": 350, "scale": 1.18},
+    {"model": "decor_shell", "pos": [-7.1, 0, 164.92], "rot": 270, "scale": 0.94},
+    {"model": "decor_shell", "pos": [-44.09, 0, 171.8], "rot": 110, "scale": 0.77},
+    {"model": "decor_shell", "pos": [-15.42, 0, 182.2], "rot": 350, "scale": 0.83},
+    {"model": "decor_shell", "pos": [-18.11, 0, 151.28], "rot": 100, "scale": 0.98},
+    {"model": "decor_shell", "pos": [-20.89, 0, 191.07], "rot": 300, "scale": 0.89},
+    {"model": "decor_shell", "pos": [-48.96, 0, 173.59], "rot": 140, "scale": 1.18},
+    {"model": "decor_shell", "pos": [-31.42, 0, 151.3], "rot": 220, "scale": 0.95},
+    {"model": "decor_shell", "pos": [-33.87, 0, 150.87], "rot": 260, "scale": 0.99},
+    {"model": "decor_shell", "pos": [-44.24, 0, 178.49], "rot": 50, "scale": 1.05},
+    {"model": "decor_shell", "pos": [-47.55, 0, 178.32], "rot": 290, "scale": 0.92},
+    {"model": "decor_shell", "pos": [-49.2, 0, 181.22], "rot": 150, "scale": 0.87},
+    {"model": "decor_shell", "pos": [-39.88, 0, 179.79], "rot": 150, "scale": 1.08},
+    {"model": "decor_shell", "pos": [-57.97, 0, 173.37], "rot": 80, "scale": 0.9},
+    {"model": "decor_shell", "pos": [3.28, 0, 188.37], "rot": 100, "scale": 1.03},
+    {"model": "decor_shell", "pos": [-50.97, 0, 158.9], "rot": 0, "scale": 0.77},
+    {"model": "decor_shell", "pos": [-20.88, 0, 184.12], "rot": 250, "scale": 1.14},
+    {"model": "decor_shell", "pos": [-15.7, 0, 170.28], "rot": 230, "scale": 1.24},
+    {"model": "decor_shell", "pos": [3.53, 0, 184.94], "rot": 160, "scale": 1.28},
+    {"model": "decor_shell", "pos": [-29.62, 0, 150.88], "rot": 350, "scale": 0.92},
+    {"model": "decor_shell", "pos": [-35.88, 0, 190.79], "rot": 250, "scale": 1.1},
+    {"model": "decor_shell", "pos": [-30.55, 0, 153.46], "rot": 190, "scale": 0.73},
+    {"model": "decor_shell", "pos": [-11.81, 0, 157.42], "rot": 210, "scale": 0.7},
+    {"model": "decor_shell", "pos": [-38.74, 0, 167.01], "rot": 300, "scale": 1.11},
+    {"model": "decor_shell", "pos": [-45.19, 0, 186.71], "rot": 30, "scale": 1.28},
+    {"model": "decor_shell", "pos": [-19.5, 0, 150.22], "rot": 260, "scale": 0.98},
+    {"model": "decor_shell", "pos": [-28.99, 0, 190.23], "rot": 150, "scale": 1.17},
+    {"model": "decor_shell", "pos": [-49.59, 0, 191.14], "rot": 110, "scale": 1.16},
+    {"model": "decor_shell", "pos": [-35.49, 0, 181.43], "rot": 220, "scale": 0.9},
+    {"model": "decor_shell", "pos": [-31.95, 0, 167.67], "rot": 60, "scale": 0.97},
+    {"model": "decor_shell", "pos": [-38.74, 0, 167.66], "rot": 100, "scale": 0.97},
+    {"model": "decor_shell", "pos": [-21.83, 0, 177.51], "rot": 220, "scale": 1.21},
+    {"model": "decor_shell", "pos": [5.67, 0, 169.02], "rot": 350, "scale": 0.9},
+    {"model": "decor_shell", "pos": [5.42, 0, 179.42], "rot": 50, "scale": 0.91},
+    {"model": "decor_shell", "pos": [3.57, 0, 187.76], "rot": 190, "scale": 0.88},
+    {"model": "decor_shell", "pos": [-19.67, 0, 186.83], "rot": 250, "scale": 1.02},
+    {"model": "decor_shell", "pos": [-42.35, 0, 179.5], "rot": 260, "scale": 1.04},
+    {"model": "decor_shell", "pos": [-28.3, 0, 186.94], "rot": 170, "scale": 1.04},
+    {"model": "decor_shell", "pos": [6.85, 0, 166.52], "rot": 80, "scale": 1.0},
+    {"model": "decor_shell", "pos": [4.42, 0, 185.34], "rot": 70, "scale": 0.83},
+    {"model": "decor_shell", "pos": [2.01, 0, 177.79], "rot": 40, "scale": 1.23},
+    {"model": "decor_shell", "pos": [-4.06, 0, 191.75], "rot": 310, "scale": 1.1},
+    {"model": "decor_shell", "pos": [-51.18, 0, 180.13], "rot": 170, "scale": 0.9},
+    {"model": "decor_shell", "pos": [-44.42, 0, 181.89], "rot": 350, "scale": 1.29},
+    {"model": "decor_shell", "pos": [-11.89, 0, 191.72], "rot": 130, "scale": 0.96},
+    {"model": "decor_shell", "pos": [-37.61, 0, 160.98], "rot": 0, "scale": 1.11},
+    {"model": "decor_shell", "pos": [-6.43, 0, 163.0], "rot": 260, "scale": 1.1},
+    {"model": "decor_shell", "pos": [1.97, 0, 187.23], "rot": 30, "scale": 0.93},
+    {"model": "decor_shell", "pos": [4.24, 0, 163.2], "rot": 220, "scale": 1.19},
+    {"model": "decor_shell", "pos": [-0.18, 0, 183.44], "rot": 320, "scale": 0.79},
+    {"model": "decor_shell", "pos": [-4.54, 0, 182.02], "rot": 90, "scale": 1.14},
+    {"model": "decor_shell", "pos": [-43.22, 0, 179.04], "rot": 130, "scale": 1.23},
+    {"model": "decor_shell", "pos": [-55.38, 0, 183.74], "rot": 150, "scale": 1.2},
+    {"model": "decor_shell", "pos": [-5.86, 0, 178.34], "rot": 250, "scale": 0.88},
+    {"model": "decor_shell", "pos": [-21.38, 0, 173.61], "rot": 220, "scale": 1.2},
+    {"model": "decor_shell", "pos": [-6.39, 0, 172.95], "rot": 110, "scale": 0.73},
+    {"model": "decor_shell", "pos": [-28.28, 0, 159.47], "rot": 210, "scale": 0.95},
+    {"model": "decor_shell", "pos": [0.24, 0, 167.96], "rot": 160, "scale": 0.74},
+    {"model": "decor_shell", "pos": [-15.87, 0, 187.56], "rot": 110, "scale": 0.98},
+    {"model": "decor_shell", "pos": [-2.93, 0, 152.99], "rot": 220, "scale": 0.77},
+    {"model": "decor_shell", "pos": [0.72, 0, 160.71], "rot": 40, "scale": 1.06},
+    {"model": "decor_shell", "pos": [-34.07, 0, 157.35], "rot": 80, "scale": 1.2},
+    {"model": "decor_shell", "pos": [-34.33, 0, 165.98], "rot": 130, "scale": 1.11},
+    {"model": "decor_shell", "pos": [-53.83, 0, 185.34], "rot": 130, "scale": 1.25},
+    {"model": "decor_shell", "pos": [-28.62, 0, 161.05], "rot": 160, "scale": 1.27},
+    {"model": "decor_shell", "pos": [-34.42, 0, 179.68], "rot": 130, "scale": 1.12},
+    {"model": "decor_shell", "pos": [3.76, 0, 170.03], "rot": 340, "scale": 0.95},
+    {"model": "decor_shell", "pos": [-9.07, 0, 178.44], "rot": 200, "scale": 1.21},
+    {"model": "decor_shell", "pos": [-41.92, 0, 166.33], "rot": 310, "scale": 1.06},
+    {"model": "decor_shell", "pos": [-57.74, 0, 192.97], "rot": 280, "scale": 0.95},
+    {"model": "decor_shell", "pos": [-12.71, 0, 173.43], "rot": 330, "scale": 0.9},
+    {"model": "decor_shell", "pos": [-3.44, 0, 182.09], "rot": 80, "scale": 0.89},
+    {"model": "decor_shell", "pos": [-2.99, 0, 162.1], "rot": 110, "scale": 1.01},
+    {"model": "decor_shell", "pos": [0.08, 0, 173.04], "rot": 350, "scale": 0.82},
+    {"model": "decor_shell", "pos": [0.35, 0, 157.0], "rot": 320, "scale": 0.77},
+    {"model": "decor_shell", "pos": [-16.17, 0, 157.34], "rot": 190, "scale": 1.14},
+    {"model": "decor_shell", "pos": [-47.81, 0, 181.21], "rot": 30, "scale": 0.79},
+    {"model": "decor_shell", "pos": [-31.12, 0, 174.4], "rot": 50, "scale": 0.89},
+    {"model": "decor_shell", "pos": [-38.46, 0, 185.15], "rot": 110, "scale": 1.18},
+    {"model": "decor_shell", "pos": [-47.95, 0, 168.47], "rot": 50, "scale": 1.28},
+    {"model": "decor_shell", "pos": [-11.01, 0, 191.66], "rot": 210, "scale": 0.91},
+    {"model": "decor_shell", "pos": [-35.73, 0, 184.37], "rot": 250, "scale": 1.07},
+    {"model": "decor_shell", "pos": [-37.24, 0, 172.53], "rot": 120, "scale": 0.96},
+    {"model": "decor_shell", "pos": [-50.02, 0, 172.0], "rot": 170, "scale": 0.83},
+    {"model": "decor_shell", "pos": [-39.11, 0, 192.32], "rot": 310, "scale": 1.03},
+    {"model": "decor_shell", "pos": [-56.21, 0, 188.64], "rot": 170, "scale": 1.3},
+    {"model": "decor_shell", "pos": [-48.01, 0, 190.5], "rot": 130, "scale": 0.83},
+    {"model": "decor_shell", "pos": [-27.87, 0, 151.01], "rot": 30, "scale": 1.04},
+    {"model": "decor_shell", "pos": [-26.45, 0, 175.82], "rot": 20, "scale": 1.08},
+    {"model": "decor_shell", "pos": [-31.88, 0, 181.35], "rot": 110, "scale": 1.03},
+    {"model": "decor_shell", "pos": [-19.39, 0, 168.12], "rot": 310, "scale": 0.97},
+    {"model": "decor_shell", "pos": [-38.13, 0, 177.15], "rot": 250, "scale": 1.03},
+    {"model": "decor_shell", "pos": [-12.47, 0, 185.16], "rot": 0, "scale": 0.75},
+    {"model": "decor_shell", "pos": [-27.61, 0, 185.11], "rot": 300, "scale": 1.04},
+    {"model": "decor_shell", "pos": [-46.48, 0, 190.31], "rot": 140, "scale": 0.76},
+    {"model": "decor_shell", "pos": [-57.9, 0, 188.87], "rot": 130, "scale": 1.0},
+    {"model": "decor_shell", "pos": [-31.18, 0, 154.58], "rot": 80, "scale": 1.04},
+    {"model": "decor_shell", "pos": [-18.32, 0, 156.65], "rot": 220, "scale": 1.27},
+    {"model": "decor_shell", "pos": [-32.14, 0, 169.86], "rot": 210, "scale": 0.76},
+    {"model": "decor_shell", "pos": [-15.99, 0, 184.24], "rot": 120, "scale": 1.1},
+    {"model": "decor_shell", "pos": [-15.78, 0, 180.47], "rot": 170, "scale": 0.73},
+    {"model": "decor_shell", "pos": [-21.41, 0, 187.69], "rot": 0, "scale": 0.99},
+    {"model": "decor_shell", "pos": [1.67, 0, 162.99], "rot": 310, "scale": 1.14},
+    {"model": "decor_shell", "pos": [-47.57, 0, 191.71], "rot": 110, "scale": 1.17},
+    {"model": "decor_shell", "pos": [-29.89, 0, 178.06], "rot": 180, "scale": 0.9},
+    {"model": "decor_shell", "pos": [-47.96, 0, 184.65], "rot": 20, "scale": 0.9},
+    {"model": "decor_shell", "pos": [-17.32, 0, 171.19], "rot": 180, "scale": 0.91},
+    {"model": "decor_shell", "pos": [-16.78, 0, 157.03], "rot": 170, "scale": 1.21},
+    {"model": "decor_shell", "pos": [-12.28, 0, 151.6], "rot": 200, "scale": 1.0},
+    {"model": "decor_shell", "pos": [-41.74, 0, 168.85], "rot": 210, "scale": 1.16},
+    {"model": "decor_shell", "pos": [4.42, 0, 189.91], "rot": 140, "scale": 0.84},
+    {"model": "decor_shell", "pos": [-16.07, 0, 174.15], "rot": 140, "scale": 0.71},
+    {"model": "decor_shell", "pos": [-10.72, 0, 188.53], "rot": 50, "scale": 0.75},
+    {"model": "decor_shell", "pos": [-3.72, 0, 159.14], "rot": 130, "scale": 1.19},
+    {"model": "decor_shell", "pos": [-15.5, 0, 157.49], "rot": 300, "scale": 1.06},
+    {"model": "decor_shell", "pos": [-41.31, 0, 172.05], "rot": 70, "scale": 0.98},
+    {"model": "decor_shell", "pos": [-24.98, 0, 166.1], "rot": 130, "scale": 0.74},
+    {"model": "decor_shell", "pos": [-49.09, 0, 191.93], "rot": 80, "scale": 1.18},
+    {"model": "decor_shell", "pos": [-2.44, 0, 190.15], "rot": 210, "scale": 0.86},
+    {"model": "decor_shell", "pos": [-32.59, 0, 155.51], "rot": 120, "scale": 0.96},
+    {"model": "decor_shell", "pos": [-39.63, 0, 155.7], "rot": 350, "scale": 1.18},
+    {"model": "decor_shell", "pos": [-4.45, 0, 153.55], "rot": 220, "scale": 0.91},
+    {"model": "decor_shell", "pos": [-23.33, 0, 180.6], "rot": 130, "scale": 0.97},
+    {"model": "decor_shell", "pos": [1.15, 0, 192.06], "rot": 300, "scale": 0.96},
+    {"model": "decor_shell", "pos": [6.41, 0, 192.08], "rot": 90, "scale": 0.73},
+    {"model": "decor_shell", "pos": [-10.25, 0, 175.24], "rot": 180, "scale": 1.0},
+    {"model": "decor_shell", "pos": [-38.03, 0, 158.3], "rot": 50, "scale": 0.96},
+    {"model": "decor_shell", "pos": [-14.1, 0, 192.57], "rot": 320, "scale": 0.98},
+    {"model": "decor_shell", "pos": [-12.06, 0, 160.17], "rot": 230, "scale": 0.82},
+    {"model": "decor_shell", "pos": [4.51, 0, 160.22], "rot": 30, "scale": 0.93},
+    {"model": "decor_shell", "pos": [-32.74, 0, 173.67], "rot": 80, "scale": 0.92},
+    {"model": "decor_shell", "pos": [-8.58, 0, 181.38], "rot": 0, "scale": 1.03},
+    {"model": "decor_shell", "pos": [-40.25, 0, 173.89], "rot": 280, "scale": 1.18},
+    {"model": "decor_shell", "pos": [-10.36, 0, 153.38], "rot": 170, "scale": 0.96},
+    {"model": "decor_shell", "pos": [-0.5, 0, 160.5], "rot": 180, "scale": 1.13},
+    {"model": "decor_shell", "pos": [-42.25, 0, 157.59], "rot": 290, "scale": 1.01},
+    {"model": "decor_shell", "pos": [-37.24, 0, 167.34], "rot": 210, "scale": 0.84},
+    {"model": "decor_shell", "pos": [0.55, 0, 153.24], "rot": 260, "scale": 0.72},
+    {"model": "decor_shell", "pos": [-44.51, 0, 155.77], "rot": 290, "scale": 0.77},
+    {"model": "decor_shell", "pos": [-5.67, 0, 155.73], "rot": 20, "scale": 1.01},
+    {"model": "decor_shell", "pos": [-11.08, 0, 165.74], "rot": 130, "scale": 1.12},
+    {"model": "decor_shell", "pos": [-2.59, 0, 150.04], "rot": 340, "scale": 0.91},
+    {"model": "decor_shell", "pos": [-18.94, 0, 175.18], "rot": 260, "scale": 1.13},
+    {"model": "decor_shell", "pos": [-47.11, 0, 165.7], "rot": 150, "scale": 0.96},
+    {"model": "decor_shell", "pos": [-6.02, 0, 177.05], "rot": 200, "scale": 1.22},
+    {"model": "decor_shell", "pos": [-27.93, 0, 174.44], "rot": 160, "scale": 0.89},
+    {"model": "decor_shell", "pos": [-5.84, 0, 158.98], "rot": 70, "scale": 0.73},
+    {"model": "decor_shell", "pos": [-22.0, 0, 173.15], "rot": 10, "scale": 0.89},
+    {"model": "decor_shell", "pos": [-2.0, 0, 185.2], "rot": 160, "scale": 1.16},
+    {"model": "decor_shell", "pos": [-54.22, 0, 186.54], "rot": 180, "scale": 0.89},
+    {"model": "decor_shell", "pos": [3.92, 0, 157.21], "rot": 300, "scale": 0.77},
+    {"model": "decor_shell", "pos": [-22.13, 0, 161.77], "rot": 320, "scale": 1.26},
+    {"model": "decor_shell", "pos": [-30.43, 0, 180.79], "rot": 10, "scale": 0.77},
+    {"model": "decor_shell", "pos": [-38.3, 0, 182.32], "rot": 320, "scale": 0.92},
+    {"model": "decor_shell", "pos": [0.52, 0, 186.63], "rot": 20, "scale": 1.2},
+    {"model": "decor_shell", "pos": [3.98, 0, 151.22], "rot": 10, "scale": 0.7},
+    {"model": "decor_shell", "pos": [-8.91, 0, 166.2], "rot": 340, "scale": 0.83},
+    {"model": "decor_shell", "pos": [-20.25, 0, 167.62], "rot": 300, "scale": 0.93},
+    {"model": "decor_shell", "pos": [-56.68, 0, 171.74], "rot": 230, "scale": 0.83},
+    {"model": "decor_shell", "pos": [-12.46, 0, 157.49], "rot": 280, "scale": 0.84},
+    {"model": "decor_shell", "pos": [-0.57, 0, 184.36], "rot": 30, "scale": 0.79},
+    {"model": "decor_shell", "pos": [4.31, 0, 156.62], "rot": 90, "scale": 1.08},
+    {"model": "decor_shell", "pos": [6.22, 0, 172.12], "rot": 20, "scale": 0.87},
+    {"model": "decor_shell", "pos": [-56.94, 0, 159.21], "rot": 170, "scale": 0.77},
+    {"model": "decor_shell", "pos": [-19.42, 0, 163.85], "rot": 310, "scale": 0.78},
+    {"model": "decor_shell", "pos": [-46.96, 0, 182.62], "rot": 0, "scale": 0.85},
+    {"model": "decor_shell", "pos": [-35.35, 0, 175.05], "rot": 280, "scale": 1.07},
+    {"model": "decor_shell", "pos": [-38.43, 0, 184.02], "rot": 200, "scale": 1.07},
+    {"model": "decor_shell", "pos": [6.49, 0, 154.72], "rot": 240, "scale": 1.14},
+    {"model": "decor_shell", "pos": [-2.45, 0, 186.13], "rot": 240, "scale": 0.76},
+    {"model": "decor_shell", "pos": [-30.94, 0, 158.01], "rot": 0, "scale": 0.74},
+    {"model": "decor_shell", "pos": [-31.18, 0, 153.92], "rot": 70, "scale": 1.02},
+    {"model": "decor_shell", "pos": [-31.1, 0, 187.0], "rot": 90, "scale": 0.77},
+    {"model": "decor_shell", "pos": [-38.43, 0, 170.7], "rot": 200, "scale": 0.93},
+    {"model": "decor_shell", "pos": [-38.78, 0, 157.62], "rot": 40, "scale": 0.85},
+    {"model": "decor_shell", "pos": [-45.49, 0, 180.42], "rot": 180, "scale": 1.24},
+    {"model": "decor_shell", "pos": [-26.73, 0, 167.44], "rot": 100, "scale": 1.26},
+    {"model": "decor_shell", "pos": [-17.78, 0, 154.63], "rot": 130, "scale": 0.77},
+    {"model": "decor_shell", "pos": [-48.18, 0, 162.2], "rot": 130, "scale": 0.86},
+    {"model": "decor_shell", "pos": [-55.48, 0, 158.03], "rot": 110, "scale": 1.21},
+    {"model": "decor_shell", "pos": [-26.02, 0, 170.12], "rot": 320, "scale": 1.07},
+    {"model": "decor_shell", "pos": [2.97, 0, 189.88], "rot": 40, "scale": 0.83},
+    {"model": "decor_shell", "pos": [-42.41, 0, 189.21], "rot": 60, "scale": 0.72},
+    {"model": "decor_shell", "pos": [-52.5, 0, 156.36], "rot": 100, "scale": 1.12},
+    {"model": "decor_shell", "pos": [-31.99, 0, 171.33], "rot": 240, "scale": 1.3},
+    {"model": "decor_stones", "pos": [2.41, 0, 176.26], "rot": 320, "scale": 0.95},
+    {"model": "decor_stones", "pos": [-26.65, 0, 186.72], "rot": 310, "scale": 1.19},
+    {"model": "decor_stones", "pos": [-18.74, 0, 152.3], "rot": 330, "scale": 1.09},
+    {"model": "decor_stones", "pos": [-10.12, 0, 191.27], "rot": 130, "scale": 1.19},
+    {"model": "decor_stones", "pos": [-40.91, 0, 172.65], "rot": 310, "scale": 1.28},
+    {"model": "decor_stones", "pos": [-17.1, 0, 179.88], "rot": 110, "scale": 1.23},
+    {"model": "decor_stones", "pos": [-26.21, 0, 167.95], "rot": 60, "scale": 1.08},
+    {"model": "decor_stones", "pos": [-6.57, 0, 183.11], "rot": 180, "scale": 0.91},
+    {"model": "decor_stones", "pos": [-40.89, 0, 164.4], "rot": 150, "scale": 0.73},
+    {"model": "decor_stones", "pos": [-21.95, 0, 157.36], "rot": 260, "scale": 1.04},
+    {"model": "decor_stones", "pos": [-24.84, 0, 192.65], "rot": 90, "scale": 0.86},
+    {"model": "decor_stones", "pos": [-33.84, 0, 192.03], "rot": 100, "scale": 1.01},
+    {"model": "decor_stones", "pos": [-36.58, 0, 191.46], "rot": 310, "scale": 0.79},
+    {"model": "decor_stones", "pos": [-45.22, 0, 173.67], "rot": 350, "scale": 0.99},
+    {"model": "decor_stones", "pos": [-34.17, 0, 167.29], "rot": 70, "scale": 1.08},
+    {"model": "decor_stones", "pos": [-28.81, 0, 157.16], "rot": 10, "scale": 1.18},
+    {"model": "decor_stones", "pos": [-37.33, 0, 169.01], "rot": 80, "scale": 1.01},
+    {"model": "decor_stones", "pos": [6.88, 0, 158.69], "rot": 270, "scale": 1.06},
+    {"model": "decor_stones", "pos": [-47.38, 0, 173.65], "rot": 330, "scale": 1.2},
+    {"model": "decor_stones", "pos": [5.4, 0, 182.89], "rot": 150, "scale": 1.13},
+    {"model": "decor_stones", "pos": [-8.58, 0, 178.58], "rot": 180, "scale": 1.05},
+    {"model": "decor_stones", "pos": [-2.6, 0, 161.85], "rot": 90, "scale": 1.18},
+    {"model": "decor_stones", "pos": [-33.69, 0, 175.99], "rot": 300, "scale": 1.1},
+    {"model": "decor_stones", "pos": [-3.88, 0, 178.57], "rot": 80, "scale": 0.78},
+    {"model": "decor_stones", "pos": [-43.97, 0, 159.98], "rot": 160, "scale": 0.83},
+    {"model": "decor_stones", "pos": [-44.48, 0, 184.24], "rot": 150, "scale": 1.05},
+    {"model": "decor_stones", "pos": [-56.5, 0, 150.13], "rot": 250, "scale": 1.29},
+    {"model": "decor_stones", "pos": [-18.2, 0, 164.64], "rot": 40, "scale": 0.71},
+    {"model": "decor_stones", "pos": [-34.24, 0, 163.08], "rot": 290, "scale": 0.74},
+    {"model": "decor_stones", "pos": [-9.06, 0, 156.27], "rot": 200, "scale": 0.7},
+    {"model": "decor_stones", "pos": [-49.89, 0, 176.67], "rot": 340, "scale": 1.03},
+    {"model": "decor_stones", "pos": [-37.5, 0, 189.69], "rot": 260, "scale": 0.75},
+    {"model": "decor_stones", "pos": [-54.28, 0, 175.81], "rot": 210, "scale": 0.77},
+    {"model": "decor_stones", "pos": [-40.96, 0, 187.23], "rot": 240, "scale": 1.09},
+    {"model": "decor_stones", "pos": [3.53, 0, 182.23], "rot": 280, "scale": 1.03},
+    {"model": "decor_stones", "pos": [-2.43, 0, 154.99], "rot": 220, "scale": 1.17},
+    {"model": "decor_stones", "pos": [-23.12, 0, 153.63], "rot": 90, "scale": 0.93},
+    {"model": "decor_stones", "pos": [-38.01, 0, 171.7], "rot": 140, "scale": 1.28},
+    {"model": "decor_stones", "pos": [-55.27, 0, 183.8], "rot": 60, "scale": 0.87},
+    {"model": "decor_stones", "pos": [-32.12, 0, 152.45], "rot": 10, "scale": 0.95},
+    {"model": "decor_stones", "pos": [-39.44, 0, 169.07], "rot": 150, "scale": 1.13},
+    {"model": "decor_stones", "pos": [6.57, 0, 179.13], "rot": 80, "scale": 0.75},
+    {"model": "decor_stones", "pos": [-24.15, 0, 178.64], "rot": 180, "scale": 0.84},
+    {"model": "decor_stones", "pos": [-3.98, 0, 188.31], "rot": 230, "scale": 0.72},
+    {"model": "decor_stones", "pos": [-54.76, 0, 183.83], "rot": 60, "scale": 1.06},
+    {"model": "decor_stones", "pos": [-3.75, 0, 165.35], "rot": 30, "scale": 1.04},
+    {"model": "decor_stones", "pos": [-10.18, 0, 167.74], "rot": 310, "scale": 1.28},
+    {"model": "decor_stones", "pos": [2.97, 0, 173.69], "rot": 200, "scale": 0.94},
+    {"model": "decor_stones", "pos": [-25.58, 0, 171.19], "rot": 200, "scale": 1.05},
+    {"model": "decor_stones", "pos": [-5.91, 0, 191.36], "rot": 260, "scale": 1.25},
+    {"model": "decor_stones", "pos": [-52.82, 0, 168.56], "rot": 120, "scale": 0.77},
+    {"model": "decor_stones", "pos": [-17.6, 0, 186.65], "rot": 240, "scale": 0.72},
+    {"model": "decor_stones", "pos": [6.57, 0, 185.52], "rot": 10, "scale": 0.7},
+    {"model": "decor_stones", "pos": [-36.32, 0, 152.23], "rot": 10, "scale": 0.95},
+    {"model": "decor_stones", "pos": [-0.3, 0, 156.02], "rot": 220, "scale": 0.85},
+    {"model": "decor_stones", "pos": [-25.34, 0, 164.38], "rot": 40, "scale": 0.96},
+    {"model": "decor_stones", "pos": [-56.72, 0, 164.07], "rot": 270, "scale": 0.97},
+    {"model": "decor_stones", "pos": [-53.08, 0, 179.48], "rot": 210, "scale": 1.21},
+    {"model": "decor_stones", "pos": [-21.31, 0, 155.65], "rot": 330, "scale": 0.76},
+    {"model": "decor_stones", "pos": [-33.75, 0, 171.88], "rot": 310, "scale": 1.03},
+    {"model": "decor_stones", "pos": [-20.16, 0, 150.99], "rot": 300, "scale": 1.14},
+    {"model": "decor_stones", "pos": [-33.35, 0, 171.35], "rot": 270, "scale": 1.26},
+    {"model": "decor_stones", "pos": [-15.18, 0, 167.43], "rot": 80, "scale": 0.83},
+    {"model": "decor_stones", "pos": [-31.09, 0, 187.97], "rot": 150, "scale": 1.01},
+    {"model": "decor_stones", "pos": [-47.64, 0, 164.01], "rot": 80, "scale": 1.11},
+    {"model": "decor_stones", "pos": [-6.71, 0, 181.47], "rot": 40, "scale": 1.14},
+    {"model": "decor_stones", "pos": [-1.08, 0, 172.02], "rot": 80, "scale": 0.76},
+    {"model": "decor_stones", "pos": [-0.45, 0, 169.84], "rot": 290, "scale": 1.15},
+    {"model": "decor_stones", "pos": [-37.73, 0, 163.92], "rot": 230, "scale": 1.19},
+    {"model": "decor_stones", "pos": [-56.59, 0, 183.67], "rot": 350, "scale": 0.97},
+    {"model": "decor_stones", "pos": [-18.27, 0, 178.18], "rot": 70, "scale": 1.1},
+    {"model": "decor_stones", "pos": [2.41, 0, 182.2], "rot": 20, "scale": 1.17},
+    {"model": "decor_stones", "pos": [-12.97, 0, 164.55], "rot": 210, "scale": 1.24},
+    {"model": "decor_stones", "pos": [-2.78, 0, 168.03], "rot": 320, "scale": 0.81},
+    {"model": "decor_stones", "pos": [-34.41, 0, 156.3], "rot": 140, "scale": 1.1},
+    {"model": "decor_stones", "pos": [-55.48, 0, 153.58], "rot": 290, "scale": 1.09},
+    {"model": "decor_stones", "pos": [-47.79, 0, 165.83], "rot": 140, "scale": 0.72},
+    {"model": "decor_stones", "pos": [4.97, 0, 168.52], "rot": 60, "scale": 1.06},
+    {"model": "decor_stones", "pos": [-11.52, 0, 163.84], "rot": 100, "scale": 0.85},
+    {"model": "decor_stones", "pos": [-45.78, 0, 156.99], "rot": 10, "scale": 0.78},
+    {"model": "decor_stones", "pos": [-6.69, 0, 188.91], "rot": 70, "scale": 1.23},
+    {"model": "decor_stones", "pos": [-32.44, 0, 189.08], "rot": 340, "scale": 1.07},
+    {"model": "decor_stones", "pos": [-5.48, 0, 151.75], "rot": 310, "scale": 1.26},
+    {"model": "decor_stones", "pos": [-12.55, 0, 170.9], "rot": 80, "scale": 1.25},
+    {"model": "decor_stones", "pos": [-55.11, 0, 151.14], "rot": 280, "scale": 0.82},
+    {"model": "decor_stones", "pos": [-24.39, 0, 164.36], "rot": 210, "scale": 0.94},
+    {"model": "decor_stones", "pos": [-23.61, 0, 170.38], "rot": 150, "scale": 1.07},
+    {"model": "decor_stones", "pos": [-47.76, 0, 192.13], "rot": 170, "scale": 1.17},
+    {"model": "decor_stones", "pos": [-9.65, 0, 179.01], "rot": 260, "scale": 0.95},
+    {"model": "decor_stones", "pos": [-55.37, 0, 167.58], "rot": 70, "scale": 0.9},
+    {"model": "decor_stones", "pos": [4.41, 0, 189.75], "rot": 100, "scale": 1.22},
+    {"model": "decor_stones", "pos": [1.87, 0, 169.68], "rot": 40, "scale": 0.71},
+    {"model": "decor_stones", "pos": [-30.14, 0, 163.56], "rot": 220, "scale": 0.72},
+    {"model": "decor_stones", "pos": [-45.92, 0, 191.3], "rot": 300, "scale": 1.15},
+    {"model": "decor_stones", "pos": [-38.5, 0, 190.76], "rot": 240, "scale": 1.07},
+    {"model": "decor_stones", "pos": [-30.89, 0, 150.83], "rot": 250, "scale": 1.25},
+    {"model": "decor_stones", "pos": [-56.48, 0, 177.98], "rot": 0, "scale": 1.28},
+    {"model": "decor_stones", "pos": [-48.14, 0, 174.19], "rot": 220, "scale": 1.1},
+    {"model": "decor_stones", "pos": [-57.0, 0, 168.77], "rot": 210, "scale": 0.81},
+    {"model": "decor_stones", "pos": [-40.67, 0, 187.45], "rot": 170, "scale": 1.21},
+    {"model": "decor_stones", "pos": [7.13, 0, 191.44], "rot": 0, "scale": 0.72},
+    {"model": "decor_stones", "pos": [-54.35, 0, 186.29], "rot": 280, "scale": 0.72},
+    {"model": "decor_stones", "pos": [-34.42, 0, 171.02], "rot": 50, "scale": 0.82},
+    {"model": "decor_stones", "pos": [-45.37, 0, 171.84], "rot": 110, "scale": 0.74},
+    {"model": "decor_stones", "pos": [-10.97, 0, 156.54], "rot": 130, "scale": 0.96},
+    {"model": "decor_stones", "pos": [-55.39, 0, 167.23], "rot": 300, "scale": 0.81},
+    {"model": "decor_stones", "pos": [-10.48, 0, 186.8], "rot": 220, "scale": 0.95},
+    {"model": "decor_stones", "pos": [-18.61, 0, 186.78], "rot": 350, "scale": 0.98},
+    {"model": "decor_stones", "pos": [-57.17, 0, 186.69], "rot": 150, "scale": 1.09},
+    {"model": "decor_stones", "pos": [-55.56, 0, 157.99], "rot": 320, "scale": 1.0},
+    {"model": "decor_stones", "pos": [-29.49, 0, 171.97], "rot": 300, "scale": 0.95},
+    {"model": "decor_stones", "pos": [-43.59, 0, 164.04], "rot": 210, "scale": 1.01},
+    {"model": "decor_stones", "pos": [-24.35, 0, 172.09], "rot": 280, "scale": 0.74},
+    {"model": "decor_stones", "pos": [-56.19, 0, 158.61], "rot": 180, "scale": 0.83},
+    {"model": "decor_stones", "pos": [-26.79, 0, 192.86], "rot": 310, "scale": 1.13},
+    {"model": "decor_stones", "pos": [-36.08, 0, 179.02], "rot": 10, "scale": 1.23},
+    {"model": "decor_stones", "pos": [-48.3, 0, 167.02], "rot": 30, "scale": 1.15},
+    {"model": "decor_stones", "pos": [-11.46, 0, 192.76], "rot": 210, "scale": 1.3},
+    {"model": "decor_stones", "pos": [-33.08, 0, 164.52], "rot": 290, "scale": 1.0},
+    {"model": "decor_stones", "pos": [-27.82, 0, 164.2], "rot": 20, "scale": 0.89},
+    {"model": "decor_stones", "pos": [-7.3, 0, 157.03], "rot": 190, "scale": 0.91},
+    {"model": "decor_stones", "pos": [-55.45, 0, 152.39], "rot": 40, "scale": 1.15},
+    {"model": "decor_stones", "pos": [-21.01, 0, 185.03], "rot": 30, "scale": 1.1},
+    {"model": "decor_stones", "pos": [-27.7, 0, 153.68], "rot": 310, "scale": 1.21},
+    {"model": "decor_stones", "pos": [-14.05, 0, 160.97], "rot": 300, "scale": 0.82},
+    {"model": "decor_stones", "pos": [7.09, 0, 156.9], "rot": 80, "scale": 0.85},
+    {"model": "decor_stones", "pos": [5.69, 0, 163.28], "rot": 260, "scale": 0.72},
+    {"model": "decor_stones", "pos": [-23.6, 0, 158.88], "rot": 160, "scale": 1.01},
+    {"model": "decor_stones", "pos": [-49.09, 0, 167.0], "rot": 210, "scale": 1.27},
+    {"model": "decor_stones", "pos": [-21.98, 0, 187.45], "rot": 0, "scale": 1.23},
+    {"model": "decor_stones", "pos": [6.64, 0, 172.78], "rot": 90, "scale": 1.04},
+    {"model": "decor_stones", "pos": [-23.83, 0, 152.6], "rot": 60, "scale": 1.13},
+    {"model": "decor_stones", "pos": [-7.82, 0, 164.8], "rot": 210, "scale": 1.3},
+    {"model": "decor_stones", "pos": [-38.06, 0, 155.54], "rot": 190, "scale": 1.2},
+    {"model": "decor_stones", "pos": [3.69, 0, 156.79], "rot": 220, "scale": 1.21},
+    {"model": "decor_stones", "pos": [-57.27, 0, 154.57], "rot": 220, "scale": 0.86},
+    {"model": "decor_stones", "pos": [1.47, 0, 185.41], "rot": 30, "scale": 1.18},
+    {"model": "decor_stones", "pos": [-40.65, 0, 183.76], "rot": 230, "scale": 0.89},
+    {"model": "decor_stones", "pos": [-28.3, 0, 191.09], "rot": 160, "scale": 0.99},
+    {"model": "decor_stones", "pos": [-45.56, 0, 189.29], "rot": 40, "scale": 1.27},
+    {"model": "decor_stones", "pos": [-48.42, 0, 179.54], "rot": 70, "scale": 0.98},
+    {"model": "decor_stones", "pos": [1.83, 0, 175.98], "rot": 300, "scale": 1.01},
+    {"model": "decor_stones", "pos": [-16.0, 0, 174.14], "rot": 100, "scale": 1.19},
+    {"model": "decor_stones", "pos": [-43.26, 0, 155.13], "rot": 20, "scale": 0.79},
+    {"model": "decor_stones", "pos": [-34.45, 0, 192.07], "rot": 310, "scale": 0.73},
+    {"model": "decor_stones", "pos": [-39.88, 0, 175.81], "rot": 100, "scale": 0.92},
+    {"model": "decor_stones", "pos": [-46.72, 0, 169.96], "rot": 140, "scale": 1.11},
+    {"model": "decor_stones", "pos": [-9.95, 0, 182.01], "rot": 330, "scale": 0.73},
+    {"model": "decor_stones", "pos": [-56.52, 0, 169.47], "rot": 60, "scale": 0.79},
+    {"model": "decor_stones", "pos": [-0.9, 0, 152.22], "rot": 270, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-43.12, 0, 155.23], "rot": 290, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-36.25, 0, 168.38], "rot": 90, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-55.85, 0, 161.32], "rot": 290, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-57.22, 0, 150.85], "rot": 290, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-47.83, 0, 167.96], "rot": 180, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-38.51, 0, 162.39], "rot": 0, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-35.55, 0, 164.69], "rot": 150, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-45.25, 0, 165.63], "rot": 100, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-33.19, 0, 150.88], "rot": 0, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-43.79, 0, 165.79], "rot": 350, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-35.56, 0, 162.87], "rot": 30, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-40.17, 0, 155.98], "rot": 130, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-43.25, 0, 161.0], "rot": 340, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-45.24, 0, 162.86], "rot": 310, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-51.86, 0, 162.25], "rot": 130, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-52.74, 0, 162.17], "rot": 30, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-35.97, 0, 163.33], "rot": 120, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-56.56, 0, 155.71], "rot": 320, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-44.75, 0, 167.51], "rot": 130, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-50.56, 0, 156.23], "rot": 320, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-37.59, 0, 156.71], "rot": 30, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-48.99, 0, 165.64], "rot": 50, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-34.28, 0, 156.47], "rot": 120, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-42.17, 0, 165.85], "rot": 300, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-42.88, 0, 156.39], "rot": 200, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-32.48, 0, 163.79], "rot": 320, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-51.03, 0, 157.11], "rot": 180, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-56.66, 0, 161.86], "rot": 20, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-49.2, 0, 152.81], "rot": 110, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-52.53, 0, 152.29], "rot": 350, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-47.53, 0, 161.39], "rot": 200, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-55.29, 0, 162.77], "rot": 210, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-50.73, 0, 166.77], "rot": 10, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-36.03, 0, 166.84], "rot": 100, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-47.04, 0, 165.55], "rot": 160, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-51.66, 0, 168.13], "rot": 320, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-49.28, 0, 157.14], "rot": 10, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-41.86, 0, 160.79], "rot": 210, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-47.84, 0, 163.12], "rot": 40, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-32.91, 0, 165.28], "rot": 20, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-54.92, 0, 168.25], "rot": 160, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-31.74, 0, 167.44], "rot": 220, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-30.37, 0, 168.67], "rot": 30, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-40.53, 0, 155.64], "rot": 90, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-51.47, 0, 154.01], "rot": 60, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-45.16, 0, 163.37], "rot": 250, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-48.31, 0, 153.76], "rot": 90, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-41.49, 0, 168.99], "rot": 150, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-46.43, 0, 157.38], "rot": 220, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-34.07, 0, 166.15], "rot": 70, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-57.16, 0, 163.51], "rot": 110, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-50.85, 0, 157.79], "rot": 300, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-55.56, 0, 164.48], "rot": 0, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-50.84, 0, 164.38], "rot": 20, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-42.14, 0, 164.42], "rot": 140, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-53.98, 0, 158.32], "rot": 80, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-44.0, 0, 151.69], "rot": 340, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-53.01, 0, 165.85], "rot": 30, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-53.86, 0, 156.66], "rot": 120, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-45.55, 0, 169.1], "rot": 340, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-38.45, 0, 154.78], "rot": 180, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-35.73, 0, 153.99], "rot": 220, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-30.58, 0, 168.28], "rot": 240, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-53.7, 0, 158.98], "rot": 350, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-54.03, 0, 153.82], "rot": 30, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-33.18, 0, 158.53], "rot": 60, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-34.89, 0, 158.38], "rot": 270, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-30.22, 0, 167.54], "rot": 310, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-31.66, 0, 157.29], "rot": 270, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-42.11, 0, 151.63], "rot": 40, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-32.48, 0, 154.3], "rot": 40, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-34.02, 0, 167.46], "rot": 340, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-31.17, 0, 167.27], "rot": 190, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-34.06, 0, 158.79], "rot": 260, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-42.2, 0, 154.39], "rot": 60, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-33.67, 0, 157.75], "rot": 260, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-31.79, 0, 158.43], "rot": 110, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-53.38, 0, 165.61], "rot": 350, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-54.34, 0, 156.63], "rot": 10, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-54.34, 0, 162.48], "rot": 160, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-42.37, 0, 169.19], "rot": 120, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-51.0, 0, 152.61], "rot": 60, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-47.67, 0, 153.88], "rot": 310, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-54.31, 0, 152.68], "rot": 40, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-36.64, 0, 162.5], "rot": 170, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-35.8, 0, 159.61], "rot": 330, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-51.25, 0, 165.44], "rot": 250, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-49.05, 0, 157.67], "rot": 80, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-51.01, 0, 161.37], "rot": 40, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-31.15, 0, 164.98], "rot": 100, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-44.96, 0, 164.13], "rot": 340, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-49.92, 0, 164.57], "rot": 10, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-43.47, 0, 169.46], "rot": 130, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-38.44, 0, 157.22], "rot": 280, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-32.04, 0, 166.65], "rot": 70, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-43.5, 0, 151.21], "rot": 150, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-51.55, 0, 168.56], "rot": 50, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-48.9, 0, 163.61], "rot": 340, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-37.95, 0, 158.71], "rot": 70, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-35.77, 0, 154.68], "rot": 20, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-38.66, 0, 167.89], "rot": 350, "scale": 0.7},
+    {"model": "decor_grass", "pos": [-46.38, 0, 156.49], "rot": 280, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-33.17, 0, 161.22], "rot": 0, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-32.6, 0, 155.45], "rot": 10, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-44.45, 0, 163.45], "rot": 110, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-32.01, 0, 155.49], "rot": 350, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-53.38, 0, 155.84], "rot": 270, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-42.86, 0, 163.74], "rot": 190, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-32.77, 0, 152.03], "rot": 70, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-53.84, 0, 159.7], "rot": 330, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-32.16, 0, 154.83], "rot": 70, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-45.48, 0, 166.85], "rot": 340, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-44.58, 0, 155.14], "rot": 190, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-42.72, 0, 151.36], "rot": 250, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-53.8, 0, 150.95], "rot": 40, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-42.05, 0, 151.0], "rot": 330, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-51.51, 0, 155.19], "rot": 0, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-52.21, 0, 159.4], "rot": 30, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-40.1, 0, 164.71], "rot": 170, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-52.87, 0, 163.75], "rot": 20, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-45.51, 0, 152.68], "rot": 110, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-31.54, 0, 156.19], "rot": 210, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-34.16, 0, 159.42], "rot": 90, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-34.87, 0, 160.28], "rot": 290, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-53.03, 0, 150.41], "rot": 170, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-44.88, 0, 160.16], "rot": 320, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-38.04, 0, 150.43], "rot": 50, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-52.56, 0, 168.91], "rot": 10, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-39.12, 0, 157.73], "rot": 300, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-42.76, 0, 150.22], "rot": 230, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-41.82, 0, 152.62], "rot": 350, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-31.0, 0, 160.89], "rot": 150, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-40.04, 0, 170.0], "rot": 140, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-56.3, 0, 154.87], "rot": 60, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-34.58, 0, 164.56], "rot": 210, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-52.18, 0, 151.35], "rot": 120, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-55.39, 0, 167.52], "rot": 230, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-30.14, 0, 166.55], "rot": 270, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-41.95, 0, 161.65], "rot": 260, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-56.2, 0, 164.74], "rot": 260, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-37.15, 0, 161.29], "rot": 90, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-34.6, 0, 151.92], "rot": 100, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-38.08, 0, 158.34], "rot": 140, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-46.93, 0, 161.05], "rot": 140, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-36.17, 0, 166.24], "rot": 50, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-54.41, 0, 169.14], "rot": 50, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-55.88, 0, 168.5], "rot": 40, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-55.32, 0, 166.64], "rot": 10, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-45.69, 0, 169.62], "rot": 290, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-54.03, 0, 166.6], "rot": 190, "scale": 0.9},
+    {"model": "decor_litter", "pos": [16.79, 0, 130.93], "rot": 230, "scale": 0.86},
+    {"model": "decor_litter", "pos": [-36.26, 0, 143.74], "rot": 280, "scale": 0.88},
+    {"model": "decor_litter", "pos": [43.97, 0, 143.91], "rot": 230, "scale": 0.73},
+    {"model": "decor_litter", "pos": [52.11, 0, 135.66], "rot": 230, "scale": 0.76},
+    {"model": "decor_litter", "pos": [-54.67, 0, 131.78], "rot": 10, "scale": 1.11},
+    {"model": "decor_litter", "pos": [-48.68, 0, 127.1], "rot": 110, "scale": 0.78},
+    {"model": "decor_litter", "pos": [-23.12, 0, 138.06], "rot": 350, "scale": 0.97},
+    {"model": "decor_litter", "pos": [39.93, 0, 143.61], "rot": 150, "scale": 1.06},
+    {"model": "decor_litter", "pos": [-49.04, 0, 142.84], "rot": 20, "scale": 0.98},
+    {"model": "decor_litter", "pos": [-23.03, 0, 143.81], "rot": 280, "scale": 0.89},
+    {"model": "decor_litter", "pos": [-3.43, 0, 127.25], "rot": 210, "scale": 1.16},
+    {"model": "decor_litter", "pos": [-45.67, 0, 134.91], "rot": 70, "scale": 0.91},
+    {"model": "decor_litter", "pos": [21.9, 0, 128.26], "rot": 10, "scale": 1.01},
+    {"model": "decor_litter", "pos": [-23.6, 0, 140.59], "rot": 250, "scale": 1.02},
+    {"model": "decor_litter", "pos": [56.3, 0, 133.4], "rot": 340, "scale": 1.02},
+    {"model": "decor_litter", "pos": [36.37, 0, 127.82], "rot": 120, "scale": 0.75},
+    {"model": "decor_litter", "pos": [50.23, 0, 137.1], "rot": 160, "scale": 0.83},
+    {"model": "decor_litter", "pos": [3.99, 0, 128.41], "rot": 310, "scale": 1.11},
+    {"model": "decor_litter", "pos": [-0.08, 0, 133.4], "rot": 130, "scale": 0.73},
+    {"model": "decor_litter", "pos": [-43.39, 0, 141.91], "rot": 170, "scale": 0.89},
+    {"model": "decor_litter", "pos": [-17.16, 0, 142.27], "rot": 250, "scale": 0.87},
+    {"model": "decor_litter", "pos": [-55.01, 0, 139.98], "rot": 230, "scale": 1.28},
+    {"model": "decor_litter", "pos": [-22.73, 0, 135.02], "rot": 120, "scale": 1.1},
+    {"model": "decor_litter", "pos": [39.73, 0, 137.26], "rot": 220, "scale": 1.0},
+    {"model": "decor_litter", "pos": [11.45, 0, 134.35], "rot": 260, "scale": 1.24},
+    {"model": "decor_litter", "pos": [-45.38, 0, 137.23], "rot": 140, "scale": 0.76},
+    {"model": "decor_litter", "pos": [-31.12, 0, 136.27], "rot": 30, "scale": 0.8},
+    {"model": "decor_litter", "pos": [-10.77, 0, 127.76], "rot": 60, "scale": 1.24},
+    {"model": "decor_litter", "pos": [24.83, 0, 128.23], "rot": 140, "scale": 1.11},
+    {"model": "decor_litter", "pos": [-42.21, 0, 142.27], "rot": 40, "scale": 1.23},
+    {"model": "decor_litter", "pos": [-39.5, 0, 140.78], "rot": 230, "scale": 0.97},
+    {"model": "decor_litter", "pos": [27.78, 0, 139.16], "rot": 110, "scale": 1.17},
+    {"model": "decor_litter", "pos": [17.04, 0, 140.61], "rot": 180, "scale": 0.91},
+    {"model": "decor_litter", "pos": [-14.65, 0, 135.16], "rot": 260, "scale": 1.04},
+    {"model": "decor_litter", "pos": [20.09, 0, 129.6], "rot": 270, "scale": 1.05},
+    {"model": "decor_litter", "pos": [21.2, 0, 127.13], "rot": 100, "scale": 1.25},
+    {"model": "decor_litter", "pos": [21.72, 0, 138.83], "rot": 260, "scale": 0.73},
+    {"model": "decor_litter", "pos": [53.39, 0, 137.37], "rot": 180, "scale": 1.29},
+    {"model": "decor_litter", "pos": [-24.17, 0, 138.29], "rot": 210, "scale": 1.29},
+    {"model": "decor_litter", "pos": [57.53, 0, 130.06], "rot": 320, "scale": 0.77},
+    {"model": "decor_litter", "pos": [-32.84, 0, 144.99], "rot": 30, "scale": 1.29},
+    {"model": "decor_litter", "pos": [-47.15, 0, 137.39], "rot": 350, "scale": 1.2},
+    {"model": "decor_litter", "pos": [40.1, 0, 127.64], "rot": 60, "scale": 1.28},
+    {"model": "decor_litter", "pos": [-20.23, 0, 129.18], "rot": 290, "scale": 1.25},
+    {"model": "decor_litter", "pos": [-10.99, 0, 137.94], "rot": 310, "scale": 1.23},
+    {"model": "decor_litter", "pos": [-57.48, 0, 132.78], "rot": 170, "scale": 0.85},
+    {"model": "decor_litter", "pos": [-38.08, 0, 128.83], "rot": 50, "scale": 1.03},
+    {"model": "decor_litter", "pos": [-57.21, 0, 128.58], "rot": 120, "scale": 0.86},
+    {"model": "decor_litter", "pos": [54.78, 0, 127.66], "rot": 250, "scale": 1.28},
+    {"model": "decor_litter", "pos": [16.84, 0, 134.04], "rot": 10, "scale": 0.9},
+    {"model": "decor_litter", "pos": [-0.89, 0, 131.77], "rot": 90, "scale": 1.23},
+    {"model": "decor_litter", "pos": [16.19, 0, 136.79], "rot": 110, "scale": 0.71},
+    {"model": "decor_litter", "pos": [56.94, 0, 144.89], "rot": 240, "scale": 0.88},
+    {"model": "decor_litter", "pos": [-1.85, 0, 140.38], "rot": 310, "scale": 0.99},
+    {"model": "decor_litter", "pos": [-11.68, 0, 130.68], "rot": 270, "scale": 0.72},
+    {"model": "decor_litter", "pos": [40.09, 0, 132.75], "rot": 160, "scale": 0.73},
+    {"model": "decor_litter", "pos": [-9.74, 0, 133.91], "rot": 260, "scale": 1.29},
+    {"model": "decor_litter", "pos": [38.16, 0, 143.81], "rot": 160, "scale": 0.76},
+    {"model": "decor_litter", "pos": [12.9, 0, 127.87], "rot": 280, "scale": 1.0},
+    {"model": "decor_litter", "pos": [25.48, 0, 135.68], "rot": 50, "scale": 1.19}
   ]
 }
 ```
@@ -19824,13 +24150,11 @@ if __name__ == "__main__":
 ```json
 {
   "props": [
-    {"model": "wall", "pos": [0, 0, -14], "rot": 0},
-    {"model": "wall", "pos": [6, 0, -14], "rot": 0},
-    {"model": "wall", "pos": [-6, 0, -14], "rot": 0},
-    {"model": "wall", "pos": [-12, 0, -8], "rot": 90},
-    {"model": "wall", "pos": [-12, 0, -2], "rot": 90},
-    {"model": "door", "pos": [3, 0, -13.75], "rot": 0},
-    {"model": "door", "pos": [-9, 0, -13.75], "rot": 0},
+    {"model": "house_a", "pos": [0, 0, -14], "rot": 0},
+    {"model": "house_c", "pos": [6, 0, -14], "rot": 0},
+    {"model": "house_b", "pos": [-6, 0, -14], "rot": 0},
+    {"model": "house_c", "pos": [-12, 0, -8], "rot": 90},
+    {"model": "house_a", "pos": [-12, 0, -2], "rot": 90},
     {"model": "stairs", "pos": [-11.3, 0, -11.5], "rot": 0, "colliders": [{"size": [1.2, 0.25, 0.5], "offset": [0, 0.125, 0]}, {"size": [1.2, 0.5, 0.5], "offset": [0, 0.25, 0.5]}, {"size": [1.2, 0.75, 0.5], "offset": [0, 0.375, 1.0]}, {"size": [1.2, 1.0, 0.5], "offset": [0, 0.5, 1.5]}, {"size": [1.2, 0.12, 1.2], "offset": [0, 0.94, 2.55]}]},
     {"model": "bin", "pos": [3, 0, -11], "rot": 0, "colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}]},
     {"model": "bin", "pos": [4, 0, -11], "rot": 0, "colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}]},
@@ -19860,9 +24184,9 @@ if __name__ == "__main__":
     {"model": "puddle", "water": true, "pos": [3, 0, 3], "rot": 0},
     {"model": "puddle", "water": true, "pos": [-5, 0, -5], "rot": 60},
     {"model": "arch", "pos": [0, 0, 10.5], "rot": 0, "colliders": [{"size": [0.5, 2.6, 0.6], "offset": [-1.45, 1.3, 0]}, {"size": [0.5, 2.6, 0.6], "offset": [1.45, 1.3, 0]}]},
-    {"model": "wall", "pos": [0, 0, 28], "rot": 180},
-    {"model": "wall", "pos": [6, 0, 28], "rot": 180},
-    {"model": "wall", "pos": [-6, 0, 28], "rot": 180},
+    {"model": "house_shallow", "pos": [0, 0, 28], "rot": 180},
+    {"model": "house_shallow", "pos": [6, 0, 28], "rot": 180},
+    {"model": "house_shallow", "pos": [-6, 0, 28], "rot": 180},
     {"model": "cafe_sign", "pos": [0, 0, 26.5], "rot": 180},
     {"model": "cafe_table", "pos": [-4, 0, 17], "colliders": [{"size": [0.9, 0.06, 0.9], "offset": [0, 0.72, 0]}, {"size": [0.5, 0.72, 0.5], "offset": [0, 0.36, 0]}]},
     {"model": "cafe_table", "pos": [0, 0, 17], "colliders": [{"size": [0.9, 0.06, 0.9], "offset": [0, 0.72, 0]}, {"size": [0.5, 0.72, 0.5], "offset": [0, 0.36, 0]}]},
@@ -19898,7 +24222,6 @@ if __name__ == "__main__":
     {"model": "grass", "pos": [12.5, 0, 9], "rot": 95, "solid": false},
     {"model": "grass", "pos": [-6, 0, -12.8], "rot": 184, "solid": false},
     {"model": "grass", "pos": [6, 0, -12.8], "rot": 100, "solid": false},
-    {"model": "grass", "pos": [-12.8, 0, -3], "rot": 350, "solid": false},
     {"model": "grass", "pos": [12.8, 0, -3], "rot": 267, "solid": false},
     {"model": "grass", "pos": [3.5, 0, 4.2], "rot": 256, "solid": false},
     {"model": "grass", "pos": [-3, 0, 1.5], "rot": 226, "solid": false},
@@ -19907,122 +24230,114 @@ if __name__ == "__main__":
     {"model": "ivy", "pos": [-6.0, 2.2, -13.78], "rot": 0, "solid": false},
     {"model": "ivy", "pos": [0.0, 2.2, -13.78], "rot": 0, "solid": false},
     {"model": "ivy", "pos": [8.0, 2.2, -13.78], "rot": 0, "solid": false},
-    {"model": "wall", "pos": [-87.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [-81.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [-75.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [-69.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [-63.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [-57.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [-51.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [-45.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [-39.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [-33.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [-27.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [-21.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [-15.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [-9.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [-3.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [3.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [9.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [15.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [21.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [27.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [33.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [39.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [45.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [51.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [57.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [63.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [69.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [75.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [81.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [87.0, 0, -150.0], "rot": 0},
-    {"model": "wall", "pos": [-90.0, 0, -147.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, -141.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, -135.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, -129.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, -123.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, -117.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, -111.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, -105.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, -99.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, -93.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, -87.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, -81.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, -75.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, -69.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, -63.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, -57.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, -51.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, -45.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, -39.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, -33.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, -27.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, -21.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, -15.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, -9.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, -3.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, 3.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, 9.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, 15.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, 21.0], "rot": 90},
-    {"model": "wall", "pos": [-90.0, 0, 27.0], "rot": 90},
-    {"model": "wall", "pos": [90.0, 0, -147.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, -141.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, -135.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, -129.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, -123.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, -117.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, -111.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, -105.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, -99.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, -93.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, -87.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, -81.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, -75.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, -69.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, -63.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, -57.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, -51.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, -45.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, -39.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, -33.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, -27.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, -21.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, -15.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, -9.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, -3.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, 3.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, 9.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, 15.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, 21.0], "rot": -90},
-    {"model": "wall", "pos": [90.0, 0, 27.0], "rot": -90},
-    {"model": "wall", "pos": [-87.0, 0, 30.0], "rot": 180},
-    {"model": "wall", "pos": [-81.0, 0, 30.0], "rot": 180},
-    {"model": "wall", "pos": [-75.0, 0, 30.0], "rot": 180},
-    {"model": "wall", "pos": [-69.0, 0, 30.0], "rot": 180},
-    {"model": "wall", "pos": [-63.0, 0, 30.0], "rot": 180},
-    {"model": "wall", "pos": [-57.0, 0, 30.0], "rot": 180},
-    {"model": "wall", "pos": [-51.0, 0, 30.0], "rot": 180},
-    {"model": "wall", "pos": [-45.0, 0, 30.0], "rot": 180},
-    {"model": "wall", "pos": [-39.0, 0, 30.0], "rot": 180},
-    {"model": "wall", "pos": [-33.0, 0, 30.0], "rot": 180},
-    {"model": "wall", "pos": [-27.0, 0, 30.0], "rot": 180},
-    {"model": "wall", "pos": [-21.0, 0, 30.0], "rot": 180},
-    {"model": "wall", "pos": [-18.0, 0, 29.95], "rot": 180},
-    {"model": "wall", "pos": [18.0, 0, 30.0], "rot": 180},
-    {"model": "wall", "pos": [24.0, 0, 30.0], "rot": 180},
-    {"model": "wall", "pos": [30.0, 0, 30.0], "rot": 180},
-    {"model": "wall", "pos": [36.0, 0, 30.0], "rot": 180},
-    {"model": "wall", "pos": [42.0, 0, 30.0], "rot": 180},
-    {"model": "wall", "pos": [48.0, 0, 30.0], "rot": 180},
-    {"model": "wall", "pos": [54.0, 0, 30.0], "rot": 180},
-    {"model": "wall", "pos": [60.0, 0, 30.0], "rot": 180},
-    {"model": "wall", "pos": [66.0, 0, 30.0], "rot": 180},
-    {"model": "wall", "pos": [72.0, 0, 30.0], "rot": 180},
-    {"model": "wall", "pos": [78.0, 0, 30.0], "rot": 180},
-    {"model": "wall", "pos": [84.0, 0, 30.0], "rot": 180},
-    {"model": "wall", "pos": [87.0, 0, 29.95], "rot": 180},
+    {"model": "house_a", "pos": [-81.0, 0, -144.0], "rot": 0},
+    {"model": "house_b", "pos": [-75.0, 0, -144.0], "rot": 0},
+    {"model": "house_c", "pos": [-69.0, 0, -144.0], "rot": 0},
+    {"model": "house_a", "pos": [-63.0, 0, -144.0], "rot": 0},
+    {"model": "house_b", "pos": [-57.0, 0, -144.0], "rot": 0},
+    {"model": "house_c", "pos": [-51.0, 0, -144.0], "rot": 0},
+    {"model": "house_a", "pos": [-45.0, 0, -144.0], "rot": 0},
+    {"model": "house_b", "pos": [-39.0, 0, -144.0], "rot": 0},
+    {"model": "house_c", "pos": [-33.0, 0, -144.0], "rot": 0},
+    {"model": "house_a", "pos": [-27.0, 0, -144.0], "rot": 0},
+    {"model": "house_b", "pos": [-21.0, 0, -144.0], "rot": 0},
+    {"model": "house_c", "pos": [-15.0, 0, -144.0], "rot": 0},
+    {"model": "house_a", "pos": [-9.0, 0, -144.0], "rot": 0},
+    {"model": "house_b", "pos": [-3.0, 0, -144.0], "rot": 0},
+    {"model": "house_c", "pos": [3.0, 0, -144.0], "rot": 0},
+    {"model": "house_a", "pos": [9.0, 0, -144.0], "rot": 0},
+    {"model": "house_b", "pos": [15.0, 0, -144.0], "rot": 0},
+    {"model": "house_c", "pos": [21.0, 0, -144.0], "rot": 0},
+    {"model": "house_a", "pos": [27.0, 0, -144.0], "rot": 0},
+    {"model": "house_b", "pos": [33.0, 0, -144.0], "rot": 0},
+    {"model": "house_c", "pos": [39.0, 0, -144.0], "rot": 0},
+    {"model": "house_a", "pos": [45.0, 0, -144.0], "rot": 0},
+    {"model": "house_b", "pos": [51.0, 0, -144.0], "rot": 0},
+    {"model": "house_c", "pos": [57.0, 0, -144.0], "rot": 0},
+    {"model": "house_a", "pos": [63.0, 0, -144.0], "rot": 0},
+    {"model": "house_b", "pos": [69.0, 0, -144.0], "rot": 0},
+    {"model": "house_c", "pos": [75.0, 0, -144.0], "rot": 0},
+    {"model": "house_a", "pos": [81.0, 0, -144.0], "rot": 0},
+    {"model": "house_b", "pos": [-84.0, 0, -141.0], "rot": 90},
+    {"model": "house_c", "pos": [-84.0, 0, -135.0], "rot": 90},
+    {"model": "house_a", "pos": [-84.0, 0, -129.0], "rot": 90},
+    {"model": "house_b", "pos": [-84.0, 0, -123.0], "rot": 90},
+    {"model": "house_c", "pos": [-84.0, 0, -117.0], "rot": 90},
+    {"model": "house_a", "pos": [-84.0, 0, -111.0], "rot": 90},
+    {"model": "house_b", "pos": [-84.0, 0, -105.0], "rot": 90},
+    {"model": "house_c", "pos": [-84.0, 0, -99.0], "rot": 90},
+    {"model": "house_a", "pos": [-84.0, 0, -93.0], "rot": 90},
+    {"model": "house_b", "pos": [-84.0, 0, -87.0], "rot": 90},
+    {"model": "house_c", "pos": [-84.0, 0, -81.0], "rot": 90},
+    {"model": "house_a", "pos": [-84.0, 0, -75.0], "rot": 90},
+    {"model": "house_b", "pos": [-84.0, 0, -69.0], "rot": 90},
+    {"model": "house_c", "pos": [-84.0, 0, -63.0], "rot": 90},
+    {"model": "house_a", "pos": [-84.0, 0, -57.0], "rot": 90},
+    {"model": "house_b", "pos": [-84.0, 0, -51.0], "rot": 90},
+    {"model": "house_c", "pos": [-84.0, 0, -45.0], "rot": 90},
+    {"model": "house_a", "pos": [-84.0, 0, -39.0], "rot": 90},
+    {"model": "house_b", "pos": [-84.0, 0, -33.0], "rot": 90},
+    {"model": "house_c", "pos": [-84.0, 0, -27.0], "rot": 90},
+    {"model": "house_a", "pos": [-84.0, 0, -21.0], "rot": 90},
+    {"model": "house_b", "pos": [-84.0, 0, -15.0], "rot": 90},
+    {"model": "house_c", "pos": [-84.0, 0, -9.0], "rot": 90},
+    {"model": "house_a", "pos": [-84.0, 0, -3.0], "rot": 90},
+    {"model": "house_b", "pos": [-84.0, 0, 3.0], "rot": 90},
+    {"model": "house_c", "pos": [-84.0, 0, 9.0], "rot": 90},
+    {"model": "house_a", "pos": [-84.0, 0, 15.0], "rot": 90},
+    {"model": "house_b", "pos": [-84.0, 0, 21.0], "rot": 90},
+    {"model": "house_c", "pos": [84.0, 0, -141.0], "rot": -90},
+    {"model": "house_a", "pos": [84.0, 0, -135.0], "rot": -90},
+    {"model": "house_b", "pos": [84.0, 0, -129.0], "rot": -90},
+    {"model": "house_c", "pos": [84.0, 0, -123.0], "rot": -90},
+    {"model": "house_a", "pos": [84.0, 0, -117.0], "rot": -90},
+    {"model": "house_b", "pos": [84.0, 0, -111.0], "rot": -90},
+    {"model": "house_c", "pos": [84.0, 0, -105.0], "rot": -90},
+    {"model": "house_a", "pos": [84.0, 0, -99.0], "rot": -90},
+    {"model": "house_b", "pos": [84.0, 0, -93.0], "rot": -90},
+    {"model": "house_c", "pos": [84.0, 0, -87.0], "rot": -90},
+    {"model": "house_a", "pos": [84.0, 0, -81.0], "rot": -90},
+    {"model": "house_b", "pos": [84.0, 0, -75.0], "rot": -90},
+    {"model": "house_c", "pos": [84.0, 0, -69.0], "rot": -90},
+    {"model": "house_a", "pos": [84.0, 0, -63.0], "rot": -90},
+    {"model": "house_b", "pos": [84.0, 0, -57.0], "rot": -90},
+    {"model": "house_c", "pos": [84.0, 0, -51.0], "rot": -90},
+    {"model": "house_a", "pos": [84.0, 0, -45.0], "rot": -90},
+    {"model": "house_b", "pos": [84.0, 0, -39.0], "rot": -90},
+    {"model": "house_c", "pos": [84.0, 0, -33.0], "rot": -90},
+    {"model": "house_a", "pos": [84.0, 0, -27.0], "rot": -90},
+    {"model": "house_b", "pos": [84.0, 0, -21.0], "rot": -90},
+    {"model": "house_c", "pos": [84.0, 0, -15.0], "rot": -90},
+    {"model": "house_a", "pos": [84.0, 0, -9.0], "rot": -90},
+    {"model": "house_b", "pos": [84.0, 0, -3.0], "rot": -90},
+    {"model": "house_c", "pos": [84.0, 0, 3.0], "rot": -90},
+    {"model": "house_a", "pos": [84.0, 0, 9.0], "rot": -90},
+    {"model": "house_b", "pos": [84.0, 0, 15.0], "rot": -90},
+    {"model": "house_c", "pos": [84.0, 0, 21.0], "rot": -90},
+    {"model": "house_a", "pos": [-81.0, 0, 24.0], "rot": 180},
+    {"model": "house_b", "pos": [-75.0, 0, 24.0], "rot": 180},
+    {"model": "house_c", "pos": [-69.0, 0, 24.0], "rot": 180},
+    {"model": "house_a", "pos": [-63.0, 0, 24.0], "rot": 180},
+    {"model": "house_b", "pos": [-57.0, 0, 24.0], "rot": 180},
+    {"model": "house_c", "pos": [-51.0, 0, 24.0], "rot": 180},
+    {"model": "house_a", "pos": [-45.0, 0, 24.0], "rot": 180},
+    {"model": "house_b", "pos": [-39.0, 0, 24.0], "rot": 180},
+    {"model": "house_c", "pos": [-33.0, 0, 24.0], "rot": 180},
+    {"model": "house_a", "pos": [-27.0, 0, 24.0], "rot": 180},
+    {"model": "house_b", "pos": [-21.0, 0, 24.0], "rot": 180},
+    {"model": "house_c", "pos": [-18.0, 0, 23.95], "rot": 180},
+    {"model": "house_a", "pos": [18.0, 0, 24.0], "rot": 180},
+    {"model": "house_b", "pos": [24.0, 0, 24.0], "rot": 180},
+    {"model": "house_c", "pos": [30.0, 0, 24.0], "rot": 180},
+    {"model": "house_a", "pos": [36.0, 0, 24.0], "rot": 180},
+    {"model": "house_b", "pos": [42.0, 0, 24.0], "rot": 180},
+    {"model": "house_c", "pos": [48.0, 0, 24.0], "rot": 180},
+    {"model": "house_a", "pos": [54.0, 0, 24.0], "rot": 180},
+    {"model": "house_b", "pos": [60.0, 0, 24.0], "rot": 180},
+    {"model": "house_c", "pos": [66.0, 0, 24.0], "rot": 180},
+    {"model": "house_a", "pos": [72.0, 0, 24.0], "rot": 180},
+    {"model": "house_b", "pos": [78.0, 0, 24.0], "rot": 180},
+    {"model": "house_c", "pos": [81.0, 0, 23.95], "rot": 180},
     {"model": "fence", "pos": [-89.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
     {"model": "fence", "pos": [-87.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
     {"model": "fence", "pos": [-85.0, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
@@ -20253,22 +24568,21 @@ if __name__ == "__main__":
     {"model": "terrace_stairs2", "pos": [-12, 0, -69.0], "rot": 0},
     {"model": "terrace_stairs2", "pos": [18, 0, -69.0], "rot": 0},
     {"model": "ramp2", "pos": [44.289, 0, -95], "rot": 90},
-    {"model": "wall", "pos": [-35.0, 0, -116.0], "rot": 0},
-    {"model": "wall", "pos": [-29.0, 0, -116.0], "rot": 0},
-    {"model": "wall", "pos": [-23.0, 0, -116.0], "rot": 0},
-    {"model": "wall", "pos": [-17.0, 0, -116.0], "rot": 0},
-    {"model": "wall", "pos": [-11.0, 0, -116.0], "rot": 0},
-    {"model": "wall", "pos": [-5.0, 0, -116.0], "rot": 0},
-    {"model": "wall", "pos": [1.0, 0, -116.0], "rot": 0},
-    {"model": "wall", "pos": [7.0, 0, -116.0], "rot": 0},
-    {"model": "wall", "pos": [13.0, 0, -116.0], "rot": 0},
-    {"model": "wall", "pos": [19.0, 0, -116.0], "rot": 0},
-    {"model": "wall", "pos": [25.0, 0, -116.0], "rot": 0},
-    {"model": "wall", "pos": [31.0, 0, -116.0], "rot": 0},
-    {"model": "wall", "pos": [35.0, 0, -115.95], "rot": 0},
-    {"colliders": [{"size": [1.2, 0.25, 0.5], "offset": [0, 0.125, 0]}, {"size": [1.2, 0.5, 0.5], "offset": [0, 0.25, 0.5]}, {"size": [1.2, 0.75, 0.5], "offset": [0, 0.375, 1.0]}, {"size": [1.2, 1.0, 0.5], "offset": [0, 0.5, 1.5]}, {"size": [1.2, 0.12, 1.2], "offset": [0, 0.94, 2.55]}], "model": "stairs", "pos": [-25, 0, -113.5], "rot": 0},
-    {"colliders": [{"size": [1.2, 0.25, 0.5], "offset": [0, 0.125, 0]}, {"size": [1.2, 0.5, 0.5], "offset": [0, 0.25, 0.5]}, {"size": [1.2, 0.75, 0.5], "offset": [0, 0.375, 1.0]}, {"size": [1.2, 1.0, 0.5], "offset": [0, 0.5, 1.5]}, {"size": [1.2, 0.12, 1.2], "offset": [0, 0.94, 2.55]}], "model": "stairs", "pos": [0, 0, -113.5], "rot": 0},
-    {"colliders": [{"size": [1.2, 0.25, 0.5], "offset": [0, 0.125, 0]}, {"size": [1.2, 0.5, 0.5], "offset": [0, 0.25, 0.5]}, {"size": [1.2, 0.75, 0.5], "offset": [0, 0.375, 1.0]}, {"size": [1.2, 1.0, 0.5], "offset": [0, 0.5, 1.5]}, {"size": [1.2, 0.12, 1.2], "offset": [0, 0.94, 2.55]}], "model": "stairs", "pos": [25, 0, -113.5], "rot": 0},
+    {"model": "house_a", "pos": [-33.0, 0, -112.0], "rot": 0},
+    {"model": "house_b", "pos": [-27.0, 0, -112.0], "rot": 0},
+    {"model": "house_c", "pos": [-21.0, 0, -112.0], "rot": 0},
+    {"model": "house_a", "pos": [-15.0, 0, -112.0], "rot": 0},
+    {"model": "house_b", "pos": [-9.0, 0, -112.0], "rot": 0},
+    {"model": "house_c", "pos": [-3.0, 0, -112.0], "rot": 0},
+    {"model": "house_a", "pos": [3.0, 0, -112.0], "rot": 0},
+    {"model": "house_b", "pos": [9.0, 0, -112.0], "rot": 0},
+    {"model": "house_c", "pos": [15.0, 0, -112.0], "rot": 0},
+    {"model": "house_a", "pos": [21.0, 0, -112.0], "rot": 0},
+    {"model": "house_b", "pos": [27.0, 0, -112.0], "rot": 0},
+    {"model": "house_c", "pos": [33.0, 0, -112.0], "rot": 0},
+    {"colliders": [{"size": [1.2, 0.25, 0.5], "offset": [0, 0.125, 0]}, {"size": [1.2, 0.5, 0.5], "offset": [0, 0.25, 0.5]}, {"size": [1.2, 0.75, 0.5], "offset": [0, 0.375, 1.0]}, {"size": [1.2, 1.0, 0.5], "offset": [0, 0.5, 1.5]}, {"size": [1.2, 0.12, 1.2], "offset": [0, 0.94, 2.55]}], "model": "stairs", "pos": [-25, 0, -109.5], "rot": 0},
+    {"colliders": [{"size": [1.2, 0.25, 0.5], "offset": [0, 0.125, 0]}, {"size": [1.2, 0.5, 0.5], "offset": [0, 0.25, 0.5]}, {"size": [1.2, 0.75, 0.5], "offset": [0, 0.375, 1.0]}, {"size": [1.2, 1.0, 0.5], "offset": [0, 0.5, 1.5]}, {"size": [1.2, 0.12, 1.2], "offset": [0, 0.94, 2.55]}], "model": "stairs", "pos": [0, 0, -109.5], "rot": 0},
+    {"colliders": [{"size": [1.2, 0.25, 0.5], "offset": [0, 0.125, 0]}, {"size": [1.2, 0.5, 0.5], "offset": [0, 0.25, 0.5]}, {"size": [1.2, 0.75, 0.5], "offset": [0, 0.375, 1.0]}, {"size": [1.2, 1.0, 0.5], "offset": [0, 0.5, 1.5]}, {"size": [1.2, 0.12, 1.2], "offset": [0, 0.94, 2.55]}], "model": "stairs", "pos": [25, 0, -109.5], "rot": 0},
     {"model": "flowerbed", "pos": [-22, 0, -100], "rot": 0},
     {"model": "flowerbed", "pos": [-18, 0, -100], "rot": 0},
     {"model": "lamp", "pos": [-10, 0, -85], "rot": 0},
@@ -20278,162 +24592,185 @@ if __name__ == "__main__":
     {"model": "retaining_wall1", "pos": [-21.5, 0.0, 14.5], "rot": 0, "snap": false},
     {"model": "retaining_wall1", "pos": [-17.5, 0.0, 14.5], "rot": 0, "snap": false},
     {"model": "retaining_wall1", "pos": [-14.5, 0.0, 14.55], "rot": 0, "snap": false},
-    {"model": "retaining_wall1", "pos": [-25.5, 0.0, 26.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall1", "pos": [-21.5, 0.0, 26.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall1", "pos": [-17.5, 0.0, 26.5], "rot": 0, "snap": false},
-    {"model": "retaining_wall1", "pos": [-14.5, 0.0, 26.45], "rot": 0, "snap": false},
+    {"model": "retaining_wall1", "pos": [-25.5, 0.0, 23.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall1", "pos": [-21.5, 0.0, 23.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall1", "pos": [-17.5, 0.0, 23.5], "rot": 0, "snap": false},
+    {"model": "retaining_wall1", "pos": [-14.5, 0.0, 23.45], "rot": 0, "snap": false},
     {"model": "retaining_wall1", "pos": [-27.5, 0.0, 16.5], "rot": 90, "snap": false},
     {"model": "retaining_wall1", "pos": [-27.5, 0.0, 20.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall1", "pos": [-27.5, 0.0, 24.5], "rot": 90, "snap": false},
+    {"model": "retaining_wall1", "pos": [-27.45, 0.0, 21.5], "rot": 90, "snap": false},
     {"model": "retaining_wall1", "pos": [-12.5, 0.0, 16.5], "rot": 90, "snap": false},
-    {"model": "retaining_wall1", "pos": [-12.5, 0.0, 24.5], "rot": 90, "snap": false},
     {"model": "terrace_stairs1", "pos": [-11.5, 0, 20], "rot": 90},
-    {"colliders": [{"size": [0.9, 0.06, 0.9], "offset": [0, 0.72, 0]}, {"size": [0.5, 0.72, 0.5], "offset": [0, 0.36, 0]}], "model": "cafe_table", "pos": [-23, 0, 18]},
-    {"colliders": [{"size": [0.9, 0.06, 0.9], "offset": [0, 0.72, 0]}, {"size": [0.5, 0.72, 0.5], "offset": [0, 0.36, 0]}], "model": "cafe_table", "pos": [-19, 0, 22]},
-    {"colliders": [{"size": [0.9, 0.06, 0.9], "offset": [0, 0.72, 0]}, {"size": [0.5, 0.72, 0.5], "offset": [0, 0.36, 0]}], "model": "cafe_table", "pos": [-23, 0, 23]},
-    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [-22.3, 0, 18.7]},
-    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [-18.3, 0, 22.7]},
-    {"outline": true, "colliders": [{"size": [0.42, 0.45, 0.42], "offset": [0, 0.24, 0]}], "model": "chair", "pos": [-23, 0, 17.2], "rot": 180},
-    {"outline": true, "colliders": [{"size": [0.42, 0.45, 0.42], "offset": [0, 0.24, 0]}], "model": "chair", "pos": [-19, 0, 21.2], "rot": 180},
-    {"outline": true, "colliders": [{"size": [0.42, 0.45, 0.42], "offset": [0, 0.24, 0]}], "model": "chair", "pos": [-23, 0, 22.2], "rot": 180},
-    {"model": "lamp", "pos": [-26, 0, 25], "rot": 0},
-    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-50.7, 0, 24.5], "rot": 0},
-    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [60.2, 0, 25.7], "rot": 0},
-    {"colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}], "model": "bin", "pos": [-38.2, 0, -18.9], "rot": 240},
-    {"colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}], "model": "bin", "pos": [-43.9, 0, -12.7], "rot": 30},
-    {"colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}], "model": "bin", "pos": [-36.0, 0, -14.8], "rot": 15},
-    {"outline": true, "model": "box", "pos": [-60.6, 0, -10.2], "rot": 90},
-    {"outline": true, "model": "box", "pos": [-38.0, 0, -12.0], "rot": 240},
-    {"outline": true, "model": "box", "pos": [-48.9, 0, -15.4], "rot": 105},
-    {"outline": true, "model": "box", "pos": [-51.2, 0, -24.4], "rot": 210},
-    {"outline": true, "model": "box", "pos": [-31.7, 0, -23.9], "rot": 240},
-    {"outline": true, "model": "box", "pos": [-54.9, 0, -15.9], "rot": 90},
-    {"model": "bush", "pos": [49.6, 0, -21.1], "rot": 270},
-    {"model": "bush", "pos": [34.9, 0, -29.6], "rot": 135},
-    {"model": "bush", "pos": [34.3, 0, -16.2], "rot": 0},
-    {"model": "bush", "pos": [24.0, 0, -19.0], "rot": 90},
-    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [37.3, 0, -32.4], "rot": 270},
-    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [43.2, 0, -29.4], "rot": 270},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-8.3, 0, -60.9], "rot": 15},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [8.8, 0, -66.4], "rot": 15},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-10.9, 0, -40.9], "rot": 75},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [14.1, 0, -38.1], "rot": 135},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-8.8, 0, -22.3], "rot": 165},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-9.2, 0, -46.8], "rot": 240},
-    {"model": "bush", "pos": [2.9, 0, -63.2], "rot": 330},
-    {"model": "bush", "pos": [-5.5, 0, -23.7], "rot": 135},
-    {"model": "bush", "pos": [19.2, 0, -35.8], "rot": 15},
-    {"model": "bush", "pos": [7.6, 0, -39.6], "rot": 0},
-    {"model": "bush", "pos": [-14.4, 0, -68.2], "rot": 285},
-    {"model": "bush", "pos": [-19.3, 0, -22.7], "rot": 300},
-    {"solid": false, "model": "grass", "pos": [-17.0, 0, -66.5], "rot": 0},
-    {"solid": false, "model": "grass", "pos": [-7.6, 0, -62.9], "rot": 285},
-    {"solid": false, "model": "grass", "pos": [-17.1, 0, -46.4], "rot": 315},
-    {"solid": false, "model": "grass", "pos": [-5.3, 0, -67.7], "rot": 180},
-    {"solid": false, "model": "grass", "pos": [17.4, 0, -31.7], "rot": 180},
-    {"solid": false, "model": "grass", "pos": [-14.8, 0, -19.9], "rot": 270},
-    {"solid": false, "model": "grass", "pos": [-6.3, 0, -65.6], "rot": 0},
-    {"solid": false, "model": "grass", "pos": [-1.1, 0, -66.0], "rot": 285},
-    {"solid": false, "model": "grass", "pos": [14.3, 0, -20.9], "rot": 30},
-    {"solid": false, "model": "grass", "pos": [-18.8, 0, -44.0], "rot": 30},
-    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-11.4, 0, -58.6], "rot": 90},
-    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [16.8, 0, -59.1], "rot": 270},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-10.7, 0, -79.5], "rot": 90},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-33.1, 0, -107.8], "rot": 195},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [34.6, 0, -82.1], "rot": 180},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-27.9, 0, -94.0], "rot": 300},
-    {"model": "bush", "pos": [1.4, 0, -87.1], "rot": 300},
-    {"model": "bush", "pos": [15.6, 0, -81.4], "rot": 270},
-    {"model": "bush", "pos": [9.0, 0, -99.1], "rot": 0},
-    {"model": "bush", "pos": [23.7, 0, -100.5], "rot": 300},
-    {"model": "bush", "pos": [7.7, 0, -86.9], "rot": 60},
-    {"model": "bush", "pos": [-15.8, 0, -98.0], "rot": 180},
-    {"outline": true, "model": "box", "pos": [32.0, 0, -94.2], "rot": 150},
-    {"outline": true, "model": "box", "pos": [-20.6, 0, -79.4], "rot": 120},
-    {"outline": true, "model": "box", "pos": [34.6, 0, -76.8], "rot": 330},
-    {"outline": true, "model": "box", "pos": [2.7, 0, -83.1], "rot": 0},
-    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-10.9, 0, -107.2], "rot": 180},
-    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-4.3, 0, -91.3], "rot": 270},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-67.8, 0, -124.2], "rot": 345},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-68.9, 0, -103.1], "rot": 240},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-87.2, 0, -92.7], "rot": 315},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-72.9, 0, -54.4], "rot": 330},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-77.6, 0, -46.0], "rot": 210},
-    {"model": "bush", "pos": [-67.2, 0, -96.7], "rot": 135},
-    {"model": "bush", "pos": [-67.1, 0, -137.4], "rot": 315},
-    {"model": "bush", "pos": [-83.1, 0, -93.3], "rot": 180},
-    {"model": "bush", "pos": [-81.6, 0, -73.1], "rot": 285},
-    {"model": "bush", "pos": [-73.9, 0, -93.7], "rot": 90},
-    {"model": "bush", "pos": [-69.4, 0, -90.0], "rot": 135},
-    {"solid": false, "model": "grass", "pos": [-69.3, 0, -49.2], "rot": 225},
-    {"solid": false, "model": "grass", "pos": [-76.5, 0, -88.7], "rot": 225},
-    {"solid": false, "model": "grass", "pos": [-76.9, 0, -85.5], "rot": 60},
-    {"solid": false, "model": "grass", "pos": [-87.4, 0, -49.1], "rot": 150},
-    {"solid": false, "model": "grass", "pos": [-76.6, 0, -105.9], "rot": 195},
-    {"solid": false, "model": "grass", "pos": [-77.2, 0, -76.9], "rot": 225},
-    {"solid": false, "model": "grass", "pos": [-78.9, 0, -50.3], "rot": 240},
-    {"solid": false, "model": "grass", "pos": [-67.7, 0, -119.1], "rot": 150},
-    {"outline": true, "model": "box", "pos": [-87.2, 0, -130.4], "rot": 0},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [78.0, 0, -113.8], "rot": 240},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [67.4, 0, -84.0], "rot": 195},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [59.4, 0, -72.9], "rot": 0},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [59.9, 0, -95.0], "rot": 180},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [64.0, 0, -126.2], "rot": 300},
-    {"model": "bush", "pos": [69.2, 0, -93.1], "rot": 90},
-    {"model": "bush", "pos": [76.2, 0, -82.2], "rot": 90},
-    {"model": "bush", "pos": [72.9, 0, -60.9], "rot": 90},
-    {"model": "bush", "pos": [63.4, 0, -71.9], "rot": 45},
-    {"model": "bush", "pos": [81.9, 0, -55.7], "rot": 60},
-    {"model": "bush", "pos": [66.1, 0, -114.5], "rot": 105},
-    {"solid": false, "model": "grass", "pos": [60.2, 0, -137.2], "rot": 300},
-    {"solid": false, "model": "grass", "pos": [68.4, 0, -102.5], "rot": 150},
-    {"solid": false, "model": "grass", "pos": [86.1, 0, -91.7], "rot": 240},
-    {"solid": false, "model": "grass", "pos": [78.6, 0, -125.9], "rot": 315},
-    {"solid": false, "model": "grass", "pos": [76.1, 0, -66.1], "rot": 90},
-    {"solid": false, "model": "grass", "pos": [59.1, 0, -89.0], "rot": 30},
-    {"solid": false, "model": "grass", "pos": [67.4, 0, -63.9], "rot": 225},
-    {"solid": false, "model": "grass", "pos": [67.6, 0, -75.5], "rot": 45},
-    {"outline": true, "model": "box", "pos": [61.1, 0, -117.7], "rot": 315},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-49.3, 0, -144.6], "rot": 90},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [46.6, 0, -135.8], "rot": 75},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [25.6, 0, -138.8], "rot": 195},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-7.7, 0, -134.7], "rot": 210},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-58.5, 0, -130.6], "rot": 165},
-    {"model": "bush", "pos": [22.8, 0, -137.1], "rot": 285},
-    {"model": "bush", "pos": [-38.1, 0, -142.4], "rot": 90},
-    {"model": "bush", "pos": [-2.6, 0, -145.7], "rot": 240},
-    {"model": "bush", "pos": [40.0, 0, -128.4], "rot": 270},
-    {"model": "bush", "pos": [18.9, 0, -127.1], "rot": 150},
-    {"model": "bush", "pos": [10.5, 0, -137.1], "rot": 120},
-    {"solid": false, "model": "grass", "pos": [-28.7, 0, -143.4], "rot": 285},
-    {"solid": false, "model": "grass", "pos": [23.2, 0, -142.5], "rot": 15},
-    {"solid": false, "model": "grass", "pos": [44.6, 0, -143.1], "rot": 105},
-    {"solid": false, "model": "grass", "pos": [-23.1, 0, -134.1], "rot": 120},
-    {"solid": false, "model": "grass", "pos": [-18.6, 0, -136.5], "rot": 315},
-    {"solid": false, "model": "grass", "pos": [-39.3, 0, -128.5], "rot": 135},
-    {"solid": false, "model": "grass", "pos": [-26.2, 0, -143.8], "rot": 150},
-    {"solid": false, "model": "grass", "pos": [39.5, 0, -124.2], "rot": 90},
-    {"outline": true, "model": "box", "pos": [8.9, 0, -129.7], "rot": 120},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [70.2, 0, -17.8], "rot": 45},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [80.4, 0, -11.5], "rot": 300},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [56.3, 0, -28.6], "rot": 210},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [64.8, 0, -25.0], "rot": 300},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [72.7, 0, -2.8], "rot": 30},
-    {"model": "bush", "pos": [73.6, 0, -10.6], "rot": 135},
-    {"model": "bush", "pos": [86.6, 0, -23.0], "rot": 315},
-    {"model": "bush", "pos": [87.0, 0, -2.4], "rot": 330},
-    {"model": "bush", "pos": [73.3, 0, -13.8], "rot": 345},
-    {"model": "bush", "pos": [66.0, 0, -16.7], "rot": 135},
-    {"model": "bush", "pos": [71.5, 0, -28.1], "rot": 0},
-    {"solid": false, "model": "grass", "pos": [57.4, 0, -33.1], "rot": 345},
-    {"solid": false, "model": "grass", "pos": [80.1, 0, -22.8], "rot": 210},
-    {"solid": false, "model": "grass", "pos": [84.7, 0, -7.1], "rot": 60},
-    {"solid": false, "model": "grass", "pos": [57.6, 0, 3.5], "rot": 105},
-    {"solid": false, "model": "grass", "pos": [86.2, 0, -36.8], "rot": 285},
-    {"solid": false, "model": "grass", "pos": [85.0, 0, -21.1], "rot": 330},
-    {"solid": false, "model": "grass", "pos": [71.3, 0, 2.8], "rot": 45},
-    {"solid": false, "model": "grass", "pos": [63.8, 0, -17.0], "rot": 15},
-    {"outline": true, "model": "box", "pos": [70.2, 0, -10.6], "rot": 210}
+    {"colliders": [{"size": [0.9, 0.06, 0.9], "offset": [0, 0.72, 0]}, {"size": [0.5, 0.72, 0.5], "offset": [0, 0.36, 0]}], "model": "cafe_table", "pos": [-23, 0, 17.5]},
+    {"colliders": [{"size": [0.9, 0.06, 0.9], "offset": [0, 0.72, 0]}, {"size": [0.5, 0.72, 0.5], "offset": [0, 0.36, 0]}], "model": "cafe_table", "pos": [-19, 0, 20.5]},
+    {"colliders": [{"size": [0.9, 0.06, 0.9], "offset": [0, 0.72, 0]}, {"size": [0.5, 0.72, 0.5], "offset": [0, 0.36, 0]}], "model": "cafe_table", "pos": [-24.5, 0, 21.3]},
+    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [-22.3, 0, 18.2]},
+    {"colliders": [{"size": [0.1, 2.2, 0.1], "offset": [0, 1.1, 0]}], "model": "umbrella", "pos": [-18.3, 0, 21.2]},
+    {"outline": true, "colliders": [{"size": [0.42, 0.45, 0.42], "offset": [0, 0.24, 0]}], "model": "chair", "pos": [-23, 0, 16.7], "rot": 180},
+    {"outline": true, "colliders": [{"size": [0.42, 0.45, 0.42], "offset": [0, 0.24, 0]}], "model": "chair", "pos": [-19, 0, 19.7], "rot": 180},
+    {"outline": true, "colliders": [{"size": [0.42, 0.45, 0.42], "offset": [0, 0.24, 0]}], "model": "chair", "pos": [-24.5, 0, 20.5], "rot": 180},
+    {"model": "lamp", "pos": [-26.3, 0, 15.7], "rot": 0},
+    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-63.5, 0, 20.2], "rot": 180},
+    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [51.4, 0, 16.7], "rot": 270},
+    {"colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}], "model": "bin", "pos": [-35.9, 0, -16.1], "rot": 195},
+    {"colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}], "model": "bin", "pos": [-61.6, 0, -14.3], "rot": 225},
+    {"colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}], "model": "bin", "pos": [-61.3, 0, -24.8], "rot": 60},
+    {"outline": true, "model": "box", "pos": [-26.2, 0, -9.8], "rot": 195},
+    {"outline": true, "model": "box", "pos": [-47.5, 0, -22.9], "rot": 150},
+    {"outline": true, "model": "box", "pos": [-39.9, 0, -18.0], "rot": 210},
+    {"outline": true, "model": "box", "pos": [-49.9, 0, -17.3], "rot": 330},
+    {"outline": true, "model": "box", "pos": [-47.6, 0, -19.4], "rot": 60},
+    {"outline": true, "model": "box", "pos": [-25.6, 0, -17.6], "rot": 135},
+    {"model": "bush", "pos": [40.8, 0, -20.8], "rot": 150},
+    {"model": "bush", "pos": [40.5, 0, -30.1], "rot": 60},
+    {"model": "bush", "pos": [24.8, 0, -23.7], "rot": 45},
+    {"model": "bush", "pos": [46.2, 0, -24.6], "rot": 240},
+    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [29.5, 0, -23.5], "rot": 180},
+    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [33.0, 0, -28.1], "rot": 180},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-19.8, 0, -63.3], "rot": 315},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-0.9, 0, -60.8], "rot": 180},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-12.6, 0, -39.2], "rot": 330},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-4.5, 0, -52.9], "rot": 120},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [6.0, 0, -67.0], "rot": 180},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [5.8, 0, -57.1], "rot": 240},
+    {"model": "bush", "pos": [12.7, 0, -66.3], "rot": 30},
+    {"model": "bush", "pos": [13.4, 0, -54.6], "rot": 135},
+    {"model": "bush", "pos": [19.9, 0, -29.9], "rot": 15},
+    {"model": "bush", "pos": [-14.4, 0, -45.0], "rot": 90},
+    {"model": "bush", "pos": [19.2, 0, -18.6], "rot": 300},
+    {"model": "bush", "pos": [-7.0, 0, -61.5], "rot": 300},
+    {"solid": false, "model": "grass", "pos": [-15.9, 0, -30.7], "rot": 30},
+    {"solid": false, "model": "grass", "pos": [1.0, 0, -21.9], "rot": 15},
+    {"solid": false, "model": "grass", "pos": [4.0, 0, -49.7], "rot": 165},
+    {"solid": false, "model": "grass", "pos": [-8.7, 0, -23.8], "rot": 315},
+    {"solid": false, "model": "grass", "pos": [12.5, 0, -41.3], "rot": 135},
+    {"solid": false, "model": "grass", "pos": [-12.1, 0, -50.6], "rot": 120},
+    {"solid": false, "model": "grass", "pos": [-20.0, 0, -32.5], "rot": 165},
+    {"solid": false, "model": "grass", "pos": [8.7, 0, -51.2], "rot": 30},
+    {"solid": false, "model": "grass", "pos": [9.0, 0, -68.9], "rot": 285},
+    {"solid": false, "model": "grass", "pos": [3.8, 0, -32.2], "rot": 255},
+    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [10.5, 0, -47.1], "rot": 0},
+    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [17.7, 0, -41.4], "rot": 270},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-17.3, 0, -82.3], "rot": 225},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [15.0, 0, -103.0], "rot": 270},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [1.9, 0, -103.6], "rot": 315},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-15.3, 0, -100.8], "rot": 270},
+    {"model": "bush", "pos": [17.2, 0, -89.9], "rot": 75},
+    {"model": "bush", "pos": [7.2, 0, -78.1], "rot": 90},
+    {"model": "bush", "pos": [15.6, 0, -81.2], "rot": 45},
+    {"model": "bush", "pos": [-0.2, 0, -80.5], "rot": 315},
+    {"model": "bush", "pos": [-26.6, 0, -103.1], "rot": 225},
+    {"model": "bush", "pos": [25.1, 0, -87.7], "rot": 165},
+    {"outline": true, "model": "box", "pos": [5.5, 0, -92.1], "rot": 90},
+    {"outline": true, "model": "box", "pos": [-30.5, 0, -78.3], "rot": 150},
+    {"outline": true, "model": "box", "pos": [12.7, 0, -99.6], "rot": 105},
+    {"outline": true, "model": "box", "pos": [16.6, 0, -94.8], "rot": 225},
+    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [23.1, 0, -82.0], "rot": 180},
+    {"outline": true, "colliders": [{"size": [1.5, 0.1, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-15.4, 0, -93.4], "rot": 90},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-69.0, 0, -129.7], "rot": 45},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-75.2, 0, -88.3], "rot": 75},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-69.7, 0, -137.8], "rot": 330},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-75.7, 0, -119.3], "rot": 120},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-69.4, 0, -60.1], "rot": 135},
+    {"model": "bush", "pos": [-82.0, 0, -116.0], "rot": 330},
+    {"model": "bush", "pos": [-73.7, 0, -134.1], "rot": 300},
+    {"model": "bush", "pos": [-76.2, 0, -85.2], "rot": 330},
+    {"model": "bush", "pos": [-79.7, 0, -51.7], "rot": 255},
+    {"model": "bush", "pos": [-72.9, 0, -103.7], "rot": 105},
+    {"model": "bush", "pos": [-71.5, 0, -111.3], "rot": 75},
+    {"solid": false, "model": "grass", "pos": [-72.6, 0, -74.2], "rot": 315},
+    {"solid": false, "model": "grass", "pos": [-67.8, 0, -115.0], "rot": 285},
+    {"solid": false, "model": "grass", "pos": [-75.1, 0, -69.2], "rot": 60},
+    {"solid": false, "model": "grass", "pos": [-75.1, 0, -47.0], "rot": 165},
+    {"solid": false, "model": "grass", "pos": [-67.2, 0, -56.7], "rot": 210},
+    {"solid": false, "model": "grass", "pos": [-79.0, 0, -132.0], "rot": 270},
+    {"solid": false, "model": "grass", "pos": [-69.7, 0, -90.9], "rot": 285},
+    {"solid": false, "model": "grass", "pos": [-74.5, 0, -97.1], "rot": 120},
+    {"outline": true, "model": "box", "pos": [-81.6, 0, -137.6], "rot": 285},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [58.8, 0, -123.6], "rot": 30},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [70.5, 0, -76.8], "rot": 195},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [65.8, 0, -116.9], "rot": 195},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [68.3, 0, -128.1], "rot": 150},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [65.0, 0, -55.6], "rot": 30},
+    {"model": "bush", "pos": [63.7, 0, -141.3], "rot": 60},
+    {"model": "bush", "pos": [74.2, 0, -135.3], "rot": 240},
+    {"model": "bush", "pos": [60.4, 0, -87.3], "rot": 285},
+    {"model": "bush", "pos": [80.8, 0, -59.1], "rot": 75},
+    {"model": "bush", "pos": [59.4, 0, -116.3], "rot": 75},
+    {"model": "bush", "pos": [68.7, 0, -131.3], "rot": 345},
+    {"solid": false, "model": "grass", "pos": [57.8, 0, -108.2], "rot": 255},
+    {"solid": false, "model": "grass", "pos": [74.1, 0, -103.6], "rot": 15},
+    {"solid": false, "model": "grass", "pos": [81.6, 0, -116.9], "rot": 225},
+    {"solid": false, "model": "grass", "pos": [66.6, 0, -135.7], "rot": 90},
+    {"solid": false, "model": "grass", "pos": [80.8, 0, -139.1], "rot": 180},
+    {"solid": false, "model": "grass", "pos": [76.9, 0, -59.4], "rot": 300},
+    {"solid": false, "model": "grass", "pos": [79.9, 0, -79.1], "rot": 225},
+    {"solid": false, "model": "grass", "pos": [77.2, 0, -134.9], "rot": 285},
+    {"outline": true, "model": "box", "pos": [59.5, 0, -135.3], "rot": 15},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-34.0, 0, -135.9], "rot": 180},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-41.7, 0, -131.5], "rot": 0},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-35.0, 0, -124.5], "rot": 255},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-42.0, 0, -125.3], "rot": 75},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [5.6, 0, -130.9], "rot": 165},
+    {"model": "bush", "pos": [-53.4, 0, -138.8], "rot": 105},
+    {"model": "bush", "pos": [27.7, 0, -129.6], "rot": 0},
+    {"model": "bush", "pos": [-45.9, 0, -135.6], "rot": 60},
+    {"model": "bush", "pos": [18.3, 0, -132.9], "rot": 60},
+    {"model": "bush", "pos": [48.8, 0, -126.1], "rot": 255},
+    {"model": "bush", "pos": [43.7, 0, -133.5], "rot": 330},
+    {"solid": false, "model": "grass", "pos": [-16.6, 0, -139.2], "rot": 135},
+    {"solid": false, "model": "grass", "pos": [44.6, 0, -140.2], "rot": 0},
+    {"solid": false, "model": "grass", "pos": [34.9, 0, -139.6], "rot": 30},
+    {"solid": false, "model": "grass", "pos": [-29.1, 0, -141.7], "rot": 195},
+    {"solid": false, "model": "grass", "pos": [42.5, 0, -135.2], "rot": 270},
+    {"solid": false, "model": "grass", "pos": [-34.3, 0, -141.6], "rot": 255},
+    {"solid": false, "model": "grass", "pos": [-13.1, 0, -139.6], "rot": 45},
+    {"solid": false, "model": "grass", "pos": [-23.1, 0, -138.8], "rot": 150},
+    {"outline": true, "model": "box", "pos": [15.3, 0, -125.7], "rot": 270},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [75.3, 0, -25.0], "rot": 255},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [69.1, 0, -21.6], "rot": 285},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [61.9, 0, -33.9], "rot": 180},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [65.8, 0, -4.5], "rot": 135},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [78.4, 0, -4.6], "rot": 105},
+    {"model": "bush", "pos": [59.5, 0, -20.5], "rot": 300},
+    {"model": "bush", "pos": [62.2, 0, -16.4], "rot": 45},
+    {"model": "bush", "pos": [81.8, 0, -16.5], "rot": 345},
+    {"model": "bush", "pos": [59.1, 0, -9.5], "rot": 75},
+    {"model": "bush", "pos": [75.0, 0, -16.8], "rot": 255},
+    {"model": "bush", "pos": [60.9, 0, -28.3], "rot": 150},
+    {"solid": false, "model": "grass", "pos": [72.6, 0, -20.0], "rot": 300},
+    {"solid": false, "model": "grass", "pos": [79.4, 0, -6.7], "rot": 45},
+    {"solid": false, "model": "grass", "pos": [58.6, 0, -39.7], "rot": 270},
+    {"solid": false, "model": "grass", "pos": [75.0, 0, -9.5], "rot": 75},
+    {"solid": false, "model": "grass", "pos": [61.7, 0, -31.8], "rot": 105},
+    {"solid": false, "model": "grass", "pos": [81.4, 0, -3.5], "rot": 75},
+    {"solid": false, "model": "grass", "pos": [75.8, 0, -19.6], "rot": 180},
+    {"solid": false, "model": "grass", "pos": [79.4, 0, 3.7], "rot": 210},
+    {"outline": true, "model": "box", "pos": [63.7, 0, -20.4], "rot": 120},
+    {"model": "tree_pine", "pos": [1.0, 0, -68.6], "rot": 30, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [-9.8, 0, -66.8], "rot": 150, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [-17.1, 0, -24.3], "rot": 165, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [10.5, 0, -33.3], "rot": 180, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "bush_flowers", "pos": [18.9, 0, -24.3], "rot": 285},
+    {"model": "bush_flowers", "pos": [-1.3, 0, -35.7], "rot": 60},
+    {"model": "bush_flowers", "pos": [16.6, 0, -45.9], "rot": 135},
+    {"model": "bush_flowers", "pos": [2.0, 0, -43.5], "rot": 60},
+    {"model": "bush_flowers", "pos": [35.3, 0, -101.6], "rot": 90},
+    {"model": "bush_flowers", "pos": [24.7, 0, -101.1], "rot": 240},
+    {"model": "bush_flowers", "pos": [-18.3, 0, -94.2], "rot": 270},
+    {"model": "bush_flowers", "pos": [9.3, 0, -104.8], "rot": 120},
+    {"model": "tree_pine", "pos": [-80.7, 0, -75.6], "rot": 90, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [-66.2, 0, -84.6], "rot": 210, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [-66.9, 0, -103.3], "rot": 345, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [65.3, 0, -102.4], "rot": 120, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [63.0, 0, -68.9], "rot": 15, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [74.2, 0, -125.7], "rot": 150, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [-20.3, 0, -125.7], "rot": 345, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [-52.7, 0, -130.8], "rot": 135, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [-9.1, 0, -134.4], "rot": 15, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [81.6, 0, -33.1], "rot": 75, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [66.8, 0, -27.0], "rot": 75, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [68.3, 0, -35.7], "rot": 45, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]}
   ],
   "hideouts": [
     {"kind": "box", "pos": [-2, 0.2, -0.35], "size": [0.6, 0.4, 0.6]},
@@ -20444,25 +24781,25 @@ if __name__ == "__main__":
     {"kind": "car", "pos": [-8, 0.15, 7], "rot": 15, "size": [1.4, 0.3, 3.2]},
     {"kind": "bench", "pos": [0, 0.2, 7], "size": [1.3, 0.4, 0.4]},
     {"kind": "bench", "pos": [-5, 0.2, -8], "rot": 90, "size": [1.3, 0.4, 0.4]},
-    {"kind": "bench", "pos": [-50.7, 0.2, 24.5], "rot": 0, "size": [1.3, 0.4, 0.4]},
-    {"kind": "bench", "pos": [60.2, 0.2, 25.7], "rot": 0, "size": [1.3, 0.4, 0.4]},
-    {"kind": "box", "pos": [-51.2, 0.2, -23.75], "size": [0.6, 0.4, 0.6]},
-    {"kind": "box", "pos": [-31.7, 0.2, -23.25], "size": [0.6, 0.4, 0.6]},
-    {"kind": "box", "pos": [-54.9, 0.2, -15.25], "size": [0.6, 0.4, 0.6]},
-    {"kind": "bench", "pos": [37.3, 0.2, -32.4], "rot": 270, "size": [1.3, 0.4, 0.4]},
-    {"kind": "bench", "pos": [43.2, 0.2, -29.4], "rot": 270, "size": [1.3, 0.4, 0.4]},
-    {"kind": "bench", "pos": [-11.4, 0.2, -58.6], "rot": 90, "size": [1.3, 0.4, 0.4]},
-    {"kind": "bench", "pos": [16.8, 0.2, -59.1], "rot": 270, "size": [1.3, 0.4, 0.4]},
-    {"kind": "box", "pos": [32.0, 0.2, -93.55], "size": [0.6, 0.4, 0.6]},
-    {"kind": "box", "pos": [-20.6, 0.2, -78.75], "size": [0.6, 0.4, 0.6]},
-    {"kind": "box", "pos": [34.6, 0.2, -76.15], "size": [0.6, 0.4, 0.6]},
-    {"kind": "box", "pos": [2.7, 0.2, -82.45], "size": [0.6, 0.4, 0.6]},
-    {"kind": "bench", "pos": [-10.9, 0.2, -107.2], "rot": 180, "size": [1.3, 0.4, 0.4]},
-    {"kind": "bench", "pos": [-4.3, 0.2, -91.3], "rot": 270, "size": [1.3, 0.4, 0.4]},
-    {"kind": "box", "pos": [-87.2, 0.2, -129.75], "size": [0.6, 0.4, 0.6]},
-    {"kind": "box", "pos": [61.1, 0.2, -117.05], "size": [0.6, 0.4, 0.6]},
-    {"kind": "box", "pos": [8.9, 0.2, -129.05], "size": [0.6, 0.4, 0.6]},
-    {"kind": "box", "pos": [70.2, 0.2, -9.95], "size": [0.6, 0.4, 0.6]}
+    {"kind": "bench", "pos": [-63.5, 0.2, 20.2], "rot": 180, "size": [1.3, 0.4, 0.4]},
+    {"kind": "bench", "pos": [51.4, 0.2, 16.7], "rot": 270, "size": [1.3, 0.4, 0.4]},
+    {"kind": "box", "pos": [-49.9, 0.2, -16.65], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [-47.6, 0.2, -18.75], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [-25.6, 0.2, -16.95], "size": [0.6, 0.4, 0.6]},
+    {"kind": "bench", "pos": [29.5, 0.2, -23.5], "rot": 180, "size": [1.3, 0.4, 0.4]},
+    {"kind": "bench", "pos": [33.0, 0.2, -28.1], "rot": 180, "size": [1.3, 0.4, 0.4]},
+    {"kind": "bench", "pos": [10.5, 0.2, -47.1], "rot": 0, "size": [1.3, 0.4, 0.4]},
+    {"kind": "bench", "pos": [17.7, 0.2, -41.4], "rot": 270, "size": [1.3, 0.4, 0.4]},
+    {"kind": "box", "pos": [5.5, 0.2, -91.45], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [-30.5, 0.2, -77.65], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [12.7, 0.2, -98.95], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [16.6, 0.2, -94.15], "size": [0.6, 0.4, 0.6]},
+    {"kind": "bench", "pos": [23.1, 0.2, -82.0], "rot": 180, "size": [1.3, 0.4, 0.4]},
+    {"kind": "bench", "pos": [-15.4, 0.2, -93.4], "rot": 90, "size": [1.3, 0.4, 0.4]},
+    {"kind": "box", "pos": [-81.6, 0.2, -136.95], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [59.5, 0.2, -134.65], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [15.3, 0.2, -125.05], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [63.7, 0.2, -19.75], "size": [0.6, 0.4, 0.6]}
   ],
   "spawn_points": [
     {"pos": [3.5, 0, -10], "allowed": [0], "foods": ["sausage", "cookie"]},
@@ -20485,50 +24822,50 @@ if __name__ == "__main__":
     {"pos": [-35.6, 2.28, -28.4], "allowed": [2, 3], "foods": ["croissant", "fish", "donut", "ice_cream"]},
     {"pos": [-35.6, 2.28, -37.6], "allowed": [2, 3], "foods": ["croissant", "fish", "donut", "ice_cream"]},
     {"pos": [-58.0, 2.28, -37.6], "allowed": [2, 3], "foods": ["croissant", "fish", "donut", "ice_cream"]},
-    {"pos": [-25, 1.0, -110.95], "allowed": [1, 2], "foods": ["pizza", "hotdog", "croissant", "fish"]},
-    {"pos": [0, 1.0, -110.95], "allowed": [1, 2], "foods": ["pizza", "hotdog", "croissant", "fish"]},
-    {"pos": [25, 1.0, -110.95], "allowed": [1, 2], "foods": ["pizza", "hotdog", "croissant", "fish"]},
-    {"pos": [-23, 0.75, 18], "allowed": [2], "foods": ["croissant", "fish"]},
-    {"pos": [-19, 0.75, 22], "allowed": [3], "foods": ["donut", "ice_cream"]},
-    {"pos": [-23, 0.75, 23], "allowed": [1], "foods": ["pizza", "hotdog"]},
-    {"pos": [-54.3, 0, 6.8], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
-    {"pos": [-21.3, 0, 6.3], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
-    {"pos": [51.5, 0, 6.9], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
-    {"pos": [28.9, 0, 6.6], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
-    {"pos": [-50.9, 0, -8.0], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
-    {"pos": [-22.2, 0, -10.9], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
-    {"pos": [-33.7, 0, -20.3], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
-    {"pos": [-52.8, 0, -20.8], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
-    {"pos": [-46.5, 0, -8.8], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
-    {"pos": [-28.1, 0, -26.0], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
-    {"pos": [28.9, 0, -16.1], "allowed": [0, 1, 2], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish"]},
-    {"pos": [39.7, 0, -25.3], "allowed": [0, 1, 2], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish"]},
-    {"pos": [25.1, 0, -34.8], "allowed": [0, 1, 2], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish"]},
-    {"pos": [35.5, 0, -37.8], "allowed": [0, 1, 2], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish"]},
-    {"pos": [39.9, 0, -19.7], "allowed": [0, 1, 2], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish"]},
-    {"pos": [29.4, 0, -24.0], "allowed": [0, 1, 2], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish"]},
-    {"pos": [7.8, 0, -46.2], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
-    {"pos": [-1.5, 0, -41.9], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
-    {"pos": [-15.5, 0, -29.4], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
-    {"pos": [15.9, 0, -50.9], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
-    {"pos": [-14.3, 0, -38.2], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
-    {"pos": [0.7, 0, -30.8], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
-    {"pos": [-3.3, 0, -109.2], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
-    {"pos": [-25.9, 0, -108.4], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
-    {"pos": [9.3, 0, -94.8], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
-    {"pos": [22.1, 0, -77.4], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
-    {"pos": [13.3, 0, -103.2], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
-    {"pos": [-1.8, 0, -103.9], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
-    {"pos": [-35.2, 0, -93.9], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
-    {"pos": [14.2, 0, -92.3], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
-    {"pos": [-85.6, 0, -104.0], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
-    {"pos": [-87.4, 0, -120.0], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
-    {"pos": [75.6, 0, -55.5], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
-    {"pos": [71.4, 0, -127.0], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
-    {"pos": [-0.3, 0, -137.4], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
-    {"pos": [52.0, 0, -131.9], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
-    {"pos": [76.0, 0, -19.9], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
-    {"pos": [62.5, 0, -37.7], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]}
+    {"pos": [-25, 1.0, -106.95], "allowed": [1, 2], "foods": ["pizza", "hotdog", "croissant", "fish"]},
+    {"pos": [0, 1.0, -106.95], "allowed": [1, 2], "foods": ["pizza", "hotdog", "croissant", "fish"]},
+    {"pos": [25, 1.0, -106.95], "allowed": [1, 2], "foods": ["pizza", "hotdog", "croissant", "fish"]},
+    {"pos": [-23, 0.75, 17.5], "allowed": [2], "foods": ["croissant", "fish"]},
+    {"pos": [-19, 0.75, 20.5], "allowed": [3], "foods": ["donut", "ice_cream"]},
+    {"pos": [-24.5, 0.75, 21.3], "allowed": [1], "foods": ["pizza", "hotdog"]},
+    {"pos": [-79.5, 0, 7.4], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [-56.3, 0, 7.9], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [67.2, 0, 4.2], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [43.1, 0, 4.2], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [-31.3, 0, -8.2], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [-28.9, 0, -16.2], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [-46.2, 0, -12.9], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [-34.4, 0, -11.6], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [-39.5, 0, -24.0], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [-50.3, 0, -21.6], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [36.9, 0, -32.8], "allowed": [0, 1, 2], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish"]},
+    {"pos": [39.5, 0, -34.3], "allowed": [0, 1, 2], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish"]},
+    {"pos": [47.3, 0, -33.0], "allowed": [0, 1, 2], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish"]},
+    {"pos": [24.9, 0, -16.7], "allowed": [0, 1, 2], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish"]},
+    {"pos": [35.5, 0, -23.9], "allowed": [0, 1, 2], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish"]},
+    {"pos": [45.1, 0, -16.9], "allowed": [0, 1, 2], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish"]},
+    {"pos": [-9.8, 0, -36.7], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [6.9, 0, -47.0], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [-6.0, 0, -27.5], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [0.6, 0, -29.2], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [-2.8, 0, -42.0], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [-16.0, 0, -67.3], "allowed": [0, 1], "foods": ["sausage", "cookie", "pizza", "hotdog"]},
+    {"pos": [30.6, 0, -81.0], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [-23.0, 0, -84.3], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [10.9, 0, -81.3], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [3.2, 0, -79.7], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [-29.2, 0, -101.0], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [5.2, 0, -101.7], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [17.0, 0, -99.5], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [-4.5, 0, -79.0], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [-79.2, 0, -94.5], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [-77.2, 0, -111.9], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [75.1, 0, -47.7], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [74.4, 0, -65.6], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [11.7, 0, -125.8], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [-7.6, 0, -125.1], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [75.9, 0, -33.1], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [78.6, 0, -39.6], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]}
   ],
   "yarn": [
     {"pos": [-11.3, 1.0, -9.3]},
@@ -20559,30 +24896,30 @@ if __name__ == "__main__":
     {"pos": [-51.6, 2.28, -36.0]},
     {"pos": [-54.8, 2.28, -36.0]},
     {"pos": [-58.0, 2.28, -36.0]},
-    {"pos": [-24.6, 0.5, -113.0]},
-    {"pos": [0.4, 0.5, -113.0]},
-    {"pos": [25.4, 0.5, -113.0]},
-    {"pos": [-53.6, 0, -9.6]},
-    {"pos": [-43.2, 0, -8.4]},
-    {"pos": [-46.1, 0, -24.7]},
-    {"pos": [24.4, 0, -29.9]},
-    {"pos": [40.2, 0, -35.2]},
-    {"pos": [27.5, 0, -29.5]},
-    {"pos": [40.3, 0, -31.2]},
-    {"pos": [-0.1, 0, -57.4]},
-    {"pos": [-3.8, 0, -57.0]},
-    {"pos": [5.4, 0, -28.2]},
-    {"pos": [10.2, 0, -59.6]},
-    {"pos": [-7.7, 0, -83.1]},
-    {"pos": [29.2, 0, -107.0]},
-    {"pos": [31.1, 0, -85.4]},
-    {"pos": [9.0, 0, -79.1]},
-    {"pos": [-8.9, 0, -90.7]},
-    {"pos": [27.3, 0, -82.9]},
-    {"pos": [-72.6, 0, -48.3]},
-    {"pos": [59.7, 0, -128.8]},
-    {"pos": [49.8, 0, -145.5]},
-    {"pos": [72.9, 0, -34.5]}
+    {"pos": [-24.6, 0.5, -109.0]},
+    {"pos": [0.4, 0.5, -109.0]},
+    {"pos": [25.4, 0.5, -109.0]},
+    {"pos": [-57.0, 0, -10.7]},
+    {"pos": [-53.0, 0, -14.5]},
+    {"pos": [-23.3, 0, -21.4]},
+    {"pos": [47.0, 0, -28.7]},
+    {"pos": [42.6, 0, -37.5]},
+    {"pos": [43.6, 0, -28.3]},
+    {"pos": [24.8, 0, -28.4]},
+    {"pos": [6.4, 0, -37.6]},
+    {"pos": [0.0, 0, -56.0]},
+    {"pos": [-9.7, 0, -53.0]},
+    {"pos": [19.2, 0, -62.7]},
+    {"pos": [26.5, 0, -104.8]},
+    {"pos": [-25.9, 0, -78.2]},
+    {"pos": [6.8, 0, -87.5]},
+    {"pos": [-35.9, 0, -90.6]},
+    {"pos": [-10.3, 0, -102.8]},
+    {"pos": [-4.4, 0, -97.8]},
+    {"pos": [-78.7, 0, -69.7]},
+    {"pos": [56.8, 0, -82.6]},
+    {"pos": [24.9, 0, -132.0]},
+    {"pos": [72.7, 0, -5.6]}
   ],
   "hazards": [
     {"type": "dog", "pos": [7, 0, -7], "rot": 90},
@@ -20613,6 +24950,3648 @@ if __name__ == "__main__":
   "shore": [
   ],
   "floaters": [
+  ],
+  "decor": [
+    {"model": "decor_grass", "pos": [-1.9, 0, -40.89], "rot": 290, "scale": 0.97},
+    {"model": "decor_grass", "pos": [14.2, 0, -60.13], "rot": 320, "scale": 0.99},
+    {"model": "decor_grass", "pos": [4.56, 0, -60.32], "rot": 280, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-16.37, 0, -27.9], "rot": 20, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-4.15, 0, -46.44], "rot": 100, "scale": 1.07},
+    {"model": "decor_grass", "pos": [13.27, 0, -66.72], "rot": 20, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-10.32, 0, -68.44], "rot": 290, "scale": 0.9},
+    {"model": "decor_grass", "pos": [3.64, 0, -59.84], "rot": 140, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-0.01, 0, -35.55], "rot": 290, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-3.73, 0, -41.33], "rot": 50, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-7.39, 0, -58.06], "rot": 180, "scale": 0.72},
+    {"model": "decor_grass", "pos": [2.53, 0, -64.39], "rot": 60, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-4.54, 0, -20.18], "rot": 0, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-4.98, 0, -33.14], "rot": 260, "scale": 0.74},
+    {"model": "decor_grass", "pos": [5.18, 0, -29.52], "rot": 170, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-7.55, 0, -69.21], "rot": 260, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-15.28, 0, -57.19], "rot": 60, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-1.4, 0, -44.69], "rot": 350, "scale": 0.81},
+    {"model": "decor_grass", "pos": [10.78, 0, -48.2], "rot": 240, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-3.17, 0, -58.93], "rot": 170, "scale": 1.22},
+    {"model": "decor_grass", "pos": [18.99, 0, -39.18], "rot": 10, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-4.23, 0, -25.57], "rot": 60, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-14.15, 0, -47.04], "rot": 0, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-6.84, 0, -54.59], "rot": 40, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-11.65, 0, -36.9], "rot": 0, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-5.13, 0, -46.43], "rot": 300, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-14.57, 0, -49.92], "rot": 90, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-10.86, 0, -38.26], "rot": 120, "scale": 0.8},
+    {"model": "decor_grass", "pos": [5.16, 0, -41.2], "rot": 240, "scale": 1.23},
+    {"model": "decor_grass", "pos": [4.14, 0, -48.08], "rot": 60, "scale": 0.77},
+    {"model": "decor_grass", "pos": [0.49, 0, -56.73], "rot": 250, "scale": 0.85},
+    {"model": "decor_grass", "pos": [12.95, 0, -38.98], "rot": 180, "scale": 1.01},
+    {"model": "decor_grass", "pos": [17.17, 0, -19.19], "rot": 80, "scale": 0.84},
+    {"model": "decor_grass", "pos": [2.37, 0, -25.68], "rot": 40, "scale": 0.87},
+    {"model": "decor_grass", "pos": [16.69, 0, -59.39], "rot": 10, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-3.54, 0, -57.05], "rot": 20, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-5.25, 0, -40.25], "rot": 80, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-14.46, 0, -46.58], "rot": 210, "scale": 1.09},
+    {"model": "decor_grass", "pos": [7.65, 0, -39.61], "rot": 80, "scale": 1.05},
+    {"model": "decor_grass", "pos": [16.94, 0, -45.31], "rot": 220, "scale": 1.12},
+    {"model": "decor_grass", "pos": [5.45, 0, -44.92], "rot": 190, "scale": 0.89},
+    {"model": "decor_grass", "pos": [19.97, 0, -66.09], "rot": 340, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-18.22, 0, -21.32], "rot": 80, "scale": 1.18},
+    {"model": "decor_grass", "pos": [16.6, 0, -51.7], "rot": 300, "scale": 1.24},
+    {"model": "decor_grass", "pos": [14.84, 0, -48.31], "rot": 10, "scale": 1.22},
+    {"model": "decor_grass", "pos": [2.91, 0, -37.5], "rot": 240, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-19.5, 0, -66.24], "rot": 50, "scale": 1.08},
+    {"model": "decor_grass", "pos": [19.73, 0, -24.25], "rot": 210, "scale": 0.93},
+    {"model": "decor_grass", "pos": [9.4, 0, -39.79], "rot": 280, "scale": 0.98},
+    {"model": "decor_grass", "pos": [1.65, 0, -43.03], "rot": 320, "scale": 0.72},
+    {"model": "decor_grass", "pos": [4.05, 0, -44.99], "rot": 140, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-15.48, 0, -29.44], "rot": 310, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-19.55, 0, -54.35], "rot": 120, "scale": 1.01},
+    {"model": "decor_grass", "pos": [10.15, 0, -52.19], "rot": 280, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-10.34, 0, -48.95], "rot": 160, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-2.76, 0, -28.09], "rot": 120, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-4.62, 0, -39.68], "rot": 200, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-14.62, 0, -51.76], "rot": 20, "scale": 1.13},
+    {"model": "decor_grass", "pos": [18.0, 0, -55.61], "rot": 100, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-1.15, 0, -21.86], "rot": 260, "scale": 0.93},
+    {"model": "decor_grass", "pos": [0.8, 0, -35.05], "rot": 280, "scale": 0.89},
+    {"model": "decor_grass", "pos": [13.15, 0, -55.54], "rot": 20, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-8.76, 0, -51.58], "rot": 10, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-3.79, 0, -60.12], "rot": 170, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-14.37, 0, -67.56], "rot": 70, "scale": 0.97},
+    {"model": "decor_grass", "pos": [5.2, 0, -35.94], "rot": 230, "scale": 1.28},
+    {"model": "decor_grass", "pos": [7.38, 0, -59.63], "rot": 300, "scale": 0.85},
+    {"model": "decor_grass", "pos": [8.57, 0, -30.74], "rot": 340, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-12.84, 0, -55.84], "rot": 220, "scale": 1.02},
+    {"model": "decor_grass", "pos": [17.87, 0, -43.98], "rot": 100, "scale": 0.94},
+    {"model": "decor_grass", "pos": [11.68, 0, -22.88], "rot": 50, "scale": 0.95},
+    {"model": "decor_grass", "pos": [15.71, 0, -49.83], "rot": 280, "scale": 0.97},
+    {"model": "decor_grass", "pos": [5.02, 0, -22.68], "rot": 240, "scale": 1.03},
+    {"model": "decor_grass", "pos": [6.11, 0, -43.86], "rot": 210, "scale": 0.98},
+    {"model": "decor_grass", "pos": [6.05, 0, -59.35], "rot": 70, "scale": 0.83},
+    {"model": "decor_grass", "pos": [16.0, 0, -19.01], "rot": 190, "scale": 1.02},
+    {"model": "decor_grass", "pos": [11.63, 0, -53.34], "rot": 10, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-16.69, 0, -47.07], "rot": 350, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-8.99, 0, -22.17], "rot": 130, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-17.44, 0, -28.41], "rot": 110, "scale": 1.02},
+    {"model": "decor_grass", "pos": [7.46, 0, -22.37], "rot": 300, "scale": 0.79},
+    {"model": "decor_grass", "pos": [0.66, 0, -32.37], "rot": 280, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-0.3, 0, -20.64], "rot": 50, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-2.42, 0, -40.94], "rot": 350, "scale": 1.08},
+    {"model": "decor_grass", "pos": [0.91, 0, -26.13], "rot": 350, "scale": 0.85},
+    {"model": "decor_grass", "pos": [6.85, 0, -20.35], "rot": 130, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-14.35, 0, -41.67], "rot": 170, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-11.96, 0, -42.13], "rot": 320, "scale": 0.7},
+    {"model": "decor_grass", "pos": [-4.92, 0, -42.01], "rot": 20, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-3.98, 0, -28.34], "rot": 70, "scale": 0.99},
+    {"model": "decor_grass", "pos": [7.64, 0, -66.57], "rot": 340, "scale": 0.98},
+    {"model": "decor_grass", "pos": [16.83, 0, -28.38], "rot": 250, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-1.07, 0, -63.4], "rot": 270, "scale": 1.24},
+    {"model": "decor_grass", "pos": [17.43, 0, -22.16], "rot": 330, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-12.34, 0, -37.87], "rot": 160, "scale": 0.78},
+    {"model": "decor_grass", "pos": [11.17, 0, -68.82], "rot": 120, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-19.53, 0, -55.23], "rot": 220, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-0.05, 0, -44.02], "rot": 70, "scale": 1.21},
+    {"model": "decor_grass", "pos": [4.94, 0, -32.68], "rot": 330, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-19.07, 0, -37.08], "rot": 330, "scale": 1.07},
+    {"model": "decor_grass", "pos": [1.53, 0, -25.08], "rot": 340, "scale": 1.08},
+    {"model": "decor_grass", "pos": [1.18, 0, -25.73], "rot": 80, "scale": 0.84},
+    {"model": "decor_grass", "pos": [9.63, 0, -27.85], "rot": 110, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-7.4, 0, -22.02], "rot": 130, "scale": 1.17},
+    {"model": "decor_grass", "pos": [15.56, 0, -63.11], "rot": 50, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-16.12, 0, -26.73], "rot": 260, "scale": 1.03},
+    {"model": "decor_grass", "pos": [8.19, 0, -59.57], "rot": 10, "scale": 0.76},
+    {"model": "decor_grass", "pos": [2.8, 0, -51.41], "rot": 230, "scale": 0.77},
+    {"model": "decor_grass", "pos": [0.23, 0, -30.58], "rot": 320, "scale": 1.3},
+    {"model": "decor_grass", "pos": [13.32, 0, -28.25], "rot": 300, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-18.5, 0, -41.31], "rot": 320, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-0.75, 0, -60.14], "rot": 70, "scale": 0.82},
+    {"model": "decor_grass", "pos": [13.61, 0, -18.5], "rot": 60, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-14.62, 0, -34.59], "rot": 40, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-6.93, 0, -45.72], "rot": 320, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-11.6, 0, -50.6], "rot": 20, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-12.75, 0, -46.39], "rot": 230, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-12.19, 0, -61.42], "rot": 320, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-7.05, 0, -65.59], "rot": 250, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-12.36, 0, -39.6], "rot": 210, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-9.67, 0, -22.61], "rot": 100, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-3.77, 0, -23.38], "rot": 340, "scale": 1.12},
+    {"model": "decor_grass", "pos": [10.69, 0, -30.21], "rot": 250, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-12.61, 0, -28.54], "rot": 190, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-19.58, 0, -51.51], "rot": 30, "scale": 0.84},
+    {"model": "decor_grass", "pos": [17.79, 0, -35.36], "rot": 210, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-3.75, 0, -60.54], "rot": 40, "scale": 0.93},
+    {"model": "decor_grass", "pos": [20.0, 0, -36.6], "rot": 70, "scale": 1.16},
+    {"model": "decor_grass", "pos": [4.62, 0, -31.58], "rot": 160, "scale": 0.97},
+    {"model": "decor_grass", "pos": [5.92, 0, -69.44], "rot": 160, "scale": 0.85},
+    {"model": "decor_grass", "pos": [16.23, 0, -41.4], "rot": 320, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-16.01, 0, -46.89], "rot": 40, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-4.54, 0, -21.19], "rot": 240, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-13.24, 0, -44.23], "rot": 30, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-0.22, 0, -55.21], "rot": 250, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-5.38, 0, -55.14], "rot": 170, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-8.66, 0, -32.74], "rot": 180, "scale": 0.72},
+    {"model": "decor_grass", "pos": [10.9, 0, -39.54], "rot": 100, "scale": 0.95},
+    {"model": "decor_grass", "pos": [7.37, 0, -67.25], "rot": 200, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-17.99, 0, -18.58], "rot": 200, "scale": 0.74},
+    {"model": "decor_grass", "pos": [16.22, 0, -47.67], "rot": 300, "scale": 0.85},
+    {"model": "decor_grass", "pos": [10.22, 0, -67.64], "rot": 60, "scale": 1.26},
+    {"model": "decor_grass", "pos": [8.91, 0, -45.65], "rot": 150, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-15.4, 0, -37.54], "rot": 290, "scale": 0.77},
+    {"model": "decor_grass", "pos": [14.45, 0, -51.45], "rot": 90, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-2.29, 0, -35.27], "rot": 290, "scale": 1.06},
+    {"model": "decor_grass", "pos": [5.58, 0, -34.54], "rot": 230, "scale": 1.17},
+    {"model": "decor_grass", "pos": [18.11, 0, -31.82], "rot": 150, "scale": 0.99},
+    {"model": "decor_grass", "pos": [0.12, 0, -53.95], "rot": 320, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-5.63, 0, -55.88], "rot": 120, "scale": 1.08},
+    {"model": "decor_grass", "pos": [10.13, 0, -60.13], "rot": 150, "scale": 1.0},
+    {"model": "decor_grass", "pos": [6.12, 0, -59.81], "rot": 20, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-19.62, 0, -56.51], "rot": 10, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-15.9, 0, -41.83], "rot": 40, "scale": 1.15},
+    {"model": "decor_grass", "pos": [16.52, 0, -61.64], "rot": 150, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-5.07, 0, -45.12], "rot": 130, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-0.22, 0, -63.07], "rot": 40, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-2.11, 0, -27.25], "rot": 130, "scale": 0.97},
+    {"model": "decor_grass", "pos": [9.89, 0, -49.71], "rot": 90, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-6.98, 0, -41.47], "rot": 110, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-5.23, 0, -64.96], "rot": 200, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-16.68, 0, -40.66], "rot": 310, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-1.46, 0, -27.18], "rot": 0, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-11.47, 0, -35.57], "rot": 50, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-0.21, 0, -30.26], "rot": 200, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-14.28, 0, -51.39], "rot": 200, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-15.3, 0, -33.12], "rot": 170, "scale": 0.96},
+    {"model": "decor_grass", "pos": [12.12, 0, -54.15], "rot": 200, "scale": 0.83},
+    {"model": "decor_grass", "pos": [18.71, 0, -32.05], "rot": 330, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-5.53, 0, -50.99], "rot": 230, "scale": 1.11},
+    {"model": "decor_grass", "pos": [3.39, 0, -28.6], "rot": 230, "scale": 1.18},
+    {"model": "decor_grass", "pos": [1.62, 0, -26.51], "rot": 110, "scale": 0.81},
+    {"model": "decor_grass", "pos": [10.36, 0, -24.19], "rot": 180, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-13.65, 0, -54.61], "rot": 10, "scale": 1.09},
+    {"model": "decor_grass", "pos": [12.17, 0, -66.67], "rot": 340, "scale": 0.88},
+    {"model": "decor_grass", "pos": [1.82, 0, -52.6], "rot": 170, "scale": 1.14},
+    {"model": "decor_grass", "pos": [15.96, 0, -65.6], "rot": 90, "scale": 0.76},
+    {"model": "decor_grass", "pos": [12.65, 0, -48.05], "rot": 140, "scale": 0.99},
+    {"model": "decor_grass", "pos": [16.31, 0, -52.42], "rot": 290, "scale": 0.94},
+    {"model": "decor_grass", "pos": [6.9, 0, -44.33], "rot": 340, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-17.1, 0, -37.86], "rot": 20, "scale": 0.95},
+    {"model": "decor_grass", "pos": [13.05, 0, -35.33], "rot": 0, "scale": 1.18},
+    {"model": "decor_grass", "pos": [13.35, 0, -23.79], "rot": 340, "scale": 1.08},
+    {"model": "decor_grass", "pos": [0.95, 0, -33.08], "rot": 70, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-3.18, 0, -62.4], "rot": 100, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-4.98, 0, -61.28], "rot": 130, "scale": 0.93},
+    {"model": "decor_grass", "pos": [1.16, 0, -55.75], "rot": 30, "scale": 0.98},
+    {"model": "decor_grass", "pos": [9.23, 0, -54.22], "rot": 90, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-1.65, 0, -39.63], "rot": 20, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-12.1, 0, -51.32], "rot": 150, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-1.12, 0, -43.55], "rot": 280, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-8.76, 0, -61.03], "rot": 190, "scale": 1.08},
+    {"model": "decor_grass", "pos": [17.68, 0, -41.38], "rot": 160, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-3.9, 0, -20.3], "rot": 350, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-16.3, 0, -25.15], "rot": 250, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-4.6, 0, -42.57], "rot": 330, "scale": 1.16},
+    {"model": "decor_grass", "pos": [11.51, 0, -66.99], "rot": 150, "scale": 1.24},
+    {"model": "decor_grass", "pos": [14.96, 0, -22.93], "rot": 280, "scale": 1.18},
+    {"model": "decor_grass", "pos": [8.53, 0, -38.48], "rot": 100, "scale": 0.95},
+    {"model": "decor_grass", "pos": [10.88, 0, -62.47], "rot": 330, "scale": 0.78},
+    {"model": "decor_grass", "pos": [9.67, 0, -37.79], "rot": 330, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-13.97, 0, -29.94], "rot": 0, "scale": 0.82},
+    {"model": "decor_grass", "pos": [16.65, 0, -62.25], "rot": 80, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-9.2, 0, -32.74], "rot": 60, "scale": 1.23},
+    {"model": "decor_grass", "pos": [7.75, 0, -65.69], "rot": 340, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-7.86, 0, -28.96], "rot": 260, "scale": 0.82},
+    {"model": "decor_grass", "pos": [7.29, 0, -29.37], "rot": 280, "scale": 0.83},
+    {"model": "decor_grass", "pos": [1.73, 0, -42.67], "rot": 100, "scale": 1.27},
+    {"model": "decor_grass", "pos": [18.56, 0, -53.56], "rot": 250, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-7.77, 0, -45.7], "rot": 40, "scale": 0.92},
+    {"model": "decor_grass", "pos": [7.48, 0, -64.5], "rot": 250, "scale": 1.11},
+    {"model": "decor_grass", "pos": [9.87, 0, -29.21], "rot": 70, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-19.51, 0, -50.39], "rot": 300, "scale": 0.84},
+    {"model": "decor_grass", "pos": [2.56, 0, -46.18], "rot": 0, "scale": 1.21},
+    {"model": "decor_grass", "pos": [13.78, 0, -32.6], "rot": 90, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-8.07, 0, -52.46], "rot": 250, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-16.52, 0, -60.19], "rot": 240, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-6.82, 0, -20.86], "rot": 300, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-6.73, 0, -27.0], "rot": 50, "scale": 0.76},
+    {"model": "decor_grass", "pos": [4.87, 0, -63.17], "rot": 110, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-3.91, 0, -26.48], "rot": 50, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-18.71, 0, -18.65], "rot": 270, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-17.09, 0, -22.13], "rot": 270, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-14.44, 0, -59.32], "rot": 90, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-4.56, 0, -52.77], "rot": 260, "scale": 1.07},
+    {"model": "decor_grass", "pos": [9.08, 0, -38.12], "rot": 200, "scale": 1.29},
+    {"model": "decor_grass", "pos": [11.59, 0, -35.67], "rot": 330, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-6.76, 0, -52.2], "rot": 280, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-4.9, 0, -43.51], "rot": 180, "scale": 1.2},
+    {"model": "decor_grass", "pos": [4.46, 0, -61.77], "rot": 340, "scale": 1.24},
+    {"model": "decor_grass", "pos": [1.93, 0, -51.67], "rot": 320, "scale": 1.01},
+    {"model": "decor_grass", "pos": [2.97, 0, -59.7], "rot": 330, "scale": 1.3},
+    {"model": "decor_grass", "pos": [8.27, 0, -21.33], "rot": 10, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-10.22, 0, -40.02], "rot": 210, "scale": 0.9},
+    {"model": "decor_grass", "pos": [17.16, 0, -51.22], "rot": 290, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-1.91, 0, -32.05], "rot": 150, "scale": 1.24},
+    {"model": "decor_grass", "pos": [1.74, 0, -40.84], "rot": 350, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-13.26, 0, -31.22], "rot": 210, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-15.09, 0, -27.12], "rot": 180, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-5.45, 0, -30.57], "rot": 230, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-12.58, 0, -41.51], "rot": 40, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-3.86, 0, -29.3], "rot": 80, "scale": 0.88},
+    {"model": "decor_grass", "pos": [6.85, 0, -31.64], "rot": 240, "scale": 1.07},
+    {"model": "decor_grass", "pos": [5.61, 0, -30.31], "rot": 100, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-1.28, 0, -62.56], "rot": 240, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-3.77, 0, -52.52], "rot": 80, "scale": 0.86},
+    {"model": "decor_grass", "pos": [2.72, 0, -52.73], "rot": 20, "scale": 1.13},
+    {"model": "decor_grass", "pos": [11.5, 0, -49.03], "rot": 310, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-1.2, 0, -48.61], "rot": 260, "scale": 1.15},
+    {"model": "decor_grass", "pos": [13.53, 0, -25.54], "rot": 260, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-15.31, 0, -64.04], "rot": 330, "scale": 0.9},
+    {"model": "decor_grass", "pos": [0.83, 0, -48.14], "rot": 10, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-17.81, 0, -32.27], "rot": 270, "scale": 1.14},
+    {"model": "decor_grass", "pos": [3.9, 0, -30.9], "rot": 190, "scale": 1.23},
+    {"model": "decor_grass", "pos": [15.08, 0, -57.29], "rot": 280, "scale": 0.85},
+    {"model": "decor_grass", "pos": [14.92, 0, -19.43], "rot": 300, "scale": 1.12},
+    {"model": "decor_grass", "pos": [1.05, 0, -57.56], "rot": 190, "scale": 1.09},
+    {"model": "decor_grass", "pos": [17.61, 0, -24.25], "rot": 230, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-3.14, 0, -28.13], "rot": 140, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-3.14, 0, -63.62], "rot": 40, "scale": 0.76},
+    {"model": "decor_grass", "pos": [11.69, 0, -63.56], "rot": 340, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-1.87, 0, -54.6], "rot": 190, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-13.12, 0, -47.08], "rot": 280, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-4.11, 0, -51.46], "rot": 140, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-18.75, 0, -23.28], "rot": 190, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-14.27, 0, -29.61], "rot": 300, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-11.89, 0, -25.33], "rot": 30, "scale": 0.82},
+    {"model": "decor_grass", "pos": [13.52, 0, -51.58], "rot": 300, "scale": 0.71},
+    {"model": "decor_grass", "pos": [5.42, 0, -33.71], "rot": 350, "scale": 0.82},
+    {"model": "decor_grass", "pos": [5.3, 0, -60.04], "rot": 30, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-7.76, 0, -27.48], "rot": 170, "scale": 1.22},
+    {"model": "decor_grass", "pos": [8.53, 0, -62.99], "rot": 280, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-13.22, 0, -25.2], "rot": 70, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-12.14, 0, -60.59], "rot": 150, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-8.18, 0, -55.79], "rot": 330, "scale": 1.23},
+    {"model": "decor_grass", "pos": [3.6, 0, -58.09], "rot": 190, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-12.78, 0, -58.25], "rot": 80, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-16.4, 0, -18.88], "rot": 280, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-17.05, 0, -22.82], "rot": 0, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-8.62, 0, -56.95], "rot": 50, "scale": 0.8},
+    {"model": "decor_grass", "pos": [19.53, 0, -60.14], "rot": 110, "scale": 0.87},
+    {"model": "decor_grass", "pos": [1.92, 0, -60.31], "rot": 90, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-18.66, 0, -46.0], "rot": 240, "scale": 0.7},
+    {"model": "decor_grass", "pos": [15.66, 0, -66.87], "rot": 40, "scale": 1.03},
+    {"model": "decor_grass", "pos": [5.8, 0, -51.3], "rot": 300, "scale": 1.17},
+    {"model": "decor_grass", "pos": [0.67, 0, -43.71], "rot": 330, "scale": 1.15},
+    {"model": "decor_grass", "pos": [1.27, 0, -39.12], "rot": 100, "scale": 0.77},
+    {"model": "decor_grass", "pos": [1.91, 0, -56.68], "rot": 150, "scale": 0.86},
+    {"model": "decor_grass", "pos": [1.77, 0, -25.66], "rot": 310, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-11.9, 0, -19.53], "rot": 30, "scale": 1.04},
+    {"model": "decor_grass", "pos": [14.92, 0, -60.64], "rot": 90, "scale": 1.06},
+    {"model": "decor_grass", "pos": [4.34, 0, -28.08], "rot": 320, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-9.48, 0, -28.48], "rot": 40, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-12.87, 0, -36.73], "rot": 150, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-17.84, 0, -47.88], "rot": 200, "scale": 1.19},
+    {"model": "decor_grass", "pos": [9.54, 0, -29.4], "rot": 310, "scale": 0.75},
+    {"model": "decor_grass", "pos": [12.82, 0, -61.08], "rot": 160, "scale": 0.85},
+    {"model": "decor_grass", "pos": [3.84, 0, -46.36], "rot": 200, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-5.42, 0, -58.75], "rot": 20, "scale": 0.78},
+    {"model": "decor_grass", "pos": [10.22, 0, -38.76], "rot": 80, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-1.79, 0, -31.26], "rot": 20, "scale": 0.7},
+    {"model": "decor_grass", "pos": [-3.61, 0, -42.67], "rot": 50, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-8.08, 0, -47.93], "rot": 40, "scale": 1.28},
+    {"model": "decor_grass", "pos": [7.19, 0, -32.71], "rot": 140, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-15.25, 0, -25.52], "rot": 260, "scale": 0.98},
+    {"model": "decor_grass", "pos": [4.44, 0, -67.94], "rot": 250, "scale": 1.05},
+    {"model": "decor_grass", "pos": [19.79, 0, -31.65], "rot": 110, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-4.28, 0, -26.16], "rot": 240, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-18.03, 0, -48.24], "rot": 150, "scale": 0.81},
+    {"model": "decor_grass", "pos": [1.98, 0, -61.48], "rot": 130, "scale": 0.94},
+    {"model": "decor_grass", "pos": [3.76, 0, -30.5], "rot": 300, "scale": 0.97},
+    {"model": "decor_grass", "pos": [19.73, 0, -34.68], "rot": 310, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-4.68, 0, -66.22], "rot": 170, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-9.02, 0, -69.03], "rot": 110, "scale": 1.14},
+    {"model": "decor_grass", "pos": [0.49, 0, -40.5], "rot": 130, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-5.56, 0, -62.02], "rot": 230, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-10.36, 0, -26.35], "rot": 70, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-7.12, 0, -50.01], "rot": 50, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-4.75, 0, -56.67], "rot": 330, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-7.91, 0, -38.39], "rot": 310, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-13.97, 0, -39.04], "rot": 20, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-3.57, 0, -45.11], "rot": 80, "scale": 1.01},
+    {"model": "decor_grass", "pos": [1.93, 0, -53.68], "rot": 280, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-3.79, 0, -49.9], "rot": 220, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-8.32, 0, -52.06], "rot": 130, "scale": 0.78},
+    {"model": "decor_grass", "pos": [13.93, 0, -31.15], "rot": 300, "scale": 1.04},
+    {"model": "decor_grass", "pos": [12.35, 0, -19.27], "rot": 190, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-17.32, 0, -25.65], "rot": 350, "scale": 1.11},
+    {"model": "decor_grass", "pos": [14.73, 0, -57.8], "rot": 160, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-2.89, 0, -49.59], "rot": 30, "scale": 0.99},
+    {"model": "decor_grass", "pos": [17.23, 0, -55.2], "rot": 170, "scale": 0.83},
+    {"model": "decor_grass", "pos": [10.73, 0, -51.76], "rot": 150, "scale": 1.01},
+    {"model": "decor_grass", "pos": [9.71, 0, -22.81], "rot": 90, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-9.72, 0, -25.65], "rot": 190, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-19.08, 0, -49.65], "rot": 230, "scale": 1.25},
+    {"model": "decor_grass", "pos": [16.5, 0, -55.86], "rot": 240, "scale": 1.0},
+    {"model": "decor_grass", "pos": [3.44, 0, -45.62], "rot": 200, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-17.11, 0, -68.16], "rot": 200, "scale": 1.24},
+    {"model": "decor_grass", "pos": [2.63, 0, -56.38], "rot": 110, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-4.62, 0, -52.25], "rot": 230, "scale": 0.72},
+    {"model": "decor_grass", "pos": [8.29, 0, -58.74], "rot": 40, "scale": 1.08},
+    {"model": "decor_grass", "pos": [4.83, 0, -48.63], "rot": 260, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-17.27, 0, -45.87], "rot": 280, "scale": 0.93},
+    {"model": "decor_grass", "pos": [16.38, 0, -68.02], "rot": 80, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-9.09, 0, -44.26], "rot": 300, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-14.01, 0, -59.99], "rot": 140, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-11.2, 0, -42.93], "rot": 340, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-19.86, 0, -41.56], "rot": 350, "scale": 0.75},
+    {"model": "decor_grass", "pos": [12.94, 0, -24.02], "rot": 210, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-15.84, 0, -68.99], "rot": 130, "scale": 1.12},
+    {"model": "decor_grass", "pos": [12.98, 0, -61.71], "rot": 310, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-8.25, 0, -48.43], "rot": 230, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-10.03, 0, -53.1], "rot": 110, "scale": 1.25},
+    {"model": "decor_grass", "pos": [9.5, 0, -24.37], "rot": 40, "scale": 1.19},
+    {"model": "decor_grass", "pos": [15.42, 0, -53.87], "rot": 280, "scale": 1.01},
+    {"model": "decor_grass", "pos": [7.17, 0, -67.9], "rot": 260, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-17.86, 0, -56.8], "rot": 320, "scale": 1.14},
+    {"model": "decor_grass", "pos": [7.75, 0, -56.85], "rot": 160, "scale": 0.92},
+    {"model": "decor_grass", "pos": [7.31, 0, -60.45], "rot": 130, "scale": 1.21},
+    {"model": "decor_grass", "pos": [13.14, 0, -40.49], "rot": 260, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-14.98, 0, -31.51], "rot": 170, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-14.99, 0, -50.4], "rot": 180, "scale": 0.84},
+    {"model": "decor_grass", "pos": [3.42, 0, -21.07], "rot": 80, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-9.16, 0, -56.9], "rot": 250, "scale": 0.93},
+    {"model": "decor_grass", "pos": [7.17, 0, -62.78], "rot": 100, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-15.26, 0, -67.8], "rot": 180, "scale": 0.91},
+    {"model": "decor_grass", "pos": [1.54, 0, -28.31], "rot": 250, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-18.94, 0, -41.79], "rot": 300, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-17.3, 0, -47.18], "rot": 180, "scale": 0.83},
+    {"model": "decor_grass", "pos": [8.87, 0, -48.77], "rot": 90, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-4.43, 0, -33.91], "rot": 340, "scale": 0.87},
+    {"model": "decor_grass", "pos": [14.67, 0, -47.0], "rot": 60, "scale": 1.03},
+    {"model": "decor_grass", "pos": [15.87, 0, -24.21], "rot": 270, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-7.05, 0, -69.0], "rot": 90, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-3.99, 0, -53.25], "rot": 50, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-5.37, 0, -56.5], "rot": 30, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-19.71, 0, -30.45], "rot": 50, "scale": 0.7},
+    {"model": "decor_grass", "pos": [-6.55, 0, -62.73], "rot": 120, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-3.66, 0, -68.33], "rot": 220, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-4.16, 0, -67.0], "rot": 350, "scale": 1.07},
+    {"model": "decor_grass", "pos": [13.09, 0, -56.87], "rot": 120, "scale": 1.26},
+    {"model": "decor_grass", "pos": [14.58, 0, -18.3], "rot": 280, "scale": 1.04},
+    {"model": "decor_grass", "pos": [14.29, 0, -20.88], "rot": 340, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-17.01, 0, -51.34], "rot": 350, "scale": 0.89},
+    {"model": "decor_grass", "pos": [0.57, 0, -69.46], "rot": 130, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-5.42, 0, -30.12], "rot": 160, "scale": 1.19},
+    {"model": "decor_grass", "pos": [11.69, 0, -31.76], "rot": 250, "scale": 0.88},
+    {"model": "decor_grass", "pos": [1.25, 0, -35.37], "rot": 60, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-0.72, 0, -26.32], "rot": 260, "scale": 0.85},
+    {"model": "decor_grass", "pos": [16.39, 0, -68.78], "rot": 90, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-4.46, 0, -50.8], "rot": 170, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-5.41, 0, -36.82], "rot": 220, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-17.33, 0, -36.03], "rot": 60, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-11.46, 0, -60.64], "rot": 30, "scale": 1.15},
+    {"model": "decor_grass", "pos": [1.85, 0, -34.63], "rot": 110, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-13.78, 0, -50.61], "rot": 110, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-19.62, 0, -43.87], "rot": 250, "scale": 0.76},
+    {"model": "decor_grass", "pos": [10.46, 0, -68.92], "rot": 110, "scale": 0.89},
+    {"model": "decor_grass", "pos": [10.17, 0, -64.37], "rot": 200, "scale": 0.96},
+    {"model": "decor_grass", "pos": [18.51, 0, -58.58], "rot": 260, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-17.2, 0, -49.71], "rot": 200, "scale": 1.23},
+    {"model": "decor_grass", "pos": [11.11, 0, -42.7], "rot": 0, "scale": 0.79},
+    {"model": "decor_grass", "pos": [5.39, 0, -50.34], "rot": 30, "scale": 0.83},
+    {"model": "decor_grass", "pos": [4.65, 0, -23.84], "rot": 270, "scale": 1.0},
+    {"model": "decor_grass", "pos": [2.71, 0, -64.06], "rot": 290, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-1.31, 0, -26.5], "rot": 320, "scale": 0.84},
+    {"model": "decor_grass", "pos": [4.03, 0, -40.22], "rot": 320, "scale": 1.25},
+    {"model": "decor_grass", "pos": [1.13, 0, -46.51], "rot": 180, "scale": 1.06},
+    {"model": "decor_grass", "pos": [3.78, 0, -21.56], "rot": 90, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-6.87, 0, -56.69], "rot": 200, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-1.24, 0, -41.31], "rot": 30, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-14.93, 0, -18.52], "rot": 310, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-12.52, 0, -21.96], "rot": 90, "scale": 1.2},
+    {"model": "decor_grass", "pos": [11.91, 0, -43.4], "rot": 160, "scale": 0.74},
+    {"model": "decor_grass", "pos": [14.8, 0, -32.99], "rot": 160, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-6.05, 0, -59.21], "rot": 0, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-12.16, 0, -55.46], "rot": 150, "scale": 0.74},
+    {"model": "decor_grass", "pos": [2.2, 0, -29.07], "rot": 310, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-17.11, 0, -44.17], "rot": 30, "scale": 1.16},
+    {"model": "decor_grass", "pos": [1.97, 0, -22.9], "rot": 90, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-12.86, 0, -52.65], "rot": 220, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-11.22, 0, -55.0], "rot": 260, "scale": 0.81},
+    {"model": "decor_grass", "pos": [4.68, 0, -23.11], "rot": 40, "scale": 0.75},
+    {"model": "decor_grass", "pos": [5.96, 0, -42.32], "rot": 200, "scale": 1.23},
+    {"model": "decor_grass", "pos": [9.11, 0, -59.75], "rot": 270, "scale": 0.93},
+    {"model": "decor_grass", "pos": [12.66, 0, -33.61], "rot": 170, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-11.66, 0, -59.1], "rot": 80, "scale": 0.8},
+    {"model": "decor_grass", "pos": [3.22, 0, -67.85], "rot": 170, "scale": 0.77},
+    {"model": "decor_grass", "pos": [17.64, 0, -38.28], "rot": 220, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-11.78, 0, -32.68], "rot": 190, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-9.37, 0, -50.52], "rot": 260, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-14.65, 0, -63.57], "rot": 60, "scale": 0.91},
+    {"model": "decor_grass", "pos": [8.14, 0, -57.78], "rot": 70, "scale": 0.87},
+    {"model": "decor_grass", "pos": [14.91, 0, -55.1], "rot": 50, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-1.8, 0, -21.45], "rot": 240, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-3.44, 0, -58.54], "rot": 40, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-6.67, 0, -39.62], "rot": 170, "scale": 0.88},
+    {"model": "decor_grass", "pos": [7.8, 0, -35.05], "rot": 150, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-5.01, 0, -39.15], "rot": 160, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-8.87, 0, -64.69], "rot": 60, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-16.02, 0, -23.38], "rot": 50, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-19.35, 0, -68.43], "rot": 220, "scale": 1.29},
+    {"model": "decor_grass", "pos": [12.63, 0, -24.6], "rot": 90, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-5.53, 0, -45.83], "rot": 200, "scale": 0.99},
+    {"model": "decor_grass", "pos": [6.08, 0, -66.83], "rot": 140, "scale": 1.29},
+    {"model": "decor_grass", "pos": [19.7, 0, -49.45], "rot": 140, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-3.95, 0, -35.88], "rot": 130, "scale": 1.01},
+    {"model": "decor_grass", "pos": [3.37, 0, -44.14], "rot": 90, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-16.16, 0, -28.68], "rot": 0, "scale": 0.8},
+    {"model": "decor_grass", "pos": [5.96, 0, -37.6], "rot": 160, "scale": 1.1},
+    {"model": "decor_grass", "pos": [18.8, 0, -45.36], "rot": 70, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-5.35, 0, -26.72], "rot": 10, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-3.48, 0, -40.82], "rot": 70, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-16.23, 0, -18.06], "rot": 70, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-10.49, 0, -35.54], "rot": 320, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-8.24, 0, -29.57], "rot": 150, "scale": 1.05},
+    {"model": "decor_grass", "pos": [3.55, 0, -61.15], "rot": 60, "scale": 0.98},
+    {"model": "decor_grass", "pos": [14.03, 0, -64.57], "rot": 320, "scale": 0.79},
+    {"model": "decor_grass", "pos": [18.81, 0, -42.7], "rot": 260, "scale": 1.07},
+    {"model": "decor_grass", "pos": [18.54, 0, -32.93], "rot": 70, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-19.57, 0, -62.01], "rot": 70, "scale": 1.14},
+    {"model": "decor_grass", "pos": [8.5, 0, -61.86], "rot": 330, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-3.8, 0, -44.34], "rot": 340, "scale": 1.09},
+    {"model": "decor_grass", "pos": [13.91, 0, -67.6], "rot": 260, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-11.41, 0, -42.09], "rot": 260, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-0.44, 0, -35.99], "rot": 350, "scale": 1.27},
+    {"model": "decor_grass", "pos": [2.72, 0, -43.95], "rot": 60, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-8.03, 0, -31.56], "rot": 160, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-16.62, 0, -28.83], "rot": 240, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-2.78, 0, -46.56], "rot": 30, "scale": 0.89},
+    {"model": "decor_grass", "pos": [1.24, 0, -61.51], "rot": 240, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-4.01, 0, -58.42], "rot": 60, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-18.7, 0, -51.3], "rot": 140, "scale": 1.01},
+    {"model": "decor_grass", "pos": [1.07, 0, -31.88], "rot": 230, "scale": 0.94},
+    {"model": "decor_grass", "pos": [3.73, 0, -20.04], "rot": 230, "scale": 1.28},
+    {"model": "decor_grass", "pos": [7.75, 0, -26.32], "rot": 130, "scale": 1.07},
+    {"model": "decor_grass", "pos": [3.58, 0, -53.61], "rot": 310, "scale": 0.77},
+    {"model": "decor_grass", "pos": [14.23, 0, -58.91], "rot": 170, "scale": 1.18},
+    {"model": "decor_grass", "pos": [17.75, 0, -36.35], "rot": 230, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-8.57, 0, -34.65], "rot": 50, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-10.99, 0, -56.98], "rot": 20, "scale": 0.89},
+    {"model": "decor_grass", "pos": [12.77, 0, -29.01], "rot": 180, "scale": 0.73},
+    {"model": "decor_grass", "pos": [17.09, 0, -36.79], "rot": 10, "scale": 1.07},
+    {"model": "decor_grass", "pos": [7.31, 0, -59.0], "rot": 340, "scale": 0.7},
+    {"model": "decor_grass", "pos": [9.48, 0, -48.25], "rot": 40, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-16.66, 0, -34.36], "rot": 80, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-2.09, 0, -47.28], "rot": 70, "scale": 0.97},
+    {"model": "decor_grass", "pos": [15.89, 0, -32.16], "rot": 70, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-5.76, 0, -26.75], "rot": 70, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-4.11, 0, -34.07], "rot": 350, "scale": 0.77},
+    {"model": "decor_grass", "pos": [14.72, 0, -64.96], "rot": 200, "scale": 1.02},
+    {"model": "decor_grass", "pos": [13.57, 0, -63.59], "rot": 170, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-18.74, 0, -47.54], "rot": 240, "scale": 0.82},
+    {"model": "decor_grass", "pos": [8.12, 0, -44.29], "rot": 270, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-4.48, 0, -29.51], "rot": 60, "scale": 1.03},
+    {"model": "decor_grass", "pos": [14.2, 0, -29.81], "rot": 200, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-6.15, 0, -61.48], "rot": 220, "scale": 0.93},
+    {"model": "decor_grass", "pos": [12.12, 0, -34.45], "rot": 280, "scale": 1.04},
+    {"model": "decor_grass", "pos": [3.35, 0, -45.02], "rot": 250, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-9.55, 0, -32.02], "rot": 20, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-17.43, 0, -27.11], "rot": 240, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-11.47, 0, -22.78], "rot": 40, "scale": 1.04},
+    {"model": "decor_grass", "pos": [19.03, 0, -22.7], "rot": 290, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-15.3, 0, -60.32], "rot": 60, "scale": 1.11},
+    {"model": "decor_grass", "pos": [0.02, 0, -62.19], "rot": 220, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-13.94, 0, -20.56], "rot": 220, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-16.09, 0, -29.23], "rot": 130, "scale": 1.29},
+    {"model": "decor_grass", "pos": [14.45, 0, -31.65], "rot": 220, "scale": 0.77},
+    {"model": "decor_grass", "pos": [15.98, 0, -21.96], "rot": 200, "scale": 0.92},
+    {"model": "decor_grass", "pos": [18.04, 0, -32.63], "rot": 180, "scale": 1.06},
+    {"model": "decor_grass", "pos": [13.23, 0, -18.94], "rot": 70, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-19.19, 0, -42.07], "rot": 160, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-8.54, 0, -40.84], "rot": 160, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-9.1, 0, -55.18], "rot": 170, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-13.91, 0, -49.74], "rot": 340, "scale": 1.21},
+    {"model": "decor_grass", "pos": [4.38, 0, -41.72], "rot": 100, "scale": 1.02},
+    {"model": "decor_grass", "pos": [6.4, 0, -22.2], "rot": 160, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-2.92, 0, -29.44], "rot": 340, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-1.89, 0, -50.74], "rot": 130, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-6.05, 0, -57.93], "rot": 350, "scale": 0.77},
+    {"model": "decor_grass", "pos": [17.62, 0, -35.83], "rot": 40, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-19.89, 0, -21.46], "rot": 70, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-5.3, 0, -51.61], "rot": 90, "scale": 0.74},
+    {"model": "decor_grass", "pos": [6.65, 0, -66.47], "rot": 10, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-14.28, 0, -23.1], "rot": 330, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-2.53, 0, -34.67], "rot": 50, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-5.83, 0, -44.05], "rot": 120, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-15.93, 0, -62.75], "rot": 120, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-0.52, 0, -41.01], "rot": 350, "scale": 0.75},
+    {"model": "decor_grass", "pos": [15.98, 0, -56.68], "rot": 140, "scale": 1.12},
+    {"model": "decor_grass", "pos": [17.56, 0, -19.25], "rot": 90, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-0.41, 0, -39.29], "rot": 200, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-16.54, 0, -43.0], "rot": 20, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-8.08, 0, -54.36], "rot": 10, "scale": 0.95},
+    {"model": "decor_grass", "pos": [4.19, 0, -25.98], "rot": 50, "scale": 0.7},
+    {"model": "decor_grass", "pos": [-6.13, 0, -69.22], "rot": 150, "scale": 0.86},
+    {"model": "decor_grass", "pos": [3.43, 0, -42.64], "rot": 210, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-5.92, 0, -36.12], "rot": 260, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-14.0, 0, -56.82], "rot": 300, "scale": 0.83},
+    {"model": "decor_grass", "pos": [16.75, 0, -60.39], "rot": 160, "scale": 1.06},
+    {"model": "decor_grass", "pos": [2.97, 0, -40.18], "rot": 10, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-10.71, 0, -54.32], "rot": 210, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-10.08, 0, -65.19], "rot": 320, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-11.29, 0, -48.45], "rot": 80, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-5.74, 0, -22.63], "rot": 240, "scale": 1.3},
+    {"model": "decor_grass", "pos": [-3.24, 0, -35.14], "rot": 140, "scale": 0.9},
+    {"model": "decor_grass", "pos": [11.62, 0, -50.27], "rot": 180, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-17.92, 0, -68.29], "rot": 40, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-13.66, 0, -66.48], "rot": 100, "scale": 1.23},
+    {"model": "decor_grass", "pos": [18.42, 0, -21.56], "rot": 210, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-14.55, 0, -28.21], "rot": 200, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-12.29, 0, -62.94], "rot": 150, "scale": 1.23},
+    {"model": "decor_grass", "pos": [9.06, 0, -20.64], "rot": 290, "scale": 0.92},
+    {"model": "decor_grass", "pos": [9.07, 0, -21.96], "rot": 90, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-17.13, 0, -60.39], "rot": 220, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-15.07, 0, -53.29], "rot": 70, "scale": 0.86},
+    {"model": "decor_grass", "pos": [0.88, 0, -27.56], "rot": 280, "scale": 1.16},
+    {"model": "decor_grass", "pos": [1.07, 0, -20.75], "rot": 50, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-19.34, 0, -22.07], "rot": 320, "scale": 0.81},
+    {"model": "decor_grass", "pos": [18.61, 0, -36.81], "rot": 60, "scale": 0.88},
+    {"model": "decor_grass", "pos": [11.71, 0, -19.43], "rot": 290, "scale": 0.91},
+    {"model": "decor_grass", "pos": [19.89, 0, -44.6], "rot": 20, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-19.02, 0, -30.34], "rot": 250, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-8.73, 0, -67.63], "rot": 250, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-11.21, 0, -28.44], "rot": 310, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-17.47, 0, -68.72], "rot": 210, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-7.83, 0, -67.84], "rot": 160, "scale": 1.21},
+    {"model": "decor_grass", "pos": [2.48, 0, -34.24], "rot": 160, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-7.32, 0, -51.46], "rot": 260, "scale": 0.96},
+    {"model": "decor_grass", "pos": [3.48, 0, -56.67], "rot": 310, "scale": 0.84},
+    {"model": "decor_grass", "pos": [17.43, 0, -25.65], "rot": 100, "scale": 0.98},
+    {"model": "decor_grass", "pos": [2.46, 0, -22.19], "rot": 100, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-7.46, 0, -41.14], "rot": 250, "scale": 0.79},
+    {"model": "decor_grass", "pos": [17.9, 0, -55.23], "rot": 60, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-19.87, 0, -45.07], "rot": 70, "scale": 1.0},
+    {"model": "decor_grass", "pos": [16.9, 0, -43.26], "rot": 240, "scale": 1.11},
+    {"model": "decor_grass", "pos": [6.51, 0, -49.15], "rot": 310, "scale": 1.04},
+    {"model": "decor_grass", "pos": [5.28, 0, -45.96], "rot": 50, "scale": 0.89},
+    {"model": "decor_grass", "pos": [5.57, 0, -66.79], "rot": 90, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-8.8, 0, -46.98], "rot": 50, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-17.98, 0, -39.67], "rot": 250, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-9.81, 0, -23.05], "rot": 320, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-5.88, 0, -66.97], "rot": 40, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-0.71, 0, -54.89], "rot": 320, "scale": 1.0},
+    {"model": "decor_grass", "pos": [17.05, 0, -36.38], "rot": 280, "scale": 1.18},
+    {"model": "decor_grass", "pos": [19.15, 0, -22.31], "rot": 150, "scale": 1.18},
+    {"model": "decor_grass", "pos": [8.47, 0, -27.9], "rot": 110, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-0.97, 0, -32.85], "rot": 20, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-19.09, 0, -43.39], "rot": 210, "scale": 0.98},
+    {"model": "decor_grass", "pos": [5.76, 0, -34.88], "rot": 250, "scale": 1.26},
+    {"model": "decor_grass", "pos": [6.69, 0, -64.31], "rot": 180, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-7.57, 0, -60.33], "rot": 160, "scale": 1.29},
+    {"model": "decor_grass", "pos": [9.07, 0, -66.95], "rot": 260, "scale": 1.16},
+    {"model": "decor_grass", "pos": [11.41, 0, -24.57], "rot": 160, "scale": 1.27},
+    {"model": "decor_grass", "pos": [5.56, 0, -44.42], "rot": 240, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-18.44, 0, -24.05], "rot": 310, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-10.85, 0, -36.01], "rot": 70, "scale": 1.12},
+    {"model": "decor_grass", "pos": [0.63, 0, -53.57], "rot": 170, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-18.92, 0, -56.12], "rot": 60, "scale": 0.9},
+    {"model": "decor_grass", "pos": [17.08, 0, -22.6], "rot": 180, "scale": 1.02},
+    {"model": "decor_flowers", "pos": [3.23, 0, -54.25], "rot": 290, "scale": 1.16},
+    {"model": "decor_flowers", "pos": [-6.67, 0, -55.48], "rot": 330, "scale": 1.3},
+    {"model": "decor_flowers", "pos": [-17.37, 0, -64.97], "rot": 340, "scale": 0.73},
+    {"model": "decor_flowers", "pos": [10.26, 0, -42.64], "rot": 180, "scale": 0.82},
+    {"model": "decor_flowers", "pos": [3.23, 0, -57.45], "rot": 200, "scale": 0.94},
+    {"model": "decor_flowers", "pos": [-6.41, 0, -20.15], "rot": 180, "scale": 1.02},
+    {"model": "decor_flowers", "pos": [17.96, 0, -36.74], "rot": 260, "scale": 0.83},
+    {"model": "decor_flowers", "pos": [16.8, 0, -28.94], "rot": 50, "scale": 0.77},
+    {"model": "decor_flowers", "pos": [-2.68, 0, -34.35], "rot": 350, "scale": 1.19},
+    {"model": "decor_flowers", "pos": [16.99, 0, -44.0], "rot": 160, "scale": 1.05},
+    {"model": "decor_flowers", "pos": [-3.21, 0, -69.36], "rot": 50, "scale": 0.81},
+    {"model": "decor_flowers", "pos": [10.64, 0, -67.04], "rot": 90, "scale": 0.81},
+    {"model": "decor_flowers", "pos": [18.76, 0, -29.07], "rot": 200, "scale": 0.86},
+    {"model": "decor_flowers", "pos": [11.89, 0, -67.84], "rot": 30, "scale": 0.97},
+    {"model": "decor_flowers", "pos": [-2.7, 0, -64.46], "rot": 300, "scale": 0.82},
+    {"model": "decor_flowers", "pos": [-9.89, 0, -22.96], "rot": 350, "scale": 0.74},
+    {"model": "decor_flowers", "pos": [-9.22, 0, -33.89], "rot": 280, "scale": 1.22},
+    {"model": "decor_flowers", "pos": [19.81, 0, -44.09], "rot": 150, "scale": 0.94},
+    {"model": "decor_flowers", "pos": [5.99, 0, -34.57], "rot": 260, "scale": 0.73},
+    {"model": "decor_flowers", "pos": [8.42, 0, -63.31], "rot": 30, "scale": 1.04},
+    {"model": "decor_flowers", "pos": [-3.89, 0, -50.08], "rot": 250, "scale": 1.14},
+    {"model": "decor_flowers", "pos": [4.76, 0, -59.19], "rot": 150, "scale": 1.21},
+    {"model": "decor_flowers", "pos": [-0.53, 0, -39.44], "rot": 200, "scale": 1.26},
+    {"model": "decor_flowers", "pos": [5.52, 0, -52.54], "rot": 10, "scale": 0.83},
+    {"model": "decor_flowers", "pos": [14.63, 0, -43.54], "rot": 260, "scale": 1.14},
+    {"model": "decor_flowers", "pos": [14.79, 0, -60.04], "rot": 20, "scale": 1.17},
+    {"model": "decor_flowers", "pos": [8.32, 0, -46.68], "rot": 230, "scale": 1.1},
+    {"model": "decor_flowers", "pos": [-11.81, 0, -47.37], "rot": 130, "scale": 1.07},
+    {"model": "decor_flowers", "pos": [-3.55, 0, -54.21], "rot": 50, "scale": 0.97},
+    {"model": "decor_flowers", "pos": [-1.06, 0, -24.26], "rot": 290, "scale": 1.1},
+    {"model": "decor_flowers", "pos": [7.11, 0, -43.76], "rot": 250, "scale": 1.23},
+    {"model": "decor_flowers", "pos": [-17.0, 0, -58.21], "rot": 140, "scale": 1.13},
+    {"model": "decor_flowers", "pos": [17.99, 0, -35.9], "rot": 290, "scale": 0.96},
+    {"model": "decor_flowers", "pos": [6.14, 0, -58.25], "rot": 50, "scale": 1.02},
+    {"model": "decor_flowers", "pos": [19.2, 0, -52.23], "rot": 250, "scale": 0.71},
+    {"model": "decor_flowers", "pos": [-3.35, 0, -30.15], "rot": 160, "scale": 0.75},
+    {"model": "decor_flowers", "pos": [-4.81, 0, -25.08], "rot": 190, "scale": 1.3},
+    {"model": "decor_flowers", "pos": [-12.13, 0, -22.54], "rot": 30, "scale": 1.0},
+    {"model": "decor_flowers", "pos": [-17.94, 0, -58.8], "rot": 250, "scale": 0.74},
+    {"model": "decor_flowers", "pos": [19.11, 0, -32.96], "rot": 210, "scale": 1.15},
+    {"model": "decor_flowers", "pos": [3.16, 0, -56.92], "rot": 350, "scale": 0.94},
+    {"model": "decor_flowers", "pos": [-13.72, 0, -68.69], "rot": 200, "scale": 1.19},
+    {"model": "decor_flowers", "pos": [0.36, 0, -68.88], "rot": 210, "scale": 1.02},
+    {"model": "decor_flowers", "pos": [-0.19, 0, -61.31], "rot": 310, "scale": 1.1},
+    {"model": "decor_flowers", "pos": [-8.43, 0, -28.09], "rot": 260, "scale": 1.11},
+    {"model": "decor_flowers", "pos": [-16.08, 0, -67.49], "rot": 290, "scale": 1.02},
+    {"model": "decor_flowers", "pos": [19.65, 0, -40.39], "rot": 180, "scale": 0.91},
+    {"model": "decor_flowers", "pos": [10.36, 0, -66.08], "rot": 190, "scale": 1.03},
+    {"model": "decor_flowers", "pos": [-13.27, 0, -51.1], "rot": 130, "scale": 0.93},
+    {"model": "decor_flowers", "pos": [-9.05, 0, -51.36], "rot": 340, "scale": 1.01},
+    {"model": "decor_flowers", "pos": [1.58, 0, -49.31], "rot": 250, "scale": 0.79},
+    {"model": "decor_flowers", "pos": [-7.56, 0, -24.62], "rot": 150, "scale": 0.82},
+    {"model": "decor_flowers", "pos": [-18.98, 0, -22.65], "rot": 10, "scale": 1.14},
+    {"model": "decor_flowers", "pos": [-9.42, 0, -44.57], "rot": 10, "scale": 1.1},
+    {"model": "decor_flowers", "pos": [-8.35, 0, -52.81], "rot": 230, "scale": 1.12},
+    {"model": "decor_flowers", "pos": [-6.52, 0, -24.32], "rot": 130, "scale": 1.21},
+    {"model": "decor_flowers", "pos": [8.05, 0, -68.56], "rot": 180, "scale": 1.07},
+    {"model": "decor_flowers", "pos": [19.48, 0, -58.38], "rot": 140, "scale": 1.06},
+    {"model": "decor_flowers", "pos": [-7.22, 0, -36.33], "rot": 210, "scale": 1.17},
+    {"model": "decor_flowers", "pos": [15.47, 0, -60.87], "rot": 110, "scale": 1.25},
+    {"model": "decor_flowers", "pos": [7.08, 0, -61.09], "rot": 220, "scale": 1.06},
+    {"model": "decor_flowers", "pos": [-6.07, 0, -29.97], "rot": 200, "scale": 1.22},
+    {"model": "decor_flowers", "pos": [-10.94, 0, -51.06], "rot": 140, "scale": 1.0},
+    {"model": "decor_flowers", "pos": [6.75, 0, -25.79], "rot": 40, "scale": 1.16},
+    {"model": "decor_flowers", "pos": [7.21, 0, -21.06], "rot": 10, "scale": 0.76},
+    {"model": "decor_flowers", "pos": [-18.23, 0, -51.64], "rot": 310, "scale": 1.06},
+    {"model": "decor_flowers", "pos": [14.49, 0, -66.74], "rot": 60, "scale": 0.95},
+    {"model": "decor_flowers", "pos": [16.36, 0, -38.04], "rot": 350, "scale": 0.86},
+    {"model": "decor_flowers", "pos": [6.68, 0, -33.83], "rot": 200, "scale": 0.73},
+    {"model": "decor_flowers", "pos": [11.18, 0, -58.51], "rot": 10, "scale": 0.91},
+    {"model": "decor_flowers", "pos": [-5.6, 0, -57.06], "rot": 180, "scale": 0.88},
+    {"model": "decor_flowers", "pos": [-19.4, 0, -51.06], "rot": 260, "scale": 1.06},
+    {"model": "decor_flowers", "pos": [-9.25, 0, -64.13], "rot": 60, "scale": 0.98},
+    {"model": "decor_flowers", "pos": [0.47, 0, -53.78], "rot": 280, "scale": 1.12},
+    {"model": "decor_flowers", "pos": [0.02, 0, -48.52], "rot": 240, "scale": 0.92},
+    {"model": "decor_flowers", "pos": [-9.38, 0, -46.91], "rot": 340, "scale": 1.3},
+    {"model": "decor_flowers", "pos": [12.13, 0, -26.06], "rot": 180, "scale": 0.71},
+    {"model": "decor_flowers", "pos": [-7.96, 0, -68.34], "rot": 20, "scale": 1.07},
+    {"model": "decor_flowers", "pos": [-8.58, 0, -60.05], "rot": 350, "scale": 1.11},
+    {"model": "decor_flowers", "pos": [7.67, 0, -31.28], "rot": 290, "scale": 0.75},
+    {"model": "decor_flowers", "pos": [0.05, 0, -58.22], "rot": 120, "scale": 0.74},
+    {"model": "decor_flowers", "pos": [-10.12, 0, -19.51], "rot": 340, "scale": 0.96},
+    {"model": "decor_flowers", "pos": [2.24, 0, -67.98], "rot": 180, "scale": 1.01},
+    {"model": "decor_flowers", "pos": [19.61, 0, -66.07], "rot": 70, "scale": 0.71},
+    {"model": "decor_flowers", "pos": [-14.07, 0, -49.75], "rot": 70, "scale": 0.97},
+    {"model": "decor_flowers", "pos": [19.59, 0, -23.41], "rot": 340, "scale": 1.06},
+    {"model": "decor_flowers", "pos": [3.3, 0, -60.99], "rot": 290, "scale": 1.15},
+    {"model": "decor_flowers", "pos": [-10.31, 0, -44.03], "rot": 280, "scale": 1.09},
+    {"model": "decor_flowers", "pos": [12.5, 0, -18.54], "rot": 10, "scale": 0.71},
+    {"model": "decor_flowers", "pos": [8.86, 0, -21.92], "rot": 40, "scale": 0.85},
+    {"model": "decor_flowers", "pos": [-7.56, 0, -60.78], "rot": 350, "scale": 1.01},
+    {"model": "decor_flowers", "pos": [19.06, 0, -60.43], "rot": 120, "scale": 1.19},
+    {"model": "decor_flowers", "pos": [8.97, 0, -30.57], "rot": 30, "scale": 0.91},
+    {"model": "decor_flowers", "pos": [9.05, 0, -32.79], "rot": 120, "scale": 1.08},
+    {"model": "decor_flowers", "pos": [9.61, 0, -23.9], "rot": 200, "scale": 1.18},
+    {"model": "decor_flowers", "pos": [16.05, 0, -31.42], "rot": 200, "scale": 1.08},
+    {"model": "decor_flowers", "pos": [4.61, 0, -21.36], "rot": 20, "scale": 1.22},
+    {"model": "decor_flowers", "pos": [-7.84, 0, -24.29], "rot": 160, "scale": 0.93},
+    {"model": "decor_flowers", "pos": [5.91, 0, -48.4], "rot": 20, "scale": 0.84},
+    {"model": "decor_flowers", "pos": [-8.84, 0, -22.29], "rot": 50, "scale": 0.74},
+    {"model": "decor_flowers", "pos": [-12.54, 0, -57.67], "rot": 180, "scale": 1.26},
+    {"model": "decor_flowers", "pos": [6.61, 0, -63.75], "rot": 240, "scale": 1.26},
+    {"model": "decor_flowers", "pos": [-7.2, 0, -69.63], "rot": 260, "scale": 1.0},
+    {"model": "decor_flowers", "pos": [-4.64, 0, -42.39], "rot": 30, "scale": 0.77},
+    {"model": "decor_flowers", "pos": [-5.61, 0, -38.33], "rot": 350, "scale": 0.9},
+    {"model": "decor_flowers", "pos": [-14.07, 0, -39.19], "rot": 110, "scale": 0.82},
+    {"model": "decor_flowers", "pos": [-19.55, 0, -35.78], "rot": 150, "scale": 0.97},
+    {"model": "decor_flowers", "pos": [-0.62, 0, -67.77], "rot": 340, "scale": 1.22},
+    {"model": "decor_flowers", "pos": [-18.66, 0, -60.15], "rot": 290, "scale": 0.84},
+    {"model": "decor_flowers", "pos": [-2.57, 0, -50.46], "rot": 100, "scale": 1.16},
+    {"model": "decor_flowers", "pos": [8.9, 0, -67.32], "rot": 40, "scale": 0.79},
+    {"model": "decor_flowers", "pos": [-13.51, 0, -68.05], "rot": 10, "scale": 0.84},
+    {"model": "decor_flowers", "pos": [5.89, 0, -62.46], "rot": 20, "scale": 0.78},
+    {"model": "decor_flowers", "pos": [12.13, 0, -39.19], "rot": 140, "scale": 0.87},
+    {"model": "decor_flowers", "pos": [-12.36, 0, -64.17], "rot": 120, "scale": 0.74},
+    {"model": "decor_flowers", "pos": [0.9, 0, -66.33], "rot": 340, "scale": 1.17},
+    {"model": "decor_flowers", "pos": [-3.61, 0, -50.34], "rot": 320, "scale": 0.76},
+    {"model": "decor_flowers", "pos": [-19.78, 0, -54.01], "rot": 10, "scale": 0.82},
+    {"model": "decor_flowers", "pos": [-6.57, 0, -69.52], "rot": 250, "scale": 0.87},
+    {"model": "decor_flowers", "pos": [-8.56, 0, -35.44], "rot": 100, "scale": 0.93},
+    {"model": "decor_flowers", "pos": [8.32, 0, -50.65], "rot": 60, "scale": 1.24},
+    {"model": "decor_flowers", "pos": [-18.37, 0, -55.21], "rot": 180, "scale": 0.85},
+    {"model": "decor_flowers", "pos": [19.88, 0, -64.84], "rot": 110, "scale": 1.08},
+    {"model": "decor_flowers", "pos": [14.61, 0, -52.23], "rot": 160, "scale": 0.77},
+    {"model": "decor_flowers", "pos": [19.19, 0, -31.49], "rot": 230, "scale": 1.05},
+    {"model": "decor_flowers", "pos": [7.07, 0, -40.0], "rot": 170, "scale": 1.3},
+    {"model": "decor_flowers", "pos": [13.57, 0, -35.9], "rot": 90, "scale": 0.86},
+    {"model": "decor_flowers", "pos": [-0.13, 0, -65.33], "rot": 30, "scale": 0.96},
+    {"model": "decor_flowers", "pos": [3.15, 0, -59.16], "rot": 240, "scale": 0.81},
+    {"model": "decor_flowers", "pos": [-2.1, 0, -25.42], "rot": 10, "scale": 0.86},
+    {"model": "decor_flowers", "pos": [-5.38, 0, -33.92], "rot": 120, "scale": 1.03},
+    {"model": "decor_flowers", "pos": [-9.49, 0, -50.22], "rot": 210, "scale": 1.14},
+    {"model": "decor_flowers", "pos": [-15.39, 0, -34.24], "rot": 210, "scale": 1.08},
+    {"model": "decor_flowers", "pos": [-1.24, 0, -43.63], "rot": 10, "scale": 0.74},
+    {"model": "decor_flowers", "pos": [8.64, 0, -57.91], "rot": 300, "scale": 0.81},
+    {"model": "decor_flowers", "pos": [-1.48, 0, -45.34], "rot": 260, "scale": 0.86},
+    {"model": "decor_flowers", "pos": [2.48, 0, -57.45], "rot": 290, "scale": 1.02},
+    {"model": "decor_flowers", "pos": [4.75, 0, -22.43], "rot": 120, "scale": 0.78},
+    {"model": "decor_flowers", "pos": [3.96, 0, -34.36], "rot": 260, "scale": 0.95},
+    {"model": "decor_flowers", "pos": [-12.67, 0, -32.0], "rot": 220, "scale": 1.28},
+    {"model": "decor_flowers", "pos": [-18.57, 0, -46.11], "rot": 160, "scale": 1.11},
+    {"model": "decor_flowers", "pos": [1.91, 0, -25.48], "rot": 230, "scale": 1.26},
+    {"model": "decor_flowers", "pos": [-17.71, 0, -36.3], "rot": 300, "scale": 0.84},
+    {"model": "decor_flowers", "pos": [-18.81, 0, -61.6], "rot": 40, "scale": 0.8},
+    {"model": "decor_flowers", "pos": [-6.07, 0, -65.15], "rot": 220, "scale": 1.25},
+    {"model": "decor_flowers", "pos": [-5.09, 0, -36.22], "rot": 230, "scale": 1.23},
+    {"model": "decor_flowers", "pos": [2.16, 0, -39.73], "rot": 30, "scale": 1.11},
+    {"model": "decor_flowers", "pos": [19.0, 0, -55.08], "rot": 180, "scale": 1.08},
+    {"model": "decor_flowers", "pos": [-1.26, 0, -69.44], "rot": 300, "scale": 1.21},
+    {"model": "decor_flowers", "pos": [-0.72, 0, -22.69], "rot": 100, "scale": 1.01},
+    {"model": "decor_leaves", "pos": [-17.65, 0, -63.16], "rot": 230, "scale": 1.11},
+    {"model": "decor_leaves", "pos": [19.62, 0, -28.78], "rot": 180, "scale": 0.74},
+    {"model": "decor_leaves", "pos": [4.34, 0, -48.16], "rot": 170, "scale": 0.94},
+    {"model": "decor_leaves", "pos": [16.82, 0, -44.83], "rot": 250, "scale": 1.11},
+    {"model": "decor_leaves", "pos": [14.19, 0, -65.8], "rot": 70, "scale": 0.73},
+    {"model": "decor_leaves", "pos": [-4.01, 0, -65.87], "rot": 90, "scale": 0.97},
+    {"model": "decor_leaves", "pos": [2.75, 0, -64.9], "rot": 140, "scale": 1.16},
+    {"model": "decor_leaves", "pos": [-2.22, 0, -54.65], "rot": 230, "scale": 0.93},
+    {"model": "decor_leaves", "pos": [16.47, 0, -32.12], "rot": 0, "scale": 1.23},
+    {"model": "decor_leaves", "pos": [-0.68, 0, -63.12], "rot": 80, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [15.08, 0, -31.85], "rot": 90, "scale": 0.83},
+    {"model": "decor_leaves", "pos": [-2.16, 0, -38.54], "rot": 30, "scale": 0.87},
+    {"model": "decor_leaves", "pos": [-18.06, 0, -33.34], "rot": 270, "scale": 1.17},
+    {"model": "decor_leaves", "pos": [-15.63, 0, -68.07], "rot": 210, "scale": 0.98},
+    {"model": "decor_leaves", "pos": [16.02, 0, -28.88], "rot": 130, "scale": 1.2},
+    {"model": "decor_leaves", "pos": [16.45, 0, -60.72], "rot": 310, "scale": 0.88},
+    {"model": "decor_leaves", "pos": [16.67, 0, -59.16], "rot": 40, "scale": 0.95},
+    {"model": "decor_leaves", "pos": [-13.71, 0, -46.19], "rot": 110, "scale": 0.89},
+    {"model": "decor_leaves", "pos": [8.96, 0, -23.02], "rot": 20, "scale": 1.19},
+    {"model": "decor_leaves", "pos": [-10.46, 0, -26.1], "rot": 320, "scale": 1.27},
+    {"model": "decor_leaves", "pos": [14.6, 0, -57.06], "rot": 350, "scale": 1.01},
+    {"model": "decor_leaves", "pos": [14.99, 0, -39.06], "rot": 160, "scale": 1.16},
+    {"model": "decor_leaves", "pos": [-6.53, 0, -48.15], "rot": 140, "scale": 0.98},
+    {"model": "decor_leaves", "pos": [-15.27, 0, -65.03], "rot": 100, "scale": 0.85},
+    {"model": "decor_leaves", "pos": [-3.16, 0, -25.99], "rot": 310, "scale": 0.92},
+    {"model": "decor_leaves", "pos": [-5.24, 0, -60.85], "rot": 150, "scale": 0.78},
+    {"model": "decor_leaves", "pos": [8.11, 0, -38.91], "rot": 270, "scale": 0.94},
+    {"model": "decor_leaves", "pos": [5.93, 0, -50.53], "rot": 260, "scale": 1.17},
+    {"model": "decor_leaves", "pos": [-15.07, 0, -56.98], "rot": 290, "scale": 0.91},
+    {"model": "decor_leaves", "pos": [13.87, 0, -28.41], "rot": 90, "scale": 1.21},
+    {"model": "decor_leaves", "pos": [-4.56, 0, -36.58], "rot": 160, "scale": 0.93},
+    {"model": "decor_leaves", "pos": [-13.05, 0, -22.62], "rot": 240, "scale": 1.08},
+    {"model": "decor_leaves", "pos": [1.24, 0, -37.26], "rot": 340, "scale": 0.85},
+    {"model": "decor_leaves", "pos": [10.36, 0, -58.25], "rot": 40, "scale": 0.91},
+    {"model": "decor_leaves", "pos": [-1.06, 0, -59.51], "rot": 180, "scale": 1.26},
+    {"model": "decor_leaves", "pos": [12.24, 0, -54.11], "rot": 300, "scale": 0.72},
+    {"model": "decor_leaves", "pos": [5.55, 0, -28.27], "rot": 200, "scale": 1.0},
+    {"model": "decor_leaves", "pos": [-19.52, 0, -48.2], "rot": 50, "scale": 1.18},
+    {"model": "decor_leaves", "pos": [4.12, 0, -69.21], "rot": 290, "scale": 0.98},
+    {"model": "decor_leaves", "pos": [-0.49, 0, -53.43], "rot": 330, "scale": 0.95},
+    {"model": "decor_leaves", "pos": [-5.61, 0, -22.03], "rot": 70, "scale": 0.78},
+    {"model": "decor_leaves", "pos": [12.31, 0, -65.31], "rot": 350, "scale": 1.09},
+    {"model": "decor_leaves", "pos": [0.16, 0, -60.71], "rot": 100, "scale": 0.88},
+    {"model": "decor_leaves", "pos": [-7.32, 0, -54.61], "rot": 180, "scale": 1.27},
+    {"model": "decor_leaves", "pos": [10.32, 0, -36.42], "rot": 300, "scale": 0.78},
+    {"model": "decor_leaves", "pos": [-7.49, 0, -63.78], "rot": 330, "scale": 1.02},
+    {"model": "decor_leaves", "pos": [-3.46, 0, -43.2], "rot": 280, "scale": 0.76},
+    {"model": "decor_leaves", "pos": [-14.2, 0, -67.55], "rot": 100, "scale": 1.28},
+    {"model": "decor_leaves", "pos": [11.13, 0, -64.08], "rot": 80, "scale": 0.98},
+    {"model": "decor_leaves", "pos": [2.58, 0, -55.47], "rot": 210, "scale": 0.76},
+    {"model": "decor_leaves", "pos": [-0.31, 0, -50.33], "rot": 130, "scale": 0.74},
+    {"model": "decor_leaves", "pos": [-9.31, 0, -30.02], "rot": 110, "scale": 0.95},
+    {"model": "decor_leaves", "pos": [0.82, 0, -59.43], "rot": 290, "scale": 0.72},
+    {"model": "decor_leaves", "pos": [-17.62, 0, -45.78], "rot": 350, "scale": 0.78},
+    {"model": "decor_leaves", "pos": [-12.1, 0, -42.29], "rot": 310, "scale": 0.7},
+    {"model": "decor_leaves", "pos": [-4.81, 0, -61.74], "rot": 280, "scale": 0.81},
+    {"model": "decor_leaves", "pos": [10.24, 0, -27.46], "rot": 130, "scale": 1.09},
+    {"model": "decor_leaves", "pos": [-5.38, 0, -47.77], "rot": 50, "scale": 1.25},
+    {"model": "decor_leaves", "pos": [-1.05, 0, -63.37], "rot": 220, "scale": 0.75},
+    {"model": "decor_leaves", "pos": [-8.61, 0, -25.96], "rot": 340, "scale": 1.17},
+    {"model": "decor_leaves", "pos": [-2.52, 0, -46.24], "rot": 290, "scale": 1.17},
+    {"model": "decor_leaves", "pos": [11.75, 0, -43.7], "rot": 200, "scale": 1.28},
+    {"model": "decor_leaves", "pos": [7.91, 0, -61.99], "rot": 330, "scale": 0.93},
+    {"model": "decor_leaves", "pos": [-5.63, 0, -68.31], "rot": 50, "scale": 1.24},
+    {"model": "decor_leaves", "pos": [6.75, 0, -58.33], "rot": 220, "scale": 0.72},
+    {"model": "decor_leaves", "pos": [-7.33, 0, -50.83], "rot": 190, "scale": 1.17},
+    {"model": "decor_leaves", "pos": [-17.64, 0, -34.3], "rot": 240, "scale": 0.9},
+    {"model": "decor_leaves", "pos": [-12.63, 0, -52.26], "rot": 280, "scale": 1.16},
+    {"model": "decor_leaves", "pos": [-10.77, 0, -32.35], "rot": 50, "scale": 0.82},
+    {"model": "decor_leaves", "pos": [-4.86, 0, -45.56], "rot": 50, "scale": 1.14},
+    {"model": "decor_leaves", "pos": [-7.89, 0, -46.5], "rot": 220, "scale": 0.75},
+    {"model": "decor_leaves", "pos": [-15.99, 0, -19.63], "rot": 40, "scale": 1.25},
+    {"model": "decor_leaves", "pos": [4.04, 0, -20.12], "rot": 60, "scale": 0.8},
+    {"model": "decor_leaves", "pos": [19.66, 0, -59.57], "rot": 140, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [-7.89, 0, -47.01], "rot": 200, "scale": 0.82},
+    {"model": "decor_leaves", "pos": [15.91, 0, -25.0], "rot": 320, "scale": 0.72},
+    {"model": "decor_leaves", "pos": [-8.17, 0, -22.55], "rot": 260, "scale": 0.94},
+    {"model": "decor_leaves", "pos": [-16.92, 0, -25.48], "rot": 260, "scale": 0.74},
+    {"model": "decor_leaves", "pos": [-10.18, 0, -31.97], "rot": 210, "scale": 0.96},
+    {"model": "decor_leaves", "pos": [-0.0, 0, -29.7], "rot": 190, "scale": 0.95},
+    {"model": "decor_leaves", "pos": [1.85, 0, -49.21], "rot": 340, "scale": 0.87},
+    {"model": "decor_leaves", "pos": [-19.33, 0, -34.93], "rot": 210, "scale": 1.05},
+    {"model": "decor_leaves", "pos": [11.86, 0, -65.18], "rot": 30, "scale": 0.7},
+    {"model": "decor_leaves", "pos": [10.33, 0, -61.83], "rot": 150, "scale": 0.72},
+    {"model": "decor_leaves", "pos": [-0.77, 0, -68.98], "rot": 10, "scale": 0.92},
+    {"model": "decor_leaves", "pos": [-2.25, 0, -42.67], "rot": 10, "scale": 0.95},
+    {"model": "decor_leaves", "pos": [-3.93, 0, -26.62], "rot": 310, "scale": 0.76},
+    {"model": "decor_leaves", "pos": [-4.55, 0, -55.98], "rot": 240, "scale": 1.18},
+    {"model": "decor_leaves", "pos": [13.43, 0, -23.52], "rot": 90, "scale": 1.1},
+    {"model": "decor_leaves", "pos": [-1.54, 0, -42.26], "rot": 330, "scale": 1.01},
+    {"model": "decor_leaves", "pos": [19.55, 0, -22.08], "rot": 340, "scale": 1.06},
+    {"model": "decor_leaves", "pos": [16.33, 0, -67.42], "rot": 300, "scale": 0.78},
+    {"model": "decor_leaves", "pos": [-19.71, 0, -39.79], "rot": 170, "scale": 0.79},
+    {"model": "decor_leaves", "pos": [10.16, 0, -44.57], "rot": 190, "scale": 1.19},
+    {"model": "decor_leaves", "pos": [-2.74, 0, -52.93], "rot": 240, "scale": 1.23},
+    {"model": "decor_leaves", "pos": [11.09, 0, -55.69], "rot": 50, "scale": 0.95},
+    {"model": "decor_leaves", "pos": [-1.53, 0, -21.62], "rot": 330, "scale": 0.75},
+    {"model": "decor_leaves", "pos": [-2.32, 0, -57.07], "rot": 100, "scale": 0.76},
+    {"model": "decor_leaves", "pos": [15.41, 0, -21.4], "rot": 70, "scale": 1.18},
+    {"model": "decor_leaves", "pos": [-14.98, 0, -41.26], "rot": 320, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [-6.66, 0, -48.66], "rot": 300, "scale": 1.01},
+    {"model": "decor_leaves", "pos": [-14.67, 0, -53.8], "rot": 10, "scale": 1.26},
+    {"model": "decor_leaves", "pos": [-10.87, 0, -57.29], "rot": 290, "scale": 1.25},
+    {"model": "decor_leaves", "pos": [-0.71, 0, -33.42], "rot": 180, "scale": 0.89},
+    {"model": "decor_leaves", "pos": [-19.22, 0, -65.28], "rot": 130, "scale": 1.29},
+    {"model": "decor_leaves", "pos": [18.06, 0, -20.91], "rot": 150, "scale": 0.76},
+    {"model": "decor_leaves", "pos": [-15.27, 0, -65.78], "rot": 160, "scale": 1.03},
+    {"model": "decor_leaves", "pos": [-2.22, 0, -55.54], "rot": 300, "scale": 0.78},
+    {"model": "decor_leaves", "pos": [-5.95, 0, -22.75], "rot": 170, "scale": 1.27},
+    {"model": "decor_leaves", "pos": [4.1, 0, -33.58], "rot": 80, "scale": 0.79},
+    {"model": "decor_leaves", "pos": [18.83, 0, -59.01], "rot": 140, "scale": 1.15},
+    {"model": "decor_leaves", "pos": [8.06, 0, -48.68], "rot": 210, "scale": 1.04},
+    {"model": "decor_leaves", "pos": [-17.03, 0, -31.95], "rot": 30, "scale": 0.73},
+    {"model": "decor_leaves", "pos": [-17.55, 0, -32.01], "rot": 310, "scale": 0.73},
+    {"model": "decor_leaves", "pos": [3.4, 0, -34.27], "rot": 120, "scale": 1.1},
+    {"model": "decor_leaves", "pos": [7.75, 0, -50.89], "rot": 40, "scale": 1.16},
+    {"model": "decor_leaves", "pos": [-4.85, 0, -32.79], "rot": 250, "scale": 0.98},
+    {"model": "decor_leaves", "pos": [-11.8, 0, -46.54], "rot": 350, "scale": 1.13},
+    {"model": "decor_leaves", "pos": [-13.75, 0, -18.67], "rot": 150, "scale": 1.2},
+    {"model": "decor_leaves", "pos": [-14.51, 0, -19.65], "rot": 80, "scale": 1.11},
+    {"model": "decor_leaves", "pos": [-19.17, 0, -24.88], "rot": 110, "scale": 1.14},
+    {"model": "decor_leaves", "pos": [4.55, 0, -51.58], "rot": 210, "scale": 1.08},
+    {"model": "decor_leaves", "pos": [13.98, 0, -41.42], "rot": 30, "scale": 1.1},
+    {"model": "decor_leaves", "pos": [4.25, 0, -27.98], "rot": 290, "scale": 0.98},
+    {"model": "decor_leaves", "pos": [-19.42, 0, -38.05], "rot": 100, "scale": 1.22},
+    {"model": "decor_leaves", "pos": [4.49, 0, -51.11], "rot": 0, "scale": 1.09},
+    {"model": "decor_leaves", "pos": [-7.05, 0, -44.44], "rot": 310, "scale": 1.06},
+    {"model": "decor_leaves", "pos": [14.11, 0, -29.84], "rot": 130, "scale": 0.98},
+    {"model": "decor_leaves", "pos": [15.89, 0, -49.37], "rot": 0, "scale": 1.03},
+    {"model": "decor_leaves", "pos": [2.79, 0, -53.55], "rot": 40, "scale": 1.11},
+    {"model": "decor_leaves", "pos": [-16.11, 0, -54.11], "rot": 250, "scale": 1.15},
+    {"model": "decor_leaves", "pos": [-16.33, 0, -43.49], "rot": 220, "scale": 1.18},
+    {"model": "decor_leaves", "pos": [-7.94, 0, -23.43], "rot": 180, "scale": 0.9},
+    {"model": "decor_leaves", "pos": [14.19, 0, -38.2], "rot": 340, "scale": 0.91},
+    {"model": "decor_leaves", "pos": [-3.68, 0, -23.52], "rot": 80, "scale": 1.22},
+    {"model": "decor_leaves", "pos": [9.64, 0, -67.13], "rot": 80, "scale": 0.85},
+    {"model": "decor_leaves", "pos": [-16.13, 0, -26.8], "rot": 340, "scale": 1.17},
+    {"model": "decor_leaves", "pos": [-13.69, 0, -40.51], "rot": 280, "scale": 1.06},
+    {"model": "decor_leaves", "pos": [0.42, 0, -56.02], "rot": 280, "scale": 0.93},
+    {"model": "decor_leaves", "pos": [-17.2, 0, -35.21], "rot": 160, "scale": 0.76},
+    {"model": "decor_leaves", "pos": [-13.18, 0, -46.4], "rot": 270, "scale": 0.89},
+    {"model": "decor_leaves", "pos": [6.59, 0, -22.92], "rot": 130, "scale": 1.23},
+    {"model": "decor_leaves", "pos": [16.86, 0, -56.84], "rot": 220, "scale": 0.75},
+    {"model": "decor_leaves", "pos": [3.27, 0, -66.07], "rot": 60, "scale": 1.01},
+    {"model": "decor_leaves", "pos": [7.54, 0, -58.37], "rot": 330, "scale": 1.05},
+    {"model": "decor_leaves", "pos": [13.01, 0, -63.17], "rot": 310, "scale": 1.21},
+    {"model": "decor_leaves", "pos": [-0.19, 0, -46.67], "rot": 170, "scale": 0.72},
+    {"model": "decor_leaves", "pos": [1.04, 0, -21.88], "rot": 70, "scale": 0.9},
+    {"model": "decor_leaves", "pos": [-12.95, 0, -48.45], "rot": 80, "scale": 0.95},
+    {"model": "decor_leaves", "pos": [1.03, 0, -55.66], "rot": 180, "scale": 1.11},
+    {"model": "decor_stones", "pos": [-8.27, 0, -65.55], "rot": 250, "scale": 0.92},
+    {"model": "decor_stones", "pos": [18.54, 0, -30.92], "rot": 310, "scale": 0.74},
+    {"model": "decor_stones", "pos": [-13.47, 0, -67.44], "rot": 210, "scale": 1.07},
+    {"model": "decor_stones", "pos": [18.22, 0, -54.61], "rot": 140, "scale": 0.75},
+    {"model": "decor_stones", "pos": [-19.28, 0, -25.92], "rot": 100, "scale": 1.0},
+    {"model": "decor_stones", "pos": [-3.2, 0, -50.86], "rot": 200, "scale": 0.88},
+    {"model": "decor_stones", "pos": [-12.46, 0, -47.62], "rot": 290, "scale": 0.72},
+    {"model": "decor_stones", "pos": [4.37, 0, -24.54], "rot": 30, "scale": 0.85},
+    {"model": "decor_stones", "pos": [-14.97, 0, -53.24], "rot": 120, "scale": 0.85},
+    {"model": "decor_stones", "pos": [-13.76, 0, -19.71], "rot": 60, "scale": 1.25},
+    {"model": "decor_stones", "pos": [1.64, 0, -67.33], "rot": 230, "scale": 1.21},
+    {"model": "decor_stones", "pos": [-11.35, 0, -61.13], "rot": 20, "scale": 0.7},
+    {"model": "decor_stones", "pos": [16.69, 0, -24.87], "rot": 220, "scale": 0.73},
+    {"model": "decor_stones", "pos": [17.92, 0, -57.58], "rot": 140, "scale": 0.76},
+    {"model": "decor_stones", "pos": [1.38, 0, -67.08], "rot": 280, "scale": 0.76},
+    {"model": "decor_stones", "pos": [9.58, 0, -47.11], "rot": 70, "scale": 0.85},
+    {"model": "decor_stones", "pos": [-4.27, 0, -28.79], "rot": 0, "scale": 1.03},
+    {"model": "decor_stones", "pos": [-4.97, 0, -57.46], "rot": 280, "scale": 1.27},
+    {"model": "decor_stones", "pos": [7.78, 0, -58.38], "rot": 120, "scale": 0.77},
+    {"model": "decor_stones", "pos": [14.0, 0, -58.38], "rot": 50, "scale": 1.01},
+    {"model": "decor_stones", "pos": [-6.24, 0, -25.25], "rot": 330, "scale": 0.77},
+    {"model": "decor_stones", "pos": [15.25, 0, -49.73], "rot": 150, "scale": 0.8},
+    {"model": "decor_stones", "pos": [9.04, 0, -21.02], "rot": 130, "scale": 1.3},
+    {"model": "decor_stones", "pos": [-10.31, 0, -45.52], "rot": 220, "scale": 1.18},
+    {"model": "decor_stones", "pos": [4.25, 0, -45.23], "rot": 70, "scale": 1.27},
+    {"model": "decor_stones", "pos": [-19.42, 0, -55.26], "rot": 10, "scale": 1.06},
+    {"model": "decor_stones", "pos": [5.74, 0, -28.35], "rot": 80, "scale": 1.05},
+    {"model": "decor_stones", "pos": [-1.94, 0, -49.21], "rot": 330, "scale": 0.72},
+    {"model": "decor_stones", "pos": [14.71, 0, -34.55], "rot": 310, "scale": 1.23},
+    {"model": "decor_stones", "pos": [-12.51, 0, -44.37], "rot": 130, "scale": 0.89},
+    {"model": "decor_stones", "pos": [-11.94, 0, -46.85], "rot": 290, "scale": 0.98},
+    {"model": "decor_stones", "pos": [19.46, 0, -54.94], "rot": 270, "scale": 1.16},
+    {"model": "decor_stones", "pos": [18.64, 0, -54.77], "rot": 120, "scale": 1.23},
+    {"model": "decor_stones", "pos": [16.95, 0, -55.87], "rot": 350, "scale": 0.74},
+    {"model": "decor_stones", "pos": [7.07, 0, -20.47], "rot": 320, "scale": 1.07},
+    {"model": "decor_stones", "pos": [2.2, 0, -42.18], "rot": 230, "scale": 0.98},
+    {"model": "decor_stones", "pos": [-16.8, 0, -48.29], "rot": 130, "scale": 1.14},
+    {"model": "decor_stones", "pos": [14.14, 0, -46.22], "rot": 280, "scale": 1.18},
+    {"model": "decor_stones", "pos": [17.88, 0, -63.64], "rot": 260, "scale": 1.19},
+    {"model": "decor_stones", "pos": [7.19, 0, -32.52], "rot": 80, "scale": 0.77},
+    {"model": "decor_stones", "pos": [-16.83, 0, -47.9], "rot": 80, "scale": 0.76},
+    {"model": "decor_stones", "pos": [-16.91, 0, -66.18], "rot": 280, "scale": 1.03},
+    {"model": "decor_stones", "pos": [-13.61, 0, -55.63], "rot": 340, "scale": 0.73},
+    {"model": "decor_stones", "pos": [-12.01, 0, -47.56], "rot": 80, "scale": 1.05},
+    {"model": "decor_stones", "pos": [-9.62, 0, -67.58], "rot": 350, "scale": 0.91},
+    {"model": "decor_stones", "pos": [13.79, 0, -43.37], "rot": 300, "scale": 0.82},
+    {"model": "decor_stones", "pos": [-19.37, 0, -68.51], "rot": 250, "scale": 0.79},
+    {"model": "decor_stones", "pos": [-19.39, 0, -40.03], "rot": 150, "scale": 0.81},
+    {"model": "decor_stones", "pos": [-11.99, 0, -19.15], "rot": 330, "scale": 0.87},
+    {"model": "decor_stones", "pos": [4.27, 0, -54.94], "rot": 120, "scale": 0.85},
+    {"model": "decor_stones", "pos": [15.67, 0, -52.02], "rot": 350, "scale": 1.05},
+    {"model": "decor_stones", "pos": [-9.71, 0, -36.36], "rot": 190, "scale": 1.14},
+    {"model": "decor_stones", "pos": [10.85, 0, -39.72], "rot": 150, "scale": 0.85},
+    {"model": "decor_stones", "pos": [-16.0, 0, -29.61], "rot": 90, "scale": 1.24},
+    {"model": "decor_stones", "pos": [-1.3, 0, -60.17], "rot": 0, "scale": 1.2},
+    {"model": "decor_stones", "pos": [13.38, 0, -19.02], "rot": 150, "scale": 1.07},
+    {"model": "decor_stones", "pos": [3.29, 0, -53.16], "rot": 240, "scale": 1.06},
+    {"model": "decor_stones", "pos": [-4.3, 0, -61.36], "rot": 140, "scale": 1.1},
+    {"model": "decor_stones", "pos": [-10.29, 0, -63.9], "rot": 80, "scale": 1.21},
+    {"model": "decor_stones", "pos": [1.88, 0, -43.07], "rot": 350, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-23.63, 0, -82.4], "rot": 150, "scale": 0.88},
+    {"model": "decor_grass", "pos": [5.44, 0, -96.63], "rot": 60, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-14.89, 0, -88.76], "rot": 330, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-2.07, 0, -77.3], "rot": 50, "scale": 1.12},
+    {"model": "decor_grass", "pos": [13.13, 0, -81.22], "rot": 0, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-30.26, 0, -90.29], "rot": 110, "scale": 1.05},
+    {"model": "decor_grass", "pos": [13.28, 0, -82.13], "rot": 300, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-25.86, 0, -90.8], "rot": 330, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-20.5, 0, -84.0], "rot": 190, "scale": 1.07},
+    {"model": "decor_grass", "pos": [3.52, 0, -82.95], "rot": 180, "scale": 0.88},
+    {"model": "decor_grass", "pos": [18.92, 0, -91.21], "rot": 350, "scale": 0.81},
+    {"model": "decor_grass", "pos": [32.69, 0, -76.54], "rot": 310, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-11.62, 0, -101.3], "rot": 280, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-34.75, 0, -88.26], "rot": 140, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-4.59, 0, -83.74], "rot": 350, "scale": 0.92},
+    {"model": "decor_grass", "pos": [24.98, 0, -97.94], "rot": 350, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-5.19, 0, -76.9], "rot": 300, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-7.8, 0, -87.4], "rot": 190, "scale": 0.8},
+    {"model": "decor_grass", "pos": [27.97, 0, -100.68], "rot": 110, "scale": 0.8},
+    {"model": "decor_grass", "pos": [1.23, 0, -76.1], "rot": 50, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-3.45, 0, -89.53], "rot": 120, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-3.72, 0, -86.87], "rot": 290, "scale": 1.28},
+    {"model": "decor_grass", "pos": [25.58, 0, -94.92], "rot": 180, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-27.79, 0, -89.83], "rot": 300, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-35.74, 0, -89.07], "rot": 270, "scale": 0.89},
+    {"model": "decor_grass", "pos": [32.74, 0, -88.03], "rot": 170, "scale": 0.9},
+    {"model": "decor_grass", "pos": [1.06, 0, -88.31], "rot": 150, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-15.26, 0, -101.22], "rot": 140, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-19.38, 0, -95.5], "rot": 170, "scale": 0.98},
+    {"model": "decor_grass", "pos": [9.94, 0, -86.94], "rot": 110, "scale": 0.84},
+    {"model": "decor_grass", "pos": [34.34, 0, -89.61], "rot": 210, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-4.72, 0, -76.39], "rot": 310, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-17.57, 0, -80.19], "rot": 160, "scale": 0.93},
+    {"model": "decor_grass", "pos": [35.89, 0, -94.19], "rot": 270, "scale": 1.05},
+    {"model": "decor_grass", "pos": [1.65, 0, -89.56], "rot": 350, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-25.05, 0, -100.17], "rot": 220, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-34.88, 0, -104.42], "rot": 170, "scale": 1.28},
+    {"model": "decor_grass", "pos": [20.8, 0, -78.2], "rot": 60, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-34.57, 0, -101.04], "rot": 0, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-7.83, 0, -91.78], "rot": 150, "scale": 1.05},
+    {"model": "decor_grass", "pos": [29.55, 0, -85.8], "rot": 150, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-9.97, 0, -84.37], "rot": 260, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-1.23, 0, -99.99], "rot": 310, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-0.99, 0, -99.03], "rot": 30, "scale": 0.75},
+    {"model": "decor_grass", "pos": [0.39, 0, -85.37], "rot": 140, "scale": 0.71},
+    {"model": "decor_grass", "pos": [31.07, 0, -98.11], "rot": 20, "scale": 0.9},
+    {"model": "decor_grass", "pos": [35.74, 0, -92.34], "rot": 320, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-17.91, 0, -83.71], "rot": 60, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-28.1, 0, -104.69], "rot": 10, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-17.04, 0, -82.99], "rot": 280, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-2.72, 0, -80.11], "rot": 350, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-3.96, 0, -89.85], "rot": 270, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-18.13, 0, -82.6], "rot": 60, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-30.06, 0, -99.31], "rot": 350, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-35.44, 0, -94.87], "rot": 280, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-35.29, 0, -76.51], "rot": 160, "scale": 0.77},
+    {"model": "decor_grass", "pos": [11.42, 0, -78.35], "rot": 260, "scale": 0.89},
+    {"model": "decor_grass", "pos": [1.81, 0, -95.31], "rot": 250, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-10.51, 0, -82.27], "rot": 190, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-25.41, 0, -84.04], "rot": 160, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-34.73, 0, -96.42], "rot": 330, "scale": 0.96},
+    {"model": "decor_grass", "pos": [13.23, 0, -93.25], "rot": 230, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-28.44, 0, -91.24], "rot": 160, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-5.1, 0, -88.13], "rot": 50, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-24.77, 0, -87.11], "rot": 70, "scale": 0.94},
+    {"model": "decor_grass", "pos": [24.88, 0, -83.51], "rot": 80, "scale": 1.24},
+    {"model": "decor_grass", "pos": [33.45, 0, -94.96], "rot": 0, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-0.31, 0, -100.88], "rot": 350, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-31.14, 0, -99.01], "rot": 320, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-19.14, 0, -90.75], "rot": 110, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-22.69, 0, -103.96], "rot": 120, "scale": 0.87},
+    {"model": "decor_grass", "pos": [20.76, 0, -91.16], "rot": 260, "scale": 1.08},
+    {"model": "decor_grass", "pos": [4.61, 0, -86.63], "rot": 260, "scale": 0.98},
+    {"model": "decor_grass", "pos": [23.74, 0, -95.02], "rot": 120, "scale": 1.29},
+    {"model": "decor_grass", "pos": [23.6, 0, -82.84], "rot": 350, "scale": 1.02},
+    {"model": "decor_grass", "pos": [6.17, 0, -103.92], "rot": 180, "scale": 0.85},
+    {"model": "decor_grass", "pos": [8.09, 0, -89.52], "rot": 220, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-18.76, 0, -96.89], "rot": 0, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-13.05, 0, -96.59], "rot": 280, "scale": 0.74},
+    {"model": "decor_grass", "pos": [5.37, 0, -79.02], "rot": 10, "scale": 1.16},
+    {"model": "decor_grass", "pos": [22.25, 0, -84.24], "rot": 260, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-3.84, 0, -86.46], "rot": 200, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-16.68, 0, -99.02], "rot": 330, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-15.76, 0, -81.7], "rot": 300, "scale": 1.02},
+    {"model": "decor_grass", "pos": [20.59, 0, -103.75], "rot": 40, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-15.88, 0, -105.42], "rot": 90, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-14.52, 0, -77.83], "rot": 330, "scale": 1.19},
+    {"model": "decor_grass", "pos": [24.02, 0, -100.65], "rot": 320, "scale": 1.24},
+    {"model": "decor_grass", "pos": [18.41, 0, -99.25], "rot": 210, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-15.18, 0, -86.01], "rot": 90, "scale": 0.97},
+    {"model": "decor_grass", "pos": [19.22, 0, -76.48], "rot": 260, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-8.67, 0, -103.94], "rot": 110, "scale": 1.01},
+    {"model": "decor_grass", "pos": [17.93, 0, -104.08], "rot": 230, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-32.65, 0, -77.67], "rot": 290, "scale": 0.84},
+    {"model": "decor_grass", "pos": [26.57, 0, -90.46], "rot": 80, "scale": 1.21},
+    {"model": "decor_grass", "pos": [3.69, 0, -98.33], "rot": 300, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-32.9, 0, -89.45], "rot": 260, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-17.78, 0, -102.45], "rot": 10, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-3.27, 0, -84.92], "rot": 80, "scale": 1.07},
+    {"model": "decor_grass", "pos": [11.41, 0, -97.41], "rot": 220, "scale": 1.15},
+    {"model": "decor_grass", "pos": [15.03, 0, -100.14], "rot": 270, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-23.15, 0, -84.05], "rot": 90, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-9.47, 0, -98.62], "rot": 190, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-24.44, 0, -93.99], "rot": 50, "scale": 0.87},
+    {"model": "decor_grass", "pos": [20.53, 0, -98.09], "rot": 110, "scale": 0.96},
+    {"model": "decor_grass", "pos": [34.17, 0, -79.61], "rot": 310, "scale": 1.2},
+    {"model": "decor_grass", "pos": [29.78, 0, -78.09], "rot": 260, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-2.98, 0, -105.17], "rot": 200, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-10.12, 0, -76.93], "rot": 310, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-5.56, 0, -91.45], "rot": 30, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-25.37, 0, -86.01], "rot": 150, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-24.81, 0, -88.69], "rot": 280, "scale": 0.85},
+    {"model": "decor_grass", "pos": [2.0, 0, -80.43], "rot": 210, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-18.52, 0, -89.95], "rot": 50, "scale": 1.19},
+    {"model": "decor_grass", "pos": [9.58, 0, -82.6], "rot": 50, "scale": 1.07},
+    {"model": "decor_grass", "pos": [9.17, 0, -94.7], "rot": 140, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-15.34, 0, -102.57], "rot": 10, "scale": 1.11},
+    {"model": "decor_grass", "pos": [18.36, 0, -78.45], "rot": 60, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-1.1, 0, -90.01], "rot": 310, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-4.57, 0, -90.55], "rot": 330, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-15.69, 0, -85.33], "rot": 20, "scale": 0.93},
+    {"model": "decor_grass", "pos": [23.54, 0, -102.82], "rot": 270, "scale": 1.02},
+    {"model": "decor_grass", "pos": [26.85, 0, -84.66], "rot": 290, "scale": 1.26},
+    {"model": "decor_grass", "pos": [31.57, 0, -76.0], "rot": 340, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-16.74, 0, -101.55], "rot": 60, "scale": 0.8},
+    {"model": "decor_grass", "pos": [10.22, 0, -92.71], "rot": 340, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-14.83, 0, -102.62], "rot": 240, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-15.39, 0, -82.56], "rot": 330, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-11.63, 0, -91.98], "rot": 230, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-33.35, 0, -77.15], "rot": 190, "scale": 1.03},
+    {"model": "decor_grass", "pos": [31.75, 0, -89.82], "rot": 60, "scale": 1.05},
+    {"model": "decor_grass", "pos": [21.28, 0, -87.17], "rot": 60, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-11.28, 0, -86.36], "rot": 130, "scale": 1.19},
+    {"model": "decor_grass", "pos": [24.27, 0, -84.87], "rot": 100, "scale": 1.29},
+    {"model": "decor_grass", "pos": [33.79, 0, -82.92], "rot": 210, "scale": 1.14},
+    {"model": "decor_grass", "pos": [19.5, 0, -76.95], "rot": 240, "scale": 0.93},
+    {"model": "decor_grass", "pos": [18.36, 0, -92.49], "rot": 290, "scale": 0.8},
+    {"model": "decor_grass", "pos": [28.78, 0, -84.98], "rot": 90, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-30.3, 0, -86.21], "rot": 310, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-32.5, 0, -79.12], "rot": 200, "scale": 0.82},
+    {"model": "decor_grass", "pos": [21.21, 0, -90.53], "rot": 20, "scale": 1.21},
+    {"model": "decor_grass", "pos": [15.13, 0, -94.3], "rot": 110, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-28.17, 0, -80.1], "rot": 110, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-24.06, 0, -97.99], "rot": 110, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-13.18, 0, -78.89], "rot": 30, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-17.88, 0, -77.45], "rot": 270, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-25.68, 0, -102.42], "rot": 340, "scale": 0.98},
+    {"model": "decor_grass", "pos": [17.78, 0, -83.79], "rot": 190, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-15.6, 0, -103.43], "rot": 30, "scale": 0.77},
+    {"model": "decor_grass", "pos": [17.59, 0, -100.74], "rot": 110, "scale": 1.08},
+    {"model": "decor_flowers", "pos": [-30.6, 0, -95.05], "rot": 70, "scale": 1.08},
+    {"model": "decor_flowers", "pos": [-8.51, 0, -102.31], "rot": 140, "scale": 0.85},
+    {"model": "decor_flowers", "pos": [19.36, 0, -80.09], "rot": 240, "scale": 1.12},
+    {"model": "decor_flowers", "pos": [-21.11, 0, -83.48], "rot": 0, "scale": 1.2},
+    {"model": "decor_flowers", "pos": [31.49, 0, -76.64], "rot": 20, "scale": 1.14},
+    {"model": "decor_flowers", "pos": [-8.98, 0, -99.3], "rot": 280, "scale": 0.86},
+    {"model": "decor_flowers", "pos": [-30.51, 0, -80.38], "rot": 160, "scale": 1.25},
+    {"model": "decor_flowers", "pos": [4.76, 0, -103.45], "rot": 280, "scale": 1.0},
+    {"model": "decor_flowers", "pos": [34.32, 0, -92.15], "rot": 280, "scale": 0.81},
+    {"model": "decor_flowers", "pos": [34.37, 0, -95.95], "rot": 280, "scale": 1.26},
+    {"model": "decor_flowers", "pos": [-16.45, 0, -79.11], "rot": 220, "scale": 1.16},
+    {"model": "decor_flowers", "pos": [-14.58, 0, -92.12], "rot": 350, "scale": 1.27},
+    {"model": "decor_flowers", "pos": [1.88, 0, -99.42], "rot": 280, "scale": 1.27},
+    {"model": "decor_flowers", "pos": [25.38, 0, -76.86], "rot": 180, "scale": 1.03},
+    {"model": "decor_flowers", "pos": [-12.92, 0, -104.34], "rot": 80, "scale": 1.17},
+    {"model": "decor_flowers", "pos": [-31.45, 0, -97.56], "rot": 290, "scale": 0.71},
+    {"model": "decor_flowers", "pos": [-1.63, 0, -80.18], "rot": 0, "scale": 0.92},
+    {"model": "decor_flowers", "pos": [-4.6, 0, -99.58], "rot": 340, "scale": 1.03},
+    {"model": "decor_flowers", "pos": [-30.93, 0, -89.18], "rot": 330, "scale": 0.75},
+    {"model": "decor_flowers", "pos": [-26.75, 0, -89.32], "rot": 300, "scale": 0.86},
+    {"model": "decor_flowers", "pos": [-1.47, 0, -76.27], "rot": 170, "scale": 0.82},
+    {"model": "decor_flowers", "pos": [-4.7, 0, -94.76], "rot": 130, "scale": 1.26},
+    {"model": "decor_flowers", "pos": [0.42, 0, -94.7], "rot": 330, "scale": 1.07},
+    {"model": "decor_flowers", "pos": [19.0, 0, -97.01], "rot": 200, "scale": 0.92},
+    {"model": "decor_flowers", "pos": [-16.81, 0, -87.21], "rot": 80, "scale": 1.28},
+    {"model": "decor_flowers", "pos": [30.13, 0, -85.8], "rot": 240, "scale": 1.16},
+    {"model": "decor_flowers", "pos": [2.22, 0, -80.6], "rot": 310, "scale": 0.9},
+    {"model": "decor_flowers", "pos": [-28.02, 0, -79.84], "rot": 190, "scale": 1.05},
+    {"model": "decor_flowers", "pos": [-4.94, 0, -96.8], "rot": 350, "scale": 1.16},
+    {"model": "decor_flowers", "pos": [-3.38, 0, -76.95], "rot": 50, "scale": 0.88},
+    {"model": "decor_flowers", "pos": [-31.88, 0, -97.46], "rot": 210, "scale": 0.76},
+    {"model": "decor_flowers", "pos": [8.46, 0, -87.13], "rot": 50, "scale": 0.98},
+    {"model": "decor_flowers", "pos": [-23.79, 0, -87.1], "rot": 330, "scale": 0.91},
+    {"model": "decor_flowers", "pos": [-14.99, 0, -102.33], "rot": 40, "scale": 1.17},
+    {"model": "decor_flowers", "pos": [9.66, 0, -89.01], "rot": 100, "scale": 1.06},
+    {"model": "decor_flowers", "pos": [6.18, 0, -94.22], "rot": 250, "scale": 0.87},
+    {"model": "decor_flowers", "pos": [32.7, 0, -104.54], "rot": 70, "scale": 0.77},
+    {"model": "decor_flowers", "pos": [-28.57, 0, -78.31], "rot": 140, "scale": 0.84},
+    {"model": "decor_flowers", "pos": [5.44, 0, -99.51], "rot": 90, "scale": 0.91},
+    {"model": "decor_flowers", "pos": [-25.89, 0, -85.13], "rot": 230, "scale": 0.71},
+    {"model": "decor_flowers", "pos": [-1.49, 0, -83.69], "rot": 50, "scale": 0.95},
+    {"model": "decor_flowers", "pos": [-10.59, 0, -78.04], "rot": 280, "scale": 0.82},
+    {"model": "decor_flowers", "pos": [-2.99, 0, -105.56], "rot": 320, "scale": 0.91},
+    {"model": "decor_flowers", "pos": [-13.25, 0, -94.06], "rot": 340, "scale": 1.05},
+    {"model": "decor_flowers", "pos": [-0.42, 0, -82.71], "rot": 250, "scale": 1.12},
+    {"model": "decor_flowers", "pos": [-32.23, 0, -80.76], "rot": 280, "scale": 0.79},
+    {"model": "decor_flowers", "pos": [-7.22, 0, -77.17], "rot": 20, "scale": 0.76},
+    {"model": "decor_flowers", "pos": [29.69, 0, -99.37], "rot": 260, "scale": 1.27},
+    {"model": "decor_flowers", "pos": [9.87, 0, -100.55], "rot": 110, "scale": 0.99},
+    {"model": "decor_flowers", "pos": [30.02, 0, -98.37], "rot": 90, "scale": 1.04},
+    {"model": "decor_flowers", "pos": [-35.89, 0, -100.24], "rot": 10, "scale": 1.03},
+    {"model": "decor_flowers", "pos": [-26.45, 0, -96.95], "rot": 130, "scale": 1.17},
+    {"model": "decor_flowers", "pos": [13.03, 0, -89.16], "rot": 320, "scale": 1.08},
+    {"model": "decor_flowers", "pos": [3.82, 0, -98.99], "rot": 150, "scale": 0.99},
+    {"model": "decor_flowers", "pos": [-17.7, 0, -97.46], "rot": 290, "scale": 0.75},
+    {"model": "decor_flowers", "pos": [27.11, 0, -77.23], "rot": 90, "scale": 0.97},
+    {"model": "decor_flowers", "pos": [0.27, 0, -88.36], "rot": 270, "scale": 0.93},
+    {"model": "decor_flowers", "pos": [-10.0, 0, -96.73], "rot": 40, "scale": 1.2},
+    {"model": "decor_flowers", "pos": [-1.42, 0, -105.85], "rot": 300, "scale": 0.89},
+    {"model": "decor_flowers", "pos": [16.79, 0, -91.96], "rot": 120, "scale": 1.0},
+    {"model": "decor_flowers", "pos": [21.72, 0, -95.4], "rot": 210, "scale": 1.17},
+    {"model": "decor_flowers", "pos": [-10.66, 0, -83.79], "rot": 220, "scale": 1.18},
+    {"model": "decor_flowers", "pos": [22.58, 0, -93.18], "rot": 180, "scale": 1.13},
+    {"model": "decor_flowers", "pos": [-17.87, 0, -91.07], "rot": 20, "scale": 1.06},
+    {"model": "decor_flowers", "pos": [29.43, 0, -84.23], "rot": 300, "scale": 1.14},
+    {"model": "decor_flowers", "pos": [13.72, 0, -78.44], "rot": 350, "scale": 0.97},
+    {"model": "decor_flowers", "pos": [-9.61, 0, -90.17], "rot": 150, "scale": 0.81},
+    {"model": "decor_flowers", "pos": [0.08, 0, -96.65], "rot": 230, "scale": 1.08},
+    {"model": "decor_flowers", "pos": [-35.85, 0, -99.73], "rot": 250, "scale": 1.0},
+    {"model": "decor_flowers", "pos": [15.91, 0, -95.61], "rot": 240, "scale": 1.28},
+    {"model": "decor_flowers", "pos": [-29.39, 0, -87.52], "rot": 100, "scale": 1.0},
+    {"model": "decor_flowers", "pos": [0.48, 0, -76.32], "rot": 270, "scale": 0.86},
+    {"model": "decor_flowers", "pos": [25.28, 0, -91.83], "rot": 40, "scale": 1.29},
+    {"model": "decor_flowers", "pos": [-33.32, 0, -94.68], "rot": 140, "scale": 1.06},
+    {"model": "decor_flowers", "pos": [28.67, 0, -101.12], "rot": 140, "scale": 1.05},
+    {"model": "decor_flowers", "pos": [28.32, 0, -78.29], "rot": 50, "scale": 0.74},
+    {"model": "decor_flowers", "pos": [-31.89, 0, -102.1], "rot": 10, "scale": 1.15},
+    {"model": "decor_flowers", "pos": [-14.85, 0, -96.81], "rot": 90, "scale": 1.17},
+    {"model": "decor_flowers", "pos": [34.31, 0, -103.19], "rot": 190, "scale": 1.14},
+    {"model": "decor_flowers", "pos": [32.86, 0, -84.23], "rot": 170, "scale": 0.88},
+    {"model": "decor_flowers", "pos": [32.61, 0, -97.43], "rot": 200, "scale": 0.92},
+    {"model": "decor_flowers", "pos": [-31.67, 0, -94.41], "rot": 290, "scale": 1.19},
+    {"model": "decor_flowers", "pos": [-27.11, 0, -90.59], "rot": 170, "scale": 0.92},
+    {"model": "decor_flowers", "pos": [2.49, 0, -81.68], "rot": 10, "scale": 1.15},
+    {"model": "decor_flowers", "pos": [2.34, 0, -87.9], "rot": 210, "scale": 0.79},
+    {"model": "decor_flowers", "pos": [29.51, 0, -90.77], "rot": 320, "scale": 0.75},
+    {"model": "decor_flowers", "pos": [10.09, 0, -77.42], "rot": 90, "scale": 1.03},
+    {"model": "decor_flowers", "pos": [35.63, 0, -104.91], "rot": 150, "scale": 1.04},
+    {"model": "decor_flowers", "pos": [11.5, 0, -104.44], "rot": 120, "scale": 0.75},
+    {"model": "decor_flowers", "pos": [-12.91, 0, -85.37], "rot": 50, "scale": 0.74},
+    {"model": "decor_flowers", "pos": [-22.88, 0, -78.2], "rot": 100, "scale": 1.05},
+    {"model": "decor_flowers", "pos": [-35.38, 0, -103.98], "rot": 80, "scale": 1.01},
+    {"model": "decor_flowers", "pos": [14.34, 0, -100.35], "rot": 90, "scale": 1.27},
+    {"model": "decor_flowers", "pos": [-26.12, 0, -92.87], "rot": 50, "scale": 1.3},
+    {"model": "decor_flowers", "pos": [33.0, 0, -105.55], "rot": 220, "scale": 1.09},
+    {"model": "decor_flowers", "pos": [-5.8, 0, -88.73], "rot": 70, "scale": 0.86},
+    {"model": "decor_flowers", "pos": [1.45, 0, -104.29], "rot": 70, "scale": 1.3},
+    {"model": "decor_flowers", "pos": [-6.95, 0, -103.71], "rot": 330, "scale": 0.76},
+    {"model": "decor_flowers", "pos": [-15.71, 0, -92.49], "rot": 340, "scale": 0.97},
+    {"model": "decor_flowers", "pos": [25.34, 0, -94.0], "rot": 220, "scale": 1.0},
+    {"model": "decor_flowers", "pos": [-18.74, 0, -82.38], "rot": 20, "scale": 0.83},
+    {"model": "decor_flowers", "pos": [-22.16, 0, -93.38], "rot": 280, "scale": 1.07},
+    {"model": "decor_flowers", "pos": [-20.1, 0, -99.52], "rot": 160, "scale": 1.2},
+    {"model": "decor_flowers", "pos": [-3.83, 0, -98.44], "rot": 290, "scale": 0.83},
+    {"model": "decor_flowers", "pos": [-28.2, 0, -105.18], "rot": 10, "scale": 0.82},
+    {"model": "decor_flowers", "pos": [5.5, 0, -104.79], "rot": 150, "scale": 1.21},
+    {"model": "decor_flowers", "pos": [12.92, 0, -83.23], "rot": 90, "scale": 1.11},
+    {"model": "decor_flowers", "pos": [27.92, 0, -102.01], "rot": 120, "scale": 0.7},
+    {"model": "decor_flowers", "pos": [4.83, 0, -94.61], "rot": 110, "scale": 1.2},
+    {"model": "decor_flowers", "pos": [25.91, 0, -105.48], "rot": 10, "scale": 1.26},
+    {"model": "decor_flowers", "pos": [-22.8, 0, -96.2], "rot": 200, "scale": 0.91},
+    {"model": "decor_flowers", "pos": [-26.8, 0, -79.79], "rot": 130, "scale": 0.95},
+    {"model": "decor_flowers", "pos": [-31.72, 0, -87.76], "rot": 210, "scale": 0.77},
+    {"model": "decor_flowers", "pos": [-18.27, 0, -76.16], "rot": 200, "scale": 1.14},
+    {"model": "decor_flowers", "pos": [-10.43, 0, -76.68], "rot": 140, "scale": 1.02},
+    {"model": "decor_flowers", "pos": [-6.9, 0, -102.7], "rot": 170, "scale": 1.22},
+    {"model": "decor_flowers", "pos": [35.88, 0, -81.49], "rot": 150, "scale": 0.72},
+    {"model": "decor_flowers", "pos": [-34.9, 0, -103.27], "rot": 130, "scale": 1.09},
+    {"model": "decor_flowers", "pos": [34.55, 0, -85.46], "rot": 190, "scale": 1.1},
+    {"model": "decor_flowers", "pos": [-34.34, 0, -77.9], "rot": 190, "scale": 0.89},
+    {"model": "decor_stones", "pos": [17.77, 0, -91.05], "rot": 50, "scale": 1.02},
+    {"model": "decor_stones", "pos": [30.14, 0, -80.95], "rot": 250, "scale": 1.07},
+    {"model": "decor_stones", "pos": [-18.13, 0, -78.45], "rot": 200, "scale": 1.14},
+    {"model": "decor_stones", "pos": [20.66, 0, -86.98], "rot": 270, "scale": 1.19},
+    {"model": "decor_stones", "pos": [-1.49, 0, -104.15], "rot": 160, "scale": 1.16},
+    {"model": "decor_stones", "pos": [26.55, 0, -79.2], "rot": 260, "scale": 0.96},
+    {"model": "decor_stones", "pos": [5.63, 0, -102.21], "rot": 240, "scale": 1.2},
+    {"model": "decor_stones", "pos": [-11.69, 0, -82.01], "rot": 280, "scale": 1.29},
+    {"model": "decor_stones", "pos": [-17.59, 0, -83.5], "rot": 50, "scale": 1.18},
+    {"model": "decor_stones", "pos": [-17.13, 0, -76.15], "rot": 220, "scale": 1.19},
+    {"model": "decor_stones", "pos": [27.6, 0, -102.1], "rot": 220, "scale": 1.0},
+    {"model": "decor_stones", "pos": [-3.92, 0, -77.95], "rot": 240, "scale": 1.11},
+    {"model": "decor_stones", "pos": [-9.32, 0, -95.01], "rot": 140, "scale": 1.27},
+    {"model": "decor_stones", "pos": [-31.09, 0, -88.9], "rot": 190, "scale": 0.83},
+    {"model": "decor_stones", "pos": [-34.49, 0, -79.19], "rot": 160, "scale": 1.13},
+    {"model": "decor_stones", "pos": [-12.05, 0, -92.85], "rot": 50, "scale": 0.77},
+    {"model": "decor_stones", "pos": [-4.58, 0, -94.6], "rot": 200, "scale": 1.08},
+    {"model": "decor_stones", "pos": [27.64, 0, -100.17], "rot": 260, "scale": 0.73},
+    {"model": "decor_stones", "pos": [10.32, 0, -85.04], "rot": 130, "scale": 1.21},
+    {"model": "decor_stones", "pos": [34.24, 0, -83.99], "rot": 50, "scale": 1.13},
+    {"model": "decor_stones", "pos": [-31.6, 0, -83.41], "rot": 90, "scale": 0.92},
+    {"model": "decor_stones", "pos": [-18.47, 0, -103.54], "rot": 340, "scale": 0.82},
+    {"model": "decor_stones", "pos": [-10.37, 0, -103.7], "rot": 80, "scale": 0.96},
+    {"model": "decor_stones", "pos": [-24.66, 0, -104.53], "rot": 210, "scale": 1.07},
+    {"model": "decor_stones", "pos": [-0.36, 0, -90.81], "rot": 260, "scale": 0.86},
+    {"model": "decor_stones", "pos": [5.86, 0, -84.69], "rot": 290, "scale": 1.18},
+    {"model": "decor_stones", "pos": [-13.3, 0, -96.05], "rot": 270, "scale": 1.13},
+    {"model": "decor_stones", "pos": [0.4, 0, -79.9], "rot": 170, "scale": 1.03},
+    {"model": "decor_stones", "pos": [15.44, 0, -95.7], "rot": 150, "scale": 0.91},
+    {"model": "decor_stones", "pos": [8.83, 0, -102.93], "rot": 200, "scale": 0.8},
+    {"model": "decor_stones", "pos": [-8.53, 0, -83.56], "rot": 20, "scale": 0.93},
+    {"model": "decor_stones", "pos": [34.47, 0, -78.76], "rot": 130, "scale": 1.03},
+    {"model": "decor_stones", "pos": [34.94, 0, -76.48], "rot": 60, "scale": 0.74},
+    {"model": "decor_stones", "pos": [8.99, 0, -79.54], "rot": 180, "scale": 1.05},
+    {"model": "decor_stones", "pos": [26.98, 0, -80.55], "rot": 170, "scale": 1.07},
+    {"model": "decor_stones", "pos": [-29.9, 0, -94.27], "rot": 220, "scale": 1.08},
+    {"model": "decor_stones", "pos": [-11.34, 0, -103.28], "rot": 210, "scale": 0.74},
+    {"model": "decor_stones", "pos": [7.19, 0, -77.81], "rot": 230, "scale": 1.08},
+    {"model": "decor_stones", "pos": [29.6, 0, -105.98], "rot": 130, "scale": 1.02},
+    {"model": "decor_stones", "pos": [-24.13, 0, -101.26], "rot": 290, "scale": 1.09},
+    {"model": "decor_grass", "pos": [4.04, 0, 7.25], "rot": 90, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-4.55, 0, 3.07], "rot": 10, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-3.08, 0, 8.66], "rot": 240, "scale": 1.27},
+    {"model": "decor_grass", "pos": [1.27, 0, 2.72], "rot": 70, "scale": 0.99},
+    {"model": "decor_grass", "pos": [2.71, 0, -4.42], "rot": 170, "scale": 1.2},
+    {"model": "decor_grass", "pos": [9.16, 0, 5.77], "rot": 210, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-8.42, 0, -1.85], "rot": 120, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-6.46, 0, -1.77], "rot": 10, "scale": 1.18},
+    {"model": "decor_grass", "pos": [6.71, 0, 5.25], "rot": 290, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-3.4, 0, -2.54], "rot": 130, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-10.33, 0, -12.84], "rot": 140, "scale": 1.29},
+    {"model": "decor_grass", "pos": [9.1, 0, -10.0], "rot": 120, "scale": 0.7},
+    {"model": "decor_grass", "pos": [-1.06, 0, -4.33], "rot": 330, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-4.01, 0, 3.14], "rot": 210, "scale": 1.24},
+    {"model": "decor_grass", "pos": [10.36, 0, 3.77], "rot": 20, "scale": 0.95},
+    {"model": "decor_grass", "pos": [1.61, 0, 7.45], "rot": 20, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-1.16, 0, 6.16], "rot": 180, "scale": 0.99},
+    {"model": "decor_grass", "pos": [9.55, 0, 3.64], "rot": 140, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-1.28, 0, -11.15], "rot": 50, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-10.73, 0, -5.96], "rot": 190, "scale": 0.82},
+    {"model": "decor_grass", "pos": [7.91, 0, -12.07], "rot": 70, "scale": 1.18},
+    {"model": "decor_grass", "pos": [7.99, 0, -0.89], "rot": 260, "scale": 1.29},
+    {"model": "decor_grass", "pos": [8.2, 0, -1.33], "rot": 330, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-3.51, 0, 8.5], "rot": 150, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-7.38, 0, -9.59], "rot": 230, "scale": 1.07},
+    {"model": "decor_grass", "pos": [9.8, 0, -10.34], "rot": 340, "scale": 1.03},
+    {"model": "decor_grass", "pos": [9.14, 0, -3.24], "rot": 260, "scale": 1.18},
+    {"model": "decor_grass", "pos": [9.36, 0, -10.64], "rot": 20, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-9.72, 0, -6.61], "rot": 30, "scale": 0.89},
+    {"model": "decor_grass", "pos": [2.0, 0, -3.9], "rot": 40, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-0.49, 0, 4.84], "rot": 210, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-7.41, 0, -7.94], "rot": 100, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-2.5, 0, 5.62], "rot": 140, "scale": 0.84},
+    {"model": "decor_grass", "pos": [5.33, 0, -5.14], "rot": 270, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-9.45, 0, -2.67], "rot": 270, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-5.29, 0, -2.79], "rot": 200, "scale": 0.94},
+    {"model": "decor_grass", "pos": [0.43, 0, 5.2], "rot": 240, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-7.97, 0, -7.03], "rot": 240, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-0.5, 0, -3.0], "rot": 230, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-2.42, 0, 3.23], "rot": 320, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-6.44, 0, -1.09], "rot": 130, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-10.39, 0, -0.61], "rot": 310, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-4.54, 0, 6.56], "rot": 150, "scale": 1.22},
+    {"model": "decor_grass", "pos": [0.07, 0, -10.21], "rot": 230, "scale": 0.97},
+    {"model": "decor_grass", "pos": [5.96, 0, -4.18], "rot": 210, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-7.35, 0, -9.07], "rot": 330, "scale": 1.23},
+    {"model": "decor_grass", "pos": [7.37, 0, 7.39], "rot": 320, "scale": 1.11},
+    {"model": "decor_grass", "pos": [2.04, 0, -11.93], "rot": 310, "scale": 1.02},
+    {"model": "decor_grass", "pos": [5.2, 0, -1.23], "rot": 220, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-8.51, 0, 3.07], "rot": 120, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-10.99, 0, -1.29], "rot": 320, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-10.51, 0, -2.79], "rot": 200, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-0.81, 0, 3.66], "rot": 10, "scale": 0.92},
+    {"model": "decor_grass", "pos": [5.49, 0, -0.81], "rot": 170, "scale": 1.1},
+    {"model": "decor_grass", "pos": [10.7, 0, -5.45], "rot": 260, "scale": 1.02},
+    {"model": "decor_grass", "pos": [6.96, 0, 0.43], "rot": 320, "scale": 1.1},
+    {"model": "decor_grass", "pos": [9.06, 0, -11.33], "rot": 200, "scale": 1.2},
+    {"model": "decor_grass", "pos": [1.19, 0, 8.59], "rot": 340, "scale": 0.89},
+    {"model": "decor_grass", "pos": [1.56, 0, -5.39], "rot": 110, "scale": 1.16},
+    {"model": "decor_grass", "pos": [7.98, 0, -2.08], "rot": 350, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-1.73, 0, 2.26], "rot": 320, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-2.18, 0, -6.3], "rot": 160, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-2.48, 0, 2.73], "rot": 60, "scale": 0.76},
+    {"model": "decor_grass", "pos": [0.21, 0, -6.85], "rot": 60, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-4.44, 0, -7.46], "rot": 170, "scale": 0.97},
+    {"model": "decor_grass", "pos": [5.77, 0, -4.81], "rot": 20, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-1.59, 0, 1.33], "rot": 130, "scale": 0.71},
+    {"model": "decor_grass", "pos": [2.56, 0, -12.06], "rot": 40, "scale": 1.09},
+    {"model": "decor_grass", "pos": [0.5, 0, 2.37], "rot": 280, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-7.05, 0, 0.38], "rot": 340, "scale": 0.86},
+    {"model": "decor_grass", "pos": [10.04, 0, -9.09], "rot": 300, "scale": 1.17},
+    {"model": "decor_grass", "pos": [4.86, 0, 2.53], "rot": 320, "scale": 0.98},
+    {"model": "decor_grass", "pos": [3.98, 0, -7.84], "rot": 180, "scale": 1.03},
+    {"model": "decor_grass", "pos": [10.59, 0, -1.94], "rot": 130, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-5.47, 0, 0.95], "rot": 230, "scale": 0.8},
+    {"model": "decor_grass", "pos": [3.82, 0, -7.06], "rot": 20, "scale": 0.85},
+    {"model": "decor_grass", "pos": [0.69, 0, -5.85], "rot": 280, "scale": 1.08},
+    {"model": "decor_grass", "pos": [5.78, 0, 5.58], "rot": 310, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-2.87, 0, -12.16], "rot": 160, "scale": 0.81},
+    {"model": "decor_grass", "pos": [5.15, 0, 5.56], "rot": 130, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-6.97, 0, -1.6], "rot": 90, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-1.03, 0, -8.31], "rot": 70, "scale": 0.93},
+    {"model": "decor_grass", "pos": [7.21, 0, 7.04], "rot": 110, "scale": 0.83},
+    {"model": "decor_grass", "pos": [7.94, 0, -6.34], "rot": 350, "scale": 0.74},
+    {"model": "decor_grass", "pos": [10.99, 0, -11.5], "rot": 130, "scale": 0.78},
+    {"model": "decor_grass", "pos": [0.93, 0, 3.07], "rot": 70, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-10.36, 0, -7.08], "rot": 280, "scale": 1.0},
+    {"model": "decor_grass", "pos": [8.13, 0, -11.52], "rot": 240, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-6.6, 0, -12.31], "rot": 170, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-1.91, 0, 2.59], "rot": 330, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-3.08, 0, -3.18], "rot": 0, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-5.83, 0, 4.09], "rot": 20, "scale": 0.86},
+    {"model": "decor_grass", "pos": [9.68, 0, 7.83], "rot": 240, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-8.75, 0, 3.43], "rot": 130, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-5.77, 0, -5.82], "rot": 270, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-8.4, 0, -1.26], "rot": 160, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-2.42, 0, 3.58], "rot": 20, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-0.96, 0, -10.08], "rot": 300, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-4.13, 0, -12.62], "rot": 60, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-2.86, 0, 7.97], "rot": 40, "scale": 0.91},
+    {"model": "decor_grass", "pos": [8.43, 0, -9.41], "rot": 140, "scale": 1.22},
+    {"model": "decor_grass", "pos": [5.17, 0, -6.44], "rot": 190, "scale": 1.03},
+    {"model": "decor_grass", "pos": [3.46, 0, -2.19], "rot": 130, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-4.84, 0, 5.7], "rot": 210, "scale": 0.86},
+    {"model": "decor_grass", "pos": [5.57, 0, 8.87], "rot": 110, "scale": 0.78},
+    {"model": "decor_grass", "pos": [4.5, 0, 6.33], "rot": 40, "scale": 0.78},
+    {"model": "decor_grass", "pos": [5.14, 0, 7.0], "rot": 130, "scale": 1.03},
+    {"model": "decor_grass", "pos": [0.13, 0, -4.05], "rot": 310, "scale": 1.06},
+    {"model": "decor_grass", "pos": [5.41, 0, -2.75], "rot": 210, "scale": 1.16},
+    {"model": "decor_grass", "pos": [0.19, 0, -6.36], "rot": 190, "scale": 1.17},
+    {"model": "decor_grass", "pos": [3.34, 0, 1.81], "rot": 100, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-1.6, 0, 0.17], "rot": 180, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-3.48, 0, 5.75], "rot": 130, "scale": 0.86},
+    {"model": "decor_grass", "pos": [8.53, 0, -0.98], "rot": 340, "scale": 0.9},
+    {"model": "decor_grass", "pos": [1.24, 0, -11.9], "rot": 340, "scale": 1.18},
+    {"model": "decor_grass", "pos": [8.28, 0, 6.71], "rot": 40, "scale": 0.86},
+    {"model": "decor_grass", "pos": [3.86, 0, 4.54], "rot": 240, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-5.03, 0, -0.91], "rot": 180, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-10.29, 0, -2.43], "rot": 340, "scale": 0.73},
+    {"model": "decor_grass", "pos": [3.14, 0, -5.07], "rot": 320, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-6.18, 0, -11.44], "rot": 350, "scale": 1.04},
+    {"model": "decor_grass", "pos": [1.48, 0, 6.23], "rot": 300, "scale": 1.06},
+    {"model": "decor_grass", "pos": [9.43, 0, -1.41], "rot": 60, "scale": 0.94},
+    {"model": "decor_grass", "pos": [0.68, 0, 4.11], "rot": 270, "scale": 1.01},
+    {"model": "decor_grass", "pos": [3.48, 0, -7.24], "rot": 240, "scale": 1.14},
+    {"model": "decor_grass", "pos": [11.0, 0, -9.02], "rot": 60, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-7.71, 0, 4.84], "rot": 250, "scale": 1.23},
+    {"model": "decor_grass", "pos": [3.37, 0, -12.34], "rot": 330, "scale": 0.83},
+    {"model": "decor_grass", "pos": [6.72, 0, -5.86], "rot": 310, "scale": 0.71},
+    {"model": "decor_grass", "pos": [8.93, 0, 6.52], "rot": 60, "scale": 0.7},
+    {"model": "decor_grass", "pos": [9.64, 0, -7.19], "rot": 70, "scale": 1.16},
+    {"model": "decor_grass", "pos": [1.3, 0, -10.45], "rot": 150, "scale": 1.11},
+    {"model": "decor_grass", "pos": [6.92, 0, 4.56], "rot": 210, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-7.65, 0, 1.3], "rot": 220, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-6.67, 0, -6.03], "rot": 300, "scale": 0.81},
+    {"model": "decor_grass", "pos": [1.03, 0, -3.2], "rot": 70, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-8.48, 0, -0.74], "rot": 30, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-8.07, 0, 4.37], "rot": 80, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-7.31, 0, -1.84], "rot": 290, "scale": 0.83},
+    {"model": "decor_grass", "pos": [2.29, 0, 3.43], "rot": 250, "scale": 1.03},
+    {"model": "decor_grass", "pos": [5.69, 0, 4.54], "rot": 330, "scale": 0.96},
+    {"model": "decor_grass", "pos": [6.25, 0, -6.58], "rot": 240, "scale": 0.86},
+    {"model": "decor_grass", "pos": [8.43, 0, 0.24], "rot": 260, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-1.67, 0, -4.65], "rot": 20, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-1.05, 0, 2.11], "rot": 30, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-5.59, 0, 0.43], "rot": 220, "scale": 1.15},
+    {"model": "decor_grass", "pos": [3.87, 0, 6.1], "rot": 320, "scale": 1.13},
+    {"model": "decor_grass", "pos": [10.86, 0, -7.43], "rot": 240, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-1.94, 0, 7.11], "rot": 160, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-5.21, 0, 2.97], "rot": 180, "scale": 1.19},
+    {"model": "decor_flowers", "pos": [0.75, 0, -5.31], "rot": 140, "scale": 1.09},
+    {"model": "decor_flowers", "pos": [-2.63, 0, 8.95], "rot": 50, "scale": 1.28},
+    {"model": "decor_flowers", "pos": [2.48, 0, 8.78], "rot": 190, "scale": 0.98},
+    {"model": "decor_flowers", "pos": [5.47, 0, -12.03], "rot": 80, "scale": 1.22},
+    {"model": "decor_flowers", "pos": [-2.02, 0, 3.29], "rot": 130, "scale": 1.0},
+    {"model": "decor_flowers", "pos": [5.94, 0, -2.35], "rot": 70, "scale": 0.71},
+    {"model": "decor_flowers", "pos": [-1.98, 0, -0.11], "rot": 290, "scale": 0.76},
+    {"model": "decor_flowers", "pos": [5.21, 0, -5.88], "rot": 220, "scale": 1.2},
+    {"model": "decor_flowers", "pos": [1.65, 0, -0.26], "rot": 180, "scale": 1.13},
+    {"model": "decor_flowers", "pos": [10.34, 0, -12.36], "rot": 70, "scale": 1.11},
+    {"model": "decor_flowers", "pos": [9.11, 0, -9.46], "rot": 90, "scale": 0.79},
+    {"model": "decor_flowers", "pos": [9.88, 0, 4.82], "rot": 250, "scale": 1.25},
+    {"model": "decor_flowers", "pos": [3.03, 0, 8.57], "rot": 320, "scale": 0.74},
+    {"model": "decor_flowers", "pos": [-0.61, 0, -0.86], "rot": 290, "scale": 0.85},
+    {"model": "decor_flowers", "pos": [-5.12, 0, -12.48], "rot": 280, "scale": 1.2},
+    {"model": "decor_flowers", "pos": [8.12, 0, -4.09], "rot": 210, "scale": 1.21},
+    {"model": "decor_flowers", "pos": [-10.6, 0, 4.29], "rot": 150, "scale": 0.77},
+    {"model": "decor_flowers", "pos": [9.73, 0, -9.32], "rot": 220, "scale": 1.07},
+    {"model": "decor_flowers", "pos": [6.73, 0, 1.29], "rot": 70, "scale": 1.23},
+    {"model": "decor_flowers", "pos": [-7.02, 0, 1.69], "rot": 270, "scale": 0.73},
+    {"model": "decor_flowers", "pos": [-10.53, 0, 4.85], "rot": 170, "scale": 1.26},
+    {"model": "decor_flowers", "pos": [-7.35, 0, -8.35], "rot": 230, "scale": 1.07},
+    {"model": "decor_flowers", "pos": [5.32, 0, 6.39], "rot": 330, "scale": 0.7},
+    {"model": "decor_flowers", "pos": [0.82, 0, -10.07], "rot": 200, "scale": 1.12},
+    {"model": "decor_flowers", "pos": [6.14, 0, -10.43], "rot": 100, "scale": 0.96},
+    {"model": "decor_flowers", "pos": [10.78, 0, -7.42], "rot": 120, "scale": 0.8},
+    {"model": "decor_flowers", "pos": [3.11, 0, -6.76], "rot": 320, "scale": 1.0},
+    {"model": "decor_flowers", "pos": [4.9, 0, -5.68], "rot": 340, "scale": 1.12},
+    {"model": "decor_flowers", "pos": [-8.43, 0, -0.61], "rot": 240, "scale": 0.97},
+    {"model": "decor_flowers", "pos": [9.92, 0, -6.01], "rot": 330, "scale": 1.28},
+    {"model": "decor_flowers", "pos": [0.17, 0, -5.2], "rot": 110, "scale": 1.15},
+    {"model": "decor_flowers", "pos": [-6.81, 0, -1.19], "rot": 70, "scale": 1.22},
+    {"model": "decor_flowers", "pos": [5.93, 0, 4.99], "rot": 50, "scale": 0.75},
+    {"model": "decor_flowers", "pos": [-3.94, 0, -5.76], "rot": 50, "scale": 0.72},
+    {"model": "decor_flowers", "pos": [-5.11, 0, 0.14], "rot": 210, "scale": 0.74},
+    {"model": "decor_flowers", "pos": [1.2, 0, -7.88], "rot": 280, "scale": 1.08},
+    {"model": "decor_flowers", "pos": [-3.52, 0, -11.85], "rot": 140, "scale": 1.26},
+    {"model": "decor_flowers", "pos": [2.82, 0, 8.11], "rot": 100, "scale": 1.02},
+    {"model": "decor_flowers", "pos": [0.49, 0, 2.2], "rot": 230, "scale": 1.04},
+    {"model": "decor_flowers", "pos": [6.34, 0, 7.1], "rot": 10, "scale": 1.1},
+    {"model": "decor_flowers", "pos": [-10.12, 0, 5.18], "rot": 30, "scale": 0.95},
+    {"model": "decor_flowers", "pos": [-2.56, 0, -4.64], "rot": 80, "scale": 0.84},
+    {"model": "decor_flowers", "pos": [2.53, 0, 2.64], "rot": 160, "scale": 1.0},
+    {"model": "decor_flowers", "pos": [-9.68, 0, -12.16], "rot": 50, "scale": 0.79},
+    {"model": "decor_flowers", "pos": [-8.7, 0, -6.32], "rot": 90, "scale": 0.81},
+    {"model": "decor_flowers", "pos": [-0.84, 0, -7.38], "rot": 40, "scale": 1.17},
+    {"model": "decor_flowers", "pos": [-7.03, 0, -1.98], "rot": 20, "scale": 1.14},
+    {"model": "decor_flowers", "pos": [-2.54, 0, -1.77], "rot": 160, "scale": 1.0},
+    {"model": "decor_flowers", "pos": [-0.05, 0, 1.0], "rot": 250, "scale": 1.29},
+    {"model": "decor_flowers", "pos": [4.02, 0, 4.6], "rot": 120, "scale": 0.8},
+    {"model": "decor_flowers", "pos": [-3.37, 0, -11.04], "rot": 340, "scale": 0.71},
+    {"model": "decor_flowers", "pos": [5.39, 0, -10.05], "rot": 170, "scale": 1.08},
+    {"model": "decor_flowers", "pos": [6.8, 0, -0.38], "rot": 210, "scale": 0.93},
+    {"model": "decor_flowers", "pos": [1.37, 0, 2.04], "rot": 330, "scale": 0.82},
+    {"model": "decor_flowers", "pos": [3.77, 0, -9.35], "rot": 150, "scale": 1.12},
+    {"model": "decor_flowers", "pos": [-0.55, 0, 2.21], "rot": 70, "scale": 0.94},
+    {"model": "decor_flowers", "pos": [6.48, 0, 7.43], "rot": 120, "scale": 1.29},
+    {"model": "decor_flowers", "pos": [-1.2, 0, -1.98], "rot": 20, "scale": 1.06},
+    {"model": "decor_flowers", "pos": [-1.67, 0, -2.74], "rot": 90, "scale": 0.71},
+    {"model": "decor_flowers", "pos": [-10.15, 0, -6.46], "rot": 180, "scale": 1.06},
+    {"model": "decor_litter", "pos": [8.64, 0, -4.5], "rot": 80, "scale": 1.24},
+    {"model": "decor_litter", "pos": [5.47, 0, -4.21], "rot": 160, "scale": 1.1},
+    {"model": "decor_litter", "pos": [-7.14, 0, -10.84], "rot": 40, "scale": 0.94},
+    {"model": "decor_litter", "pos": [-2.01, 0, -8.63], "rot": 220, "scale": 0.91},
+    {"model": "decor_litter", "pos": [2.89, 0, -8.19], "rot": 110, "scale": 0.7},
+    {"model": "decor_litter", "pos": [0.57, 0, -0.36], "rot": 120, "scale": 1.04},
+    {"model": "decor_litter", "pos": [10.9, 0, 6.61], "rot": 60, "scale": 1.15},
+    {"model": "decor_litter", "pos": [-10.38, 0, 2.0], "rot": 270, "scale": 1.08},
+    {"model": "decor_litter", "pos": [-10.49, 0, -11.59], "rot": 330, "scale": 1.21},
+    {"model": "decor_litter", "pos": [-5.07, 0, 7.42], "rot": 120, "scale": 0.76},
+    {"model": "decor_litter", "pos": [-3.86, 0, -8.4], "rot": 130, "scale": 1.19},
+    {"model": "decor_litter", "pos": [-6.71, 0, -4.08], "rot": 20, "scale": 0.83},
+    {"model": "decor_litter", "pos": [4.01, 0, -5.26], "rot": 60, "scale": 1.04},
+    {"model": "decor_litter", "pos": [-0.09, 0, 3.73], "rot": 350, "scale": 1.12},
+    {"model": "decor_litter", "pos": [10.66, 0, 3.5], "rot": 80, "scale": 1.29},
+    {"model": "decor_litter", "pos": [-0.78, 0, 3.31], "rot": 100, "scale": 1.24},
+    {"model": "decor_litter", "pos": [6.84, 0, 4.04], "rot": 290, "scale": 1.3},
+    {"model": "decor_litter", "pos": [10.79, 0, 1.19], "rot": 170, "scale": 1.0},
+    {"model": "decor_litter", "pos": [9.25, 0, 3.54], "rot": 20, "scale": 1.09},
+    {"model": "decor_litter", "pos": [-5.52, 0, -11.99], "rot": 110, "scale": 1.21},
+    {"model": "decor_litter", "pos": [-10.95, 0, 1.31], "rot": 170, "scale": 1.2},
+    {"model": "decor_litter", "pos": [-3.19, 0, -4.6], "rot": 160, "scale": 1.11},
+    {"model": "decor_litter", "pos": [-1.45, 0, -10.08], "rot": 270, "scale": 0.8},
+    {"model": "decor_litter", "pos": [-0.64, 0, -1.54], "rot": 110, "scale": 0.75},
+    {"model": "decor_litter", "pos": [4.36, 0, 5.61], "rot": 50, "scale": 1.16},
+    {"model": "decor_litter", "pos": [10.84, 0, 5.95], "rot": 40, "scale": 1.28},
+    {"model": "decor_litter", "pos": [-6.48, 0, -9.09], "rot": 140, "scale": 0.73},
+    {"model": "decor_litter", "pos": [10.24, 0, 2.14], "rot": 150, "scale": 0.86},
+    {"model": "decor_litter", "pos": [-8.17, 0, -4.75], "rot": 270, "scale": 0.71},
+    {"model": "decor_litter", "pos": [-6.38, 0, 4.2], "rot": 70, "scale": 0.86},
+    {"model": "decor_litter", "pos": [1.1, 0, 8.76], "rot": 150, "scale": 1.02},
+    {"model": "decor_litter", "pos": [-10.0, 0, -0.61], "rot": 40, "scale": 0.96},
+    {"model": "decor_litter", "pos": [-5.27, 0, -9.85], "rot": 260, "scale": 0.8},
+    {"model": "decor_litter", "pos": [-4.05, 0, 2.22], "rot": 220, "scale": 0.96},
+    {"model": "decor_litter", "pos": [5.94, 0, -7.91], "rot": 340, "scale": 0.88},
+    {"model": "decor_litter", "pos": [-5.05, 0, 5.66], "rot": 350, "scale": 0.85},
+    {"model": "decor_litter", "pos": [3.2, 0, -0.39], "rot": 0, "scale": 0.71},
+    {"model": "decor_litter", "pos": [-4.67, 0, 5.37], "rot": 300, "scale": 1.28},
+    {"model": "decor_litter", "pos": [-5.81, 0, 0.43], "rot": 110, "scale": 0.93},
+    {"model": "decor_litter", "pos": [-5.07, 0, -3.1], "rot": 10, "scale": 0.88},
+    {"model": "decor_stones", "pos": [-1.38, 0, 1.16], "rot": 10, "scale": 1.28},
+    {"model": "decor_stones", "pos": [-8.46, 0, 1.7], "rot": 180, "scale": 0.72},
+    {"model": "decor_stones", "pos": [-2.76, 0, 4.43], "rot": 340, "scale": 1.11},
+    {"model": "decor_stones", "pos": [3.27, 0, 8.67], "rot": 90, "scale": 0.89},
+    {"model": "decor_stones", "pos": [10.89, 0, -3.04], "rot": 80, "scale": 1.09},
+    {"model": "decor_stones", "pos": [10.48, 0, 5.24], "rot": 230, "scale": 1.12},
+    {"model": "decor_stones", "pos": [-0.75, 0, -10.59], "rot": 20, "scale": 1.22},
+    {"model": "decor_stones", "pos": [-3.7, 0, -8.31], "rot": 150, "scale": 0.83},
+    {"model": "decor_stones", "pos": [-3.03, 0, -5.32], "rot": 170, "scale": 1.19},
+    {"model": "decor_stones", "pos": [10.81, 0, 8.6], "rot": 120, "scale": 1.14},
+    {"model": "decor_stones", "pos": [-7.82, 0, -10.55], "rot": 10, "scale": 1.0},
+    {"model": "decor_stones", "pos": [-4.06, 0, 4.25], "rot": 140, "scale": 0.98},
+    {"model": "decor_stones", "pos": [4.03, 0, 6.08], "rot": 290, "scale": 0.75},
+    {"model": "decor_stones", "pos": [-8.33, 0, 4.74], "rot": 150, "scale": 0.91},
+    {"model": "decor_stones", "pos": [-7.68, 0, -5.48], "rot": 240, "scale": 0.78},
+    {"model": "decor_stones", "pos": [-6.49, 0, -11.62], "rot": 220, "scale": 0.91},
+    {"model": "decor_stones", "pos": [-6.53, 0, -2.18], "rot": 270, "scale": 0.86},
+    {"model": "decor_stones", "pos": [-1.35, 0, -0.02], "rot": 110, "scale": 0.81},
+    {"model": "decor_stones", "pos": [6.23, 0, -11.89], "rot": 110, "scale": 1.07},
+    {"model": "decor_stones", "pos": [-6.01, 0, 5.59], "rot": 300, "scale": 1.23},
+    {"model": "decor_stones", "pos": [-0.1, 0, -4.9], "rot": 170, "scale": 0.72},
+    {"model": "decor_stones", "pos": [-6.28, 0, -5.92], "rot": 140, "scale": 0.81},
+    {"model": "decor_stones", "pos": [3.43, 0, 2.84], "rot": 240, "scale": 1.03},
+    {"model": "decor_stones", "pos": [-7.03, 0, -2.73], "rot": 140, "scale": 0.73},
+    {"model": "decor_stones", "pos": [5.71, 0, -9.47], "rot": 220, "scale": 0.95},
+    {"model": "decor_stones", "pos": [-0.16, 0, 5.8], "rot": 350, "scale": 1.06},
+    {"model": "decor_stones", "pos": [-0.24, 0, 7.87], "rot": 100, "scale": 0.78},
+    {"model": "decor_stones", "pos": [10.31, 0, -2.9], "rot": 300, "scale": 1.24},
+    {"model": "decor_stones", "pos": [5.04, 0, -0.84], "rot": 300, "scale": 0.87},
+    {"model": "decor_stones", "pos": [0.97, 0, -7.33], "rot": 170, "scale": 1.02},
+    {"model": "decor_litter", "pos": [-55.59, 0, 17.31], "rot": 50, "scale": 0.96},
+    {"model": "decor_litter", "pos": [79.34, 0, 4.23], "rot": 190, "scale": 0.73},
+    {"model": "decor_litter", "pos": [-34.71, 0, 12.75], "rot": 290, "scale": 0.77},
+    {"model": "decor_litter", "pos": [6.55, 0, 9.4], "rot": 40, "scale": 1.3},
+    {"model": "decor_litter", "pos": [-53.4, 0, 18.56], "rot": 120, "scale": 0.95},
+    {"model": "decor_litter", "pos": [-64.29, 0, 6.31], "rot": 30, "scale": 1.02},
+    {"model": "decor_litter", "pos": [23.27, 0, 11.73], "rot": 220, "scale": 0.82},
+    {"model": "decor_litter", "pos": [18.18, 0, 12.91], "rot": 180, "scale": 0.99},
+    {"model": "decor_litter", "pos": [-11.65, 0, 18.42], "rot": 280, "scale": 0.73},
+    {"model": "decor_litter", "pos": [-42.31, 0, 20.61], "rot": 300, "scale": 0.78},
+    {"model": "decor_litter", "pos": [-70.77, 0, 8.4], "rot": 80, "scale": 0.91},
+    {"model": "decor_litter", "pos": [1.5, 0, 9.55], "rot": 320, "scale": 1.22},
+    {"model": "decor_litter", "pos": [41.1, 0, 5.24], "rot": 70, "scale": 0.99},
+    {"model": "decor_litter", "pos": [4.98, 0, 20.4], "rot": 280, "scale": 0.88},
+    {"model": "decor_litter", "pos": [51.29, 0, 13.18], "rot": 80, "scale": 0.93},
+    {"model": "decor_litter", "pos": [-71.87, 0, 18.63], "rot": 60, "scale": 1.26},
+    {"model": "decor_litter", "pos": [-51.52, 0, 19.06], "rot": 340, "scale": 0.75},
+    {"model": "decor_litter", "pos": [-64.62, 0, 20.95], "rot": 80, "scale": 1.27},
+    {"model": "decor_litter", "pos": [69.75, 0, 10.61], "rot": 340, "scale": 1.21},
+    {"model": "decor_litter", "pos": [-53.84, 0, 16.47], "rot": 250, "scale": 0.75},
+    {"model": "decor_litter", "pos": [-4.56, 0, 8.28], "rot": 70, "scale": 1.1},
+    {"model": "decor_litter", "pos": [19.82, 0, 13.38], "rot": 0, "scale": 0.92},
+    {"model": "decor_litter", "pos": [1.0, 0, 19.93], "rot": 320, "scale": 1.07},
+    {"model": "decor_litter", "pos": [52.62, 0, 7.54], "rot": 120, "scale": 0.89},
+    {"model": "decor_litter", "pos": [66.36, 0, 9.51], "rot": 190, "scale": 1.2},
+    {"model": "decor_litter", "pos": [-74.72, 0, 4.53], "rot": 310, "scale": 1.16},
+    {"model": "decor_litter", "pos": [-34.73, 0, 11.55], "rot": 350, "scale": 0.71},
+    {"model": "decor_litter", "pos": [60.13, 0, 20.77], "rot": 250, "scale": 0.73},
+    {"model": "decor_litter", "pos": [-71.59, 0, 13.04], "rot": 50, "scale": 1.29},
+    {"model": "decor_litter", "pos": [30.92, 0, 10.47], "rot": 110, "scale": 0.95},
+    {"model": "decor_litter", "pos": [-30.34, 0, 14.76], "rot": 80, "scale": 1.02},
+    {"model": "decor_litter", "pos": [-45.93, 0, 6.65], "rot": 150, "scale": 0.92},
+    {"model": "decor_litter", "pos": [16.89, 0, 14.48], "rot": 260, "scale": 0.86},
+    {"model": "decor_litter", "pos": [-44.56, 0, 17.33], "rot": 350, "scale": 0.84},
+    {"model": "decor_litter", "pos": [-33.02, 0, 11.46], "rot": 30, "scale": 1.24},
+    {"model": "decor_litter", "pos": [-60.46, 0, 4.8], "rot": 0, "scale": 0.84},
+    {"model": "decor_litter", "pos": [50.1, 0, 12.67], "rot": 80, "scale": 1.09},
+    {"model": "decor_litter", "pos": [39.77, 0, 20.58], "rot": 70, "scale": 0.8},
+    {"model": "decor_litter", "pos": [66.44, 0, 16.46], "rot": 160, "scale": 1.03},
+    {"model": "decor_litter", "pos": [-28.42, 0, 4.0], "rot": 220, "scale": 1.19},
+    {"model": "decor_litter", "pos": [47.0, 0, 13.03], "rot": 350, "scale": 0.95},
+    {"model": "decor_litter", "pos": [-65.89, 0, 13.76], "rot": 290, "scale": 0.9},
+    {"model": "decor_litter", "pos": [-24.54, 0, 11.36], "rot": 120, "scale": 0.87},
+    {"model": "decor_litter", "pos": [35.03, 0, 19.71], "rot": 280, "scale": 0.88},
+    {"model": "decor_litter", "pos": [-17.24, 0, 12.97], "rot": 30, "scale": 1.18},
+    {"model": "decor_litter", "pos": [28.12, 0, 7.19], "rot": 240, "scale": 0.88},
+    {"model": "decor_litter", "pos": [-78.23, 0, 12.59], "rot": 120, "scale": 1.09},
+    {"model": "decor_litter", "pos": [-27.96, 0, 13.32], "rot": 240, "scale": 1.04},
+    {"model": "decor_litter", "pos": [27.73, 0, 14.16], "rot": 160, "scale": 1.29},
+    {"model": "decor_litter", "pos": [-31.71, 0, 21.76], "rot": 260, "scale": 0.74},
+    {"model": "decor_litter", "pos": [72.32, 0, 13.37], "rot": 180, "scale": 1.04},
+    {"model": "decor_litter", "pos": [-75.05, 0, 21.05], "rot": 270, "scale": 1.19},
+    {"model": "decor_litter", "pos": [43.68, 0, 16.47], "rot": 100, "scale": 1.15},
+    {"model": "decor_litter", "pos": [50.11, 0, 21.03], "rot": 20, "scale": 0.86},
+    {"model": "decor_litter", "pos": [-48.73, 0, 16.09], "rot": 260, "scale": 1.23},
+    {"model": "decor_litter", "pos": [30.58, 0, 15.95], "rot": 340, "scale": 1.22},
+    {"model": "decor_litter", "pos": [-41.85, 0, 18.84], "rot": 90, "scale": 0.72},
+    {"model": "decor_litter", "pos": [-8.34, 0, 13.73], "rot": 50, "scale": 1.22},
+    {"model": "decor_litter", "pos": [50.11, 0, 19.88], "rot": 270, "scale": 1.08},
+    {"model": "decor_litter", "pos": [16.0, 0, 12.54], "rot": 280, "scale": 0.79},
+    {"model": "decor_litter", "pos": [-78.83, 0, 7.46], "rot": 290, "scale": 1.03},
+    {"model": "decor_litter", "pos": [-10.68, 0, 13.27], "rot": 10, "scale": 1.19},
+    {"model": "decor_litter", "pos": [34.27, 0, 8.4], "rot": 0, "scale": 0.73},
+    {"model": "decor_litter", "pos": [58.16, 0, 7.06], "rot": 170, "scale": 0.75},
+    {"model": "decor_litter", "pos": [-4.38, 0, 17.61], "rot": 280, "scale": 0.78},
+    {"model": "decor_litter", "pos": [-17.96, 0, 18.5], "rot": 310, "scale": 0.86},
+    {"model": "decor_litter", "pos": [-60.55, 0, 14.4], "rot": 70, "scale": 1.26},
+    {"model": "decor_litter", "pos": [-63.18, 0, 9.4], "rot": 160, "scale": 0.84},
+    {"model": "decor_litter", "pos": [77.02, 0, 14.45], "rot": 0, "scale": 1.3},
+    {"model": "decor_litter", "pos": [26.18, 0, 8.45], "rot": 100, "scale": 1.24},
+    {"model": "decor_litter", "pos": [-81.53, 0, 21.42], "rot": 250, "scale": 0.84},
+    {"model": "decor_litter", "pos": [-4.22, 0, 9.43], "rot": 250, "scale": 0.91},
+    {"model": "decor_litter", "pos": [-2.88, 0, 5.96], "rot": 80, "scale": 1.09},
+    {"model": "decor_litter", "pos": [22.33, 0, 4.97], "rot": 320, "scale": 1.27},
+    {"model": "decor_litter", "pos": [31.71, 0, 5.0], "rot": 130, "scale": 1.16},
+    {"model": "decor_litter", "pos": [-54.09, 0, 9.65], "rot": 110, "scale": 1.01},
+    {"model": "decor_litter", "pos": [59.51, 0, 11.27], "rot": 160, "scale": 1.1},
+    {"model": "decor_litter", "pos": [78.14, 0, 13.38], "rot": 280, "scale": 0.86},
+    {"model": "decor_litter", "pos": [3.35, 0, 19.72], "rot": 70, "scale": 0.81},
+    {"model": "decor_litter", "pos": [57.58, 0, 4.48], "rot": 120, "scale": 1.08},
+    {"model": "decor_grass", "pos": [21.13, 0, 20.77], "rot": 10, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-37.38, 0, 8.9], "rot": 130, "scale": 0.76},
+    {"model": "decor_grass", "pos": [10.85, 0, 10.16], "rot": 130, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-33.41, 0, 19.64], "rot": 30, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-35.56, 0, 15.55], "rot": 90, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-0.2, 0, 4.53], "rot": 0, "scale": 0.76},
+    {"model": "decor_grass", "pos": [12.93, 0, 15.98], "rot": 350, "scale": 0.95},
+    {"model": "decor_grass", "pos": [17.85, 0, 14.62], "rot": 350, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-49.61, 0, 21.37], "rot": 350, "scale": 1.2},
+    {"model": "decor_grass", "pos": [4.73, 0, 4.71], "rot": 20, "scale": 1.0},
+    {"model": "decor_grass", "pos": [73.36, 0, 11.51], "rot": 300, "scale": 1.06},
+    {"model": "decor_grass", "pos": [51.55, 0, 19.15], "rot": 280, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-59.56, 0, 19.73], "rot": 290, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-76.62, 0, 18.29], "rot": 70, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-35.77, 0, 8.59], "rot": 10, "scale": 1.12},
+    {"model": "decor_grass", "pos": [55.35, 0, 8.9], "rot": 230, "scale": 0.89},
+    {"model": "decor_grass", "pos": [40.43, 0, 15.55], "rot": 350, "scale": 0.72},
+    {"model": "decor_grass", "pos": [48.41, 0, 19.68], "rot": 100, "scale": 1.12},
+    {"model": "decor_grass", "pos": [53.07, 0, 14.07], "rot": 220, "scale": 1.19},
+    {"model": "decor_grass", "pos": [56.24, 0, 6.83], "rot": 10, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-49.2, 0, 20.42], "rot": 40, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-66.78, 0, 7.05], "rot": 110, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-3.21, 0, 5.22], "rot": 250, "scale": 0.92},
+    {"model": "decor_grass", "pos": [45.78, 0, 18.73], "rot": 40, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-42.62, 0, 7.37], "rot": 80, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-45.52, 0, 17.39], "rot": 330, "scale": 0.88},
+    {"model": "decor_grass", "pos": [72.06, 0, 12.52], "rot": 340, "scale": 0.8},
+    {"model": "decor_grass", "pos": [58.87, 0, 11.45], "rot": 350, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-67.21, 0, 4.94], "rot": 30, "scale": 1.0},
+    {"model": "decor_grass", "pos": [13.71, 0, 20.36], "rot": 200, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-40.64, 0, 16.11], "rot": 140, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-18.33, 0, 18.42], "rot": 190, "scale": 1.26},
+    {"model": "decor_grass", "pos": [62.61, 0, 16.84], "rot": 0, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-54.19, 0, 6.41], "rot": 10, "scale": 1.11},
+    {"model": "decor_grass", "pos": [57.01, 0, 11.65], "rot": 50, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-45.26, 0, 11.91], "rot": 190, "scale": 1.15},
+    {"model": "decor_grass", "pos": [0.12, 0, 15.21], "rot": 280, "scale": 1.12},
+    {"model": "decor_grass", "pos": [78.89, 0, 5.97], "rot": 30, "scale": 1.29},
+    {"model": "decor_grass", "pos": [70.01, 0, 18.41], "rot": 70, "scale": 1.23},
+    {"model": "decor_grass", "pos": [38.34, 0, 18.05], "rot": 80, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-80.28, 0, 19.66], "rot": 290, "scale": 0.9},
+    {"model": "decor_grass", "pos": [31.47, 0, 20.22], "rot": 230, "scale": 1.08},
+    {"model": "decor_grass", "pos": [31.29, 0, 14.2], "rot": 270, "scale": 1.01},
+    {"model": "decor_grass", "pos": [68.54, 0, 21.44], "rot": 10, "scale": 1.15},
+    {"model": "decor_grass", "pos": [52.11, 0, 8.84], "rot": 240, "scale": 1.05},
+    {"model": "decor_grass", "pos": [31.45, 0, 10.27], "rot": 340, "scale": 0.98},
+    {"model": "decor_grass", "pos": [16.61, 0, 20.66], "rot": 300, "scale": 1.02},
+    {"model": "decor_grass", "pos": [50.09, 0, 19.06], "rot": 340, "scale": 0.94},
+    {"model": "decor_grass", "pos": [6.58, 0, 9.8], "rot": 40, "scale": 1.1},
+    {"model": "decor_grass", "pos": [39.98, 0, 15.16], "rot": 300, "scale": 0.89},
+    {"model": "decor_grass", "pos": [67.49, 0, 4.39], "rot": 90, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-72.03, 0, 12.32], "rot": 300, "scale": 1.24},
+    {"model": "decor_grass", "pos": [52.41, 0, 7.34], "rot": 20, "scale": 0.81},
+    {"model": "decor_grass", "pos": [59.11, 0, 13.74], "rot": 20, "scale": 0.82},
+    {"model": "decor_grass", "pos": [80.97, 0, 21.46], "rot": 220, "scale": 1.3},
+    {"model": "decor_grass", "pos": [-31.22, 0, 21.64], "rot": 240, "scale": 1.06},
+    {"model": "decor_grass", "pos": [35.67, 0, 7.73], "rot": 220, "scale": 0.96},
+    {"model": "decor_grass", "pos": [66.61, 0, 18.3], "rot": 290, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-66.06, 0, 11.32], "rot": 50, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-42.13, 0, 7.39], "rot": 40, "scale": 0.94},
+    {"model": "decor_grass", "pos": [45.41, 0, 6.14], "rot": 230, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-31.16, 0, 6.15], "rot": 250, "scale": 0.74},
+    {"model": "decor_grass", "pos": [66.1, 0, 17.57], "rot": 150, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-70.68, 0, 17.53], "rot": 180, "scale": 1.2},
+    {"model": "decor_grass", "pos": [59.2, 0, 6.4], "rot": 160, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-45.31, 0, 5.41], "rot": 260, "scale": 0.97},
+    {"model": "decor_grass", "pos": [2.04, 0, 15.88], "rot": 160, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-45.25, 0, 9.98], "rot": 170, "scale": 0.98},
+    {"model": "decor_grass", "pos": [17.57, 0, 8.59], "rot": 200, "scale": 1.08},
+    {"model": "decor_grass", "pos": [49.8, 0, 10.64], "rot": 340, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-34.06, 0, 15.0], "rot": 200, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-53.3, 0, 11.69], "rot": 120, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-51.13, 0, 13.76], "rot": 190, "scale": 1.11},
+    {"model": "decor_grass", "pos": [30.6, 0, 16.96], "rot": 340, "scale": 0.79},
+    {"model": "decor_grass", "pos": [7.25, 0, 9.05], "rot": 0, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-48.85, 0, 17.56], "rot": 140, "scale": 1.16},
+    {"model": "decor_grass", "pos": [20.21, 0, 4.67], "rot": 350, "scale": 1.05},
+    {"model": "decor_grass", "pos": [25.01, 0, 21.52], "rot": 180, "scale": 1.1},
+    {"model": "decor_grass", "pos": [70.97, 0, 19.27], "rot": 290, "scale": 1.27},
+    {"model": "decor_grass", "pos": [59.92, 0, 18.9], "rot": 150, "scale": 0.78},
+    {"model": "decor_grass", "pos": [80.25, 0, 10.11], "rot": 280, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-44.57, 0, 7.81], "rot": 180, "scale": 0.76},
+    {"model": "decor_grass", "pos": [61.22, 0, 19.45], "rot": 110, "scale": 0.71},
+    {"model": "decor_grass", "pos": [10.82, 0, 22.0], "rot": 10, "scale": 0.83},
+    {"model": "decor_grass", "pos": [27.47, 0, 16.57], "rot": 30, "scale": 1.22},
+    {"model": "decor_grass", "pos": [58.63, 0, 20.89], "rot": 170, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-78.23, 0, 16.95], "rot": 260, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-68.41, 0, 18.7], "rot": 200, "scale": 1.11},
+    {"model": "decor_grass", "pos": [2.68, 0, 10.14], "rot": 290, "scale": 1.3},
+    {"model": "decor_grass", "pos": [22.97, 0, 15.4], "rot": 0, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-59.08, 0, 12.44], "rot": 340, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-45.78, 0, 7.81], "rot": 320, "scale": 0.75},
+    {"model": "decor_grass", "pos": [51.52, 0, 12.33], "rot": 330, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-34.46, 0, 10.47], "rot": 180, "scale": 0.93},
+    {"model": "decor_grass", "pos": [81.14, 0, 20.14], "rot": 50, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-5.96, 0, 4.74], "rot": 300, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-43.38, 0, 4.75], "rot": 220, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-39.75, 0, 19.35], "rot": 140, "scale": 0.76},
+    {"model": "decor_grass", "pos": [6.53, 0, 17.8], "rot": 200, "scale": 0.72},
+    {"model": "decor_grass", "pos": [46.14, 0, 18.21], "rot": 260, "scale": 1.05},
+    {"model": "decor_grass", "pos": [13.23, 0, 12.74], "rot": 220, "scale": 0.81},
+    {"model": "decor_grass", "pos": [65.09, 0, 21.83], "rot": 90, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-12.81, 0, 13.45], "rot": 290, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-43.67, 0, 12.68], "rot": 90, "scale": 1.23},
+    {"model": "decor_grass", "pos": [78.13, 0, 4.17], "rot": 190, "scale": 0.86},
+    {"model": "decor_grass", "pos": [47.74, 0, 16.03], "rot": 70, "scale": 1.06},
+    {"model": "decor_grass", "pos": [65.17, 0, 13.3], "rot": 350, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-77.23, 0, 13.64], "rot": 170, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-0.91, 0, 5.61], "rot": 340, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-4.67, 0, 7.8], "rot": 250, "scale": 1.17},
+    {"model": "decor_grass", "pos": [31.0, 0, 13.76], "rot": 340, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-40.72, 0, 16.96], "rot": 60, "scale": 0.91},
+    {"model": "decor_grass", "pos": [14.91, 0, 15.2], "rot": 230, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-20.26, 0, 10.61], "rot": 0, "scale": 0.88},
+    {"model": "decor_grass", "pos": [44.41, 0, 11.15], "rot": 80, "scale": 0.96},
+    {"model": "decor_grass", "pos": [14.71, 0, 5.61], "rot": 90, "scale": 1.12},
+    {"model": "decor_grass", "pos": [19.89, 0, 13.49], "rot": 180, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-52.44, 0, 4.76], "rot": 170, "scale": 1.24},
+    {"model": "decor_grass", "pos": [80.56, 0, 21.01], "rot": 120, "scale": 1.01},
+    {"model": "decor_grass", "pos": [10.16, 0, 13.72], "rot": 290, "scale": 1.03},
+    {"model": "decor_grass", "pos": [5.7, 0, 6.87], "rot": 170, "scale": 1.11},
+    {"model": "decor_grass", "pos": [64.08, 0, 8.58], "rot": 220, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-56.43, 0, 20.53], "rot": 140, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-37.36, 0, 12.6], "rot": 210, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-62.65, 0, 13.89], "rot": 20, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-40.21, 0, 18.92], "rot": 100, "scale": 0.92},
+    {"model": "decor_grass", "pos": [48.6, 0, 10.45], "rot": 180, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-78.53, 0, 19.48], "rot": 340, "scale": 1.18},
+    {"model": "decor_grass", "pos": [49.52, 0, 17.93], "rot": 70, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-62.4, 0, 20.35], "rot": 150, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-69.89, 0, 4.88], "rot": 340, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-26.23, 0, 12.7], "rot": 0, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-24.9, 0, 17.95], "rot": 80, "scale": 0.83},
+    {"model": "decor_grass", "pos": [75.8, 0, 12.05], "rot": 270, "scale": 0.84},
+    {"model": "decor_grass", "pos": [38.85, 0, 7.02], "rot": 190, "scale": 1.04},
+    {"model": "decor_grass", "pos": [14.87, 0, 21.41], "rot": 240, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-59.29, 0, 13.96], "rot": 100, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-19.14, 0, 5.43], "rot": 130, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-9.0, 0, 17.27], "rot": 200, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-46.67, 0, 21.02], "rot": 230, "scale": 1.16},
+    {"model": "decor_grass", "pos": [23.0, 0, 9.21], "rot": 20, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-57.52, 0, 15.69], "rot": 280, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-37.8, 0, 8.54], "rot": 70, "scale": 1.26},
+    {"model": "decor_grass", "pos": [22.39, 0, 10.04], "rot": 190, "scale": 1.15},
+    {"model": "decor_grass", "pos": [7.16, 0, 6.67], "rot": 220, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-42.23, 0, 14.35], "rot": 0, "scale": 0.87},
+    {"model": "decor_grass", "pos": [30.44, 0, 13.93], "rot": 200, "scale": 1.29},
+    {"model": "decor_grass", "pos": [70.17, 0, 17.9], "rot": 340, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-54.27, 0, 4.05], "rot": 90, "scale": 0.73},
+    {"model": "decor_grass", "pos": [27.79, 0, 13.05], "rot": 260, "scale": 1.28},
+    {"model": "decor_stones", "pos": [72.2, 0, 5.07], "rot": 180, "scale": 1.2},
+    {"model": "decor_stones", "pos": [-75.82, 0, 9.07], "rot": 120, "scale": 0.9},
+    {"model": "decor_stones", "pos": [-79.21, 0, 6.36], "rot": 130, "scale": 0.82},
+    {"model": "decor_stones", "pos": [-60.28, 0, 4.19], "rot": 70, "scale": 1.18},
+    {"model": "decor_stones", "pos": [-31.93, 0, 19.7], "rot": 120, "scale": 1.03},
+    {"model": "decor_stones", "pos": [-56.12, 0, 5.04], "rot": 120, "scale": 0.86},
+    {"model": "decor_stones", "pos": [-60.31, 0, 10.39], "rot": 220, "scale": 0.98},
+    {"model": "decor_stones", "pos": [-10.87, 0, 13.97], "rot": 270, "scale": 0.95},
+    {"model": "decor_stones", "pos": [68.91, 0, 21.22], "rot": 170, "scale": 1.07},
+    {"model": "decor_stones", "pos": [15.32, 0, 21.2], "rot": 320, "scale": 1.15},
+    {"model": "decor_stones", "pos": [-9.44, 0, 17.26], "rot": 160, "scale": 1.09},
+    {"model": "decor_stones", "pos": [-48.38, 0, 21.47], "rot": 250, "scale": 1.04},
+    {"model": "decor_stones", "pos": [11.1, 0, 7.39], "rot": 160, "scale": 1.12},
+    {"model": "decor_stones", "pos": [38.18, 0, 17.96], "rot": 200, "scale": 0.83},
+    {"model": "decor_stones", "pos": [7.93, 0, 7.83], "rot": 300, "scale": 1.07},
+    {"model": "decor_stones", "pos": [-22.67, 0, 10.24], "rot": 250, "scale": 0.83},
+    {"model": "decor_stones", "pos": [-61.3, 0, 13.33], "rot": 130, "scale": 0.85},
+    {"model": "decor_stones", "pos": [53.19, 0, 19.86], "rot": 120, "scale": 1.16},
+    {"model": "decor_stones", "pos": [-35.6, 0, 5.44], "rot": 140, "scale": 1.29},
+    {"model": "decor_stones", "pos": [-74.43, 0, 9.51], "rot": 90, "scale": 0.9},
+    {"model": "decor_stones", "pos": [-56.27, 0, 19.39], "rot": 280, "scale": 0.88},
+    {"model": "decor_stones", "pos": [-65.05, 0, 13.1], "rot": 90, "scale": 0.92},
+    {"model": "decor_stones", "pos": [79.41, 0, 15.2], "rot": 230, "scale": 1.3},
+    {"model": "decor_stones", "pos": [10.77, 0, 10.49], "rot": 300, "scale": 0.93},
+    {"model": "decor_stones", "pos": [42.16, 0, 10.24], "rot": 10, "scale": 1.07},
+    {"model": "decor_stones", "pos": [-32.77, 0, 16.32], "rot": 320, "scale": 0.87},
+    {"model": "decor_stones", "pos": [-52.86, 0, 18.05], "rot": 190, "scale": 1.3},
+    {"model": "decor_stones", "pos": [52.4, 0, 6.11], "rot": 10, "scale": 0.96},
+    {"model": "decor_stones", "pos": [-47.67, 0, 7.47], "rot": 190, "scale": 1.08},
+    {"model": "decor_stones", "pos": [-58.13, 0, 5.36], "rot": 60, "scale": 0.93},
+    {"model": "decor_stones", "pos": [75.44, 0, 4.3], "rot": 230, "scale": 1.13},
+    {"model": "decor_stones", "pos": [28.92, 0, 21.71], "rot": 270, "scale": 1.02},
+    {"model": "decor_stones", "pos": [44.55, 0, 12.52], "rot": 30, "scale": 1.12},
+    {"model": "decor_stones", "pos": [70.45, 0, 7.05], "rot": 260, "scale": 1.17},
+    {"model": "decor_stones", "pos": [-25.17, 0, 20.5], "rot": 80, "scale": 1.12},
+    {"model": "decor_stones", "pos": [-22.8, 0, 6.67], "rot": 200, "scale": 1.23},
+    {"model": "decor_stones", "pos": [-2.34, 0, 16.78], "rot": 210, "scale": 1.13},
+    {"model": "decor_stones", "pos": [42.59, 0, 7.85], "rot": 80, "scale": 1.15},
+    {"model": "decor_stones", "pos": [-52.79, 0, 13.9], "rot": 0, "scale": 1.3},
+    {"model": "decor_stones", "pos": [-18.82, 0, 9.55], "rot": 350, "scale": 1.06},
+    {"model": "decor_litter", "pos": [-49.49, 0, -22.82], "rot": 350, "scale": 1.21},
+    {"model": "decor_litter", "pos": [-22.71, 0, -18.95], "rot": 340, "scale": 0.93},
+    {"model": "decor_litter", "pos": [-31.25, 0, -33.61], "rot": 320, "scale": 1.23},
+    {"model": "decor_litter", "pos": [-23.04, 0, -12.48], "rot": 120, "scale": 1.14},
+    {"model": "decor_litter", "pos": [-26.61, 0, -14.76], "rot": 340, "scale": 1.26},
+    {"model": "decor_litter", "pos": [-61.51, 0, -14.38], "rot": 280, "scale": 1.12},
+    {"model": "decor_litter", "pos": [-32.21, 0, -36.25], "rot": 100, "scale": 1.23},
+    {"model": "decor_litter", "pos": [-27.56, 0, -20.66], "rot": 110, "scale": 0.79},
+    {"model": "decor_litter", "pos": [-53.52, 0, -40.12], "rot": 260, "scale": 0.8},
+    {"model": "decor_litter", "pos": [-48.13, 0, -25.23], "rot": 30, "scale": 0.94},
+    {"model": "decor_litter", "pos": [-60.22, 0, -15.92], "rot": 70, "scale": 1.0},
+    {"model": "decor_litter", "pos": [-56.75, 0, -13.1], "rot": 270, "scale": 1.28},
+    {"model": "decor_litter", "pos": [-33.82, 0, -40.75], "rot": 120, "scale": 1.26},
+    {"model": "decor_litter", "pos": [-61.23, 0, -18.63], "rot": 340, "scale": 1.16},
+    {"model": "decor_litter", "pos": [-31.19, 0, -12.31], "rot": 270, "scale": 1.25},
+    {"model": "decor_litter", "pos": [-34.47, 0, -14.0], "rot": 300, "scale": 1.15},
+    {"model": "decor_litter", "pos": [-28.11, 0, -8.23], "rot": 170, "scale": 1.15},
+    {"model": "decor_litter", "pos": [-28.51, 0, -24.59], "rot": 270, "scale": 0.73},
+    {"model": "decor_litter", "pos": [-37.75, 0, -40.08], "rot": 80, "scale": 1.1},
+    {"model": "decor_litter", "pos": [-35.05, 0, -15.14], "rot": 140, "scale": 1.3},
+    {"model": "decor_litter", "pos": [-59.56, 0, -9.69], "rot": 240, "scale": 1.06},
+    {"model": "decor_litter", "pos": [-54.94, 0, -21.76], "rot": 20, "scale": 1.24},
+    {"model": "decor_litter", "pos": [-27.62, 0, -15.29], "rot": 240, "scale": 0.92},
+    {"model": "decor_litter", "pos": [-26.85, 0, -39.77], "rot": 100, "scale": 0.75},
+    {"model": "decor_litter", "pos": [-57.3, 0, -11.47], "rot": 130, "scale": 1.12},
+    {"model": "decor_litter", "pos": [-50.83, 0, -8.31], "rot": 300, "scale": 0.9},
+    {"model": "decor_litter", "pos": [-43.99, 0, -8.66], "rot": 50, "scale": 0.96},
+    {"model": "decor_litter", "pos": [-28.74, 0, -8.77], "rot": 10, "scale": 0.73},
+    {"model": "decor_litter", "pos": [-25.39, 0, -24.39], "rot": 180, "scale": 1.14},
+    {"model": "decor_litter", "pos": [-24.76, 0, -13.81], "rot": 150, "scale": 1.27},
+    {"model": "decor_litter", "pos": [-40.36, 0, -40.62], "rot": 60, "scale": 0.78},
+    {"model": "decor_litter", "pos": [-61.67, 0, -20.53], "rot": 140, "scale": 1.24},
+    {"model": "decor_litter", "pos": [-60.91, 0, -32.2], "rot": 70, "scale": 0.77},
+    {"model": "decor_litter", "pos": [-43.14, 0, -14.89], "rot": 80, "scale": 0.98},
+    {"model": "decor_litter", "pos": [-34.45, 0, -20.44], "rot": 300, "scale": 1.07},
+    {"model": "decor_litter", "pos": [-32.35, 0, -27.21], "rot": 90, "scale": 1.16},
+    {"model": "decor_litter", "pos": [-61.72, 0, -7.97], "rot": 280, "scale": 1.09},
+    {"model": "decor_litter", "pos": [-34.95, 0, -8.51], "rot": 230, "scale": 0.86},
+    {"model": "decor_litter", "pos": [-32.97, 0, -30.73], "rot": 80, "scale": 0.7},
+    {"model": "decor_litter", "pos": [-22.1, 0, -21.31], "rot": 80, "scale": 1.2},
+    {"model": "decor_litter", "pos": [-24.35, 0, -15.01], "rot": 50, "scale": 1.04},
+    {"model": "decor_litter", "pos": [-54.67, 0, -40.06], "rot": 350, "scale": 0.9},
+    {"model": "decor_litter", "pos": [-33.17, 0, -15.35], "rot": 50, "scale": 0.92},
+    {"model": "decor_litter", "pos": [-27.21, 0, -37.84], "rot": 310, "scale": 1.27},
+    {"model": "decor_litter", "pos": [-26.83, 0, -38.58], "rot": 0, "scale": 0.82},
+    {"model": "decor_litter", "pos": [-35.71, 0, -40.43], "rot": 90, "scale": 1.04},
+    {"model": "decor_litter", "pos": [-36.59, 0, -8.26], "rot": 40, "scale": 0.93},
+    {"model": "decor_litter", "pos": [-37.19, 0, -15.61], "rot": 270, "scale": 1.08},
+    {"model": "decor_litter", "pos": [-50.77, 0, -42.98], "rot": 140, "scale": 1.22},
+    {"model": "decor_litter", "pos": [-45.54, 0, -6.61], "rot": 340, "scale": 1.06},
+    {"model": "decor_litter", "pos": [-46.68, 0, -15.49], "rot": 300, "scale": 0.72},
+    {"model": "decor_litter", "pos": [-41.7, 0, -13.29], "rot": 30, "scale": 0.74},
+    {"model": "decor_litter", "pos": [-45.19, 0, -8.88], "rot": 240, "scale": 1.21},
+    {"model": "decor_litter", "pos": [-55.48, 0, -39.98], "rot": 180, "scale": 1.11},
+    {"model": "decor_litter", "pos": [-33.74, 0, -11.42], "rot": 10, "scale": 0.79},
+    {"model": "decor_litter", "pos": [-42.35, 0, -17.55], "rot": 130, "scale": 0.81},
+    {"model": "decor_litter", "pos": [-28.87, 0, -17.22], "rot": 350, "scale": 1.25},
+    {"model": "decor_litter", "pos": [-58.7, 0, -15.09], "rot": 110, "scale": 1.28},
+    {"model": "decor_litter", "pos": [-35.66, 0, -16.21], "rot": 350, "scale": 0.91},
+    {"model": "decor_litter", "pos": [-48.03, 0, -20.7], "rot": 20, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-29.47, 0, -34.04], "rot": 120, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-27.63, 0, -15.84], "rot": 190, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-59.94, 0, -18.58], "rot": 100, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-38.46, 0, -12.46], "rot": 330, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-32.41, 0, -8.96], "rot": 350, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-32.75, 0, -9.37], "rot": 50, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-42.48, 0, -39.29], "rot": 310, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-37.57, 0, -23.98], "rot": 170, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-54.02, 0, -15.53], "rot": 210, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-23.86, 0, -39.99], "rot": 320, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-37.19, 0, -16.47], "rot": 290, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-58.07, 0, -20.2], "rot": 40, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-25.9, 0, -29.19], "rot": 20, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-33.64, 0, -41.52], "rot": 90, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-30.06, 0, -8.91], "rot": 210, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-33.58, 0, -34.11], "rot": 220, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-57.63, 0, -15.47], "rot": 280, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-36.06, 0, -10.89], "rot": 270, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-43.97, 0, -22.88], "rot": 30, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-50.11, 0, -43.99], "rot": 280, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-54.62, 0, -13.53], "rot": 230, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-37.17, 0, -7.27], "rot": 260, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-47.43, 0, -17.59], "rot": 80, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-36.71, 0, -8.55], "rot": 60, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-34.66, 0, -26.42], "rot": 320, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-35.12, 0, -20.61], "rot": 280, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-39.84, 0, -18.26], "rot": 230, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-48.48, 0, -43.89], "rot": 40, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-31.95, 0, -28.99], "rot": 190, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-33.64, 0, -18.66], "rot": 280, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-47.46, 0, -15.74], "rot": 270, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-37.72, 0, -9.13], "rot": 130, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-45.19, 0, -10.91], "rot": 60, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-35.96, 0, -20.88], "rot": 150, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-38.71, 0, -39.85], "rot": 270, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-41.92, 0, -39.35], "rot": 320, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-26.44, 0, -12.21], "rot": 300, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-60.56, 0, -25.6], "rot": 0, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-49.14, 0, -19.65], "rot": 70, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-43.5, 0, -15.3], "rot": 40, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-27.27, 0, -36.43], "rot": 50, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-56.98, 0, -23.68], "rot": 140, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-58.36, 0, -18.3], "rot": 100, "scale": 0.7},
+    {"model": "decor_grass", "pos": [-48.55, 0, -15.17], "rot": 210, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-26.0, 0, -34.74], "rot": 350, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-51.52, 0, -13.68], "rot": 90, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-44.79, 0, -19.69], "rot": 220, "scale": 1.3},
+    {"model": "decor_grass", "pos": [-44.73, 0, -23.8], "rot": 260, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-23.88, 0, -14.35], "rot": 260, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-26.55, 0, -19.05], "rot": 200, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-50.77, 0, -20.37], "rot": 80, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-53.14, 0, -22.45], "rot": 40, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-29.49, 0, -26.46], "rot": 310, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-26.65, 0, -34.57], "rot": 240, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-26.05, 0, -7.53], "rot": 100, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-61.3, 0, -18.04], "rot": 120, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-30.28, 0, -21.9], "rot": 320, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-55.81, 0, -14.17], "rot": 330, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-52.96, 0, -14.31], "rot": 160, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-39.69, 0, -10.26], "rot": 170, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-22.97, 0, -30.15], "rot": 220, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-54.18, 0, -14.91], "rot": 320, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-40.41, 0, -42.31], "rot": 220, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-25.18, 0, -6.74], "rot": 240, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-24.77, 0, -30.28], "rot": 120, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-57.43, 0, -23.16], "rot": 180, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-26.88, 0, -24.38], "rot": 250, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-55.49, 0, -22.97], "rot": 200, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-59.07, 0, -8.06], "rot": 200, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-52.38, 0, -15.26], "rot": 30, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-56.92, 0, -17.38], "rot": 320, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-27.17, 0, -27.5], "rot": 280, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-34.0, 0, -26.93], "rot": 60, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-58.56, 0, -40.01], "rot": 240, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-23.86, 0, -43.11], "rot": 260, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-41.36, 0, -20.1], "rot": 130, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-41.25, 0, -23.3], "rot": 200, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-28.46, 0, -39.49], "rot": 190, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-49.02, 0, -26.56], "rot": 330, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-33.63, 0, -25.28], "rot": 140, "scale": 0.91},
+    {"model": "decor_grass", "pos": [47.09, 0, -18.31], "rot": 250, "scale": 1.01},
+    {"model": "decor_grass", "pos": [23.75, 0, -24.65], "rot": 110, "scale": 1.03},
+    {"model": "decor_grass", "pos": [48.13, 0, -34.05], "rot": 190, "scale": 1.3},
+    {"model": "decor_grass", "pos": [47.98, 0, -18.95], "rot": 0, "scale": 1.01},
+    {"model": "decor_grass", "pos": [28.45, 0, -35.66], "rot": 320, "scale": 1.02},
+    {"model": "decor_grass", "pos": [28.75, 0, -20.99], "rot": 340, "scale": 1.12},
+    {"model": "decor_grass", "pos": [23.2, 0, -38.62], "rot": 10, "scale": 0.78},
+    {"model": "decor_grass", "pos": [43.68, 0, -29.08], "rot": 270, "scale": 0.88},
+    {"model": "decor_grass", "pos": [33.39, 0, -15.96], "rot": 100, "scale": 1.22},
+    {"model": "decor_grass", "pos": [29.41, 0, -21.31], "rot": 110, "scale": 1.18},
+    {"model": "decor_grass", "pos": [24.56, 0, -32.89], "rot": 230, "scale": 1.11},
+    {"model": "decor_grass", "pos": [39.26, 0, -24.22], "rot": 320, "scale": 1.16},
+    {"model": "decor_grass", "pos": [25.44, 0, -18.25], "rot": 40, "scale": 1.15},
+    {"model": "decor_grass", "pos": [29.34, 0, -38.48], "rot": 40, "scale": 1.06},
+    {"model": "decor_grass", "pos": [35.23, 0, -18.83], "rot": 90, "scale": 1.05},
+    {"model": "decor_grass", "pos": [41.74, 0, -28.33], "rot": 280, "scale": 1.21},
+    {"model": "decor_grass", "pos": [50.57, 0, -21.59], "rot": 40, "scale": 0.86},
+    {"model": "decor_grass", "pos": [36.81, 0, -29.19], "rot": 190, "scale": 0.94},
+    {"model": "decor_grass", "pos": [46.4, 0, -37.34], "rot": 180, "scale": 0.76},
+    {"model": "decor_grass", "pos": [29.1, 0, -26.97], "rot": 320, "scale": 0.83},
+    {"model": "decor_grass", "pos": [26.45, 0, -36.11], "rot": 160, "scale": 1.21},
+    {"model": "decor_grass", "pos": [29.55, 0, -26.38], "rot": 220, "scale": 1.29},
+    {"model": "decor_grass", "pos": [47.43, 0, -19.71], "rot": 310, "scale": 0.8},
+    {"model": "decor_grass", "pos": [28.78, 0, -29.43], "rot": 90, "scale": 0.89},
+    {"model": "decor_grass", "pos": [46.4, 0, -32.34], "rot": 60, "scale": 1.29},
+    {"model": "decor_grass", "pos": [27.05, 0, -17.88], "rot": 130, "scale": 0.77},
+    {"model": "decor_grass", "pos": [44.67, 0, -27.27], "rot": 290, "scale": 1.11},
+    {"model": "decor_grass", "pos": [29.03, 0, -19.94], "rot": 100, "scale": 1.22},
+    {"model": "decor_grass", "pos": [33.71, 0, -27.5], "rot": 320, "scale": 1.1},
+    {"model": "decor_grass", "pos": [43.7, 0, -21.64], "rot": 20, "scale": 0.91},
+    {"model": "decor_grass", "pos": [47.26, 0, -20.16], "rot": 150, "scale": 0.86},
+    {"model": "decor_grass", "pos": [28.07, 0, -36.45], "rot": 290, "scale": 1.01},
+    {"model": "decor_grass", "pos": [47.48, 0, -22.03], "rot": 330, "scale": 0.83},
+    {"model": "decor_grass", "pos": [43.31, 0, -19.24], "rot": 130, "scale": 1.08},
+    {"model": "decor_grass", "pos": [30.7, 0, -18.64], "rot": 350, "scale": 0.75},
+    {"model": "decor_grass", "pos": [46.08, 0, -24.25], "rot": 170, "scale": 0.71},
+    {"model": "decor_grass", "pos": [43.36, 0, -24.55], "rot": 130, "scale": 0.78},
+    {"model": "decor_grass", "pos": [24.42, 0, -15.91], "rot": 120, "scale": 1.07},
+    {"model": "decor_grass", "pos": [39.22, 0, -20.11], "rot": 280, "scale": 1.18},
+    {"model": "decor_grass", "pos": [39.22, 0, -32.94], "rot": 240, "scale": 0.92},
+    {"model": "decor_grass", "pos": [23.54, 0, -22.79], "rot": 100, "scale": 0.72},
+    {"model": "decor_grass", "pos": [29.31, 0, -30.71], "rot": 160, "scale": 0.86},
+    {"model": "decor_grass", "pos": [39.0, 0, -32.29], "rot": 200, "scale": 1.12},
+    {"model": "decor_grass", "pos": [48.38, 0, -29.84], "rot": 80, "scale": 0.86},
+    {"model": "decor_grass", "pos": [28.5, 0, -16.48], "rot": 250, "scale": 1.22},
+    {"model": "decor_grass", "pos": [39.17, 0, -23.27], "rot": 10, "scale": 0.94},
+    {"model": "decor_grass", "pos": [45.55, 0, -23.6], "rot": 160, "scale": 1.02},
+    {"model": "decor_grass", "pos": [23.87, 0, -27.14], "rot": 100, "scale": 1.12},
+    {"model": "decor_grass", "pos": [47.97, 0, -26.97], "rot": 70, "scale": 1.07},
+    {"model": "decor_grass", "pos": [27.37, 0, -28.96], "rot": 40, "scale": 1.07},
+    {"model": "decor_grass", "pos": [30.99, 0, -27.09], "rot": 350, "scale": 0.9},
+    {"model": "decor_grass", "pos": [43.24, 0, -30.53], "rot": 80, "scale": 0.74},
+    {"model": "decor_grass", "pos": [44.19, 0, -31.6], "rot": 10, "scale": 0.94},
+    {"model": "decor_grass", "pos": [42.33, 0, -26.36], "rot": 130, "scale": 0.83},
+    {"model": "decor_grass", "pos": [35.55, 0, -30.64], "rot": 190, "scale": 1.13},
+    {"model": "decor_grass", "pos": [23.51, 0, -16.47], "rot": 100, "scale": 1.15},
+    {"model": "decor_grass", "pos": [28.15, 0, -17.06], "rot": 170, "scale": 0.79},
+    {"model": "decor_grass", "pos": [25.08, 0, -34.16], "rot": 70, "scale": 0.95},
+    {"model": "decor_grass", "pos": [46.83, 0, -30.02], "rot": 140, "scale": 1.12},
+    {"model": "decor_grass", "pos": [49.07, 0, -16.2], "rot": 230, "scale": 1.19},
+    {"model": "decor_grass", "pos": [29.05, 0, -38.69], "rot": 230, "scale": 1.11},
+    {"model": "decor_grass", "pos": [40.6, 0, -24.95], "rot": 130, "scale": 1.06},
+    {"model": "decor_grass", "pos": [37.7, 0, -24.7], "rot": 230, "scale": 1.23},
+    {"model": "decor_grass", "pos": [32.6, 0, -37.37], "rot": 280, "scale": 1.01},
+    {"model": "decor_grass", "pos": [41.13, 0, -16.3], "rot": 250, "scale": 1.29},
+    {"model": "decor_grass", "pos": [48.46, 0, -31.45], "rot": 110, "scale": 0.86},
+    {"model": "decor_grass", "pos": [37.54, 0, -23.93], "rot": 10, "scale": 1.09},
+    {"model": "decor_grass", "pos": [47.18, 0, -17.15], "rot": 140, "scale": 1.18},
+    {"model": "decor_grass", "pos": [34.78, 0, -28.76], "rot": 70, "scale": 1.2},
+    {"model": "decor_grass", "pos": [24.85, 0, -34.93], "rot": 350, "scale": 0.99},
+    {"model": "decor_grass", "pos": [36.98, 0, -28.18], "rot": 190, "scale": 0.8},
+    {"model": "decor_grass", "pos": [45.37, 0, -25.21], "rot": 0, "scale": 1.01},
+    {"model": "decor_grass", "pos": [39.97, 0, -33.14], "rot": 250, "scale": 1.23},
+    {"model": "decor_grass", "pos": [46.79, 0, -37.38], "rot": 210, "scale": 1.3},
+    {"model": "decor_grass", "pos": [49.25, 0, -18.18], "rot": 250, "scale": 0.97},
+    {"model": "decor_grass", "pos": [49.28, 0, -30.49], "rot": 210, "scale": 1.06},
+    {"model": "decor_grass", "pos": [49.67, 0, -16.43], "rot": 110, "scale": 1.16},
+    {"model": "decor_grass", "pos": [27.54, 0, -21.01], "rot": 290, "scale": 0.87},
+    {"model": "decor_grass", "pos": [36.72, 0, -26.56], "rot": 70, "scale": 0.71},
+    {"model": "decor_grass", "pos": [48.78, 0, -22.9], "rot": 80, "scale": 1.09},
+    {"model": "decor_grass", "pos": [46.5, 0, -28.17], "rot": 270, "scale": 0.89},
+    {"model": "decor_grass", "pos": [38.91, 0, -25.85], "rot": 150, "scale": 1.14},
+    {"model": "decor_grass", "pos": [49.59, 0, -31.21], "rot": 70, "scale": 0.92},
+    {"model": "decor_grass", "pos": [48.6, 0, -34.25], "rot": 230, "scale": 1.21},
+    {"model": "decor_grass", "pos": [35.54, 0, -27.31], "rot": 110, "scale": 1.26},
+    {"model": "decor_grass", "pos": [43.67, 0, -38.4], "rot": 100, "scale": 1.19},
+    {"model": "decor_grass", "pos": [36.9, 0, -36.94], "rot": 130, "scale": 1.26},
+    {"model": "decor_grass", "pos": [48.34, 0, -35.4], "rot": 50, "scale": 1.28},
+    {"model": "decor_grass", "pos": [23.37, 0, -34.33], "rot": 130, "scale": 0.8},
+    {"model": "decor_grass", "pos": [27.58, 0, -17.12], "rot": 220, "scale": 0.79},
+    {"model": "decor_grass", "pos": [32.14, 0, -34.15], "rot": 110, "scale": 0.99},
+    {"model": "decor_grass", "pos": [32.96, 0, -27.87], "rot": 220, "scale": 0.82},
+    {"model": "decor_grass", "pos": [23.48, 0, -26.01], "rot": 130, "scale": 1.1},
+    {"model": "decor_grass", "pos": [28.85, 0, -36.18], "rot": 270, "scale": 0.82},
+    {"model": "decor_grass", "pos": [50.72, 0, -20.4], "rot": 180, "scale": 1.12},
+    {"model": "decor_grass", "pos": [32.45, 0, -29.59], "rot": 230, "scale": 0.9},
+    {"model": "decor_grass", "pos": [35.68, 0, -15.29], "rot": 330, "scale": 0.99},
+    {"model": "decor_grass", "pos": [27.02, 0, -20.01], "rot": 190, "scale": 0.89},
+    {"model": "decor_grass", "pos": [30.99, 0, -37.9], "rot": 260, "scale": 0.93},
+    {"model": "decor_grass", "pos": [45.25, 0, -30.55], "rot": 180, "scale": 1.26},
+    {"model": "decor_grass", "pos": [42.17, 0, -17.07], "rot": 50, "scale": 0.83},
+    {"model": "decor_grass", "pos": [46.25, 0, -18.04], "rot": 30, "scale": 0.76},
+    {"model": "decor_grass", "pos": [47.85, 0, -16.29], "rot": 40, "scale": 1.2},
+    {"model": "decor_grass", "pos": [37.09, 0, -33.61], "rot": 340, "scale": 0.97},
+    {"model": "decor_grass", "pos": [48.11, 0, -37.08], "rot": 150, "scale": 1.09},
+    {"model": "decor_grass", "pos": [48.53, 0, -32.05], "rot": 160, "scale": 1.17},
+    {"model": "decor_grass", "pos": [26.28, 0, -18.49], "rot": 0, "scale": 0.76},
+    {"model": "decor_grass", "pos": [35.27, 0, -38.25], "rot": 280, "scale": 0.94},
+    {"model": "decor_grass", "pos": [26.83, 0, -26.74], "rot": 240, "scale": 1.18},
+    {"model": "decor_grass", "pos": [34.48, 0, -21.14], "rot": 0, "scale": 0.95},
+    {"model": "decor_grass", "pos": [35.74, 0, -21.89], "rot": 60, "scale": 1.07},
+    {"model": "decor_grass", "pos": [46.1, 0, -27.82], "rot": 330, "scale": 0.72},
+    {"model": "decor_grass", "pos": [49.61, 0, -33.8], "rot": 230, "scale": 0.8},
+    {"model": "decor_grass", "pos": [43.87, 0, -24.42], "rot": 290, "scale": 0.98},
+    {"model": "decor_grass", "pos": [39.76, 0, -35.95], "rot": 200, "scale": 1.09},
+    {"model": "decor_grass", "pos": [44.91, 0, -24.25], "rot": 20, "scale": 0.97},
+    {"model": "decor_grass", "pos": [49.38, 0, -21.31], "rot": 60, "scale": 1.08},
+    {"model": "decor_grass", "pos": [43.77, 0, -16.2], "rot": 90, "scale": 1.12},
+    {"model": "decor_grass", "pos": [31.85, 0, -22.72], "rot": 40, "scale": 0.87},
+    {"model": "decor_grass", "pos": [28.49, 0, -21.43], "rot": 230, "scale": 0.87},
+    {"model": "decor_flowers", "pos": [35.31, 0, -28.12], "rot": 50, "scale": 1.18},
+    {"model": "decor_flowers", "pos": [49.46, 0, -25.19], "rot": 60, "scale": 0.96},
+    {"model": "decor_flowers", "pos": [28.3, 0, -33.05], "rot": 20, "scale": 1.24},
+    {"model": "decor_flowers", "pos": [26.08, 0, -29.01], "rot": 340, "scale": 1.14},
+    {"model": "decor_flowers", "pos": [24.67, 0, -29.15], "rot": 230, "scale": 1.06},
+    {"model": "decor_flowers", "pos": [48.79, 0, -37.96], "rot": 340, "scale": 1.04},
+    {"model": "decor_flowers", "pos": [45.26, 0, -20.98], "rot": 40, "scale": 0.97},
+    {"model": "decor_flowers", "pos": [25.55, 0, -22.47], "rot": 180, "scale": 0.89},
+    {"model": "decor_flowers", "pos": [44.13, 0, -36.1], "rot": 250, "scale": 1.2},
+    {"model": "decor_flowers", "pos": [48.06, 0, -26.59], "rot": 170, "scale": 0.91},
+    {"model": "decor_flowers", "pos": [38.07, 0, -37.07], "rot": 10, "scale": 0.96},
+    {"model": "decor_flowers", "pos": [36.42, 0, -37.32], "rot": 320, "scale": 0.87},
+    {"model": "decor_flowers", "pos": [45.17, 0, -29.17], "rot": 100, "scale": 0.82},
+    {"model": "decor_flowers", "pos": [37.06, 0, -38.24], "rot": 210, "scale": 0.81},
+    {"model": "decor_flowers", "pos": [42.45, 0, -35.74], "rot": 110, "scale": 1.03},
+    {"model": "decor_flowers", "pos": [35.68, 0, -26.82], "rot": 30, "scale": 1.06},
+    {"model": "decor_flowers", "pos": [27.54, 0, -15.9], "rot": 300, "scale": 0.9},
+    {"model": "decor_flowers", "pos": [46.19, 0, -21.48], "rot": 150, "scale": 0.94},
+    {"model": "decor_flowers", "pos": [50.59, 0, -22.34], "rot": 160, "scale": 1.23},
+    {"model": "decor_flowers", "pos": [37.95, 0, -26.25], "rot": 310, "scale": 0.81},
+    {"model": "decor_flowers", "pos": [24.31, 0, -29.73], "rot": 100, "scale": 1.01},
+    {"model": "decor_flowers", "pos": [38.89, 0, -17.77], "rot": 60, "scale": 0.9},
+    {"model": "decor_flowers", "pos": [50.41, 0, -17.35], "rot": 340, "scale": 1.07},
+    {"model": "decor_flowers", "pos": [30.32, 0, -20.03], "rot": 190, "scale": 0.78},
+    {"model": "decor_flowers", "pos": [26.17, 0, -30.98], "rot": 280, "scale": 1.29},
+    {"model": "decor_flowers", "pos": [49.41, 0, -17.17], "rot": 280, "scale": 0.75},
+    {"model": "decor_flowers", "pos": [35.77, 0, -15.45], "rot": 40, "scale": 0.95},
+    {"model": "decor_flowers", "pos": [34.66, 0, -18.78], "rot": 70, "scale": 0.83},
+    {"model": "decor_flowers", "pos": [23.35, 0, -35.15], "rot": 330, "scale": 1.03},
+    {"model": "decor_flowers", "pos": [25.8, 0, -36.88], "rot": 10, "scale": 0.86},
+    {"model": "decor_flowers", "pos": [44.96, 0, -24.9], "rot": 160, "scale": 1.15},
+    {"model": "decor_flowers", "pos": [26.55, 0, -20.76], "rot": 40, "scale": 0.82},
+    {"model": "decor_flowers", "pos": [30.84, 0, -23.39], "rot": 70, "scale": 1.06},
+    {"model": "decor_flowers", "pos": [30.74, 0, -29.47], "rot": 160, "scale": 1.19},
+    {"model": "decor_flowers", "pos": [39.69, 0, -32.56], "rot": 80, "scale": 1.29},
+    {"model": "decor_flowers", "pos": [33.06, 0, -37.05], "rot": 20, "scale": 1.0},
+    {"model": "decor_flowers", "pos": [49.93, 0, -30.09], "rot": 120, "scale": 1.12},
+    {"model": "decor_flowers", "pos": [28.97, 0, -30.19], "rot": 130, "scale": 1.09},
+    {"model": "decor_flowers", "pos": [47.15, 0, -27.85], "rot": 170, "scale": 1.01},
+    {"model": "decor_flowers", "pos": [28.44, 0, -23.91], "rot": 300, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-76.44, 0, -55.89], "rot": 0, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-80.03, 0, -65.76], "rot": 300, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-73.42, 0, -94.89], "rot": 130, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-71.62, 0, -53.68], "rot": 270, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-67.71, 0, -129.55], "rot": 60, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-74.13, 0, -66.4], "rot": 230, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-78.33, 0, -74.28], "rot": 180, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-74.47, 0, -126.15], "rot": 260, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-73.96, 0, -82.5], "rot": 30, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-71.74, 0, -134.95], "rot": 50, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-81.84, 0, -98.39], "rot": 190, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-67.75, 0, -49.04], "rot": 40, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-75.14, 0, -138.68], "rot": 40, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-69.17, 0, -141.6], "rot": 300, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-80.42, 0, -116.63], "rot": 10, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-72.93, 0, -123.08], "rot": 150, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-70.82, 0, -105.8], "rot": 270, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-79.93, 0, -109.03], "rot": 310, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-73.18, 0, -90.96], "rot": 220, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-75.65, 0, -75.32], "rot": 210, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-72.37, 0, -120.02], "rot": 50, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-71.16, 0, -107.96], "rot": 80, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-76.63, 0, -49.98], "rot": 340, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-68.32, 0, -109.23], "rot": 30, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-69.4, 0, -132.27], "rot": 0, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-81.34, 0, -104.39], "rot": 140, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-69.28, 0, -98.19], "rot": 120, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-70.67, 0, -122.37], "rot": 240, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-74.45, 0, -138.8], "rot": 250, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-72.92, 0, -91.55], "rot": 290, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-74.39, 0, -96.96], "rot": 250, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-73.95, 0, -126.82], "rot": 60, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-71.5, 0, -66.61], "rot": 310, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-76.61, 0, -47.17], "rot": 10, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-80.72, 0, -129.44], "rot": 230, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-76.86, 0, -87.38], "rot": 50, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-80.24, 0, -129.68], "rot": 150, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-75.84, 0, -126.09], "rot": 120, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-78.89, 0, -91.04], "rot": 140, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-70.98, 0, -64.79], "rot": 100, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-73.85, 0, -134.94], "rot": 280, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-68.94, 0, -131.51], "rot": 340, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-66.7, 0, -71.64], "rot": 320, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-78.58, 0, -70.55], "rot": 290, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-74.01, 0, -92.13], "rot": 310, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-70.74, 0, -95.32], "rot": 140, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-66.65, 0, -119.55], "rot": 140, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-74.64, 0, -72.55], "rot": 170, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-67.12, 0, -69.86], "rot": 40, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-68.59, 0, -70.38], "rot": 90, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-73.26, 0, -68.46], "rot": 180, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-76.53, 0, -132.49], "rot": 260, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-78.85, 0, -125.12], "rot": 160, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-78.03, 0, -63.96], "rot": 130, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-71.48, 0, -56.05], "rot": 120, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-68.18, 0, -101.1], "rot": 290, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-79.35, 0, -92.76], "rot": 200, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-73.22, 0, -114.35], "rot": 320, "scale": 0.7},
+    {"model": "decor_grass", "pos": [-79.86, 0, -55.88], "rot": 10, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-72.26, 0, -68.15], "rot": 200, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-81.17, 0, -74.94], "rot": 130, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-79.79, 0, -55.52], "rot": 50, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-66.44, 0, -59.46], "rot": 190, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-72.19, 0, -79.82], "rot": 260, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-76.49, 0, -117.94], "rot": 40, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-68.47, 0, -123.31], "rot": 150, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-68.6, 0, -101.18], "rot": 50, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-78.36, 0, -117.19], "rot": 320, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-68.6, 0, -99.03], "rot": 320, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-81.73, 0, -136.62], "rot": 340, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-70.71, 0, -61.48], "rot": 330, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-81.82, 0, -62.38], "rot": 280, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-80.08, 0, -47.38], "rot": 270, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-70.58, 0, -110.01], "rot": 220, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-67.07, 0, -95.07], "rot": 330, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-78.07, 0, -55.01], "rot": 140, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-81.23, 0, -72.35], "rot": 90, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-78.05, 0, -117.95], "rot": 170, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-79.09, 0, -124.05], "rot": 120, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-68.04, 0, -78.05], "rot": 290, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-78.75, 0, -115.02], "rot": 230, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-72.8, 0, -113.1], "rot": 290, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-71.53, 0, -124.33], "rot": 100, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-76.59, 0, -122.95], "rot": 220, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-68.63, 0, -111.13], "rot": 310, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-72.16, 0, -63.1], "rot": 290, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-79.24, 0, -119.31], "rot": 60, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-66.59, 0, -87.29], "rot": 40, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-73.27, 0, -80.42], "rot": 0, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-76.19, 0, -91.94], "rot": 230, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-74.64, 0, -93.86], "rot": 180, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-66.11, 0, -80.13], "rot": 340, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-79.26, 0, -109.29], "rot": 190, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-67.17, 0, -108.77], "rot": 0, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-80.69, 0, -118.0], "rot": 150, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-77.38, 0, -95.44], "rot": 190, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-70.97, 0, -134.7], "rot": 220, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-80.33, 0, -63.29], "rot": 190, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-67.1, 0, -112.51], "rot": 60, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-68.68, 0, -84.07], "rot": 340, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-75.88, 0, -51.16], "rot": 260, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-79.94, 0, -137.6], "rot": 90, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-67.82, 0, -66.97], "rot": 200, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-75.94, 0, -72.92], "rot": 200, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-78.58, 0, -87.14], "rot": 10, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-73.14, 0, -76.91], "rot": 40, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-67.78, 0, -82.46], "rot": 220, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-75.91, 0, -140.44], "rot": 230, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-79.81, 0, -139.1], "rot": 30, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-78.84, 0, -115.5], "rot": 310, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-80.3, 0, -126.86], "rot": 240, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-79.72, 0, -92.78], "rot": 80, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-75.14, 0, -117.71], "rot": 50, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-68.9, 0, -102.46], "rot": 130, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-80.36, 0, -120.17], "rot": 120, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-67.22, 0, -126.03], "rot": 240, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-73.78, 0, -116.67], "rot": 270, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-74.46, 0, -89.53], "rot": 310, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-71.1, 0, -62.81], "rot": 350, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-79.3, 0, -138.43], "rot": 220, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-74.4, 0, -130.67], "rot": 340, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-80.61, 0, -51.31], "rot": 210, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-72.79, 0, -79.0], "rot": 280, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-66.98, 0, -64.77], "rot": 60, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-67.81, 0, -138.44], "rot": 290, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-69.42, 0, -110.19], "rot": 190, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-74.71, 0, -88.53], "rot": 20, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-80.38, 0, -96.46], "rot": 110, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-76.38, 0, -128.74], "rot": 150, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-78.85, 0, -128.28], "rot": 150, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-67.12, 0, -121.83], "rot": 330, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-69.56, 0, -62.35], "rot": 170, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-66.58, 0, -141.49], "rot": 80, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-78.71, 0, -116.3], "rot": 330, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-77.75, 0, -48.36], "rot": 310, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-79.93, 0, -134.75], "rot": 220, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-69.46, 0, -112.41], "rot": 150, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-67.46, 0, -91.58], "rot": 50, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-78.28, 0, -105.0], "rot": 110, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-76.67, 0, -93.52], "rot": 310, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-73.22, 0, -128.24], "rot": 320, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-73.24, 0, -57.09], "rot": 320, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-67.63, 0, -119.74], "rot": 210, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-78.2, 0, -135.16], "rot": 280, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-79.93, 0, -52.24], "rot": 330, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-76.96, 0, -131.63], "rot": 320, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-69.23, 0, -116.35], "rot": 60, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-71.8, 0, -127.65], "rot": 340, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-71.1, 0, -107.56], "rot": 160, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-67.84, 0, -53.45], "rot": 220, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-73.32, 0, -77.54], "rot": 0, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-78.47, 0, -63.9], "rot": 170, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-69.34, 0, -120.8], "rot": 120, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-74.69, 0, -49.42], "rot": 30, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-81.85, 0, -104.13], "rot": 80, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-81.97, 0, -128.26], "rot": 110, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-67.18, 0, -97.9], "rot": 280, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-72.18, 0, -58.4], "rot": 190, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-75.1, 0, -129.73], "rot": 320, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-77.37, 0, -125.71], "rot": 290, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-75.13, 0, -61.78], "rot": 190, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-66.22, 0, -56.53], "rot": 190, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-81.29, 0, -106.4], "rot": 300, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-72.06, 0, -52.93], "rot": 280, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-78.98, 0, -78.6], "rot": 50, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-68.09, 0, -74.32], "rot": 20, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-78.06, 0, -71.16], "rot": 110, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-67.13, 0, -101.94], "rot": 220, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-66.25, 0, -127.46], "rot": 200, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-69.42, 0, -93.81], "rot": 210, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-72.32, 0, -120.45], "rot": 170, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-77.84, 0, -122.16], "rot": 80, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-68.52, 0, -113.9], "rot": 350, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-71.22, 0, -47.45], "rot": 150, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-74.98, 0, -118.59], "rot": 80, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-73.35, 0, -76.36], "rot": 240, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-68.55, 0, -76.49], "rot": 300, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-74.7, 0, -129.36], "rot": 190, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-76.04, 0, -52.74], "rot": 180, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-70.11, 0, -60.54], "rot": 100, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-77.81, 0, -125.14], "rot": 90, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-74.76, 0, -133.79], "rot": 340, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-70.65, 0, -123.92], "rot": 280, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-77.62, 0, -121.15], "rot": 310, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-66.09, 0, -81.0], "rot": 120, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-79.93, 0, -99.06], "rot": 270, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-75.73, 0, -81.78], "rot": 340, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-81.82, 0, -62.03], "rot": 0, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-68.65, 0, -97.42], "rot": 50, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-69.57, 0, -115.56], "rot": 60, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-69.85, 0, -51.96], "rot": 330, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-80.18, 0, -74.82], "rot": 160, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-73.06, 0, -104.28], "rot": 90, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-78.22, 0, -84.78], "rot": 0, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-80.08, 0, -48.77], "rot": 230, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-81.95, 0, -63.93], "rot": 330, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-76.54, 0, -141.42], "rot": 150, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-75.67, 0, -137.25], "rot": 80, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-70.2, 0, -139.44], "rot": 290, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-70.02, 0, -121.59], "rot": 220, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-68.22, 0, -119.06], "rot": 140, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-66.2, 0, -95.56], "rot": 40, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-66.7, 0, -49.83], "rot": 270, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-81.16, 0, -65.43], "rot": 80, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-80.23, 0, -55.34], "rot": 110, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-74.5, 0, -69.09], "rot": 190, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-67.9, 0, -134.02], "rot": 20, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-74.33, 0, -51.85], "rot": 10, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-73.83, 0, -120.86], "rot": 270, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-67.36, 0, -46.34], "rot": 0, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-77.17, 0, -140.01], "rot": 340, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-67.38, 0, -97.29], "rot": 20, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-81.56, 0, -79.43], "rot": 170, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-80.15, 0, -108.1], "rot": 330, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-72.25, 0, -96.8], "rot": 50, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-74.56, 0, -67.11], "rot": 30, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-75.32, 0, -84.57], "rot": 340, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-70.41, 0, -133.65], "rot": 20, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-80.22, 0, -131.92], "rot": 250, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-67.87, 0, -81.89], "rot": 90, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-74.84, 0, -125.9], "rot": 100, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-77.7, 0, -113.07], "rot": 10, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-76.44, 0, -117.07], "rot": 40, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-70.72, 0, -130.92], "rot": 140, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-80.56, 0, -126.19], "rot": 270, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-67.52, 0, -123.45], "rot": 220, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-69.82, 0, -54.25], "rot": 40, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-70.35, 0, -110.66], "rot": 90, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-67.07, 0, -127.45], "rot": 170, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-78.55, 0, -68.93], "rot": 90, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-66.23, 0, -103.0], "rot": 130, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-75.73, 0, -94.05], "rot": 20, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-80.87, 0, -134.54], "rot": 290, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-66.75, 0, -110.78], "rot": 190, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-72.34, 0, -96.21], "rot": 140, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-75.32, 0, -134.27], "rot": 260, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-78.37, 0, -79.86], "rot": 280, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-67.34, 0, -107.71], "rot": 130, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-70.41, 0, -71.67], "rot": 330, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-80.23, 0, -128.91], "rot": 220, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-76.19, 0, -54.51], "rot": 280, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-69.21, 0, -121.58], "rot": 310, "scale": 0.7},
+    {"model": "decor_grass", "pos": [-77.0, 0, -90.27], "rot": 0, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-80.87, 0, -141.76], "rot": 0, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-75.79, 0, -105.9], "rot": 10, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-79.07, 0, -99.73], "rot": 150, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-69.52, 0, -139.45], "rot": 90, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-81.05, 0, -73.38], "rot": 330, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-81.57, 0, -131.15], "rot": 110, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-69.38, 0, -124.76], "rot": 20, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-70.1, 0, -112.59], "rot": 290, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-72.68, 0, -92.17], "rot": 180, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-69.37, 0, -74.04], "rot": 350, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-78.83, 0, -62.41], "rot": 180, "scale": 0.7},
+    {"model": "decor_grass", "pos": [-69.81, 0, -139.71], "rot": 310, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-73.81, 0, -67.77], "rot": 210, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-67.9, 0, -52.19], "rot": 230, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-81.98, 0, -131.0], "rot": 270, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-72.96, 0, -133.3], "rot": 20, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-74.05, 0, -63.59], "rot": 60, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-81.04, 0, -135.38], "rot": 70, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-69.28, 0, -60.14], "rot": 350, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-80.72, 0, -114.99], "rot": 80, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-68.57, 0, -119.16], "rot": 240, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-68.76, 0, -55.49], "rot": 70, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-77.46, 0, -71.72], "rot": 70, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-67.26, 0, -134.98], "rot": 40, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-76.93, 0, -112.7], "rot": 150, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-79.67, 0, -72.05], "rot": 260, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-73.58, 0, -47.81], "rot": 30, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-73.46, 0, -122.95], "rot": 330, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-68.95, 0, -96.48], "rot": 140, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-81.34, 0, -124.87], "rot": 210, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-75.61, 0, -84.82], "rot": 190, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-76.62, 0, -126.0], "rot": 260, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-80.94, 0, -56.89], "rot": 350, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-74.22, 0, -47.48], "rot": 320, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-81.73, 0, -53.93], "rot": 90, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-75.33, 0, -50.79], "rot": 240, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-74.03, 0, -131.55], "rot": 80, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-75.14, 0, -85.49], "rot": 310, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-78.28, 0, -122.69], "rot": 340, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-66.61, 0, -113.48], "rot": 260, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-74.59, 0, -99.44], "rot": 180, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-66.02, 0, -53.28], "rot": 170, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-81.31, 0, -130.86], "rot": 320, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-79.85, 0, -59.0], "rot": 110, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-70.51, 0, -96.98], "rot": 20, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-80.81, 0, -136.26], "rot": 90, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-76.53, 0, -88.85], "rot": 230, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-74.04, 0, -137.17], "rot": 20, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-68.46, 0, -92.84], "rot": 290, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-76.21, 0, -51.92], "rot": 340, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-66.57, 0, -130.96], "rot": 10, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-66.21, 0, -48.92], "rot": 70, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-72.72, 0, -102.83], "rot": 300, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-67.67, 0, -114.05], "rot": 180, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-79.74, 0, -125.32], "rot": 70, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-67.34, 0, -65.5], "rot": 310, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-66.57, 0, -66.58], "rot": 30, "scale": 1.29},
+    {"model": "decor_leaves", "pos": [-76.76, 0, -77.34], "rot": 340, "scale": 1.24},
+    {"model": "decor_leaves", "pos": [-79.11, 0, -50.22], "rot": 250, "scale": 0.74},
+    {"model": "decor_leaves", "pos": [-76.67, 0, -53.37], "rot": 150, "scale": 1.14},
+    {"model": "decor_leaves", "pos": [-75.34, 0, -92.76], "rot": 70, "scale": 0.73},
+    {"model": "decor_leaves", "pos": [-67.56, 0, -123.21], "rot": 100, "scale": 0.76},
+    {"model": "decor_leaves", "pos": [-75.4, 0, -84.43], "rot": 280, "scale": 1.05},
+    {"model": "decor_leaves", "pos": [-70.52, 0, -61.5], "rot": 60, "scale": 1.07},
+    {"model": "decor_leaves", "pos": [-77.44, 0, -89.7], "rot": 210, "scale": 1.28},
+    {"model": "decor_leaves", "pos": [-72.31, 0, -133.48], "rot": 260, "scale": 0.99},
+    {"model": "decor_leaves", "pos": [-72.21, 0, -53.48], "rot": 40, "scale": 1.27},
+    {"model": "decor_leaves", "pos": [-77.12, 0, -119.67], "rot": 20, "scale": 0.91},
+    {"model": "decor_leaves", "pos": [-78.81, 0, -84.74], "rot": 340, "scale": 1.22},
+    {"model": "decor_leaves", "pos": [-78.89, 0, -136.45], "rot": 270, "scale": 0.72},
+    {"model": "decor_leaves", "pos": [-74.73, 0, -106.65], "rot": 270, "scale": 1.18},
+    {"model": "decor_leaves", "pos": [-69.79, 0, -65.89], "rot": 10, "scale": 0.9},
+    {"model": "decor_leaves", "pos": [-80.32, 0, -65.08], "rot": 20, "scale": 1.21},
+    {"model": "decor_leaves", "pos": [-79.72, 0, -137.4], "rot": 350, "scale": 1.25},
+    {"model": "decor_leaves", "pos": [-71.2, 0, -72.94], "rot": 180, "scale": 1.21},
+    {"model": "decor_leaves", "pos": [-68.81, 0, -123.1], "rot": 90, "scale": 0.78},
+    {"model": "decor_leaves", "pos": [-70.42, 0, -97.56], "rot": 230, "scale": 1.25},
+    {"model": "decor_leaves", "pos": [-68.94, 0, -96.54], "rot": 80, "scale": 1.17},
+    {"model": "decor_leaves", "pos": [-70.85, 0, -83.24], "rot": 30, "scale": 1.18},
+    {"model": "decor_leaves", "pos": [-81.43, 0, -50.15], "rot": 0, "scale": 0.92},
+    {"model": "decor_leaves", "pos": [-70.76, 0, -114.73], "rot": 180, "scale": 1.26},
+    {"model": "decor_leaves", "pos": [-74.38, 0, -96.91], "rot": 320, "scale": 1.29},
+    {"model": "decor_leaves", "pos": [-81.56, 0, -78.42], "rot": 50, "scale": 0.92},
+    {"model": "decor_leaves", "pos": [-71.52, 0, -90.27], "rot": 90, "scale": 1.13},
+    {"model": "decor_leaves", "pos": [-71.59, 0, -62.37], "rot": 280, "scale": 1.04},
+    {"model": "decor_leaves", "pos": [-71.84, 0, -52.7], "rot": 300, "scale": 1.14},
+    {"model": "decor_leaves", "pos": [-81.5, 0, -114.96], "rot": 310, "scale": 0.92},
+    {"model": "decor_leaves", "pos": [-66.61, 0, -73.52], "rot": 120, "scale": 0.88},
+    {"model": "decor_leaves", "pos": [-77.39, 0, -52.74], "rot": 270, "scale": 0.87},
+    {"model": "decor_leaves", "pos": [-73.81, 0, -74.9], "rot": 110, "scale": 0.95},
+    {"model": "decor_leaves", "pos": [-67.08, 0, -81.32], "rot": 290, "scale": 1.28},
+    {"model": "decor_leaves", "pos": [-72.57, 0, -92.15], "rot": 30, "scale": 1.15},
+    {"model": "decor_leaves", "pos": [-71.03, 0, -135.85], "rot": 240, "scale": 0.98},
+    {"model": "decor_leaves", "pos": [-79.87, 0, -95.63], "rot": 240, "scale": 0.99},
+    {"model": "decor_leaves", "pos": [-71.56, 0, -128.63], "rot": 130, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [-66.93, 0, -84.53], "rot": 270, "scale": 1.2},
+    {"model": "decor_leaves", "pos": [-67.58, 0, -81.61], "rot": 140, "scale": 0.81},
+    {"model": "decor_leaves", "pos": [-67.4, 0, -122.35], "rot": 70, "scale": 0.81},
+    {"model": "decor_leaves", "pos": [-81.05, 0, -129.6], "rot": 10, "scale": 1.07},
+    {"model": "decor_leaves", "pos": [-72.0, 0, -107.67], "rot": 340, "scale": 1.08},
+    {"model": "decor_leaves", "pos": [-73.96, 0, -140.53], "rot": 130, "scale": 0.98},
+    {"model": "decor_leaves", "pos": [-81.42, 0, -83.99], "rot": 120, "scale": 0.74},
+    {"model": "decor_leaves", "pos": [-71.25, 0, -87.37], "rot": 0, "scale": 1.03},
+    {"model": "decor_leaves", "pos": [-66.32, 0, -47.97], "rot": 300, "scale": 0.82},
+    {"model": "decor_leaves", "pos": [-76.61, 0, -101.18], "rot": 0, "scale": 0.71},
+    {"model": "decor_leaves", "pos": [-75.8, 0, -119.46], "rot": 330, "scale": 0.84},
+    {"model": "decor_leaves", "pos": [-66.7, 0, -85.91], "rot": 100, "scale": 1.27},
+    {"model": "decor_stones", "pos": [-75.13, 0, -80.87], "rot": 230, "scale": 1.02},
+    {"model": "decor_stones", "pos": [-77.7, 0, -105.44], "rot": 350, "scale": 0.75},
+    {"model": "decor_stones", "pos": [-80.49, 0, -80.18], "rot": 330, "scale": 1.05},
+    {"model": "decor_stones", "pos": [-74.81, 0, -56.23], "rot": 70, "scale": 1.04},
+    {"model": "decor_stones", "pos": [-74.36, 0, -108.53], "rot": 240, "scale": 0.82},
+    {"model": "decor_stones", "pos": [-74.57, 0, -50.97], "rot": 70, "scale": 0.72},
+    {"model": "decor_stones", "pos": [-72.7, 0, -63.09], "rot": 120, "scale": 1.06},
+    {"model": "decor_stones", "pos": [-74.23, 0, -94.17], "rot": 270, "scale": 0.81},
+    {"model": "decor_stones", "pos": [-79.78, 0, -120.36], "rot": 220, "scale": 1.07},
+    {"model": "decor_stones", "pos": [-70.51, 0, -84.61], "rot": 150, "scale": 0.92},
+    {"model": "decor_stones", "pos": [-71.92, 0, -124.72], "rot": 210, "scale": 1.0},
+    {"model": "decor_stones", "pos": [-66.36, 0, -50.14], "rot": 190, "scale": 0.86},
+    {"model": "decor_stones", "pos": [-79.25, 0, -72.08], "rot": 50, "scale": 1.11},
+    {"model": "decor_stones", "pos": [-75.71, 0, -84.37], "rot": 330, "scale": 0.76},
+    {"model": "decor_stones", "pos": [-74.6, 0, -123.72], "rot": 160, "scale": 0.81},
+    {"model": "decor_stones", "pos": [-73.14, 0, -76.41], "rot": 10, "scale": 0.94},
+    {"model": "decor_stones", "pos": [-67.77, 0, -106.37], "rot": 70, "scale": 1.12},
+    {"model": "decor_stones", "pos": [-72.18, 0, -59.37], "rot": 310, "scale": 1.12},
+    {"model": "decor_stones", "pos": [-69.35, 0, -91.48], "rot": 260, "scale": 1.03},
+    {"model": "decor_stones", "pos": [-81.74, 0, -114.55], "rot": 270, "scale": 0.75},
+    {"model": "decor_stones", "pos": [-74.88, 0, -72.84], "rot": 310, "scale": 0.72},
+    {"model": "decor_stones", "pos": [-75.97, 0, -62.67], "rot": 280, "scale": 1.05},
+    {"model": "decor_stones", "pos": [-77.32, 0, -124.25], "rot": 250, "scale": 0.73},
+    {"model": "decor_stones", "pos": [-69.86, 0, -114.82], "rot": 300, "scale": 0.79},
+    {"model": "decor_stones", "pos": [-70.2, 0, -132.31], "rot": 80, "scale": 0.8},
+    {"model": "decor_stones", "pos": [-79.76, 0, -58.29], "rot": 350, "scale": 1.05},
+    {"model": "decor_stones", "pos": [-79.89, 0, -83.08], "rot": 0, "scale": 0.96},
+    {"model": "decor_stones", "pos": [-70.0, 0, -64.91], "rot": 170, "scale": 1.27},
+    {"model": "decor_stones", "pos": [-77.24, 0, -111.13], "rot": 220, "scale": 0.95},
+    {"model": "decor_stones", "pos": [-81.93, 0, -139.11], "rot": 70, "scale": 0.71},
+    {"model": "decor_grass", "pos": [67.03, 0, -52.55], "rot": 50, "scale": 1.05},
+    {"model": "decor_grass", "pos": [57.34, 0, -67.28], "rot": 170, "scale": 0.91},
+    {"model": "decor_grass", "pos": [69.64, 0, -57.26], "rot": 210, "scale": 1.19},
+    {"model": "decor_grass", "pos": [56.18, 0, -106.76], "rot": 220, "scale": 0.72},
+    {"model": "decor_grass", "pos": [81.83, 0, -80.9], "rot": 170, "scale": 0.77},
+    {"model": "decor_grass", "pos": [59.77, 0, -116.25], "rot": 30, "scale": 1.0},
+    {"model": "decor_grass", "pos": [72.74, 0, -109.1], "rot": 330, "scale": 0.94},
+    {"model": "decor_grass", "pos": [72.17, 0, -87.0], "rot": 110, "scale": 1.04},
+    {"model": "decor_grass", "pos": [70.65, 0, -70.42], "rot": 310, "scale": 0.83},
+    {"model": "decor_grass", "pos": [78.33, 0, -92.52], "rot": 310, "scale": 1.23},
+    {"model": "decor_grass", "pos": [79.79, 0, -133.41], "rot": 200, "scale": 0.79},
+    {"model": "decor_grass", "pos": [66.21, 0, -133.93], "rot": 190, "scale": 0.79},
+    {"model": "decor_grass", "pos": [79.23, 0, -128.39], "rot": 230, "scale": 1.15},
+    {"model": "decor_grass", "pos": [56.57, 0, -111.46], "rot": 60, "scale": 1.07},
+    {"model": "decor_grass", "pos": [81.01, 0, -104.07], "rot": 90, "scale": 0.8},
+    {"model": "decor_grass", "pos": [70.14, 0, -92.63], "rot": 280, "scale": 1.03},
+    {"model": "decor_grass", "pos": [65.12, 0, -60.49], "rot": 250, "scale": 1.26},
+    {"model": "decor_grass", "pos": [63.69, 0, -109.12], "rot": 220, "scale": 0.89},
+    {"model": "decor_grass", "pos": [81.63, 0, -135.52], "rot": 180, "scale": 1.12},
+    {"model": "decor_grass", "pos": [75.2, 0, -67.24], "rot": 240, "scale": 0.82},
+    {"model": "decor_grass", "pos": [56.62, 0, -124.49], "rot": 330, "scale": 0.85},
+    {"model": "decor_grass", "pos": [72.47, 0, -89.88], "rot": 300, "scale": 0.78},
+    {"model": "decor_grass", "pos": [81.24, 0, -59.47], "rot": 20, "scale": 1.25},
+    {"model": "decor_grass", "pos": [79.77, 0, -57.88], "rot": 170, "scale": 1.22},
+    {"model": "decor_grass", "pos": [73.5, 0, -54.45], "rot": 220, "scale": 1.03},
+    {"model": "decor_grass", "pos": [71.91, 0, -71.07], "rot": 50, "scale": 1.12},
+    {"model": "decor_grass", "pos": [76.34, 0, -67.32], "rot": 10, "scale": 1.15},
+    {"model": "decor_grass", "pos": [63.94, 0, -120.6], "rot": 320, "scale": 0.91},
+    {"model": "decor_grass", "pos": [76.5, 0, -61.03], "rot": 180, "scale": 1.08},
+    {"model": "decor_grass", "pos": [77.3, 0, -130.19], "rot": 280, "scale": 1.15},
+    {"model": "decor_grass", "pos": [59.73, 0, -109.92], "rot": 260, "scale": 0.96},
+    {"model": "decor_grass", "pos": [80.75, 0, -114.46], "rot": 240, "scale": 0.86},
+    {"model": "decor_grass", "pos": [58.6, 0, -74.71], "rot": 260, "scale": 1.01},
+    {"model": "decor_grass", "pos": [62.21, 0, -50.42], "rot": 130, "scale": 0.88},
+    {"model": "decor_grass", "pos": [74.31, 0, -93.93], "rot": 10, "scale": 1.2},
+    {"model": "decor_grass", "pos": [68.58, 0, -115.05], "rot": 10, "scale": 0.83},
+    {"model": "decor_grass", "pos": [58.67, 0, -130.25], "rot": 230, "scale": 1.3},
+    {"model": "decor_grass", "pos": [78.47, 0, -56.77], "rot": 70, "scale": 0.84},
+    {"model": "decor_grass", "pos": [66.24, 0, -123.6], "rot": 300, "scale": 0.85},
+    {"model": "decor_grass", "pos": [78.69, 0, -128.3], "rot": 80, "scale": 0.92},
+    {"model": "decor_grass", "pos": [61.72, 0, -107.9], "rot": 20, "scale": 1.2},
+    {"model": "decor_grass", "pos": [80.4, 0, -93.38], "rot": 310, "scale": 0.96},
+    {"model": "decor_grass", "pos": [57.65, 0, -87.01], "rot": 330, "scale": 0.95},
+    {"model": "decor_grass", "pos": [70.65, 0, -61.81], "rot": 150, "scale": 0.9},
+    {"model": "decor_grass", "pos": [76.76, 0, -58.84], "rot": 20, "scale": 1.11},
+    {"model": "decor_grass", "pos": [60.49, 0, -114.8], "rot": 240, "scale": 1.16},
+    {"model": "decor_grass", "pos": [66.78, 0, -70.87], "rot": 110, "scale": 1.07},
+    {"model": "decor_grass", "pos": [60.49, 0, -118.71], "rot": 30, "scale": 1.22},
+    {"model": "decor_grass", "pos": [69.58, 0, -118.89], "rot": 110, "scale": 0.93},
+    {"model": "decor_grass", "pos": [59.68, 0, -139.51], "rot": 280, "scale": 1.04},
+    {"model": "decor_grass", "pos": [57.3, 0, -52.34], "rot": 0, "scale": 1.21},
+    {"model": "decor_grass", "pos": [67.77, 0, -78.01], "rot": 0, "scale": 0.8},
+    {"model": "decor_grass", "pos": [67.48, 0, -46.04], "rot": 210, "scale": 1.1},
+    {"model": "decor_grass", "pos": [61.68, 0, -114.05], "rot": 250, "scale": 1.08},
+    {"model": "decor_grass", "pos": [66.92, 0, -85.85], "rot": 130, "scale": 1.27},
+    {"model": "decor_grass", "pos": [73.46, 0, -128.48], "rot": 180, "scale": 0.96},
+    {"model": "decor_grass", "pos": [78.05, 0, -113.0], "rot": 280, "scale": 0.82},
+    {"model": "decor_grass", "pos": [62.3, 0, -134.79], "rot": 300, "scale": 1.19},
+    {"model": "decor_grass", "pos": [59.28, 0, -52.21], "rot": 100, "scale": 1.0},
+    {"model": "decor_grass", "pos": [59.26, 0, -65.88], "rot": 270, "scale": 1.13},
+    {"model": "decor_grass", "pos": [68.87, 0, -68.57], "rot": 210, "scale": 0.77},
+    {"model": "decor_grass", "pos": [69.03, 0, -90.48], "rot": 310, "scale": 0.91},
+    {"model": "decor_grass", "pos": [73.14, 0, -51.87], "rot": 280, "scale": 1.05},
+    {"model": "decor_grass", "pos": [81.72, 0, -99.42], "rot": 220, "scale": 0.88},
+    {"model": "decor_grass", "pos": [77.36, 0, -121.83], "rot": 100, "scale": 1.03},
+    {"model": "decor_grass", "pos": [72.53, 0, -104.81], "rot": 140, "scale": 1.29},
+    {"model": "decor_grass", "pos": [69.46, 0, -119.65], "rot": 80, "scale": 1.04},
+    {"model": "decor_grass", "pos": [68.94, 0, -51.29], "rot": 280, "scale": 1.1},
+    {"model": "decor_grass", "pos": [74.7, 0, -137.77], "rot": 230, "scale": 0.85},
+    {"model": "decor_grass", "pos": [78.85, 0, -137.05], "rot": 50, "scale": 1.09},
+    {"model": "decor_grass", "pos": [64.49, 0, -50.58], "rot": 340, "scale": 0.97},
+    {"model": "decor_grass", "pos": [71.93, 0, -120.7], "rot": 300, "scale": 0.89},
+    {"model": "decor_grass", "pos": [62.92, 0, -116.46], "rot": 60, "scale": 1.27},
+    {"model": "decor_grass", "pos": [80.73, 0, -94.38], "rot": 210, "scale": 0.78},
+    {"model": "decor_grass", "pos": [80.62, 0, -92.31], "rot": 130, "scale": 0.71},
+    {"model": "decor_grass", "pos": [65.56, 0, -57.74], "rot": 270, "scale": 0.98},
+    {"model": "decor_grass", "pos": [73.05, 0, -90.92], "rot": 10, "scale": 0.96},
+    {"model": "decor_grass", "pos": [73.31, 0, -139.75], "rot": 120, "scale": 1.25},
+    {"model": "decor_grass", "pos": [68.05, 0, -98.7], "rot": 330, "scale": 0.81},
+    {"model": "decor_grass", "pos": [63.65, 0, -105.21], "rot": 220, "scale": 1.06},
+    {"model": "decor_grass", "pos": [64.29, 0, -50.12], "rot": 70, "scale": 1.15},
+    {"model": "decor_grass", "pos": [69.76, 0, -117.47], "rot": 150, "scale": 1.0},
+    {"model": "decor_grass", "pos": [56.94, 0, -89.87], "rot": 50, "scale": 1.24},
+    {"model": "decor_grass", "pos": [71.53, 0, -100.1], "rot": 40, "scale": 1.21},
+    {"model": "decor_grass", "pos": [62.17, 0, -79.33], "rot": 270, "scale": 0.8},
+    {"model": "decor_grass", "pos": [57.29, 0, -116.54], "rot": 50, "scale": 1.12},
+    {"model": "decor_grass", "pos": [80.54, 0, -83.31], "rot": 70, "scale": 0.87},
+    {"model": "decor_grass", "pos": [62.09, 0, -76.5], "rot": 110, "scale": 0.91},
+    {"model": "decor_grass", "pos": [61.36, 0, -67.74], "rot": 100, "scale": 0.94},
+    {"model": "decor_grass", "pos": [80.51, 0, -67.45], "rot": 30, "scale": 1.03},
+    {"model": "decor_grass", "pos": [57.13, 0, -119.05], "rot": 230, "scale": 1.03},
+    {"model": "decor_grass", "pos": [58.67, 0, -55.48], "rot": 300, "scale": 1.17},
+    {"model": "decor_grass", "pos": [58.56, 0, -93.84], "rot": 10, "scale": 0.96},
+    {"model": "decor_grass", "pos": [81.9, 0, -51.2], "rot": 190, "scale": 1.22},
+    {"model": "decor_grass", "pos": [80.63, 0, -91.86], "rot": 260, "scale": 0.94},
+    {"model": "decor_grass", "pos": [72.7, 0, -110.66], "rot": 240, "scale": 0.94},
+    {"model": "decor_grass", "pos": [77.18, 0, -92.8], "rot": 20, "scale": 1.08},
+    {"model": "decor_grass", "pos": [73.98, 0, -94.92], "rot": 220, "scale": 1.09},
+    {"model": "decor_grass", "pos": [75.36, 0, -107.72], "rot": 0, "scale": 0.88},
+    {"model": "decor_grass", "pos": [67.2, 0, -64.16], "rot": 60, "scale": 1.05},
+    {"model": "decor_grass", "pos": [76.51, 0, -141.72], "rot": 140, "scale": 1.02},
+    {"model": "decor_grass", "pos": [70.45, 0, -131.55], "rot": 200, "scale": 1.19},
+    {"model": "decor_grass", "pos": [70.07, 0, -114.99], "rot": 260, "scale": 1.22},
+    {"model": "decor_grass", "pos": [75.98, 0, -109.76], "rot": 170, "scale": 0.78},
+    {"model": "decor_grass", "pos": [78.45, 0, -76.92], "rot": 70, "scale": 1.21},
+    {"model": "decor_grass", "pos": [56.97, 0, -92.67], "rot": 120, "scale": 0.88},
+    {"model": "decor_grass", "pos": [79.74, 0, -130.54], "rot": 270, "scale": 0.94},
+    {"model": "decor_grass", "pos": [69.56, 0, -77.1], "rot": 100, "scale": 1.13},
+    {"model": "decor_grass", "pos": [72.97, 0, -74.27], "rot": 180, "scale": 1.04},
+    {"model": "decor_grass", "pos": [75.19, 0, -112.04], "rot": 260, "scale": 1.07},
+    {"model": "decor_grass", "pos": [63.55, 0, -103.73], "rot": 240, "scale": 1.26},
+    {"model": "decor_grass", "pos": [78.09, 0, -87.06], "rot": 10, "scale": 0.83},
+    {"model": "decor_grass", "pos": [76.48, 0, -81.22], "rot": 250, "scale": 0.9},
+    {"model": "decor_grass", "pos": [56.88, 0, -84.24], "rot": 130, "scale": 0.73},
+    {"model": "decor_grass", "pos": [78.13, 0, -101.02], "rot": 200, "scale": 1.27},
+    {"model": "decor_grass", "pos": [73.45, 0, -85.75], "rot": 330, "scale": 0.94},
+    {"model": "decor_grass", "pos": [66.3, 0, -92.65], "rot": 320, "scale": 1.19},
+    {"model": "decor_grass", "pos": [68.34, 0, -66.78], "rot": 50, "scale": 0.82},
+    {"model": "decor_grass", "pos": [57.53, 0, -62.44], "rot": 0, "scale": 0.98},
+    {"model": "decor_grass", "pos": [76.9, 0, -112.8], "rot": 250, "scale": 0.72},
+    {"model": "decor_grass", "pos": [58.92, 0, -66.34], "rot": 190, "scale": 0.71},
+    {"model": "decor_grass", "pos": [78.52, 0, -93.96], "rot": 340, "scale": 1.28},
+    {"model": "decor_grass", "pos": [60.38, 0, -104.42], "rot": 330, "scale": 0.87},
+    {"model": "decor_grass", "pos": [78.05, 0, -93.19], "rot": 340, "scale": 1.2},
+    {"model": "decor_grass", "pos": [61.14, 0, -132.14], "rot": 20, "scale": 1.0},
+    {"model": "decor_grass", "pos": [81.15, 0, -85.74], "rot": 10, "scale": 1.11},
+    {"model": "decor_grass", "pos": [77.08, 0, -141.82], "rot": 170, "scale": 0.95},
+    {"model": "decor_grass", "pos": [72.67, 0, -53.78], "rot": 200, "scale": 0.74},
+    {"model": "decor_grass", "pos": [71.24, 0, -141.86], "rot": 340, "scale": 1.09},
+    {"model": "decor_grass", "pos": [56.97, 0, -133.07], "rot": 270, "scale": 1.21},
+    {"model": "decor_grass", "pos": [70.25, 0, -118.34], "rot": 260, "scale": 0.8},
+    {"model": "decor_grass", "pos": [69.34, 0, -100.3], "rot": 50, "scale": 1.09},
+    {"model": "decor_grass", "pos": [75.36, 0, -110.28], "rot": 160, "scale": 1.11},
+    {"model": "decor_grass", "pos": [59.91, 0, -66.04], "rot": 150, "scale": 1.25},
+    {"model": "decor_grass", "pos": [79.59, 0, -112.66], "rot": 70, "scale": 0.72},
+    {"model": "decor_grass", "pos": [66.12, 0, -46.89], "rot": 160, "scale": 1.09},
+    {"model": "decor_grass", "pos": [80.7, 0, -76.45], "rot": 30, "scale": 1.08},
+    {"model": "decor_grass", "pos": [59.66, 0, -134.4], "rot": 160, "scale": 1.15},
+    {"model": "decor_grass", "pos": [58.96, 0, -97.93], "rot": 150, "scale": 0.91},
+    {"model": "decor_grass", "pos": [70.01, 0, -138.43], "rot": 340, "scale": 0.77},
+    {"model": "decor_grass", "pos": [67.66, 0, -86.0], "rot": 290, "scale": 0.9},
+    {"model": "decor_grass", "pos": [77.52, 0, -118.2], "rot": 280, "scale": 1.14},
+    {"model": "decor_grass", "pos": [56.04, 0, -112.64], "rot": 200, "scale": 0.86},
+    {"model": "decor_grass", "pos": [58.08, 0, -59.15], "rot": 330, "scale": 0.75},
+    {"model": "decor_grass", "pos": [57.16, 0, -129.86], "rot": 160, "scale": 1.27},
+    {"model": "decor_grass", "pos": [65.36, 0, -114.46], "rot": 260, "scale": 1.21},
+    {"model": "decor_grass", "pos": [59.08, 0, -89.56], "rot": 310, "scale": 0.87},
+    {"model": "decor_grass", "pos": [66.57, 0, -122.75], "rot": 290, "scale": 1.15},
+    {"model": "decor_grass", "pos": [60.55, 0, -48.39], "rot": 290, "scale": 0.85},
+    {"model": "decor_grass", "pos": [71.45, 0, -94.64], "rot": 160, "scale": 0.89},
+    {"model": "decor_grass", "pos": [68.31, 0, -133.02], "rot": 140, "scale": 1.11},
+    {"model": "decor_grass", "pos": [61.56, 0, -113.42], "rot": 220, "scale": 1.02},
+    {"model": "decor_grass", "pos": [60.99, 0, -58.04], "rot": 50, "scale": 1.09},
+    {"model": "decor_grass", "pos": [81.64, 0, -138.5], "rot": 290, "scale": 0.97},
+    {"model": "decor_grass", "pos": [70.22, 0, -75.5], "rot": 170, "scale": 0.73},
+    {"model": "decor_grass", "pos": [62.96, 0, -60.03], "rot": 210, "scale": 1.1},
+    {"model": "decor_grass", "pos": [61.91, 0, -122.92], "rot": 220, "scale": 1.21},
+    {"model": "decor_grass", "pos": [61.78, 0, -119.13], "rot": 180, "scale": 0.98},
+    {"model": "decor_grass", "pos": [71.88, 0, -122.86], "rot": 280, "scale": 0.89},
+    {"model": "decor_grass", "pos": [63.57, 0, -81.33], "rot": 270, "scale": 1.13},
+    {"model": "decor_grass", "pos": [71.92, 0, -94.26], "rot": 80, "scale": 1.27},
+    {"model": "decor_grass", "pos": [80.1, 0, -128.02], "rot": 170, "scale": 0.74},
+    {"model": "decor_grass", "pos": [60.8, 0, -97.73], "rot": 330, "scale": 0.89},
+    {"model": "decor_grass", "pos": [57.01, 0, -66.38], "rot": 150, "scale": 0.79},
+    {"model": "decor_grass", "pos": [66.57, 0, -70.42], "rot": 30, "scale": 1.08},
+    {"model": "decor_grass", "pos": [71.82, 0, -60.81], "rot": 190, "scale": 0.95},
+    {"model": "decor_grass", "pos": [81.2, 0, -78.83], "rot": 240, "scale": 1.11},
+    {"model": "decor_grass", "pos": [80.78, 0, -78.34], "rot": 150, "scale": 0.84},
+    {"model": "decor_grass", "pos": [75.76, 0, -79.8], "rot": 240, "scale": 0.85},
+    {"model": "decor_grass", "pos": [66.17, 0, -57.83], "rot": 230, "scale": 0.86},
+    {"model": "decor_grass", "pos": [61.04, 0, -83.19], "rot": 350, "scale": 1.16},
+    {"model": "decor_grass", "pos": [71.82, 0, -57.2], "rot": 150, "scale": 0.88},
+    {"model": "decor_grass", "pos": [61.98, 0, -80.1], "rot": 20, "scale": 0.92},
+    {"model": "decor_grass", "pos": [78.85, 0, -130.09], "rot": 30, "scale": 1.24},
+    {"model": "decor_grass", "pos": [59.9, 0, -115.46], "rot": 300, "scale": 0.76},
+    {"model": "decor_grass", "pos": [74.26, 0, -52.81], "rot": 200, "scale": 1.19},
+    {"model": "decor_grass", "pos": [58.91, 0, -65.24], "rot": 40, "scale": 0.92},
+    {"model": "decor_grass", "pos": [76.59, 0, -84.98], "rot": 110, "scale": 0.84},
+    {"model": "decor_grass", "pos": [68.7, 0, -75.28], "rot": 180, "scale": 1.02},
+    {"model": "decor_grass", "pos": [75.8, 0, -93.91], "rot": 40, "scale": 1.29},
+    {"model": "decor_grass", "pos": [59.02, 0, -64.18], "rot": 20, "scale": 1.07},
+    {"model": "decor_grass", "pos": [78.34, 0, -139.15], "rot": 160, "scale": 0.84},
+    {"model": "decor_grass", "pos": [57.71, 0, -114.54], "rot": 250, "scale": 1.14},
+    {"model": "decor_grass", "pos": [69.44, 0, -90.33], "rot": 120, "scale": 0.75},
+    {"model": "decor_grass", "pos": [67.8, 0, -48.22], "rot": 160, "scale": 0.8},
+    {"model": "decor_grass", "pos": [63.23, 0, -66.19], "rot": 30, "scale": 1.01},
+    {"model": "decor_grass", "pos": [60.9, 0, -56.75], "rot": 210, "scale": 1.07},
+    {"model": "decor_grass", "pos": [59.78, 0, -66.92], "rot": 200, "scale": 1.23},
+    {"model": "decor_grass", "pos": [64.26, 0, -131.14], "rot": 250, "scale": 0.84},
+    {"model": "decor_grass", "pos": [73.13, 0, -113.03], "rot": 110, "scale": 0.99},
+    {"model": "decor_grass", "pos": [73.97, 0, -63.53], "rot": 320, "scale": 0.8},
+    {"model": "decor_grass", "pos": [56.76, 0, -65.22], "rot": 220, "scale": 1.26},
+    {"model": "decor_grass", "pos": [63.91, 0, -51.41], "rot": 110, "scale": 1.16},
+    {"model": "decor_grass", "pos": [70.05, 0, -46.63], "rot": 110, "scale": 1.07},
+    {"model": "decor_grass", "pos": [64.45, 0, -93.73], "rot": 340, "scale": 0.9},
+    {"model": "decor_grass", "pos": [60.27, 0, -138.84], "rot": 250, "scale": 0.84},
+    {"model": "decor_grass", "pos": [76.37, 0, -106.06], "rot": 200, "scale": 0.99},
+    {"model": "decor_grass", "pos": [71.74, 0, -113.75], "rot": 100, "scale": 0.77},
+    {"model": "decor_grass", "pos": [58.28, 0, -100.97], "rot": 20, "scale": 1.21},
+    {"model": "decor_grass", "pos": [81.14, 0, -71.61], "rot": 30, "scale": 1.22},
+    {"model": "decor_grass", "pos": [73.58, 0, -63.61], "rot": 250, "scale": 1.25},
+    {"model": "decor_grass", "pos": [71.73, 0, -107.75], "rot": 310, "scale": 1.17},
+    {"model": "decor_grass", "pos": [66.06, 0, -105.58], "rot": 190, "scale": 1.29},
+    {"model": "decor_grass", "pos": [80.36, 0, -133.32], "rot": 130, "scale": 1.2},
+    {"model": "decor_grass", "pos": [80.42, 0, -141.26], "rot": 180, "scale": 1.05},
+    {"model": "decor_grass", "pos": [65.82, 0, -71.72], "rot": 80, "scale": 1.03},
+    {"model": "decor_grass", "pos": [68.29, 0, -48.02], "rot": 110, "scale": 1.11},
+    {"model": "decor_grass", "pos": [78.99, 0, -133.55], "rot": 30, "scale": 0.79},
+    {"model": "decor_grass", "pos": [73.28, 0, -57.87], "rot": 250, "scale": 1.19},
+    {"model": "decor_grass", "pos": [70.55, 0, -108.51], "rot": 120, "scale": 1.12},
+    {"model": "decor_grass", "pos": [80.37, 0, -106.85], "rot": 60, "scale": 0.97},
+    {"model": "decor_grass", "pos": [57.45, 0, -105.95], "rot": 220, "scale": 1.01},
+    {"model": "decor_grass", "pos": [70.03, 0, -73.16], "rot": 110, "scale": 1.03},
+    {"model": "decor_grass", "pos": [73.83, 0, -63.91], "rot": 150, "scale": 0.88},
+    {"model": "decor_grass", "pos": [72.48, 0, -99.58], "rot": 90, "scale": 1.25},
+    {"model": "decor_grass", "pos": [70.96, 0, -67.28], "rot": 150, "scale": 0.89},
+    {"model": "decor_grass", "pos": [64.32, 0, -47.32], "rot": 60, "scale": 0.74},
+    {"model": "decor_grass", "pos": [75.17, 0, -114.96], "rot": 250, "scale": 1.07},
+    {"model": "decor_grass", "pos": [81.53, 0, -108.84], "rot": 230, "scale": 0.79},
+    {"model": "decor_grass", "pos": [58.58, 0, -67.7], "rot": 90, "scale": 0.73},
+    {"model": "decor_grass", "pos": [80.57, 0, -51.69], "rot": 260, "scale": 0.96},
+    {"model": "decor_grass", "pos": [73.35, 0, -114.36], "rot": 230, "scale": 1.19},
+    {"model": "decor_grass", "pos": [65.9, 0, -113.94], "rot": 300, "scale": 0.79},
+    {"model": "decor_grass", "pos": [59.91, 0, -50.73], "rot": 280, "scale": 0.92},
+    {"model": "decor_grass", "pos": [63.16, 0, -82.06], "rot": 230, "scale": 1.26},
+    {"model": "decor_grass", "pos": [75.66, 0, -71.77], "rot": 130, "scale": 0.88},
+    {"model": "decor_grass", "pos": [71.5, 0, -48.48], "rot": 140, "scale": 1.23},
+    {"model": "decor_grass", "pos": [69.41, 0, -50.01], "rot": 260, "scale": 1.24},
+    {"model": "decor_grass", "pos": [73.08, 0, -72.3], "rot": 200, "scale": 1.09},
+    {"model": "decor_grass", "pos": [60.5, 0, -72.18], "rot": 130, "scale": 0.85},
+    {"model": "decor_grass", "pos": [77.85, 0, -123.44], "rot": 220, "scale": 1.25},
+    {"model": "decor_grass", "pos": [61.94, 0, -56.89], "rot": 190, "scale": 1.18},
+    {"model": "decor_grass", "pos": [76.82, 0, -65.19], "rot": 300, "scale": 0.91},
+    {"model": "decor_grass", "pos": [64.71, 0, -109.58], "rot": 120, "scale": 1.16},
+    {"model": "decor_grass", "pos": [60.81, 0, -125.83], "rot": 180, "scale": 1.04},
+    {"model": "decor_grass", "pos": [67.84, 0, -79.47], "rot": 10, "scale": 0.98},
+    {"model": "decor_grass", "pos": [79.39, 0, -61.67], "rot": 60, "scale": 1.09},
+    {"model": "decor_grass", "pos": [71.04, 0, -113.26], "rot": 240, "scale": 0.9},
+    {"model": "decor_grass", "pos": [77.36, 0, -99.6], "rot": 100, "scale": 1.28},
+    {"model": "decor_grass", "pos": [81.28, 0, -122.22], "rot": 160, "scale": 1.13},
+    {"model": "decor_grass", "pos": [61.88, 0, -58.32], "rot": 220, "scale": 1.15},
+    {"model": "decor_grass", "pos": [74.62, 0, -61.91], "rot": 40, "scale": 0.9},
+    {"model": "decor_grass", "pos": [70.85, 0, -79.02], "rot": 130, "scale": 1.1},
+    {"model": "decor_grass", "pos": [81.15, 0, -77.99], "rot": 200, "scale": 0.95},
+    {"model": "decor_grass", "pos": [74.88, 0, -107.74], "rot": 30, "scale": 0.87},
+    {"model": "decor_grass", "pos": [60.2, 0, -52.1], "rot": 0, "scale": 1.18},
+    {"model": "decor_grass", "pos": [73.16, 0, -85.2], "rot": 330, "scale": 0.94},
+    {"model": "decor_grass", "pos": [81.96, 0, -57.26], "rot": 250, "scale": 0.86},
+    {"model": "decor_grass", "pos": [74.67, 0, -48.54], "rot": 50, "scale": 0.83},
+    {"model": "decor_grass", "pos": [63.68, 0, -111.55], "rot": 30, "scale": 1.07},
+    {"model": "decor_grass", "pos": [77.06, 0, -79.82], "rot": 120, "scale": 0.83},
+    {"model": "decor_grass", "pos": [71.26, 0, -120.55], "rot": 270, "scale": 1.27},
+    {"model": "decor_grass", "pos": [66.35, 0, -119.37], "rot": 180, "scale": 0.92},
+    {"model": "decor_grass", "pos": [77.71, 0, -96.8], "rot": 20, "scale": 1.13},
+    {"model": "decor_grass", "pos": [73.87, 0, -129.58], "rot": 320, "scale": 1.25},
+    {"model": "decor_grass", "pos": [74.21, 0, -81.93], "rot": 280, "scale": 1.3},
+    {"model": "decor_grass", "pos": [62.63, 0, -74.79], "rot": 230, "scale": 1.02},
+    {"model": "decor_grass", "pos": [58.09, 0, -69.07], "rot": 230, "scale": 0.7},
+    {"model": "decor_grass", "pos": [61.47, 0, -115.91], "rot": 60, "scale": 1.29},
+    {"model": "decor_grass", "pos": [79.72, 0, -120.76], "rot": 180, "scale": 1.25},
+    {"model": "decor_grass", "pos": [60.4, 0, -109.8], "rot": 230, "scale": 1.02},
+    {"model": "decor_grass", "pos": [63.33, 0, -63.47], "rot": 190, "scale": 0.76},
+    {"model": "decor_grass", "pos": [80.31, 0, -97.84], "rot": 230, "scale": 1.29},
+    {"model": "decor_grass", "pos": [71.56, 0, -111.03], "rot": 270, "scale": 1.02},
+    {"model": "decor_grass", "pos": [63.75, 0, -89.68], "rot": 290, "scale": 0.99},
+    {"model": "decor_grass", "pos": [76.01, 0, -67.85], "rot": 260, "scale": 0.85},
+    {"model": "decor_grass", "pos": [64.64, 0, -82.01], "rot": 310, "scale": 1.16},
+    {"model": "decor_grass", "pos": [78.68, 0, -101.81], "rot": 30, "scale": 0.74},
+    {"model": "decor_grass", "pos": [74.15, 0, -53.59], "rot": 240, "scale": 1.1},
+    {"model": "decor_grass", "pos": [73.93, 0, -84.04], "rot": 250, "scale": 0.71},
+    {"model": "decor_grass", "pos": [72.82, 0, -128.65], "rot": 240, "scale": 1.07},
+    {"model": "decor_grass", "pos": [71.63, 0, -106.32], "rot": 90, "scale": 1.12},
+    {"model": "decor_grass", "pos": [81.26, 0, -102.28], "rot": 240, "scale": 1.05},
+    {"model": "decor_grass", "pos": [75.63, 0, -66.07], "rot": 220, "scale": 1.12},
+    {"model": "decor_grass", "pos": [66.72, 0, -80.94], "rot": 230, "scale": 0.75},
+    {"model": "decor_grass", "pos": [80.45, 0, -56.29], "rot": 250, "scale": 0.87},
+    {"model": "decor_grass", "pos": [73.5, 0, -70.8], "rot": 40, "scale": 1.06},
+    {"model": "decor_grass", "pos": [56.21, 0, -105.49], "rot": 90, "scale": 0.98},
+    {"model": "decor_grass", "pos": [71.46, 0, -51.32], "rot": 210, "scale": 1.28},
+    {"model": "decor_grass", "pos": [64.3, 0, -68.61], "rot": 220, "scale": 1.12},
+    {"model": "decor_grass", "pos": [64.47, 0, -62.37], "rot": 290, "scale": 0.77},
+    {"model": "decor_grass", "pos": [67.39, 0, -88.32], "rot": 20, "scale": 1.21},
+    {"model": "decor_grass", "pos": [68.5, 0, -81.72], "rot": 180, "scale": 0.92},
+    {"model": "decor_grass", "pos": [60.05, 0, -57.74], "rot": 150, "scale": 0.77},
+    {"model": "decor_grass", "pos": [78.12, 0, -132.29], "rot": 220, "scale": 1.2},
+    {"model": "decor_grass", "pos": [64.84, 0, -75.89], "rot": 60, "scale": 0.8},
+    {"model": "decor_grass", "pos": [62.05, 0, -133.78], "rot": 200, "scale": 1.15},
+    {"model": "decor_grass", "pos": [74.3, 0, -121.37], "rot": 200, "scale": 1.06},
+    {"model": "decor_grass", "pos": [69.37, 0, -87.62], "rot": 110, "scale": 0.9},
+    {"model": "decor_grass", "pos": [66.23, 0, -90.78], "rot": 290, "scale": 1.22},
+    {"model": "decor_grass", "pos": [61.06, 0, -72.64], "rot": 100, "scale": 1.06},
+    {"model": "decor_grass", "pos": [62.69, 0, -109.49], "rot": 150, "scale": 0.71},
+    {"model": "decor_grass", "pos": [77.12, 0, -117.14], "rot": 330, "scale": 0.81},
+    {"model": "decor_grass", "pos": [57.24, 0, -104.89], "rot": 140, "scale": 1.24},
+    {"model": "decor_grass", "pos": [80.67, 0, -125.16], "rot": 250, "scale": 0.94},
+    {"model": "decor_grass", "pos": [78.57, 0, -96.81], "rot": 260, "scale": 0.72},
+    {"model": "decor_grass", "pos": [72.3, 0, -72.08], "rot": 130, "scale": 1.15},
+    {"model": "decor_grass", "pos": [56.02, 0, -46.33], "rot": 60, "scale": 0.96},
+    {"model": "decor_grass", "pos": [68.21, 0, -70.18], "rot": 90, "scale": 1.19},
+    {"model": "decor_grass", "pos": [79.86, 0, -78.43], "rot": 80, "scale": 0.9},
+    {"model": "decor_leaves", "pos": [74.49, 0, -74.4], "rot": 150, "scale": 1.19},
+    {"model": "decor_leaves", "pos": [74.81, 0, -120.4], "rot": 270, "scale": 0.78},
+    {"model": "decor_leaves", "pos": [80.12, 0, -54.74], "rot": 120, "scale": 0.78},
+    {"model": "decor_leaves", "pos": [58.53, 0, -109.74], "rot": 10, "scale": 1.02},
+    {"model": "decor_leaves", "pos": [72.16, 0, -122.64], "rot": 130, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [73.34, 0, -108.08], "rot": 270, "scale": 1.3},
+    {"model": "decor_leaves", "pos": [79.46, 0, -131.27], "rot": 180, "scale": 1.23},
+    {"model": "decor_leaves", "pos": [81.16, 0, -116.08], "rot": 80, "scale": 1.1},
+    {"model": "decor_leaves", "pos": [79.11, 0, -66.36], "rot": 320, "scale": 1.13},
+    {"model": "decor_leaves", "pos": [68.56, 0, -136.48], "rot": 190, "scale": 1.11},
+    {"model": "decor_leaves", "pos": [68.06, 0, -60.83], "rot": 200, "scale": 1.26},
+    {"model": "decor_leaves", "pos": [57.04, 0, -102.33], "rot": 110, "scale": 0.81},
+    {"model": "decor_leaves", "pos": [59.61, 0, -58.59], "rot": 260, "scale": 1.15},
+    {"model": "decor_leaves", "pos": [71.48, 0, -68.23], "rot": 220, "scale": 0.87},
+    {"model": "decor_leaves", "pos": [80.74, 0, -88.69], "rot": 180, "scale": 0.76},
+    {"model": "decor_leaves", "pos": [73.39, 0, -91.07], "rot": 0, "scale": 1.23},
+    {"model": "decor_leaves", "pos": [74.2, 0, -126.29], "rot": 250, "scale": 0.8},
+    {"model": "decor_leaves", "pos": [66.86, 0, -53.35], "rot": 20, "scale": 1.3},
+    {"model": "decor_leaves", "pos": [77.84, 0, -135.16], "rot": 220, "scale": 0.84},
+    {"model": "decor_leaves", "pos": [78.72, 0, -53.09], "rot": 70, "scale": 1.16},
+    {"model": "decor_leaves", "pos": [57.27, 0, -135.93], "rot": 260, "scale": 0.84},
+    {"model": "decor_leaves", "pos": [63.35, 0, -124.83], "rot": 210, "scale": 0.88},
+    {"model": "decor_leaves", "pos": [73.14, 0, -97.71], "rot": 80, "scale": 1.04},
+    {"model": "decor_leaves", "pos": [80.5, 0, -101.61], "rot": 10, "scale": 1.1},
+    {"model": "decor_leaves", "pos": [76.61, 0, -99.19], "rot": 180, "scale": 0.98},
+    {"model": "decor_leaves", "pos": [56.86, 0, -70.21], "rot": 30, "scale": 0.78},
+    {"model": "decor_leaves", "pos": [70.64, 0, -138.87], "rot": 60, "scale": 1.12},
+    {"model": "decor_leaves", "pos": [69.39, 0, -47.95], "rot": 60, "scale": 0.96},
+    {"model": "decor_leaves", "pos": [70.69, 0, -129.11], "rot": 170, "scale": 1.2},
+    {"model": "decor_leaves", "pos": [63.83, 0, -50.01], "rot": 100, "scale": 1.1},
+    {"model": "decor_leaves", "pos": [79.08, 0, -127.37], "rot": 290, "scale": 0.91},
+    {"model": "decor_leaves", "pos": [63.04, 0, -110.73], "rot": 350, "scale": 0.93},
+    {"model": "decor_leaves", "pos": [67.39, 0, -48.59], "rot": 100, "scale": 1.15},
+    {"model": "decor_leaves", "pos": [59.95, 0, -130.44], "rot": 250, "scale": 1.04},
+    {"model": "decor_leaves", "pos": [70.0, 0, -107.58], "rot": 180, "scale": 1.17},
+    {"model": "decor_leaves", "pos": [58.0, 0, -103.65], "rot": 50, "scale": 1.06},
+    {"model": "decor_leaves", "pos": [79.29, 0, -137.9], "rot": 130, "scale": 0.82},
+    {"model": "decor_leaves", "pos": [75.95, 0, -113.45], "rot": 260, "scale": 1.1},
+    {"model": "decor_leaves", "pos": [77.14, 0, -138.26], "rot": 280, "scale": 1.25},
+    {"model": "decor_leaves", "pos": [64.35, 0, -59.51], "rot": 160, "scale": 0.93},
+    {"model": "decor_leaves", "pos": [72.02, 0, -140.8], "rot": 30, "scale": 0.8},
+    {"model": "decor_leaves", "pos": [81.7, 0, -137.03], "rot": 10, "scale": 1.03},
+    {"model": "decor_leaves", "pos": [64.22, 0, -132.72], "rot": 180, "scale": 0.73},
+    {"model": "decor_leaves", "pos": [57.03, 0, -132.06], "rot": 20, "scale": 1.13},
+    {"model": "decor_leaves", "pos": [79.87, 0, -68.06], "rot": 70, "scale": 0.88},
+    {"model": "decor_leaves", "pos": [63.02, 0, -89.72], "rot": 290, "scale": 0.73},
+    {"model": "decor_leaves", "pos": [59.09, 0, -46.01], "rot": 210, "scale": 0.92},
+    {"model": "decor_leaves", "pos": [73.39, 0, -130.68], "rot": 90, "scale": 1.22},
+    {"model": "decor_leaves", "pos": [65.64, 0, -50.17], "rot": 230, "scale": 1.25},
+    {"model": "decor_leaves", "pos": [75.63, 0, -99.0], "rot": 30, "scale": 1.13},
+    {"model": "decor_stones", "pos": [78.71, 0, -125.21], "rot": 0, "scale": 0.85},
+    {"model": "decor_stones", "pos": [78.64, 0, -112.12], "rot": 180, "scale": 0.83},
+    {"model": "decor_stones", "pos": [79.12, 0, -79.6], "rot": 110, "scale": 1.23},
+    {"model": "decor_stones", "pos": [74.98, 0, -62.0], "rot": 230, "scale": 0.73},
+    {"model": "decor_stones", "pos": [68.2, 0, -133.83], "rot": 30, "scale": 0.83},
+    {"model": "decor_stones", "pos": [59.29, 0, -106.92], "rot": 80, "scale": 0.94},
+    {"model": "decor_stones", "pos": [59.62, 0, -129.39], "rot": 90, "scale": 0.74},
+    {"model": "decor_stones", "pos": [59.93, 0, -101.39], "rot": 350, "scale": 0.76},
+    {"model": "decor_stones", "pos": [69.78, 0, -72.26], "rot": 330, "scale": 1.25},
+    {"model": "decor_stones", "pos": [65.34, 0, -65.06], "rot": 50, "scale": 1.08},
+    {"model": "decor_stones", "pos": [56.66, 0, -52.71], "rot": 290, "scale": 1.21},
+    {"model": "decor_stones", "pos": [67.29, 0, -113.89], "rot": 320, "scale": 0.73},
+    {"model": "decor_stones", "pos": [71.82, 0, -124.92], "rot": 170, "scale": 1.19},
+    {"model": "decor_stones", "pos": [60.69, 0, -114.68], "rot": 160, "scale": 0.97},
+    {"model": "decor_stones", "pos": [62.18, 0, -118.24], "rot": 260, "scale": 0.96},
+    {"model": "decor_stones", "pos": [63.23, 0, -136.26], "rot": 220, "scale": 1.3},
+    {"model": "decor_stones", "pos": [71.5, 0, -57.09], "rot": 160, "scale": 1.16},
+    {"model": "decor_stones", "pos": [71.58, 0, -137.26], "rot": 200, "scale": 0.88},
+    {"model": "decor_stones", "pos": [79.9, 0, -122.69], "rot": 330, "scale": 0.88},
+    {"model": "decor_stones", "pos": [57.14, 0, -100.61], "rot": 170, "scale": 0.95},
+    {"model": "decor_stones", "pos": [76.35, 0, -80.81], "rot": 150, "scale": 1.06},
+    {"model": "decor_stones", "pos": [77.03, 0, -54.61], "rot": 350, "scale": 1.05},
+    {"model": "decor_stones", "pos": [60.37, 0, -71.05], "rot": 200, "scale": 0.77},
+    {"model": "decor_stones", "pos": [69.92, 0, -131.07], "rot": 230, "scale": 1.26},
+    {"model": "decor_stones", "pos": [64.2, 0, -133.4], "rot": 340, "scale": 0.85},
+    {"model": "decor_stones", "pos": [59.79, 0, -117.89], "rot": 260, "scale": 0.95},
+    {"model": "decor_stones", "pos": [76.98, 0, -51.87], "rot": 140, "scale": 1.0},
+    {"model": "decor_stones", "pos": [72.15, 0, -108.27], "rot": 240, "scale": 1.22},
+    {"model": "decor_stones", "pos": [76.41, 0, -98.53], "rot": 140, "scale": 1.01},
+    {"model": "decor_stones", "pos": [71.07, 0, -86.55], "rot": 330, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-49.09, 0, -126.84], "rot": 230, "scale": 1.12},
+    {"model": "decor_grass", "pos": [5.47, 0, -134.88], "rot": 200, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-14.08, 0, -141.8], "rot": 230, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-8.05, 0, -125.16], "rot": 210, "scale": 0.72},
+    {"model": "decor_grass", "pos": [5.05, 0, -131.85], "rot": 280, "scale": 0.75},
+    {"model": "decor_grass", "pos": [34.3, 0, -126.74], "rot": 150, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-56.36, 0, -140.9], "rot": 170, "scale": 0.87},
+    {"model": "decor_grass", "pos": [22.13, 0, -131.11], "rot": 70, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-18.59, 0, -129.17], "rot": 340, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-42.87, 0, -135.18], "rot": 140, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-38.94, 0, -126.0], "rot": 20, "scale": 1.06},
+    {"model": "decor_grass", "pos": [21.75, 0, -128.61], "rot": 290, "scale": 1.22},
+    {"model": "decor_grass", "pos": [3.35, 0, -129.89], "rot": 110, "scale": 0.82},
+    {"model": "decor_grass", "pos": [38.36, 0, -138.81], "rot": 180, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-26.06, 0, -134.52], "rot": 20, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-18.29, 0, -130.64], "rot": 40, "scale": 1.3},
+    {"model": "decor_grass", "pos": [37.28, 0, -129.38], "rot": 30, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-35.72, 0, -128.35], "rot": 0, "scale": 0.82},
+    {"model": "decor_grass", "pos": [15.44, 0, -124.26], "rot": 30, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-27.07, 0, -139.6], "rot": 100, "scale": 1.24},
+    {"model": "decor_grass", "pos": [22.43, 0, -135.66], "rot": 300, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-44.87, 0, -133.74], "rot": 260, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-46.66, 0, -137.54], "rot": 140, "scale": 0.75},
+    {"model": "decor_grass", "pos": [37.75, 0, -133.47], "rot": 160, "scale": 0.79},
+    {"model": "decor_grass", "pos": [50.91, 0, -131.73], "rot": 220, "scale": 0.76},
+    {"model": "decor_grass", "pos": [30.59, 0, -124.78], "rot": 30, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-16.93, 0, -138.13], "rot": 180, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-5.0, 0, -130.81], "rot": 280, "scale": 0.98},
+    {"model": "decor_grass", "pos": [13.65, 0, -139.31], "rot": 300, "scale": 0.89},
+    {"model": "decor_grass", "pos": [18.97, 0, -140.28], "rot": 290, "scale": 1.04},
+    {"model": "decor_grass", "pos": [50.85, 0, -141.3], "rot": 190, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-22.02, 0, -140.11], "rot": 240, "scale": 1.21},
+    {"model": "decor_grass", "pos": [43.96, 0, -126.37], "rot": 150, "scale": 0.84},
+    {"model": "decor_grass", "pos": [32.66, 0, -131.35], "rot": 190, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-33.37, 0, -140.84], "rot": 120, "scale": 0.85},
+    {"model": "decor_grass", "pos": [30.85, 0, -133.88], "rot": 260, "scale": 1.1},
+    {"model": "decor_grass", "pos": [30.59, 0, -140.21], "rot": 250, "scale": 1.07},
+    {"model": "decor_grass", "pos": [44.08, 0, -128.47], "rot": 220, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-31.02, 0, -141.34], "rot": 10, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-45.04, 0, -129.17], "rot": 310, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-42.76, 0, -125.82], "rot": 10, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-36.46, 0, -134.11], "rot": 340, "scale": 0.87},
+    {"model": "decor_grass", "pos": [41.65, 0, -131.47], "rot": 230, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-45.21, 0, -125.89], "rot": 250, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-29.82, 0, -140.24], "rot": 330, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-7.42, 0, -134.47], "rot": 60, "scale": 0.74},
+    {"model": "decor_grass", "pos": [51.51, 0, -132.62], "rot": 190, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-19.39, 0, -135.63], "rot": 320, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-39.37, 0, -133.78], "rot": 260, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-49.04, 0, -130.53], "rot": 80, "scale": 0.71},
+    {"model": "decor_grass", "pos": [46.09, 0, -129.74], "rot": 150, "scale": 1.19},
+    {"model": "decor_grass", "pos": [30.91, 0, -135.26], "rot": 150, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-24.3, 0, -139.21], "rot": 120, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-38.16, 0, -139.15], "rot": 250, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-37.45, 0, -135.34], "rot": 150, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-25.44, 0, -137.28], "rot": 270, "scale": 1.05},
+    {"model": "decor_grass", "pos": [34.53, 0, -133.35], "rot": 330, "scale": 1.22},
+    {"model": "decor_grass", "pos": [27.08, 0, -130.97], "rot": 200, "scale": 0.86},
+    {"model": "decor_grass", "pos": [36.5, 0, -125.72], "rot": 30, "scale": 1.19},
+    {"model": "decor_grass", "pos": [49.78, 0, -124.52], "rot": 340, "scale": 1.05},
+    {"model": "decor_grass", "pos": [5.66, 0, -126.91], "rot": 250, "scale": 1.2},
+    {"model": "decor_grass", "pos": [1.43, 0, -129.58], "rot": 150, "scale": 0.85},
+    {"model": "decor_grass", "pos": [18.64, 0, -133.0], "rot": 150, "scale": 1.1},
+    {"model": "decor_grass", "pos": [30.01, 0, -136.86], "rot": 200, "scale": 1.0},
+    {"model": "decor_grass", "pos": [33.88, 0, -140.24], "rot": 10, "scale": 0.89},
+    {"model": "decor_grass", "pos": [32.06, 0, -125.02], "rot": 80, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-44.62, 0, -124.89], "rot": 20, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-4.32, 0, -133.1], "rot": 150, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-34.23, 0, -124.93], "rot": 80, "scale": 1.15},
+    {"model": "decor_grass", "pos": [32.09, 0, -138.15], "rot": 280, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-17.93, 0, -130.62], "rot": 340, "scale": 0.78},
+    {"model": "decor_grass", "pos": [12.66, 0, -131.66], "rot": 230, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-15.18, 0, -139.34], "rot": 340, "scale": 1.13},
+    {"model": "decor_grass", "pos": [21.57, 0, -140.39], "rot": 230, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-22.5, 0, -141.08], "rot": 310, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-42.17, 0, -126.26], "rot": 0, "scale": 1.26},
+    {"model": "decor_grass", "pos": [5.82, 0, -139.07], "rot": 250, "scale": 1.3},
+    {"model": "decor_grass", "pos": [-1.62, 0, -128.01], "rot": 300, "scale": 0.82},
+    {"model": "decor_grass", "pos": [16.16, 0, -132.49], "rot": 140, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-21.28, 0, -139.34], "rot": 330, "scale": 1.17},
+    {"model": "decor_grass", "pos": [30.57, 0, -128.98], "rot": 40, "scale": 0.71},
+    {"model": "decor_grass", "pos": [49.2, 0, -131.11], "rot": 270, "scale": 0.85},
+    {"model": "decor_grass", "pos": [49.1, 0, -132.3], "rot": 310, "scale": 1.0},
+    {"model": "decor_grass", "pos": [13.49, 0, -134.68], "rot": 80, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-47.66, 0, -128.52], "rot": 220, "scale": 1.22},
+    {"model": "decor_grass", "pos": [34.38, 0, -131.96], "rot": 0, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-18.27, 0, -133.18], "rot": 290, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-15.63, 0, -132.3], "rot": 130, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-42.18, 0, -138.07], "rot": 340, "scale": 0.91},
+    {"model": "decor_grass", "pos": [42.95, 0, -141.32], "rot": 70, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-55.0, 0, -126.75], "rot": 50, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-19.9, 0, -125.08], "rot": 310, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-8.05, 0, -140.37], "rot": 270, "scale": 0.91},
+    {"model": "decor_grass", "pos": [6.82, 0, -135.46], "rot": 190, "scale": 0.9},
+    {"model": "decor_grass", "pos": [40.86, 0, -134.67], "rot": 40, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-5.59, 0, -129.24], "rot": 60, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-39.6, 0, -129.82], "rot": 130, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-33.74, 0, -134.12], "rot": 0, "scale": 1.28},
+    {"model": "decor_grass", "pos": [31.76, 0, -140.91], "rot": 70, "scale": 1.02},
+    {"model": "decor_grass", "pos": [38.63, 0, -126.12], "rot": 140, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-43.52, 0, -136.97], "rot": 50, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-28.1, 0, -127.45], "rot": 20, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-44.66, 0, -141.43], "rot": 320, "scale": 0.86},
+    {"model": "decor_grass", "pos": [18.76, 0, -130.11], "rot": 180, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-30.79, 0, -132.93], "rot": 150, "scale": 1.23},
+    {"model": "decor_grass", "pos": [22.35, 0, -129.2], "rot": 230, "scale": 0.72},
+    {"model": "decor_grass", "pos": [18.39, 0, -141.76], "rot": 10, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-24.99, 0, -132.56], "rot": 230, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-35.42, 0, -124.45], "rot": 10, "scale": 0.84},
+    {"model": "decor_grass", "pos": [23.77, 0, -129.8], "rot": 200, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-29.15, 0, -132.1], "rot": 10, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-5.49, 0, -126.17], "rot": 0, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-45.73, 0, -135.18], "rot": 240, "scale": 0.8},
+    {"model": "decor_grass", "pos": [22.44, 0, -132.37], "rot": 150, "scale": 0.89},
+    {"model": "decor_grass", "pos": [15.39, 0, -135.09], "rot": 10, "scale": 0.87},
+    {"model": "decor_grass", "pos": [8.54, 0, -132.08], "rot": 290, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-0.49, 0, -132.22], "rot": 300, "scale": 0.98},
+    {"model": "decor_grass", "pos": [5.53, 0, -125.57], "rot": 0, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-22.61, 0, -135.23], "rot": 70, "scale": 1.19},
+    {"model": "decor_grass", "pos": [7.43, 0, -128.16], "rot": 250, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-17.64, 0, -137.42], "rot": 40, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-36.31, 0, -129.3], "rot": 130, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-7.95, 0, -139.13], "rot": 300, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-46.63, 0, -125.96], "rot": 140, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-48.72, 0, -124.89], "rot": 120, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-41.54, 0, -134.86], "rot": 140, "scale": 0.78},
+    {"model": "decor_grass", "pos": [12.46, 0, -128.77], "rot": 240, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-14.73, 0, -136.99], "rot": 270, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-37.4, 0, -139.44], "rot": 120, "scale": 0.92},
+    {"model": "decor_grass", "pos": [1.98, 0, -138.87], "rot": 310, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-5.03, 0, -137.68], "rot": 80, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-14.56, 0, -135.51], "rot": 270, "scale": 0.84},
+    {"model": "decor_grass", "pos": [51.09, 0, -136.81], "rot": 200, "scale": 0.76},
+    {"model": "decor_grass", "pos": [21.41, 0, -135.57], "rot": 10, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-52.72, 0, -139.83], "rot": 270, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-19.14, 0, -138.23], "rot": 110, "scale": 0.96},
+    {"model": "decor_grass", "pos": [17.0, 0, -124.25], "rot": 40, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-22.41, 0, -136.64], "rot": 230, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-50.71, 0, -140.81], "rot": 260, "scale": 0.9},
+    {"model": "decor_grass", "pos": [30.06, 0, -139.2], "rot": 130, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-50.96, 0, -129.52], "rot": 140, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-33.52, 0, -125.77], "rot": 210, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-16.36, 0, -133.72], "rot": 180, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-58.69, 0, -125.09], "rot": 330, "scale": 1.09},
+    {"model": "decor_grass", "pos": [28.17, 0, -134.88], "rot": 10, "scale": 1.26},
+    {"model": "decor_grass", "pos": [31.52, 0, -139.66], "rot": 170, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-24.44, 0, -137.01], "rot": 100, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-12.75, 0, -127.6], "rot": 340, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-41.5, 0, -138.64], "rot": 230, "scale": 1.02},
+    {"model": "decor_grass", "pos": [43.42, 0, -140.55], "rot": 340, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-9.08, 0, -132.06], "rot": 350, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-16.95, 0, -135.77], "rot": 100, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-34.61, 0, -131.16], "rot": 130, "scale": 1.24},
+    {"model": "decor_grass", "pos": [15.32, 0, -134.62], "rot": 0, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-49.61, 0, -131.96], "rot": 40, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-0.76, 0, -127.85], "rot": 300, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-52.46, 0, -136.38], "rot": 190, "scale": 1.18},
+    {"model": "decor_grass", "pos": [12.88, 0, -135.25], "rot": 80, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-18.53, 0, -138.96], "rot": 40, "scale": 0.88},
+    {"model": "decor_grass", "pos": [43.75, 0, -141.1], "rot": 160, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-42.23, 0, -139.64], "rot": 290, "scale": 1.21},
+    {"model": "decor_grass", "pos": [30.36, 0, -127.15], "rot": 240, "scale": 1.17},
+    {"model": "decor_grass", "pos": [21.48, 0, -124.68], "rot": 70, "scale": 1.23},
+    {"model": "decor_grass", "pos": [43.06, 0, -135.34], "rot": 340, "scale": 0.98},
+    {"model": "decor_grass", "pos": [31.29, 0, -131.23], "rot": 310, "scale": 1.2},
+    {"model": "decor_grass", "pos": [12.95, 0, -139.72], "rot": 0, "scale": 0.89},
+    {"model": "decor_grass", "pos": [25.95, 0, -137.51], "rot": 10, "scale": 0.81},
+    {"model": "decor_grass", "pos": [17.69, 0, -141.1], "rot": 260, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-30.07, 0, -138.98], "rot": 20, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-15.15, 0, -135.3], "rot": 270, "scale": 0.72},
+    {"model": "decor_grass", "pos": [9.79, 0, -124.31], "rot": 150, "scale": 1.1},
+    {"model": "decor_grass", "pos": [16.11, 0, -129.28], "rot": 210, "scale": 0.7},
+    {"model": "decor_grass", "pos": [-37.27, 0, -129.75], "rot": 170, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-54.77, 0, -127.02], "rot": 120, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-15.44, 0, -133.02], "rot": 140, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-3.91, 0, -135.75], "rot": 10, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-19.81, 0, -129.87], "rot": 30, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-28.05, 0, -124.64], "rot": 80, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-29.17, 0, -130.03], "rot": 310, "scale": 0.94},
+    {"model": "decor_grass", "pos": [47.66, 0, -135.46], "rot": 0, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-14.94, 0, -130.78], "rot": 300, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-28.51, 0, -125.62], "rot": 210, "scale": 1.21},
+    {"model": "decor_grass", "pos": [23.34, 0, -139.15], "rot": 10, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-12.17, 0, -124.39], "rot": 120, "scale": 1.01},
+    {"model": "decor_grass", "pos": [37.7, 0, -129.58], "rot": 290, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-46.38, 0, -130.63], "rot": 90, "scale": 1.27},
+    {"model": "decor_grass", "pos": [10.96, 0, -129.21], "rot": 50, "scale": 0.76},
+    {"model": "decor_grass", "pos": [15.5, 0, -139.12], "rot": 310, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-9.85, 0, -129.54], "rot": 330, "scale": 1.12},
+    {"model": "decor_grass", "pos": [9.57, 0, -125.26], "rot": 290, "scale": 1.19},
+    {"model": "decor_grass", "pos": [48.16, 0, -134.62], "rot": 50, "scale": 1.28},
+    {"model": "decor_grass", "pos": [24.47, 0, -126.51], "rot": 60, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-21.81, 0, -129.56], "rot": 110, "scale": 1.12},
+    {"model": "decor_grass", "pos": [6.57, 0, -125.29], "rot": 250, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-13.89, 0, -132.82], "rot": 270, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-13.64, 0, -141.3], "rot": 30, "scale": 0.85},
+    {"model": "decor_grass", "pos": [14.03, 0, -129.3], "rot": 80, "scale": 0.8},
+    {"model": "decor_grass", "pos": [3.06, 0, -126.23], "rot": 100, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-22.21, 0, -137.56], "rot": 320, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-25.05, 0, -138.89], "rot": 70, "scale": 0.73},
+    {"model": "decor_grass", "pos": [36.7, 0, -140.55], "rot": 150, "scale": 1.3},
+    {"model": "decor_grass", "pos": [-36.61, 0, -129.61], "rot": 10, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-27.5, 0, -140.5], "rot": 130, "scale": 0.84},
+    {"model": "decor_grass", "pos": [9.27, 0, -140.47], "rot": 130, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-48.55, 0, -129.03], "rot": 230, "scale": 1.24},
+    {"model": "decor_grass", "pos": [34.62, 0, -137.98], "rot": 340, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-40.43, 0, -124.78], "rot": 270, "scale": 1.13},
+    {"model": "decor_grass", "pos": [29.23, 0, -131.78], "rot": 30, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-28.29, 0, -141.08], "rot": 330, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-34.75, 0, -141.97], "rot": 330, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-23.85, 0, -133.56], "rot": 180, "scale": 0.78},
+    {"model": "decor_grass", "pos": [4.6, 0, -124.14], "rot": 10, "scale": 0.81},
+    {"model": "decor_grass", "pos": [23.48, 0, -128.92], "rot": 70, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-1.07, 0, -141.19], "rot": 130, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-10.49, 0, -130.39], "rot": 120, "scale": 1.18},
+    {"model": "decor_grass", "pos": [43.53, 0, -128.33], "rot": 20, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-42.22, 0, -127.74], "rot": 50, "scale": 0.74},
+    {"model": "decor_grass", "pos": [12.4, 0, -127.57], "rot": 260, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-16.1, 0, -131.56], "rot": 210, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-57.95, 0, -129.48], "rot": 180, "scale": 0.99},
+    {"model": "decor_grass", "pos": [26.59, 0, -137.23], "rot": 120, "scale": 1.22},
+    {"model": "decor_grass", "pos": [49.19, 0, -124.28], "rot": 260, "scale": 1.3},
+    {"model": "decor_grass", "pos": [8.02, 0, -125.24], "rot": 330, "scale": 0.91},
+    {"model": "decor_grass", "pos": [39.19, 0, -127.27], "rot": 150, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-30.55, 0, -132.64], "rot": 210, "scale": 1.19},
+    {"model": "decor_grass", "pos": [8.55, 0, -133.03], "rot": 20, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-38.28, 0, -137.69], "rot": 210, "scale": 0.71},
+    {"model": "decor_grass", "pos": [29.67, 0, -128.37], "rot": 250, "scale": 1.02},
+    {"model": "decor_grass", "pos": [39.76, 0, -132.91], "rot": 100, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-26.08, 0, -136.46], "rot": 140, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-1.8, 0, -138.79], "rot": 330, "scale": 0.8},
+    {"model": "decor_grass", "pos": [22.46, 0, -126.41], "rot": 300, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-54.91, 0, -124.51], "rot": 0, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-49.56, 0, -124.61], "rot": 10, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-58.06, 0, -132.99], "rot": 190, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-28.68, 0, -141.96], "rot": 250, "scale": 0.95},
+    {"model": "decor_grass", "pos": [24.29, 0, -125.29], "rot": 60, "scale": 0.7},
+    {"model": "decor_grass", "pos": [14.33, 0, -141.3], "rot": 70, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-54.54, 0, -141.33], "rot": 320, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-34.56, 0, -136.07], "rot": 140, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-11.52, 0, -128.65], "rot": 40, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-16.8, 0, -130.96], "rot": 10, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-6.34, 0, -133.82], "rot": 290, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-16.37, 0, -125.98], "rot": 200, "scale": 0.8},
+    {"model": "decor_grass", "pos": [9.93, 0, -134.73], "rot": 30, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-15.49, 0, -138.16], "rot": 160, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-6.74, 0, -136.03], "rot": 260, "scale": 0.86},
+    {"model": "decor_grass", "pos": [32.91, 0, -140.65], "rot": 100, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-56.18, 0, -130.45], "rot": 160, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-26.8, 0, -138.41], "rot": 120, "scale": 0.76},
+    {"model": "decor_grass", "pos": [41.68, 0, -132.52], "rot": 170, "scale": 0.9},
+    {"model": "decor_grass", "pos": [10.02, 0, -139.7], "rot": 30, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-32.22, 0, -126.45], "rot": 300, "scale": 0.99},
+    {"model": "decor_grass", "pos": [40.19, 0, -125.73], "rot": 170, "scale": 0.94},
+    {"model": "decor_grass", "pos": [24.06, 0, -128.35], "rot": 110, "scale": 1.02},
+    {"model": "decor_grass", "pos": [31.23, 0, -132.91], "rot": 180, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-18.83, 0, -133.98], "rot": 280, "scale": 0.83},
+    {"model": "decor_grass", "pos": [19.61, 0, -131.3], "rot": 260, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-22.98, 0, -124.52], "rot": 280, "scale": 0.91},
+    {"model": "decor_grass", "pos": [31.05, 0, -134.92], "rot": 270, "scale": 0.82},
+    {"model": "decor_grass", "pos": [40.97, 0, -138.41], "rot": 330, "scale": 1.12},
+    {"model": "decor_grass", "pos": [39.9, 0, -130.09], "rot": 340, "scale": 0.96},
+    {"model": "decor_grass", "pos": [28.52, 0, -130.21], "rot": 130, "scale": 0.83},
+    {"model": "decor_grass", "pos": [23.64, 0, -141.53], "rot": 130, "scale": 0.84},
+    {"model": "decor_grass", "pos": [35.99, 0, -129.42], "rot": 340, "scale": 1.3},
+    {"model": "decor_grass", "pos": [1.81, 0, -131.69], "rot": 20, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-21.91, 0, -129.99], "rot": 160, "scale": 0.8},
+    {"model": "decor_grass", "pos": [40.54, 0, -139.16], "rot": 100, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-11.62, 0, -124.8], "rot": 320, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-52.97, 0, -137.33], "rot": 80, "scale": 1.02},
+    {"model": "decor_grass", "pos": [35.31, 0, -130.21], "rot": 170, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-7.74, 0, -124.9], "rot": 160, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-14.88, 0, -134.93], "rot": 100, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-20.77, 0, -135.24], "rot": 170, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-47.28, 0, -131.43], "rot": 220, "scale": 0.74},
+    {"model": "decor_grass", "pos": [28.19, 0, -136.43], "rot": 50, "scale": 0.94},
+    {"model": "decor_grass", "pos": [18.83, 0, -125.09], "rot": 150, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-35.22, 0, -129.62], "rot": 100, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-30.22, 0, -124.9], "rot": 260, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-6.18, 0, -129.76], "rot": 130, "scale": 0.99},
+    {"model": "decor_grass", "pos": [48.09, 0, -135.1], "rot": 20, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-57.07, 0, -125.02], "rot": 340, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-27.32, 0, -135.4], "rot": 120, "scale": 0.9},
+    {"model": "decor_grass", "pos": [23.04, 0, -140.47], "rot": 220, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-49.45, 0, -137.63], "rot": 300, "scale": 0.97},
+    {"model": "decor_grass", "pos": [49.78, 0, -128.82], "rot": 100, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-21.75, 0, -137.48], "rot": 320, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-0.75, 0, -137.12], "rot": 200, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-27.38, 0, -141.07], "rot": 330, "scale": 1.15},
+    {"model": "decor_grass", "pos": [27.63, 0, -130.43], "rot": 30, "scale": 0.82},
+    {"model": "decor_grass", "pos": [0.62, 0, -138.63], "rot": 80, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-47.0, 0, -134.0], "rot": 270, "scale": 0.72},
+    {"model": "decor_grass", "pos": [39.34, 0, -138.49], "rot": 100, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-24.22, 0, -126.01], "rot": 10, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-42.78, 0, -126.37], "rot": 60, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-42.65, 0, -140.34], "rot": 300, "scale": 0.73},
+    {"model": "decor_grass", "pos": [47.33, 0, -138.0], "rot": 130, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-31.42, 0, -125.08], "rot": 230, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-23.31, 0, -131.64], "rot": 70, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-40.4, 0, -141.46], "rot": 150, "scale": 1.3},
+    {"model": "decor_leaves", "pos": [-22.45, 0, -139.19], "rot": 20, "scale": 1.06},
+    {"model": "decor_leaves", "pos": [51.3, 0, -128.7], "rot": 30, "scale": 0.93},
+    {"model": "decor_leaves", "pos": [24.93, 0, -130.89], "rot": 100, "scale": 1.16},
+    {"model": "decor_leaves", "pos": [50.94, 0, -138.16], "rot": 340, "scale": 0.72},
+    {"model": "decor_leaves", "pos": [22.44, 0, -129.32], "rot": 110, "scale": 0.95},
+    {"model": "decor_leaves", "pos": [-21.05, 0, -127.04], "rot": 100, "scale": 1.08},
+    {"model": "decor_leaves", "pos": [42.8, 0, -137.71], "rot": 40, "scale": 0.92},
+    {"model": "decor_leaves", "pos": [41.93, 0, -129.31], "rot": 160, "scale": 1.19},
+    {"model": "decor_leaves", "pos": [-15.11, 0, -138.8], "rot": 350, "scale": 1.26},
+    {"model": "decor_leaves", "pos": [-34.58, 0, -138.54], "rot": 320, "scale": 0.76},
+    {"model": "decor_leaves", "pos": [-49.44, 0, -129.39], "rot": 20, "scale": 1.25},
+    {"model": "decor_leaves", "pos": [13.69, 0, -124.88], "rot": 330, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [-32.86, 0, -125.32], "rot": 200, "scale": 1.02},
+    {"model": "decor_leaves", "pos": [18.91, 0, -138.52], "rot": 290, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [-59.32, 0, -125.02], "rot": 90, "scale": 1.13},
+    {"model": "decor_leaves", "pos": [-3.74, 0, -126.48], "rot": 310, "scale": 1.19},
+    {"model": "decor_leaves", "pos": [-55.46, 0, -127.28], "rot": 150, "scale": 0.85},
+    {"model": "decor_leaves", "pos": [-55.18, 0, -140.82], "rot": 110, "scale": 1.27},
+    {"model": "decor_leaves", "pos": [15.66, 0, -133.08], "rot": 230, "scale": 1.09},
+    {"model": "decor_leaves", "pos": [11.04, 0, -127.69], "rot": 160, "scale": 1.14},
+    {"model": "decor_leaves", "pos": [6.08, 0, -140.71], "rot": 20, "scale": 0.9},
+    {"model": "decor_leaves", "pos": [-42.01, 0, -132.24], "rot": 290, "scale": 1.03},
+    {"model": "decor_leaves", "pos": [-1.42, 0, -132.4], "rot": 140, "scale": 1.13},
+    {"model": "decor_leaves", "pos": [-21.97, 0, -138.47], "rot": 210, "scale": 0.81},
+    {"model": "decor_leaves", "pos": [-47.55, 0, -132.54], "rot": 120, "scale": 0.71},
+    {"model": "decor_leaves", "pos": [41.02, 0, -129.84], "rot": 190, "scale": 1.24},
+    {"model": "decor_leaves", "pos": [50.98, 0, -133.94], "rot": 170, "scale": 0.83},
+    {"model": "decor_leaves", "pos": [-24.27, 0, -124.01], "rot": 10, "scale": 1.09},
+    {"model": "decor_leaves", "pos": [-32.93, 0, -128.16], "rot": 290, "scale": 0.9},
+    {"model": "decor_leaves", "pos": [-24.95, 0, -125.85], "rot": 50, "scale": 0.96},
+    {"model": "decor_leaves", "pos": [-29.23, 0, -136.25], "rot": 10, "scale": 0.85},
+    {"model": "decor_leaves", "pos": [-32.21, 0, -131.77], "rot": 260, "scale": 0.81},
+    {"model": "decor_leaves", "pos": [41.8, 0, -138.33], "rot": 170, "scale": 1.02},
+    {"model": "decor_leaves", "pos": [4.3, 0, -131.26], "rot": 50, "scale": 0.79},
+    {"model": "decor_leaves", "pos": [-25.36, 0, -140.26], "rot": 280, "scale": 0.74},
+    {"model": "decor_leaves", "pos": [14.89, 0, -130.47], "rot": 290, "scale": 1.19},
+    {"model": "decor_leaves", "pos": [18.35, 0, -129.38], "rot": 140, "scale": 1.07},
+    {"model": "decor_leaves", "pos": [-37.3, 0, -140.15], "rot": 340, "scale": 1.12},
+    {"model": "decor_leaves", "pos": [-42.61, 0, -124.36], "rot": 280, "scale": 1.23},
+    {"model": "decor_leaves", "pos": [27.24, 0, -141.49], "rot": 160, "scale": 1.06},
+    {"model": "decor_leaves", "pos": [-35.38, 0, -126.3], "rot": 10, "scale": 1.0},
+    {"model": "decor_leaves", "pos": [-1.36, 0, -124.85], "rot": 120, "scale": 1.08},
+    {"model": "decor_leaves", "pos": [-40.12, 0, -137.04], "rot": 0, "scale": 1.24},
+    {"model": "decor_leaves", "pos": [-12.79, 0, -137.13], "rot": 80, "scale": 1.06},
+    {"model": "decor_leaves", "pos": [-12.55, 0, -131.93], "rot": 130, "scale": 0.81},
+    {"model": "decor_leaves", "pos": [25.69, 0, -134.94], "rot": 250, "scale": 1.18},
+    {"model": "decor_leaves", "pos": [3.27, 0, -124.46], "rot": 210, "scale": 0.88},
+    {"model": "decor_leaves", "pos": [5.45, 0, -141.24], "rot": 70, "scale": 1.29},
+    {"model": "decor_leaves", "pos": [7.98, 0, -140.51], "rot": 350, "scale": 1.14},
+    {"model": "decor_leaves", "pos": [22.18, 0, -136.11], "rot": 0, "scale": 0.91},
+    {"model": "decor_stones", "pos": [-59.98, 0, -137.31], "rot": 20, "scale": 0.84},
+    {"model": "decor_stones", "pos": [-1.13, 0, -126.33], "rot": 270, "scale": 1.29},
+    {"model": "decor_stones", "pos": [-34.92, 0, -137.94], "rot": 230, "scale": 0.88},
+    {"model": "decor_stones", "pos": [-56.11, 0, -129.36], "rot": 270, "scale": 0.72},
+    {"model": "decor_stones", "pos": [40.02, 0, -135.52], "rot": 290, "scale": 0.97},
+    {"model": "decor_stones", "pos": [-13.64, 0, -129.33], "rot": 150, "scale": 1.04},
+    {"model": "decor_stones", "pos": [-45.64, 0, -129.75], "rot": 180, "scale": 0.78},
+    {"model": "decor_stones", "pos": [-15.61, 0, -129.9], "rot": 260, "scale": 0.96},
+    {"model": "decor_stones", "pos": [-20.53, 0, -129.52], "rot": 70, "scale": 0.78},
+    {"model": "decor_stones", "pos": [-9.88, 0, -129.74], "rot": 80, "scale": 1.12},
+    {"model": "decor_stones", "pos": [23.14, 0, -141.91], "rot": 240, "scale": 1.25},
+    {"model": "decor_stones", "pos": [-44.69, 0, -132.27], "rot": 20, "scale": 1.16},
+    {"model": "decor_stones", "pos": [-50.1, 0, -130.8], "rot": 280, "scale": 0.83},
+    {"model": "decor_stones", "pos": [11.44, 0, -132.68], "rot": 30, "scale": 1.26},
+    {"model": "decor_stones", "pos": [0.69, 0, -127.0], "rot": 160, "scale": 0.89},
+    {"model": "decor_stones", "pos": [16.37, 0, -138.72], "rot": 20, "scale": 0.92},
+    {"model": "decor_stones", "pos": [16.42, 0, -124.12], "rot": 100, "scale": 0.76},
+    {"model": "decor_stones", "pos": [0.31, 0, -133.65], "rot": 10, "scale": 0.82},
+    {"model": "decor_stones", "pos": [46.56, 0, -135.55], "rot": 180, "scale": 1.14},
+    {"model": "decor_stones", "pos": [39.0, 0, -141.74], "rot": 310, "scale": 1.04},
+    {"model": "decor_stones", "pos": [-50.89, 0, -135.08], "rot": 170, "scale": 1.12},
+    {"model": "decor_stones", "pos": [12.2, 0, -125.62], "rot": 280, "scale": 0.77},
+    {"model": "decor_stones", "pos": [-3.98, 0, -129.87], "rot": 10, "scale": 1.21},
+    {"model": "decor_stones", "pos": [-50.33, 0, -139.59], "rot": 260, "scale": 0.85},
+    {"model": "decor_stones", "pos": [-36.3, 0, -130.76], "rot": 10, "scale": 0.84},
+    {"model": "decor_stones", "pos": [25.78, 0, -141.29], "rot": 160, "scale": 0.9},
+    {"model": "decor_stones", "pos": [40.37, 0, -128.5], "rot": 180, "scale": 0.72},
+    {"model": "decor_stones", "pos": [-2.64, 0, -134.43], "rot": 220, "scale": 1.08},
+    {"model": "decor_stones", "pos": [-27.56, 0, -131.64], "rot": 40, "scale": 1.03},
+    {"model": "decor_stones", "pos": [-20.24, 0, -135.53], "rot": 300, "scale": 0.73},
+    {"model": "decor_grass", "pos": [69.52, 0, 1.43], "rot": 60, "scale": 0.71},
+    {"model": "decor_grass", "pos": [65.4, 0, -37.07], "rot": 50, "scale": 1.09},
+    {"model": "decor_grass", "pos": [57.1, 0, 2.09], "rot": 90, "scale": 0.93},
+    {"model": "decor_grass", "pos": [69.5, 0, -14.96], "rot": 100, "scale": 1.21},
+    {"model": "decor_grass", "pos": [80.32, 0, -19.38], "rot": 30, "scale": 1.26},
+    {"model": "decor_grass", "pos": [78.69, 0, -12.58], "rot": 270, "scale": 0.93},
+    {"model": "decor_grass", "pos": [67.14, 0, -23.82], "rot": 30, "scale": 0.99},
+    {"model": "decor_grass", "pos": [56.29, 0, -3.36], "rot": 110, "scale": 0.78},
+    {"model": "decor_grass", "pos": [80.11, 0, -2.67], "rot": 20, "scale": 1.09},
+    {"model": "decor_grass", "pos": [75.85, 0, -24.28], "rot": 260, "scale": 0.95},
+    {"model": "decor_grass", "pos": [59.78, 0, 2.72], "rot": 130, "scale": 0.91},
+    {"model": "decor_grass", "pos": [62.44, 0, -21.84], "rot": 210, "scale": 1.03},
+    {"model": "decor_grass", "pos": [73.78, 0, -1.15], "rot": 290, "scale": 1.29},
+    {"model": "decor_grass", "pos": [56.7, 0, -20.16], "rot": 10, "scale": 1.28},
+    {"model": "decor_grass", "pos": [73.03, 0, 3.49], "rot": 250, "scale": 1.19},
+    {"model": "decor_grass", "pos": [59.84, 0, -8.88], "rot": 330, "scale": 0.79},
+    {"model": "decor_grass", "pos": [60.15, 0, -3.29], "rot": 240, "scale": 1.16},
+    {"model": "decor_grass", "pos": [79.81, 0, -24.28], "rot": 340, "scale": 1.26},
+    {"model": "decor_grass", "pos": [60.3, 0, -35.02], "rot": 230, "scale": 1.21},
+    {"model": "decor_grass", "pos": [78.14, 0, -18.43], "rot": 30, "scale": 0.76},
+    {"model": "decor_grass", "pos": [75.34, 0, -4.54], "rot": 210, "scale": 0.77},
+    {"model": "decor_grass", "pos": [63.04, 0, -6.09], "rot": 120, "scale": 1.08},
+    {"model": "decor_grass", "pos": [61.14, 0, -7.23], "rot": 210, "scale": 1.27},
+    {"model": "decor_grass", "pos": [61.79, 0, -35.06], "rot": 70, "scale": 1.15},
+    {"model": "decor_grass", "pos": [62.25, 0, -23.79], "rot": 330, "scale": 0.99},
+    {"model": "decor_grass", "pos": [69.68, 0, -19.52], "rot": 210, "scale": 0.91},
+    {"model": "decor_grass", "pos": [73.0, 0, -17.4], "rot": 290, "scale": 0.96},
+    {"model": "decor_grass", "pos": [80.5, 0, -2.87], "rot": 30, "scale": 1.03},
+    {"model": "decor_grass", "pos": [64.27, 0, -23.57], "rot": 230, "scale": 0.74},
+    {"model": "decor_grass", "pos": [67.34, 0, -38.98], "rot": 30, "scale": 1.11},
+    {"model": "decor_grass", "pos": [76.31, 0, -3.37], "rot": 30, "scale": 0.75},
+    {"model": "decor_grass", "pos": [72.17, 0, 0.81], "rot": 290, "scale": 1.19},
+    {"model": "decor_grass", "pos": [56.47, 0, 2.21], "rot": 270, "scale": 1.06},
+    {"model": "decor_grass", "pos": [71.38, 0, -15.18], "rot": 170, "scale": 1.0},
+    {"model": "decor_grass", "pos": [73.91, 0, -19.47], "rot": 190, "scale": 0.79},
+    {"model": "decor_grass", "pos": [73.32, 0, -0.59], "rot": 110, "scale": 1.06},
+    {"model": "decor_grass", "pos": [58.18, 0, -25.2], "rot": 200, "scale": 1.29},
+    {"model": "decor_grass", "pos": [58.6, 0, -29.92], "rot": 210, "scale": 0.7},
+    {"model": "decor_grass", "pos": [59.02, 0, -22.89], "rot": 30, "scale": 1.26},
+    {"model": "decor_grass", "pos": [59.81, 0, -36.82], "rot": 290, "scale": 1.15},
+    {"model": "decor_grass", "pos": [69.25, 0, -26.53], "rot": 120, "scale": 0.77},
+    {"model": "decor_grass", "pos": [63.39, 0, -17.15], "rot": 30, "scale": 0.96},
+    {"model": "decor_grass", "pos": [76.83, 0, -7.67], "rot": 170, "scale": 1.04},
+    {"model": "decor_grass", "pos": [67.44, 0, -14.39], "rot": 130, "scale": 1.04},
+    {"model": "decor_grass", "pos": [75.5, 0, -32.77], "rot": 250, "scale": 1.25},
+    {"model": "decor_grass", "pos": [78.13, 0, 0.84], "rot": 170, "scale": 1.16},
+    {"model": "decor_grass", "pos": [63.01, 0, -37.55], "rot": 200, "scale": 1.12},
+    {"model": "decor_grass", "pos": [75.56, 0, -11.9], "rot": 120, "scale": 1.17},
+    {"model": "decor_grass", "pos": [60.28, 0, -30.33], "rot": 120, "scale": 1.19},
+    {"model": "decor_grass", "pos": [60.4, 0, -10.88], "rot": 250, "scale": 1.28},
+    {"model": "decor_grass", "pos": [61.4, 0, 2.43], "rot": 60, "scale": 1.2},
+    {"model": "decor_grass", "pos": [69.13, 0, -14.2], "rot": 250, "scale": 1.1},
+    {"model": "decor_grass", "pos": [59.69, 0, -14.98], "rot": 80, "scale": 0.74},
+    {"model": "decor_grass", "pos": [61.24, 0, 3.22], "rot": 320, "scale": 1.1},
+    {"model": "decor_grass", "pos": [64.44, 0, -30.24], "rot": 330, "scale": 0.8},
+    {"model": "decor_grass", "pos": [70.09, 0, -37.17], "rot": 330, "scale": 1.17},
+    {"model": "decor_grass", "pos": [58.63, 0, -39.13], "rot": 160, "scale": 1.24},
+    {"model": "decor_grass", "pos": [68.54, 0, -1.83], "rot": 90, "scale": 1.06},
+    {"model": "decor_grass", "pos": [74.45, 0, 2.62], "rot": 330, "scale": 0.83},
+    {"model": "decor_grass", "pos": [57.47, 0, -38.74], "rot": 300, "scale": 1.22},
+    {"model": "decor_grass", "pos": [61.94, 0, -3.72], "rot": 200, "scale": 0.77},
+    {"model": "decor_grass", "pos": [79.95, 0, -9.36], "rot": 180, "scale": 0.95},
+    {"model": "decor_grass", "pos": [72.35, 0, -36.79], "rot": 120, "scale": 0.76},
+    {"model": "decor_grass", "pos": [72.27, 0, -9.36], "rot": 350, "scale": 0.86},
+    {"model": "decor_grass", "pos": [59.86, 0, -32.67], "rot": 290, "scale": 1.18},
+    {"model": "decor_grass", "pos": [61.07, 0, -3.22], "rot": 20, "scale": 1.09},
+    {"model": "decor_grass", "pos": [74.43, 0, -0.32], "rot": 100, "scale": 1.04},
+    {"model": "decor_grass", "pos": [67.85, 0, -12.48], "rot": 270, "scale": 0.87},
+    {"model": "decor_grass", "pos": [74.07, 0, -19.01], "rot": 110, "scale": 0.97},
+    {"model": "decor_grass", "pos": [69.53, 0, -24.47], "rot": 330, "scale": 0.71},
+    {"model": "decor_grass", "pos": [77.68, 0, -3.57], "rot": 350, "scale": 0.76},
+    {"model": "decor_grass", "pos": [66.51, 0, -32.58], "rot": 20, "scale": 1.05},
+    {"model": "decor_grass", "pos": [59.31, 0, -23.65], "rot": 190, "scale": 1.19},
+    {"model": "decor_grass", "pos": [76.07, 0, 0.76], "rot": 230, "scale": 0.86},
+    {"model": "decor_grass", "pos": [70.26, 0, -24.3], "rot": 160, "scale": 0.98},
+    {"model": "decor_grass", "pos": [70.13, 0, -14.49], "rot": 0, "scale": 0.99},
+    {"model": "decor_grass", "pos": [66.68, 0, -26.61], "rot": 40, "scale": 0.95},
+    {"model": "decor_grass", "pos": [75.69, 0, -0.2], "rot": 110, "scale": 0.82},
+    {"model": "decor_grass", "pos": [57.06, 0, -5.52], "rot": 260, "scale": 1.21},
+    {"model": "decor_grass", "pos": [80.89, 0, -1.35], "rot": 40, "scale": 0.78},
+    {"model": "decor_grass", "pos": [72.6, 0, -31.37], "rot": 270, "scale": 0.82},
+    {"model": "decor_grass", "pos": [66.44, 0, -15.39], "rot": 210, "scale": 0.91},
+    {"model": "decor_grass", "pos": [67.8, 0, -22.52], "rot": 190, "scale": 1.26},
+    {"model": "decor_grass", "pos": [57.13, 0, -25.44], "rot": 150, "scale": 0.82},
+    {"model": "decor_grass", "pos": [67.63, 0, 3.8], "rot": 210, "scale": 1.13},
+    {"model": "decor_grass", "pos": [64.22, 0, -2.25], "rot": 330, "scale": 0.86},
+    {"model": "decor_grass", "pos": [66.08, 0, -34.52], "rot": 350, "scale": 1.04},
+    {"model": "decor_grass", "pos": [77.23, 0, -19.31], "rot": 70, "scale": 1.09},
+    {"model": "decor_grass", "pos": [57.96, 0, -24.05], "rot": 50, "scale": 0.82},
+    {"model": "decor_grass", "pos": [66.3, 0, -24.41], "rot": 250, "scale": 1.17},
+    {"model": "decor_grass", "pos": [66.28, 0, -0.86], "rot": 250, "scale": 1.11},
+    {"model": "decor_grass", "pos": [71.04, 0, -22.82], "rot": 140, "scale": 0.77},
+    {"model": "decor_grass", "pos": [81.82, 0, -37.12], "rot": 180, "scale": 1.07},
+    {"model": "decor_grass", "pos": [78.16, 0, -35.99], "rot": 60, "scale": 1.0},
+    {"model": "decor_grass", "pos": [74.89, 0, 3.46], "rot": 140, "scale": 1.25},
+    {"model": "decor_grass", "pos": [61.36, 0, -3.71], "rot": 10, "scale": 1.13},
+    {"model": "decor_grass", "pos": [73.73, 0, -35.39], "rot": 220, "scale": 1.03},
+    {"model": "decor_grass", "pos": [80.58, 0, -35.56], "rot": 140, "scale": 1.26},
+    {"model": "decor_grass", "pos": [80.96, 0, 1.67], "rot": 40, "scale": 1.02},
+    {"model": "decor_grass", "pos": [63.22, 0, -26.56], "rot": 150, "scale": 0.96},
+    {"model": "decor_grass", "pos": [68.34, 0, -28.9], "rot": 120, "scale": 1.23},
+    {"model": "decor_grass", "pos": [58.08, 0, -24.53], "rot": 20, "scale": 1.18},
+    {"model": "decor_grass", "pos": [81.06, 0, -13.0], "rot": 340, "scale": 1.07},
+    {"model": "decor_grass", "pos": [61.17, 0, -33.4], "rot": 100, "scale": 1.3},
+    {"model": "decor_grass", "pos": [62.49, 0, -36.99], "rot": 40, "scale": 0.96},
+    {"model": "decor_grass", "pos": [81.78, 0, -11.12], "rot": 250, "scale": 0.97},
+    {"model": "decor_grass", "pos": [79.77, 0, 3.87], "rot": 330, "scale": 0.73},
+    {"model": "decor_grass", "pos": [67.49, 0, -38.16], "rot": 300, "scale": 1.04},
+    {"model": "decor_grass", "pos": [65.26, 0, -5.88], "rot": 70, "scale": 0.91},
+    {"model": "decor_grass", "pos": [73.83, 0, -0.06], "rot": 300, "scale": 1.22},
+    {"model": "decor_grass", "pos": [58.13, 0, -2.04], "rot": 150, "scale": 1.25},
+    {"model": "decor_grass", "pos": [73.02, 0, -22.25], "rot": 150, "scale": 1.23},
+    {"model": "decor_grass", "pos": [60.96, 0, -19.51], "rot": 30, "scale": 1.18},
+    {"model": "decor_grass", "pos": [73.59, 0, -32.92], "rot": 180, "scale": 0.99},
+    {"model": "decor_grass", "pos": [71.79, 0, -39.31], "rot": 10, "scale": 0.88},
+    {"model": "decor_grass", "pos": [78.98, 0, -27.36], "rot": 260, "scale": 1.16},
+    {"model": "decor_grass", "pos": [63.21, 0, -39.2], "rot": 220, "scale": 0.72},
+    {"model": "decor_grass", "pos": [71.61, 0, -22.7], "rot": 210, "scale": 0.93},
+    {"model": "decor_grass", "pos": [60.53, 0, -34.71], "rot": 10, "scale": 0.94},
+    {"model": "decor_grass", "pos": [69.71, 0, -30.99], "rot": 60, "scale": 1.14},
+    {"model": "decor_grass", "pos": [75.11, 0, -23.46], "rot": 50, "scale": 1.1},
+    {"model": "decor_grass", "pos": [74.41, 0, -18.31], "rot": 50, "scale": 1.18},
+    {"model": "decor_grass", "pos": [61.31, 0, -11.42], "rot": 230, "scale": 1.19},
+    {"model": "decor_grass", "pos": [74.32, 0, -14.27], "rot": 20, "scale": 0.84},
+    {"model": "decor_grass", "pos": [63.22, 0, -2.17], "rot": 330, "scale": 1.04},
+    {"model": "decor_grass", "pos": [72.72, 0, -0.21], "rot": 40, "scale": 0.73},
+    {"model": "decor_grass", "pos": [81.68, 0, 0.68], "rot": 80, "scale": 1.17},
+    {"model": "decor_grass", "pos": [74.46, 0, -12.45], "rot": 150, "scale": 0.88},
+    {"model": "decor_grass", "pos": [72.0, 0, 3.96], "rot": 30, "scale": 0.99},
+    {"model": "decor_grass", "pos": [75.28, 0, -23.02], "rot": 140, "scale": 0.98},
+    {"model": "decor_grass", "pos": [81.22, 0, -8.3], "rot": 150, "scale": 0.92},
+    {"model": "decor_grass", "pos": [73.87, 0, -37.03], "rot": 280, "scale": 0.95},
+    {"model": "decor_grass", "pos": [74.36, 0, 0.69], "rot": 10, "scale": 0.93},
+    {"model": "decor_grass", "pos": [80.24, 0, -11.43], "rot": 120, "scale": 0.92},
+    {"model": "decor_grass", "pos": [81.83, 0, -5.31], "rot": 130, "scale": 1.24},
+    {"model": "decor_grass", "pos": [63.28, 0, -35.6], "rot": 310, "scale": 0.88},
+    {"model": "decor_grass", "pos": [63.59, 0, -1.49], "rot": 90, "scale": 1.03},
+    {"model": "decor_grass", "pos": [73.5, 0, -32.18], "rot": 200, "scale": 0.84},
+    {"model": "decor_grass", "pos": [72.91, 0, -12.2], "rot": 310, "scale": 1.24},
+    {"model": "decor_grass", "pos": [62.55, 0, -12.74], "rot": 0, "scale": 1.15},
+    {"model": "decor_grass", "pos": [77.56, 0, -8.7], "rot": 60, "scale": 1.1},
+    {"model": "decor_grass", "pos": [66.77, 0, -1.77], "rot": 170, "scale": 0.73},
+    {"model": "decor_grass", "pos": [74.71, 0, -10.98], "rot": 50, "scale": 1.23},
+    {"model": "decor_grass", "pos": [80.75, 0, -12.78], "rot": 320, "scale": 1.02},
+    {"model": "decor_grass", "pos": [68.23, 0, -2.27], "rot": 0, "scale": 1.28},
+    {"model": "decor_grass", "pos": [65.58, 0, -4.57], "rot": 110, "scale": 0.81},
+    {"model": "decor_grass", "pos": [61.91, 0, -4.35], "rot": 330, "scale": 0.92},
+    {"model": "decor_grass", "pos": [67.34, 0, -36.16], "rot": 90, "scale": 0.89},
+    {"model": "decor_grass", "pos": [79.32, 0, -25.48], "rot": 80, "scale": 1.25},
+    {"model": "decor_grass", "pos": [57.47, 0, -32.57], "rot": 330, "scale": 1.25},
+    {"model": "decor_grass", "pos": [65.47, 0, 1.09], "rot": 150, "scale": 1.08},
+    {"model": "decor_grass", "pos": [59.75, 0, -6.36], "rot": 280, "scale": 1.08},
+    {"model": "decor_grass", "pos": [60.6, 0, -9.47], "rot": 10, "scale": 0.99},
+    {"model": "decor_grass", "pos": [58.81, 0, -31.51], "rot": 60, "scale": 1.2},
+    {"model": "decor_grass", "pos": [72.13, 0, -12.84], "rot": 110, "scale": 1.14},
+    {"model": "decor_grass", "pos": [64.21, 0, -24.52], "rot": 90, "scale": 1.02},
+    {"model": "decor_grass", "pos": [57.64, 0, -38.24], "rot": 220, "scale": 1.14},
+    {"model": "decor_grass", "pos": [73.16, 0, -10.97], "rot": 200, "scale": 1.26},
+    {"model": "decor_grass", "pos": [62.92, 0, -19.51], "rot": 200, "scale": 1.09},
+    {"model": "decor_grass", "pos": [71.02, 0, -28.74], "rot": 80, "scale": 0.93},
+    {"model": "decor_grass", "pos": [73.29, 0, -6.97], "rot": 290, "scale": 0.83},
+    {"model": "decor_grass", "pos": [67.96, 0, -32.06], "rot": 90, "scale": 1.1},
+    {"model": "decor_grass", "pos": [63.41, 0, -32.74], "rot": 30, "scale": 0.91},
+    {"model": "decor_grass", "pos": [64.7, 0, -18.18], "rot": 260, "scale": 0.97},
+    {"model": "decor_grass", "pos": [77.51, 0, -34.39], "rot": 240, "scale": 0.82},
+    {"model": "decor_grass", "pos": [72.48, 0, -15.09], "rot": 320, "scale": 0.89},
+    {"model": "decor_grass", "pos": [74.7, 0, -27.38], "rot": 100, "scale": 1.14},
+    {"model": "decor_grass", "pos": [62.05, 0, -37.64], "rot": 140, "scale": 0.71},
+    {"model": "decor_grass", "pos": [70.53, 0, -36.18], "rot": 60, "scale": 1.08},
+    {"model": "decor_grass", "pos": [69.89, 0, -31.4], "rot": 70, "scale": 0.8},
+    {"model": "decor_grass", "pos": [60.78, 0, -16.29], "rot": 100, "scale": 1.22},
+    {"model": "decor_grass", "pos": [68.67, 0, -35.56], "rot": 60, "scale": 1.25},
+    {"model": "decor_grass", "pos": [68.64, 0, -38.43], "rot": 70, "scale": 1.29},
+    {"model": "decor_grass", "pos": [81.85, 0, -30.17], "rot": 90, "scale": 0.94},
+    {"model": "decor_grass", "pos": [72.31, 0, -4.44], "rot": 220, "scale": 1.14},
+    {"model": "decor_grass", "pos": [75.62, 0, -31.22], "rot": 310, "scale": 0.94},
+    {"model": "decor_grass", "pos": [60.31, 0, -11.49], "rot": 50, "scale": 1.16},
+    {"model": "decor_grass", "pos": [73.28, 0, -35.02], "rot": 0, "scale": 1.29},
+    {"model": "decor_grass", "pos": [79.51, 0, -38.33], "rot": 120, "scale": 1.13},
+    {"model": "decor_grass", "pos": [77.19, 0, -28.47], "rot": 230, "scale": 1.11},
+    {"model": "decor_grass", "pos": [66.22, 0, -26.94], "rot": 230, "scale": 0.92},
+    {"model": "decor_grass", "pos": [66.34, 0, -31.04], "rot": 10, "scale": 0.81},
+    {"model": "decor_grass", "pos": [65.17, 0, -15.78], "rot": 60, "scale": 1.28},
+    {"model": "decor_grass", "pos": [79.22, 0, -24.48], "rot": 260, "scale": 0.95},
+    {"model": "decor_grass", "pos": [69.92, 0, -34.65], "rot": 270, "scale": 0.73},
+    {"model": "decor_grass", "pos": [69.68, 0, -18.87], "rot": 250, "scale": 1.05},
+    {"model": "decor_grass", "pos": [59.83, 0, -2.32], "rot": 290, "scale": 0.77},
+    {"model": "decor_grass", "pos": [79.18, 0, -8.64], "rot": 120, "scale": 1.02},
+    {"model": "decor_grass", "pos": [61.81, 0, -1.54], "rot": 100, "scale": 0.84},
+    {"model": "decor_grass", "pos": [63.68, 0, -32.41], "rot": 240, "scale": 0.71},
+    {"model": "decor_grass", "pos": [58.53, 0, -8.47], "rot": 310, "scale": 1.21},
+    {"model": "decor_grass", "pos": [66.86, 0, -27.17], "rot": 300, "scale": 1.29},
+    {"model": "decor_grass", "pos": [63.41, 0, -4.69], "rot": 0, "scale": 1.15},
+    {"model": "decor_grass", "pos": [65.13, 0, -34.57], "rot": 0, "scale": 1.05},
+    {"model": "decor_grass", "pos": [77.26, 0, -0.01], "rot": 70, "scale": 0.95},
+    {"model": "decor_grass", "pos": [61.51, 0, -15.9], "rot": 320, "scale": 1.02},
+    {"model": "decor_grass", "pos": [80.49, 0, -10.22], "rot": 60, "scale": 0.83},
+    {"model": "decor_grass", "pos": [70.07, 0, -38.67], "rot": 210, "scale": 1.05},
+    {"model": "decor_grass", "pos": [63.08, 0, 2.74], "rot": 270, "scale": 1.25},
+    {"model": "decor_grass", "pos": [75.11, 0, -28.84], "rot": 240, "scale": 1.19},
+    {"model": "decor_grass", "pos": [66.1, 0, -17.87], "rot": 160, "scale": 1.02},
+    {"model": "decor_grass", "pos": [56.25, 0, -1.64], "rot": 330, "scale": 1.28},
+    {"model": "decor_grass", "pos": [76.12, 0, -20.1], "rot": 300, "scale": 1.18},
+    {"model": "decor_grass", "pos": [74.67, 0, -29.57], "rot": 60, "scale": 0.95},
+    {"model": "decor_grass", "pos": [66.01, 0, 2.22], "rot": 110, "scale": 0.73},
+    {"model": "decor_grass", "pos": [68.62, 0, -30.57], "rot": 60, "scale": 1.23},
+    {"model": "decor_grass", "pos": [71.85, 0, 1.79], "rot": 10, "scale": 0.91},
+    {"model": "decor_grass", "pos": [80.94, 0, -27.6], "rot": 250, "scale": 1.17},
+    {"model": "decor_grass", "pos": [58.21, 0, -28.06], "rot": 100, "scale": 0.82},
+    {"model": "decor_grass", "pos": [61.99, 0, -7.73], "rot": 210, "scale": 1.06},
+    {"model": "decor_grass", "pos": [81.42, 0, -4.3], "rot": 10, "scale": 0.86},
+    {"model": "decor_grass", "pos": [79.2, 0, 3.45], "rot": 20, "scale": 1.27},
+    {"model": "decor_grass", "pos": [58.09, 0, -12.13], "rot": 300, "scale": 0.76},
+    {"model": "decor_grass", "pos": [57.44, 0, -0.55], "rot": 110, "scale": 1.13},
+    {"model": "decor_grass", "pos": [59.45, 0, -19.16], "rot": 90, "scale": 1.05},
+    {"model": "decor_grass", "pos": [65.65, 0, 0.39], "rot": 230, "scale": 0.77},
+    {"model": "decor_grass", "pos": [65.7, 0, -3.94], "rot": 100, "scale": 0.78},
+    {"model": "decor_grass", "pos": [74.24, 0, -27.94], "rot": 140, "scale": 0.84},
+    {"model": "decor_grass", "pos": [79.29, 0, -32.7], "rot": 130, "scale": 0.81},
+    {"model": "decor_grass", "pos": [80.99, 0, -28.58], "rot": 80, "scale": 1.11},
+    {"model": "decor_grass", "pos": [72.29, 0, -22.12], "rot": 270, "scale": 1.26},
+    {"model": "decor_grass", "pos": [72.87, 0, -37.79], "rot": 290, "scale": 0.79},
+    {"model": "decor_grass", "pos": [57.88, 0, -9.3], "rot": 30, "scale": 0.87},
+    {"model": "decor_grass", "pos": [68.99, 0, -5.52], "rot": 150, "scale": 0.96},
+    {"model": "decor_grass", "pos": [76.82, 0, -4.12], "rot": 40, "scale": 0.73},
+    {"model": "decor_grass", "pos": [62.46, 0, -24.28], "rot": 10, "scale": 0.96},
+    {"model": "decor_grass", "pos": [63.77, 0, 2.53], "rot": 10, "scale": 0.75},
+    {"model": "decor_grass", "pos": [78.38, 0, -9.38], "rot": 330, "scale": 0.9},
+    {"model": "decor_grass", "pos": [71.0, 0, -11.61], "rot": 140, "scale": 1.06},
+    {"model": "decor_grass", "pos": [75.62, 0, -8.2], "rot": 80, "scale": 1.2},
+    {"model": "decor_grass", "pos": [77.39, 0, -9.62], "rot": 200, "scale": 0.88},
+    {"model": "decor_grass", "pos": [59.91, 0, -19.44], "rot": 210, "scale": 0.86},
+    {"model": "decor_grass", "pos": [65.27, 0, -26.87], "rot": 270, "scale": 1.3},
+    {"model": "decor_grass", "pos": [63.45, 0, -3.3], "rot": 350, "scale": 0.9},
+    {"model": "decor_grass", "pos": [75.79, 0, -22.72], "rot": 60, "scale": 0.82},
+    {"model": "decor_grass", "pos": [72.05, 0, -24.48], "rot": 80, "scale": 0.93},
+    {"model": "decor_grass", "pos": [60.66, 0, -32.14], "rot": 280, "scale": 1.14},
+    {"model": "decor_grass", "pos": [63.82, 0, -13.93], "rot": 300, "scale": 0.73},
+    {"model": "decor_grass", "pos": [73.57, 0, -10.98], "rot": 190, "scale": 1.17},
+    {"model": "decor_grass", "pos": [57.69, 0, 1.1], "rot": 340, "scale": 0.97},
+    {"model": "decor_grass", "pos": [62.91, 0, -28.67], "rot": 250, "scale": 0.75},
+    {"model": "decor_grass", "pos": [58.01, 0, -2.49], "rot": 210, "scale": 0.91},
+    {"model": "decor_grass", "pos": [81.26, 0, -30.66], "rot": 170, "scale": 1.08},
+    {"model": "decor_grass", "pos": [61.74, 0, -12.48], "rot": 110, "scale": 0.8},
+    {"model": "decor_grass", "pos": [60.2, 0, -35.9], "rot": 60, "scale": 1.03},
+    {"model": "decor_grass", "pos": [73.66, 0, -18.58], "rot": 290, "scale": 1.21},
+    {"model": "decor_grass", "pos": [63.73, 0, -0.63], "rot": 200, "scale": 1.05},
+    {"model": "decor_grass", "pos": [76.61, 0, -34.09], "rot": 110, "scale": 1.27},
+    {"model": "decor_grass", "pos": [71.24, 0, -39.98], "rot": 300, "scale": 0.96},
+    {"model": "decor_grass", "pos": [69.42, 0, -1.41], "rot": 10, "scale": 0.88},
+    {"model": "decor_grass", "pos": [60.96, 0, -17.98], "rot": 110, "scale": 0.81},
+    {"model": "decor_grass", "pos": [80.39, 0, -27.06], "rot": 160, "scale": 1.05},
+    {"model": "decor_grass", "pos": [78.75, 0, -31.15], "rot": 20, "scale": 1.09},
+    {"model": "decor_grass", "pos": [68.0, 0, -10.89], "rot": 110, "scale": 1.19},
+    {"model": "decor_grass", "pos": [69.99, 0, -21.82], "rot": 110, "scale": 0.85},
+    {"model": "decor_grass", "pos": [58.26, 0, -26.68], "rot": 250, "scale": 1.22},
+    {"model": "decor_grass", "pos": [78.09, 0, -30.94], "rot": 340, "scale": 0.97},
+    {"model": "decor_grass", "pos": [72.58, 0, -8.62], "rot": 160, "scale": 0.72},
+    {"model": "decor_grass", "pos": [64.41, 0, -10.38], "rot": 20, "scale": 0.94},
+    {"model": "decor_grass", "pos": [57.11, 0, -34.34], "rot": 130, "scale": 0.74},
+    {"model": "decor_grass", "pos": [62.17, 0, -0.29], "rot": 20, "scale": 1.02},
+    {"model": "decor_grass", "pos": [73.18, 0, -23.81], "rot": 260, "scale": 0.8},
+    {"model": "decor_grass", "pos": [64.65, 0, -3.67], "rot": 120, "scale": 0.9},
+    {"model": "decor_grass", "pos": [70.27, 0, -5.31], "rot": 30, "scale": 0.96},
+    {"model": "decor_grass", "pos": [65.49, 0, -12.85], "rot": 120, "scale": 0.85},
+    {"model": "decor_grass", "pos": [60.92, 0, -4.94], "rot": 220, "scale": 1.18},
+    {"model": "decor_grass", "pos": [69.88, 0, -6.07], "rot": 310, "scale": 0.99},
+    {"model": "decor_grass", "pos": [80.28, 0, -16.58], "rot": 300, "scale": 0.84},
+    {"model": "decor_grass", "pos": [80.59, 0, -11.47], "rot": 290, "scale": 1.3},
+    {"model": "decor_grass", "pos": [57.65, 0, -32.1], "rot": 130, "scale": 1.3},
+    {"model": "decor_grass", "pos": [74.34, 0, -3.31], "rot": 230, "scale": 1.25},
+    {"model": "decor_grass", "pos": [75.14, 0, -26.4], "rot": 190, "scale": 1.23},
+    {"model": "decor_grass", "pos": [68.62, 0, -13.67], "rot": 210, "scale": 0.81},
+    {"model": "decor_grass", "pos": [57.83, 0, -23.63], "rot": 200, "scale": 0.73},
+    {"model": "decor_grass", "pos": [81.85, 0, -38.09], "rot": 150, "scale": 1.28},
+    {"model": "decor_grass", "pos": [57.33, 0, -34.86], "rot": 260, "scale": 0.77},
+    {"model": "decor_grass", "pos": [76.92, 0, -13.82], "rot": 50, "scale": 1.25},
+    {"model": "decor_grass", "pos": [80.5, 0, 1.08], "rot": 220, "scale": 1.17},
+    {"model": "decor_grass", "pos": [75.38, 0, -14.68], "rot": 310, "scale": 0.72},
+    {"model": "decor_grass", "pos": [57.67, 0, -28.21], "rot": 250, "scale": 1.1},
+    {"model": "decor_grass", "pos": [64.21, 0, -36.64], "rot": 340, "scale": 0.85},
+    {"model": "decor_grass", "pos": [58.9, 0, -15.53], "rot": 160, "scale": 0.87},
+    {"model": "decor_grass", "pos": [65.74, 0, -6.1], "rot": 240, "scale": 0.86},
+    {"model": "decor_grass", "pos": [72.06, 0, -16.43], "rot": 160, "scale": 0.95},
+    {"model": "decor_grass", "pos": [66.05, 0, -35.18], "rot": 250, "scale": 1.24},
+    {"model": "decor_grass", "pos": [57.48, 0, 2.72], "rot": 350, "scale": 1.24},
+    {"model": "decor_grass", "pos": [76.0, 0, -11.25], "rot": 50, "scale": 1.02},
+    {"model": "decor_grass", "pos": [73.96, 0, -23.51], "rot": 50, "scale": 0.88},
+    {"model": "decor_grass", "pos": [58.44, 0, -5.98], "rot": 200, "scale": 1.16},
+    {"model": "decor_grass", "pos": [75.77, 0, -2.84], "rot": 300, "scale": 1.21},
+    {"model": "decor_grass", "pos": [78.08, 0, -27.07], "rot": 330, "scale": 1.2},
+    {"model": "decor_grass", "pos": [68.57, 0, 2.64], "rot": 50, "scale": 1.08},
+    {"model": "decor_grass", "pos": [70.15, 0, -11.61], "rot": 310, "scale": 1.08},
+    {"model": "decor_grass", "pos": [76.95, 0, -32.86], "rot": 90, "scale": 0.71},
+    {"model": "decor_grass", "pos": [65.85, 0, -24.11], "rot": 60, "scale": 0.95},
+    {"model": "decor_grass", "pos": [65.74, 0, -25.56], "rot": 210, "scale": 1.13},
+    {"model": "decor_grass", "pos": [80.47, 0, -39.91], "rot": 320, "scale": 0.78},
+    {"model": "decor_grass", "pos": [65.33, 0, -21.32], "rot": 100, "scale": 0.75},
+    {"model": "decor_grass", "pos": [61.52, 0, -2.96], "rot": 300, "scale": 0.81},
+    {"model": "decor_grass", "pos": [65.41, 0, -17.43], "rot": 130, "scale": 1.09},
+    {"model": "decor_leaves", "pos": [74.02, 0, -27.73], "rot": 230, "scale": 0.72},
+    {"model": "decor_leaves", "pos": [80.01, 0, -13.05], "rot": 130, "scale": 1.28},
+    {"model": "decor_leaves", "pos": [78.99, 0, -21.82], "rot": 110, "scale": 1.01},
+    {"model": "decor_leaves", "pos": [65.02, 0, -19.44], "rot": 120, "scale": 1.01},
+    {"model": "decor_leaves", "pos": [78.68, 0, -5.67], "rot": 10, "scale": 1.25},
+    {"model": "decor_leaves", "pos": [79.1, 0, -34.29], "rot": 250, "scale": 1.15},
+    {"model": "decor_leaves", "pos": [61.17, 0, -11.71], "rot": 190, "scale": 0.91},
+    {"model": "decor_leaves", "pos": [72.18, 0, -39.41], "rot": 330, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [57.92, 0, -32.15], "rot": 150, "scale": 1.12},
+    {"model": "decor_leaves", "pos": [73.48, 0, -21.42], "rot": 10, "scale": 1.18},
+    {"model": "decor_leaves", "pos": [60.23, 0, -11.58], "rot": 280, "scale": 1.26},
+    {"model": "decor_leaves", "pos": [65.71, 0, -12.3], "rot": 350, "scale": 1.17},
+    {"model": "decor_leaves", "pos": [59.0, 0, -26.72], "rot": 30, "scale": 0.91},
+    {"model": "decor_leaves", "pos": [59.76, 0, -28.83], "rot": 130, "scale": 0.73},
+    {"model": "decor_leaves", "pos": [59.79, 0, -3.88], "rot": 270, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [57.37, 0, -13.69], "rot": 310, "scale": 1.28},
+    {"model": "decor_leaves", "pos": [65.57, 0, -37.56], "rot": 60, "scale": 1.07},
+    {"model": "decor_leaves", "pos": [68.04, 0, -5.0], "rot": 50, "scale": 1.16},
+    {"model": "decor_leaves", "pos": [56.95, 0, -21.63], "rot": 100, "scale": 0.8},
+    {"model": "decor_leaves", "pos": [64.66, 0, -37.52], "rot": 170, "scale": 0.88},
+    {"model": "decor_leaves", "pos": [57.83, 0, -39.08], "rot": 240, "scale": 0.94},
+    {"model": "decor_leaves", "pos": [71.01, 0, -20.79], "rot": 40, "scale": 1.24},
+    {"model": "decor_leaves", "pos": [67.03, 0, -22.54], "rot": 180, "scale": 1.02},
+    {"model": "decor_leaves", "pos": [76.31, 0, -27.22], "rot": 280, "scale": 1.1},
+    {"model": "decor_leaves", "pos": [56.34, 0, -27.29], "rot": 10, "scale": 1.22},
+    {"model": "decor_leaves", "pos": [58.45, 0, 3.8], "rot": 180, "scale": 1.16},
+    {"model": "decor_leaves", "pos": [60.15, 0, -8.67], "rot": 160, "scale": 1.19},
+    {"model": "decor_leaves", "pos": [80.06, 0, -11.83], "rot": 80, "scale": 1.24},
+    {"model": "decor_leaves", "pos": [78.55, 0, -34.97], "rot": 20, "scale": 1.13},
+    {"model": "decor_leaves", "pos": [62.32, 0, -0.77], "rot": 340, "scale": 0.88},
+    {"model": "decor_leaves", "pos": [60.06, 0, 2.48], "rot": 140, "scale": 0.85},
+    {"model": "decor_leaves", "pos": [81.61, 0, -12.4], "rot": 140, "scale": 1.25},
+    {"model": "decor_leaves", "pos": [81.26, 0, -30.06], "rot": 220, "scale": 1.07},
+    {"model": "decor_leaves", "pos": [75.14, 0, -32.02], "rot": 40, "scale": 1.13},
+    {"model": "decor_leaves", "pos": [60.14, 0, -36.29], "rot": 290, "scale": 0.78},
+    {"model": "decor_leaves", "pos": [60.58, 0, -6.97], "rot": 140, "scale": 0.83},
+    {"model": "decor_leaves", "pos": [71.39, 0, -9.58], "rot": 160, "scale": 1.18},
+    {"model": "decor_leaves", "pos": [69.19, 0, -36.59], "rot": 150, "scale": 1.16},
+    {"model": "decor_leaves", "pos": [60.97, 0, -2.49], "rot": 60, "scale": 0.83},
+    {"model": "decor_leaves", "pos": [71.09, 0, -18.1], "rot": 180, "scale": 0.82},
+    {"model": "decor_leaves", "pos": [81.43, 0, -7.21], "rot": 310, "scale": 1.16},
+    {"model": "decor_leaves", "pos": [64.81, 0, -18.24], "rot": 110, "scale": 1.06},
+    {"model": "decor_leaves", "pos": [70.64, 0, -35.25], "rot": 190, "scale": 0.82},
+    {"model": "decor_leaves", "pos": [62.72, 0, -20.14], "rot": 10, "scale": 1.11},
+    {"model": "decor_leaves", "pos": [79.95, 0, -39.14], "rot": 290, "scale": 1.02},
+    {"model": "decor_leaves", "pos": [73.66, 0, -31.39], "rot": 340, "scale": 0.93},
+    {"model": "decor_leaves", "pos": [62.13, 0, 0.47], "rot": 180, "scale": 0.78},
+    {"model": "decor_leaves", "pos": [61.25, 0, -39.95], "rot": 160, "scale": 0.76},
+    {"model": "decor_leaves", "pos": [78.9, 0, -28.37], "rot": 340, "scale": 1.26},
+    {"model": "decor_leaves", "pos": [78.33, 0, -31.02], "rot": 40, "scale": 1.29},
+    {"model": "decor_stones", "pos": [76.15, 0, -25.6], "rot": 40, "scale": 1.26},
+    {"model": "decor_stones", "pos": [77.04, 0, -20.28], "rot": 210, "scale": 1.03},
+    {"model": "decor_stones", "pos": [65.96, 0, -13.43], "rot": 20, "scale": 0.7},
+    {"model": "decor_stones", "pos": [59.66, 0, -33.67], "rot": 210, "scale": 0.86},
+    {"model": "decor_stones", "pos": [65.03, 0, -38.05], "rot": 20, "scale": 1.26},
+    {"model": "decor_stones", "pos": [78.22, 0, 1.49], "rot": 10, "scale": 0.8},
+    {"model": "decor_stones", "pos": [63.87, 0, -31.29], "rot": 190, "scale": 0.85},
+    {"model": "decor_stones", "pos": [70.49, 0, -19.79], "rot": 0, "scale": 1.29},
+    {"model": "decor_stones", "pos": [65.48, 0, -10.65], "rot": 50, "scale": 0.71},
+    {"model": "decor_stones", "pos": [74.65, 0, -22.31], "rot": 290, "scale": 0.93},
+    {"model": "decor_stones", "pos": [73.81, 0, 3.12], "rot": 320, "scale": 1.06},
+    {"model": "decor_stones", "pos": [56.57, 0, -26.1], "rot": 90, "scale": 0.88},
+    {"model": "decor_stones", "pos": [69.02, 0, -20.07], "rot": 330, "scale": 0.88},
+    {"model": "decor_stones", "pos": [81.57, 0, -18.24], "rot": 310, "scale": 1.12},
+    {"model": "decor_stones", "pos": [77.37, 0, -33.61], "rot": 40, "scale": 1.29},
+    {"model": "decor_stones", "pos": [65.94, 0, -19.77], "rot": 170, "scale": 1.2},
+    {"model": "decor_stones", "pos": [64.02, 0, -3.23], "rot": 80, "scale": 0.93},
+    {"model": "decor_stones", "pos": [75.3, 0, -4.58], "rot": 220, "scale": 1.12},
+    {"model": "decor_stones", "pos": [79.6, 0, -29.11], "rot": 230, "scale": 0.82},
+    {"model": "decor_stones", "pos": [71.35, 0, -8.23], "rot": 290, "scale": 1.28},
+    {"model": "decor_stones", "pos": [56.58, 0, -36.36], "rot": 340, "scale": 1.24},
+    {"model": "decor_stones", "pos": [62.15, 0, -6.58], "rot": 260, "scale": 0.89},
+    {"model": "decor_stones", "pos": [62.65, 0, -38.26], "rot": 220, "scale": 1.27},
+    {"model": "decor_stones", "pos": [59.96, 0, -9.02], "rot": 330, "scale": 0.98},
+    {"model": "decor_stones", "pos": [77.43, 0, -19.74], "rot": 120, "scale": 1.3},
+    {"model": "decor_stones", "pos": [60.75, 0, -14.32], "rot": 240, "scale": 1.16},
+    {"model": "decor_stones", "pos": [60.1, 0, -24.11], "rot": 60, "scale": 0.93},
+    {"model": "decor_stones", "pos": [58.64, 0, -10.34], "rot": 180, "scale": 0.96},
+    {"model": "decor_stones", "pos": [78.14, 0, -10.72], "rot": 30, "scale": 1.11},
+    {"model": "decor_stones", "pos": [81.31, 0, -13.4], "rot": 330, "scale": 1.2}
   ],
   "shop": {"pos": [-4.5, 0, -1.5], "rot": 180},
   "road": {"points": [[-88, 0, 12], [88, 0, 12]]}
@@ -20649,6 +28628,9 @@ FOOTPRINTS = {
 	"retaining_wall1": (4.0, WALL_THICK, 1.0), "retaining_wall2": (4.0, WALL_THICK, 2.0), "retaining_wall3": (4.0, WALL_THICK, 3.0),
 	"stairs": (1.2, 3.2, 1.0), "arch": (3.4, 0.6, 2.6), "chair": (0.5, 0.5, 0.9), "umbrella": (0.2, 0.2, 2.2),
 	"bush": (1.0, 1.0, 0.8), "flowerbed": (2.0, 1.0, 0.4), "door": (1.0, 0.2, 2.0),
+	# дома (план 16): фасад в плоскости прежней стены, корпус уходит назад — 4-е число — сдвиг центра по локальной Z
+	"house_a": (6.0, 6.0, 7.8, -2.8), "house_b": (6.0, 6.0, 9.55, -2.8), "house_c": (6.0, 6.0, 6.45, -2.8),
+	"house_shallow": (6.0, 1.8, 4.7, -0.7),
 }
 
 
@@ -20661,13 +28643,15 @@ def footprint(p):
 	fp = FOOTPRINTS.get(p["model"])
 	if fp is None or p.get("solid", True) is False:
 		return None
-	sx, sz, top = fp
+	sx, sz, top = fp[:3]
+	x, y, z = p["pos"]
+	if len(fp) > 3:
+		x, z = _local((x, z), float(p.get("rot", 0)), 0, fp[3])   # центр корпуса позади фасада
 	rot = float(p.get("rot", 0)) % 180
 	if abs(rot - 90) < 1:
 		sx, sz = sz, sx
 	elif rot > 1:
 		sx = sz = max(sx, sz)
-	x, y, z = p["pos"]
 	base = y if p.get("snap", True) else 0.0   # у стен со snap false y — абсолютная высота подножия
 	return (x - sx / 2, z - sz / 2, x + sx / 2, z + sz / 2, base + top)
 
@@ -20704,7 +28688,7 @@ def _local(origin, rot, dx, dz):
 SIDES = {"n": 0, "s": 180, "w": 90, "e": -90}   # стена дома лицом внутрь прямоугольника
 
 
-def perimeter(rect, model="wall", length=6.0, sides="nswe", gaps=(), extra=None):
+def perimeter(rect, model="wall", length=6.0, sides="nswe", gaps=(), extra=None, models=None):
 	"""Модули стен по сторонам rect; gaps — [(сторона, центр вдоль стороны, ширина)] — проходы без стен."""
 	x0, z0, x1, z1 = rect
 	out = []
@@ -20726,7 +28710,8 @@ def perimeter(rect, model="wall", length=6.0, sides="nswe", gaps=(), extra=None)
 			line = (z0 if side == "n" else z1) if horiz else (x0 if side == "w" else x1)
 			line = round(line + shift, 3)
 			pos = [c, 0, line] if horiz else [line, 0, c]
-			out.append({"model": model, "pos": pos, "rot": SIDES[side], **(extra or {})})
+			m = models[len(out) % len(models)] if models else model   # ряд разных домов (план 16)
+			out.append({"model": m, "pos": pos, "rot": SIDES[side], **(extra or {})})
 	return out
 
 
@@ -20796,6 +28781,26 @@ def garage_row(origin, count, rot=0, step=3.2, foods=None):
 	return {"props": props, "yarn": yarn, "spawn_points": spawns}
 
 
+def decor(rng, model, rect, count, blocked, min_dist=0.35, margin=0.15, scale=(0.7, 1.3)):
+	"""Мелкие украшения (трава, цветы, камешки) — сколько поместится из count, без исключения; отдельный список decor."""
+	out = []
+	pts = []
+	x0, z0, x1, z1 = rect
+	cell = {}
+	for _ in range(count * 6):
+		if len(out) >= count:
+			break
+		x, z = round(rng.uniform(x0, x1), 2), round(rng.uniform(z0, z1), 2)
+		if any(f[0] - margin < x < f[2] + margin and f[1] - margin < z < f[3] + margin for f in blocked):
+			continue
+		key = (int(x // min_dist), int(z // min_dist))
+		if any((x - a) ** 2 + (z - b) ** 2 < min_dist ** 2 for dx in (-1, 0, 1) for dz in (-1, 0, 1) for a, b in cell.get((key[0] + dx, key[1] + dz), [])):
+			continue
+		cell.setdefault(key, []).append((x, z))
+		out.append({"model": model, "pos": [x, 0, z], "rot": rng.randrange(0, 360, 10), "scale": round(rng.uniform(*scale), 2)})
+	return out
+
+
 def pond(center, radius, depth, level):
 	"""Пруд: котловина рельефа, зона воды (поверхность level, абсолютная), 8 маркеров берега на radius + 1,5,
 	прямоугольник, закрытый для россыпи. Возвращает (feature, water, shore, blocked)."""
@@ -20854,7 +28859,7 @@ def model_defaults(props):
 	return d
 
 
-LISTS = ("props", "hideouts", "spawn_points", "yarn", "hazards", "decals", "gates", "water_zones", "shore", "floaters")
+LISTS = ("props", "hideouts", "spawn_points", "yarn", "hazards", "decals", "gates", "water_zones", "shore", "floaters", "decor")
 
 
 def generate(desc):
@@ -20874,6 +28879,7 @@ def generate(desc):
 	defaults = model_defaults(sample)
 	gen = {k: [] for k in LISTS}
 	blocked = [f for p in out["props"] for f in footprints(p)]
+	wet = []
 
 	def add(kind, items):
 		for it in items:
@@ -20890,7 +28896,7 @@ def generate(desc):
 	for op in [o for o in ops if o["type"] != "scatter"] + [o for o in ops if o["type"] == "scatter"]:
 		t = op["type"]
 		if t == "perimeter":
-			add("props", perimeter(op["rect"], op.get("model", "wall"), op.get("length", 6.0), op.get("sides", "nswe"), [tuple(g) for g in op.get("gaps", [])], op.get("extra")))
+			add("props", perimeter(op["rect"], op.get("model", "wall"), op.get("length", 6.0), op.get("sides", "nswe"), [tuple(g) for g in op.get("gaps", [])], op.get("extra"), op.get("models")))
 		elif t == "terrace":
 			feature, props, bl = terrace(op["rect"], op["height"], [tuple(a) for a in op.get("access", [])],
 				op.get("sides", "nswe"), [tuple(g) for g in op.get("gaps", [])], op.get("ground", 0.0), op.get("wall_h"), op.get("level"))
@@ -20907,6 +28913,9 @@ def generate(desc):
 			add("water_zones", [water])
 			add("shore", shore)
 			blocked.append(bl)
+		elif t == "decor":
+			solid = blocked + wet
+			add("decor", decor(rng, op["model"], op["rect"], op["count"], solid, op.get("min_dist", 0.35)))
 		elif t == "block":
 			blocked.append(tuple(op["rect"]) + (0.0,))   # полоса без россыпи (маршрут погрузчика)
 		elif t == "flat":
@@ -20915,6 +28924,7 @@ def generate(desc):
 			x0, z0, x1, z1 = op["rect"]
 			add("water_zones", [{"pos": [(x0 + x1) / 2, op["level"], (z0 + z1) / 2], "size": [x1 - x0, op.get("depth", 2.0), z1 - z0]}])
 			add("shore", [dict(m) if isinstance(m, dict) else {"pos": list(m)} for m in op.get("shore", [])])   # словарь — с флагами (snap)
+			wet.append((x0, z0, x1, z1, 0.0))   # украшения в воду не кладутся
 			# Прямоугольник воды не закрывается для россыпи: над ним бывает суша (причал); россыпи задаются по суше.
 		elif t == "hill":
 			terrain["features"].append({"type": "hill", "center": op["center"], "radius": op["radius"], "height": op["height"]})
@@ -20949,9 +28959,17 @@ def generate(desc):
 					add("hideouts", [{"kind": "bench", "pos": [x, 0.2, z], "rot": r, "size": [1.3, 0.4, 0.4]}])
 				elif w == "prop":
 					rot = rng.randrange(0, 360, 15) if op.get("rot") == "random" else op.get("rot", 0)
-					add("props", [{"model": op["model"], "pos": [x, 0, z], "rot": rot}])
+					add("props", [{"model": op["model"], "pos": [x, 0, z], "rot": rot, **op.get("extra", {})}])
 		else:
 			raise ValueError(f"неизвестная операция {t}")
+	# Несплошное (трава, плющ, лужи) внутри зданий — убрать: после замены стен домами оно оказалось в корпусе (план 16).
+	buildings = [f for p in out["props"] for f in footprints(p) if f[4] > 2.5]
+	def inside_building(p):
+		x, _, z = p["pos"]
+		return p.get("solid", True) is False and any(f[0] < x < f[2] and f[1] < z < f[3] for f in buildings)
+	out["props"] = [p for p in out["props"] if not inside_building(p)]
+	out["decals"] = [d for d in out["decals"] if not any(f[0] < d["pos"][0] < f[2] and f[1] < d["pos"][2] < f[3] for f in buildings)
+		or d.get("wall", False)]
 	for k, n in desc.get("counts", {}).items():
 		if len(out[k]) < n:
 			raise ValueError(f"{k}: {len(out[k])} < {n}")
@@ -21185,6 +29203,37 @@ class Primitives(unittest.TestCase):
 			{"type": "block", "rect": [-2, -10, 2, 10]}]}]}
 		layout, _ = lg.generate(d)
 		self.assertFalse(any(-2.4 < p["pos"][0] < 2.4 for p in layout["props"]), "в полосе пусто")
+
+	def test_decor_fills_area_avoiding_props(self):
+		# План 16: мелкие украшения — отдельный список decor (MultiMesh), густо, не в пропсах и не в закрытых полосах.
+		d = {"name": "t", "terrain": DESC["terrain"], "zones": [{"name": "z", "ops": [
+			{"type": "place", "props": [{"model": "garage", "pos": [0, 0, 0], "rot": 0}]},
+			{"type": "block", "rect": [5, -10, 10, 10]},
+			{"type": "decor", "model": "decor_grass", "rect": [-10, -10, 10, 10], "count": 200}]}]}
+		layout, _ = lg.generate(d)
+		dec = layout["decor"]
+		self.assertGreater(len(dec), 150)
+		for it in dec:
+			x, _, z = it["pos"]
+			self.assertFalse(-1.6 < x < 1.6 and -2.9 < z < 2.9, "не в гараже")
+			self.assertFalse(5 < x < 10, "не в закрытой полосе")
+			self.assertEqual(it["model"], "decor_grass")
+			self.assertTrue(0.7 <= it["scale"] <= 1.3)
+
+	def test_non_solid_props_inside_buildings_are_pruned(self):
+		# План 16: трава и плющ ядра, оказавшиеся внутри нового дома, убираются.
+		d = {"name": "t", "terrain": DESC["terrain"], "zones": [{"name": "z", "ops": [
+			{"type": "place", "props": [{"model": "house_a", "pos": [0, 0, 0], "rot": 0},
+				{"model": "grass", "pos": [0, 0, -3], "rot": 0, "solid": False},
+				{"model": "grass", "pos": [0, 0, 2], "rot": 0, "solid": False}]}]}]}
+		layout, _ = lg.generate(d)
+		grass = [p["pos"] for p in layout["props"] if p["model"] == "grass"]
+		self.assertEqual(grass, [[0, 0, 2]], "трава внутри дома убрана, перед фасадом осталась")
+
+	def test_perimeter_alternates_house_models(self):
+		# План 16: край района — ряд разных домов, а не одна бесконечная стена.
+		houses = lg.perimeter([0, 0, 24, 6], sides="n", models=["house_a", "house_b", "house_c"])
+		self.assertEqual([h["model"] for h in houses], ["house_a", "house_b", "house_c", "house_a"])
 
 	def test_kit_constants_match_world_builder(self):
 		src = (ROOT / "scripts/world/world_builder.gd").read_text()
@@ -22293,6 +30342,145 @@ class Generate(unittest.TestCase):
       98
      ],
      "count": 2,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "наполнение",
+   "ops": [
+    {
+     "type": "decor",
+     "model": "decor_grass",
+     "rect": [
+      -44,
+      31,
+      44,
+      124
+     ],
+     "count": 2200,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_flowers",
+     "rect": [
+      -44,
+      31,
+      44,
+      124
+     ],
+     "count": 400,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_stones",
+     "rect": [
+      -44,
+      31,
+      44,
+      124
+     ],
+     "count": 150,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_leaves",
+     "rect": [
+      18,
+      36,
+      43,
+      88
+     ],
+     "count": 300,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_reeds",
+     "rect": [
+      -42,
+      52,
+      -14,
+      80
+     ],
+     "count": 160,
+     "min_dist": 0.5
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree_pine",
+     "rect": [
+      18,
+      36,
+      43,
+      88
+     ],
+     "count": 6,
+     "rot": "random",
+     "min_dist": 4.0,
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         0.25,
+         1.2,
+         0.25
+        ],
+        "offset": [
+         0,
+         0.6,
+         0
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree_pine",
+     "rect": [
+      -43,
+      80,
+      -17,
+      98
+     ],
+     "count": 3,
+     "rot": "random",
+     "min_dist": 4.0,
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         0.25,
+         1.2,
+         0.25
+        ],
+        "offset": [
+         0,
+         0.6,
+         0
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush_flowers",
+     "rect": [
+      -43,
+      100,
+      43,
+      123
+     ],
+     "count": 6,
+     "rot": "random",
      "min_dist": 3.0
     }
    ]
@@ -25459,6 +33647,59 @@ class Generate(unittest.TestCase):
      ]
     }
    ]
+  },
+  {
+   "name": "наполнение",
+   "ops": [
+    {
+     "type": "decor",
+     "model": "decor_shell",
+     "rect": [
+      -58,
+      150,
+      8,
+      193
+     ],
+     "count": 500,
+     "min_dist": 0.5
+    },
+    {
+     "type": "decor",
+     "model": "decor_stones",
+     "rect": [
+      -58,
+      150,
+      8,
+      193
+     ],
+     "count": 150,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_grass",
+     "rect": [
+      -58,
+      150,
+      -30,
+      170
+     ],
+     "count": 150,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_litter",
+     "rect": [
+      -58,
+      127,
+      58,
+      145
+     ],
+     "count": 60,
+     "min_dist": 1.0
+    }
+   ]
   }
  ]
 }
@@ -25558,32 +33799,47 @@ class Generate(unittest.TestCase):
     {
      "type": "perimeter",
      "rect": [
-      -90,
-      -150,
-      90,
-      30
+      -84,
+      -144,
+      84,
+      24
      ],
-     "sides": "nwe"
+     "sides": "nwe",
+     "models": [
+      "house_a",
+      "house_b",
+      "house_c"
+     ]
     },
     {
      "type": "perimeter",
      "rect": [
-      -90,
+      -84,
       0,
       -15,
-      30
+      24
      ],
-     "sides": "s"
+     "sides": "s",
+     "models": [
+      "house_a",
+      "house_b",
+      "house_c"
+     ]
     },
     {
      "type": "perimeter",
      "rect": [
       15,
       0,
-      90,
-      30
+      84,
+      24
      ],
-     "sides": "s"
+     "sides": "s",
+     "models": [
+      "house_a",
+      "house_b",
+      "house_c"
+     ]
     }
    ]
   },
@@ -25773,7 +34029,7 @@ class Generate(unittest.TestCase):
      "type": "scatter",
      "what": "spawn",
      "rect": [
-      -86,
+      -82,
       4,
       -16,
       9
@@ -25797,7 +34053,7 @@ class Generate(unittest.TestCase):
      "rect": [
       16,
       4,
-      86,
+      82,
       9
      ],
      "count": 2,
@@ -25818,10 +34074,10 @@ class Generate(unittest.TestCase):
      "what": "hideout",
      "kind": "bench",
      "rect": [
-      -86,
+      -82,
       15,
       -30,
-      27
+      22
      ],
      "count": 1,
      "min_dist": 3.0
@@ -25833,8 +34089,8 @@ class Generate(unittest.TestCase):
      "rect": [
       30,
       15,
-      86,
-      27
+      82,
+      22
      ],
      "count": 1,
      "min_dist": 3.0
@@ -26303,12 +34559,17 @@ class Generate(unittest.TestCase):
     {
      "type": "perimeter",
      "rect": [
-      -38,
-      -116,
-      38,
+      -36,
+      -112,
+      36,
       -72
      ],
-     "sides": "n"
+     "sides": "n",
+     "models": [
+      "house_a",
+      "house_b",
+      "house_c"
+     ]
     },
     {
      "type": "place",
@@ -26318,7 +34579,7 @@ class Generate(unittest.TestCase):
        "pos": [
         -25,
         0,
-        -113.5
+        -109.5
        ],
        "rot": 0
       },
@@ -26327,7 +34588,7 @@ class Generate(unittest.TestCase):
        "pos": [
         0,
         0,
-        -113.5
+        -109.5
        ],
        "rot": 0
       },
@@ -26336,7 +34597,7 @@ class Generate(unittest.TestCase):
        "pos": [
         25,
         0,
-        -113.5
+        -109.5
        ],
        "rot": 0
       },
@@ -26391,7 +34652,7 @@ class Generate(unittest.TestCase):
        "pos": [
         -25,
         1.0,
-        -110.95
+        -106.95
        ],
        "allowed": [
         1,
@@ -26408,7 +34669,7 @@ class Generate(unittest.TestCase):
        "pos": [
         0,
         1.0,
-        -110.95
+        -106.95
        ],
        "allowed": [
         1,
@@ -26425,7 +34686,7 @@ class Generate(unittest.TestCase):
        "pos": [
         25,
         1.0,
-        -110.95
+        -106.95
        ],
        "allowed": [
         1,
@@ -26444,21 +34705,21 @@ class Generate(unittest.TestCase):
        "pos": [
         -24.6,
         0.5,
-        -113.0
+        -109.0
        ]
       },
       {
        "pos": [
         0.4,
         0.5,
-        -113.0
+        -109.0
        ]
       },
       {
        "pos": [
         25.4,
         0.5,
-        -113.0
+        -109.0
        ]
       }
      ],
@@ -26489,7 +34750,7 @@ class Generate(unittest.TestCase):
      "model": "tree",
      "rect": [
       -36,
-      -110,
+      -106,
       36,
       -76
      ],
@@ -26503,7 +34764,7 @@ class Generate(unittest.TestCase):
      "model": "bush",
      "rect": [
       -36,
-      -110,
+      -106,
       36,
       -76
      ],
@@ -26516,7 +34777,7 @@ class Generate(unittest.TestCase):
      "what": "spawn",
      "rect": [
       -36,
-      -110,
+      -106,
       36,
       -76
      ],
@@ -26544,7 +34805,7 @@ class Generate(unittest.TestCase):
      "what": "yarn",
      "rect": [
       -36,
-      -110,
+      -106,
       36,
       -76
      ],
@@ -26557,7 +34818,7 @@ class Generate(unittest.TestCase):
      "kind": "box",
      "rect": [
       -36,
-      -110,
+      -106,
       36,
       -76
      ],
@@ -26570,7 +34831,7 @@ class Generate(unittest.TestCase):
      "kind": "bench",
      "rect": [
       -36,
-      -110,
+      -106,
       36,
       -76
      ],
@@ -26588,7 +34849,7 @@ class Generate(unittest.TestCase):
       -27,
       15,
       -13,
-      26
+      23
      ],
      "height": 1,
      "access": [
@@ -26605,7 +34866,7 @@ class Generate(unittest.TestCase):
       -27,
       15,
       -13,
-      26
+      23
      ],
      "surface": "paving"
     },
@@ -26617,7 +34878,7 @@ class Generate(unittest.TestCase):
        "pos": [
         -23,
         0,
-        18
+        17.5
        ]
       },
       {
@@ -26625,15 +34886,15 @@ class Generate(unittest.TestCase):
        "pos": [
         -19,
         0,
-        22
+        20.5
        ]
       },
       {
        "model": "cafe_table",
        "pos": [
-        -23,
+        -24.5,
         0,
-        23
+        21.3
        ]
       },
       {
@@ -26641,7 +34902,7 @@ class Generate(unittest.TestCase):
        "pos": [
         -22.3,
         0,
-        18.7
+        18.2
        ]
       },
       {
@@ -26649,7 +34910,7 @@ class Generate(unittest.TestCase):
        "pos": [
         -18.3,
         0,
-        22.7
+        21.2
        ]
       },
       {
@@ -26657,7 +34918,7 @@ class Generate(unittest.TestCase):
        "pos": [
         -23,
         0,
-        17.2
+        16.7
        ],
        "rot": 180
       },
@@ -26666,25 +34927,25 @@ class Generate(unittest.TestCase):
        "pos": [
         -19,
         0,
-        21.2
+        19.7
        ],
        "rot": 180
       },
       {
        "model": "chair",
        "pos": [
-        -23,
+        -24.5,
         0,
-        22.2
+        20.5
        ],
        "rot": 180
       },
       {
        "model": "lamp",
        "pos": [
-        -26,
+        -26.3,
         0,
-        25
+        15.7
        ],
        "rot": 0
       }
@@ -26694,7 +34955,7 @@ class Generate(unittest.TestCase):
        "pos": [
         -23,
         0.75,
-        18
+        17.5
        ],
        "allowed": [
         2
@@ -26708,7 +34969,7 @@ class Generate(unittest.TestCase):
        "pos": [
         -19,
         0.75,
-        22
+        20.5
        ],
        "allowed": [
         3
@@ -26720,9 +34981,9 @@ class Generate(unittest.TestCase):
       },
       {
        "pos": [
-        -23,
+        -24.5,
         0.75,
-        23
+        21.3
        ],
        "allowed": [
         1
@@ -26755,8 +35016,8 @@ class Generate(unittest.TestCase):
      "what": "prop",
      "model": "tree",
      "rect": [
-      -88,
-      -146,
+      -82,
+      -142,
       -66,
       -46
      ],
@@ -26769,8 +35030,8 @@ class Generate(unittest.TestCase):
      "what": "prop",
      "model": "bush",
      "rect": [
-      -88,
-      -146,
+      -82,
+      -142,
       -66,
       -46
      ],
@@ -26783,8 +35044,8 @@ class Generate(unittest.TestCase):
      "what": "prop",
      "model": "grass",
      "rect": [
-      -88,
-      -146,
+      -82,
+      -142,
       -66,
       -46
      ],
@@ -26796,8 +35057,8 @@ class Generate(unittest.TestCase):
      "type": "scatter",
      "what": "spawn",
      "rect": [
-      -88,
-      -146,
+      -82,
+      -142,
       -66,
       -46
      ],
@@ -26821,8 +35082,8 @@ class Generate(unittest.TestCase):
      "type": "scatter",
      "what": "yarn",
      "rect": [
-      -88,
-      -146,
+      -82,
+      -142,
       -66,
       -46
      ],
@@ -26834,8 +35095,8 @@ class Generate(unittest.TestCase):
      "what": "hideout",
      "kind": "box",
      "rect": [
-      -88,
-      -146,
+      -82,
+      -142,
       -66,
       -46
      ],
@@ -26864,8 +35125,8 @@ class Generate(unittest.TestCase):
      "model": "tree",
      "rect": [
       56,
-      -146,
-      88,
+      -142,
+      82,
       -46
      ],
      "count": 5,
@@ -26878,8 +35139,8 @@ class Generate(unittest.TestCase):
      "model": "bush",
      "rect": [
       56,
-      -146,
-      88,
+      -142,
+      82,
       -46
      ],
      "count": 6,
@@ -26892,8 +35153,8 @@ class Generate(unittest.TestCase):
      "model": "grass",
      "rect": [
       56,
-      -146,
-      88,
+      -142,
+      82,
       -46
      ],
      "count": 8,
@@ -26905,8 +35166,8 @@ class Generate(unittest.TestCase):
      "what": "spawn",
      "rect": [
       56,
-      -146,
-      88,
+      -142,
+      82,
       -46
      ],
      "count": 2,
@@ -26930,8 +35191,8 @@ class Generate(unittest.TestCase):
      "what": "yarn",
      "rect": [
       56,
-      -146,
-      88,
+      -142,
+      82,
       -46
      ],
      "count": 1,
@@ -26943,8 +35204,8 @@ class Generate(unittest.TestCase):
      "kind": "box",
      "rect": [
       56,
-      -146,
-      88,
+      -142,
+      82,
       -46
      ],
      "count": 1,
@@ -26972,7 +35233,7 @@ class Generate(unittest.TestCase):
      "model": "tree",
      "rect": [
       -60,
-      -146,
+      -142,
       52,
       -124
      ],
@@ -26986,7 +35247,7 @@ class Generate(unittest.TestCase):
      "model": "bush",
      "rect": [
       -60,
-      -146,
+      -142,
       52,
       -124
      ],
@@ -27000,7 +35261,7 @@ class Generate(unittest.TestCase):
      "model": "grass",
      "rect": [
       -60,
-      -146,
+      -142,
       52,
       -124
      ],
@@ -27013,7 +35274,7 @@ class Generate(unittest.TestCase):
      "what": "spawn",
      "rect": [
       -60,
-      -146,
+      -142,
       52,
       -124
      ],
@@ -27038,7 +35299,7 @@ class Generate(unittest.TestCase):
      "what": "yarn",
      "rect": [
       -60,
-      -146,
+      -142,
       52,
       -124
      ],
@@ -27051,7 +35312,7 @@ class Generate(unittest.TestCase):
      "kind": "box",
      "rect": [
       -60,
-      -146,
+      -142,
       52,
       -124
      ],
@@ -27081,7 +35342,7 @@ class Generate(unittest.TestCase):
      "rect": [
       56,
       -40,
-      88,
+      82,
       4
      ],
      "count": 5,
@@ -27095,7 +35356,7 @@ class Generate(unittest.TestCase):
      "rect": [
       56,
       -40,
-      88,
+      82,
       4
      ],
      "count": 6,
@@ -27109,7 +35370,7 @@ class Generate(unittest.TestCase):
      "rect": [
       56,
       -40,
-      88,
+      82,
       4
      ],
      "count": 8,
@@ -27122,7 +35383,7 @@ class Generate(unittest.TestCase):
      "rect": [
       56,
       -40,
-      88,
+      82,
       4
      ],
      "count": 2,
@@ -27147,7 +35408,7 @@ class Generate(unittest.TestCase):
      "rect": [
       56,
       -40,
-      88,
+      82,
       4
      ],
      "count": 1,
@@ -27160,11 +35421,554 @@ class Generate(unittest.TestCase):
      "rect": [
       56,
       -40,
-      88,
+      82,
       4
      ],
      "count": 1,
      "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "наполнение",
+   "ops": [
+    {
+     "type": "decor",
+     "model": "decor_grass",
+     "rect": [
+      -20,
+      -70,
+      20,
+      -18
+     ],
+     "count": 600,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_flowers",
+     "rect": [
+      -20,
+      -70,
+      20,
+      -18
+     ],
+     "count": 150,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_leaves",
+     "rect": [
+      -20,
+      -70,
+      20,
+      -18
+     ],
+     "count": 150,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_stones",
+     "rect": [
+      -20,
+      -70,
+      20,
+      -18
+     ],
+     "count": 60,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_grass",
+     "rect": [
+      -36,
+      -106,
+      36,
+      -76
+     ],
+     "count": 150,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_flowers",
+     "rect": [
+      -36,
+      -106,
+      36,
+      -76
+     ],
+     "count": 120,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_stones",
+     "rect": [
+      -36,
+      -106,
+      36,
+      -76
+     ],
+     "count": 40,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_grass",
+     "rect": [
+      -11,
+      -13,
+      11,
+      9
+     ],
+     "count": 150,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_flowers",
+     "rect": [
+      -11,
+      -13,
+      11,
+      9
+     ],
+     "count": 60,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_litter",
+     "rect": [
+      -11,
+      -13,
+      11,
+      9
+     ],
+     "count": 40,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_stones",
+     "rect": [
+      -11,
+      -13,
+      11,
+      9
+     ],
+     "count": 30,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_litter",
+     "rect": [
+      -82,
+      4,
+      82,
+      22
+     ],
+     "count": 80,
+     "min_dist": 1.0
+    },
+    {
+     "type": "decor",
+     "model": "decor_grass",
+     "rect": [
+      -82,
+      4,
+      82,
+      22
+     ],
+     "count": 150,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_stones",
+     "rect": [
+      -82,
+      4,
+      82,
+      22
+     ],
+     "count": 40,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_litter",
+     "rect": [
+      -62,
+      -44,
+      -22,
+      -6
+     ],
+     "count": 60,
+     "min_dist": 0.8
+    },
+    {
+     "type": "decor",
+     "model": "decor_grass",
+     "rect": [
+      -62,
+      -44,
+      -22,
+      -6
+     ],
+     "count": 80,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_grass",
+     "rect": [
+      22,
+      -40,
+      52,
+      -14
+     ],
+     "count": 120,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_flowers",
+     "rect": [
+      22,
+      -40,
+      52,
+      -14
+     ],
+     "count": 40,
+     "min_dist": 0.35
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree_pine",
+     "rect": [
+      -20,
+      -70,
+      20,
+      -18
+     ],
+     "count": 4,
+     "rot": "random",
+     "min_dist": 5.0,
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         0.25,
+         1.2,
+         0.25
+        ],
+        "offset": [
+         0,
+         0.6,
+         0
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush_flowers",
+     "rect": [
+      -20,
+      -70,
+      20,
+      -18
+     ],
+     "count": 4,
+     "rot": "random",
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush_flowers",
+     "rect": [
+      -36,
+      -106,
+      36,
+      -76
+     ],
+     "count": 4,
+     "rot": "random",
+     "min_dist": 3.0
+    },
+    {
+     "type": "decor",
+     "model": "decor_grass",
+     "rect": [
+      -82,
+      -142,
+      -66,
+      -46
+     ],
+     "count": 300,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_leaves",
+     "rect": [
+      -82,
+      -142,
+      -66,
+      -46
+     ],
+     "count": 50,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_stones",
+     "rect": [
+      -82,
+      -142,
+      -66,
+      -46
+     ],
+     "count": 30,
+     "min_dist": 0.35
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree_pine",
+     "rect": [
+      -82,
+      -142,
+      -66,
+      -46
+     ],
+     "count": 3,
+     "rot": "random",
+     "min_dist": 5.0,
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         0.25,
+         1.2,
+         0.25
+        ],
+        "offset": [
+         0,
+         0.6,
+         0
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "type": "decor",
+     "model": "decor_grass",
+     "rect": [
+      56,
+      -142,
+      82,
+      -46
+     ],
+     "count": 300,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_leaves",
+     "rect": [
+      56,
+      -142,
+      82,
+      -46
+     ],
+     "count": 50,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_stones",
+     "rect": [
+      56,
+      -142,
+      82,
+      -46
+     ],
+     "count": 30,
+     "min_dist": 0.35
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree_pine",
+     "rect": [
+      56,
+      -142,
+      82,
+      -46
+     ],
+     "count": 3,
+     "rot": "random",
+     "min_dist": 5.0,
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         0.25,
+         1.2,
+         0.25
+        ],
+        "offset": [
+         0,
+         0.6,
+         0
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "type": "decor",
+     "model": "decor_grass",
+     "rect": [
+      -60,
+      -142,
+      52,
+      -124
+     ],
+     "count": 300,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_leaves",
+     "rect": [
+      -60,
+      -142,
+      52,
+      -124
+     ],
+     "count": 50,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_stones",
+     "rect": [
+      -60,
+      -142,
+      52,
+      -124
+     ],
+     "count": 30,
+     "min_dist": 0.35
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree_pine",
+     "rect": [
+      -60,
+      -142,
+      52,
+      -124
+     ],
+     "count": 3,
+     "rot": "random",
+     "min_dist": 5.0,
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         0.25,
+         1.2,
+         0.25
+        ],
+        "offset": [
+         0,
+         0.6,
+         0
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "type": "decor",
+     "model": "decor_grass",
+     "rect": [
+      56,
+      -40,
+      82,
+      4
+     ],
+     "count": 300,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_leaves",
+     "rect": [
+      56,
+      -40,
+      82,
+      4
+     ],
+     "count": 50,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_stones",
+     "rect": [
+      56,
+      -40,
+      82,
+      4
+     ],
+     "count": 30,
+     "min_dist": 0.35
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree_pine",
+     "rect": [
+      56,
+      -40,
+      82,
+      4
+     ],
+     "count": 3,
+     "rot": "random",
+     "min_dist": 5.0,
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         0.25,
+         1.2,
+         0.25
+        ],
+        "offset": [
+         0,
+         0.6,
+         0
+        ]
+       }
+      ]
+     }
     }
    ]
   }
@@ -27176,1963 +35980,1945 @@ class Generate(unittest.TestCase):
 
 ```json
 {
-  "props": [
-    {
-      "model": "wall",
-      "pos": [
-        0,
-        0,
-        -14
-      ],
-      "rot": 0
-    },
-    {
-      "model": "wall",
-      "pos": [
-        6,
-        0,
-        -14
-      ],
-      "rot": 0
-    },
-    {
-      "model": "wall",
-      "pos": [
-        -6,
-        0,
-        -14
-      ],
-      "rot": 0
-    },
-    {
-      "model": "wall",
-      "pos": [
-        -12,
-        0,
-        -8
-      ],
-      "rot": 90
-    },
-    {
-      "model": "wall",
-      "pos": [
-        -12,
-        0,
-        -2
-      ],
-      "rot": 90
-    },
-    {
-      "model": "door",
-      "pos": [
-        3,
-        0,
-        -13.75
-      ],
-      "rot": 0
-    },
-    {
-      "model": "door",
-      "pos": [
-        -9,
-        0,
-        -13.75
-      ],
-      "rot": 0
-    },
-    {
-      "model": "stairs",
-      "pos": [
-        -11.3,
-        0,
-        -11.5
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            1.2,
-            0.25,
-            0.5
-          ],
-          "offset": [
-            0,
-            0.125,
-            0
-          ]
-        },
-        {
-          "size": [
-            1.2,
-            0.5,
-            0.5
-          ],
-          "offset": [
-            0,
-            0.25,
-            0.5
-          ]
-        },
-        {
-          "size": [
-            1.2,
-            0.75,
-            0.5
-          ],
-          "offset": [
-            0,
-            0.375,
-            1.0
-          ]
-        },
-        {
-          "size": [
-            1.2,
-            1.0,
-            0.5
-          ],
-          "offset": [
-            0,
-            0.5,
-            1.5
-          ]
-        },
-        {
-          "size": [
-            1.2,
-            0.12,
-            1.2
-          ],
-          "offset": [
-            0,
-            0.94,
-            2.55
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bin",
-      "pos": [
-        3,
-        0,
-        -11
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.74,
-            1.12,
-            0.84
-          ],
-          "offset": [
-            0,
-            0.56,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bin",
-      "pos": [
-        4,
-        0,
-        -11
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.74,
-            1.12,
-            0.84
-          ],
-          "offset": [
-            0,
-            0.56,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bin",
-      "pos": [
-        -6,
-        0,
-        2
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            0.74,
-            1.12,
-            0.84
-          ],
-          "offset": [
-            0,
-            0.56,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bin",
-      "pos": [
-        -6,
-        0,
-        3
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            0.74,
-            1.12,
-            0.84
-          ],
-          "offset": [
-            0,
-            0.56,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bag",
-      "pos": [
-        2.2,
-        0,
-        -11.2
-      ],
-      "rot": 30
-    },
-    {
-      "model": "bag",
-      "pos": [
-        -6.6,
-        0,
-        1.2
-      ],
-      "rot": 0
-    },
-    {
-      "model": "box",
-      "pos": [
-        1.5,
-        0,
-        1.5
-      ],
-      "rot": 0,
-      "outline": true
-    },
-    {
-      "model": "box",
-      "pos": [
-        1.5,
-        0.3,
-        1.5
-      ],
-      "rot": 20,
-      "outline": true
-    },
-    {
-      "model": "box",
-      "pos": [
-        -2,
-        0,
-        -1
-      ],
-      "rot": 45,
-      "outline": true
-    },
-    {
-      "model": "box",
-      "pos": [
-        -3.5,
-        0,
-        4
-      ],
-      "rot": 0,
-      "outline": true
-    },
-    {
-      "model": "box",
-      "pos": [
-        6,
-        0,
-        -1
-      ],
-      "rot": 0,
-      "outline": true
-    },
-    {
-      "model": "box",
-      "pos": [
-        2.6,
-        0,
-        -10.4
-      ],
-      "rot": 10,
-      "outline": true
-    },
-    {
-      "model": "car",
-      "pos": [
-        8,
-        0,
-        4
-      ],
-      "rot": 0,
-      "outline": true,
-      "colliders": [
-        {
-          "size": [
-            1.7,
-            1.2,
-            3.6
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "car",
-      "pos": [
-        -8,
-        0,
-        7
-      ],
-      "rot": 15,
-      "outline": true,
-      "colliders": [
-        {
-          "size": [
-            1.7,
-            1.2,
-            3.6
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bench",
-      "pos": [
-        0,
-        0,
-        7
-      ],
-      "rot": 180,
-      "outline": true,
-      "colliders": [
-        {
-          "size": [
-            1.5,
-            0.1,
-            0.45
-          ],
-          "offset": [
-            0,
-            0.45,
-            0
-          ]
-        },
-        {
-          "size": [
-            1.5,
-            0.4,
-            0.06
-          ],
-          "offset": [
-            0,
-            0.72,
-            0.22
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bench",
-      "pos": [
-        -5,
-        0,
-        -8
-      ],
-      "rot": 90,
-      "outline": true,
-      "colliders": [
-        {
-          "size": [
-            1.5,
-            0.1,
-            0.45
-          ],
-          "offset": [
-            0,
-            0.45,
-            0
-          ]
-        },
-        {
-          "size": [
-            1.5,
-            0.4,
-            0.06
-          ],
-          "offset": [
-            0,
-            0.72,
-            0.22
-          ]
-        }
-      ]
-    },
-    {
-      "model": "lamp",
-      "pos": [
-        5,
-        0,
-        8
-      ],
-      "rot": 0
-    },
-    {
-      "model": "lamp",
-      "pos": [
-        -9,
-        0,
-        -3
-      ],
-      "rot": 0
-    },
-    {
-      "model": "tree",
-      "pos": [
-        9,
-        0,
-        -6
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.3,
-            1.6,
-            0.3
-          ],
-          "offset": [
-            0,
-            0.8,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "tree",
-      "pos": [
-        -9,
-        0,
-        10
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.3,
-            1.6,
-            0.3
-          ],
-          "offset": [
-            0,
-            0.8,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bush",
-      "pos": [
-        7,
-        0,
-        -10
-      ],
-      "rot": 0
-    },
-    {
-      "model": "bush",
-      "pos": [
-        -3,
-        0,
-        10
-      ],
-      "rot": 40
-    },
-    {
-      "model": "bush",
-      "pos": [
-        10,
-        0,
-        0
-      ],
-      "rot": 0
-    },
-    {
-      "model": "fence",
-      "pos": [
-        10,
-        0,
-        7
-      ],
-      "rot": 90
-    },
-    {
-      "model": "fence",
-      "pos": [
-        10,
-        0,
-        9
-      ],
-      "rot": 90
-    },
-    {
-      "model": "puddle",
-      "water": true,
-      "pos": [
-        3,
-        0,
-        3
-      ],
-      "rot": 0
-    },
-    {
-      "model": "puddle",
-      "water": true,
-      "pos": [
-        -5,
-        0,
-        -5
-      ],
-      "rot": 60
-    },
-    {
-      "model": "arch",
-      "pos": [
-        0,
-        0,
-        10.5
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.5,
-            2.6,
-            0.6
-          ],
-          "offset": [
-            -1.45,
-            1.3,
-            0
-          ]
-        },
-        {
-          "size": [
-            0.5,
-            2.6,
-            0.6
-          ],
-          "offset": [
-            1.45,
-            1.3,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "wall",
-      "pos": [
-        0,
-        0,
-        28
-      ],
-      "rot": 180
-    },
-    {
-      "model": "wall",
-      "pos": [
-        6,
-        0,
-        28
-      ],
-      "rot": 180
-    },
-    {
-      "model": "wall",
-      "pos": [
-        -6,
-        0,
-        28
-      ],
-      "rot": 180
-    },
-    {
-      "model": "cafe_sign",
-      "pos": [
-        0,
-        0,
-        26.5
-      ],
-      "rot": 180
-    },
-    {
-      "model": "cafe_table",
-      "pos": [
-        -4,
-        0,
-        17
-      ],
-      "colliders": [
-        {
-          "size": [
-            0.9,
-            0.06,
-            0.9
-          ],
-          "offset": [
-            0,
-            0.72,
-            0
-          ]
-        },
-        {
-          "size": [
-            0.5,
-            0.72,
-            0.5
-          ],
-          "offset": [
-            0,
-            0.36,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "cafe_table",
-      "pos": [
-        0,
-        0,
-        17
-      ],
-      "colliders": [
-        {
-          "size": [
-            0.9,
-            0.06,
-            0.9
-          ],
-          "offset": [
-            0,
-            0.72,
-            0
-          ]
-        },
-        {
-          "size": [
-            0.5,
-            0.72,
-            0.5
-          ],
-          "offset": [
-            0,
-            0.36,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "cafe_table",
-      "pos": [
-        4,
-        0,
-        17
-      ],
-      "colliders": [
-        {
-          "size": [
-            0.9,
-            0.06,
-            0.9
-          ],
-          "offset": [
-            0,
-            0.72,
-            0
-          ]
-        },
-        {
-          "size": [
-            0.5,
-            0.72,
-            0.5
-          ],
-          "offset": [
-            0,
-            0.36,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "cafe_table",
-      "pos": [
-        -2,
-        0,
-        21
-      ],
-      "colliders": [
-        {
-          "size": [
-            0.9,
-            0.06,
-            0.9
-          ],
-          "offset": [
-            0,
-            0.72,
-            0
-          ]
-        },
-        {
-          "size": [
-            0.5,
-            0.72,
-            0.5
-          ],
-          "offset": [
-            0,
-            0.36,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "cafe_table",
-      "pos": [
-        2,
-        0,
-        21
-      ],
-      "colliders": [
-        {
-          "size": [
-            0.9,
-            0.06,
-            0.9
-          ],
-          "offset": [
-            0,
-            0.72,
-            0
-          ]
-        },
-        {
-          "size": [
-            0.5,
-            0.72,
-            0.5
-          ],
-          "offset": [
-            0,
-            0.36,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "chair",
-      "pos": [
-        -4,
-        0,
-        16.2
-      ],
-      "rot": 180,
-      "outline": true,
-      "colliders": [
-        {
-          "size": [
-            0.42,
-            0.45,
-            0.42
-          ],
-          "offset": [
-            0,
-            0.24,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "chair",
-      "pos": [
-        -4,
-        0,
-        17.8
-      ],
-      "rot": 0,
-      "outline": true,
-      "colliders": [
-        {
-          "size": [
-            0.42,
-            0.45,
-            0.42
-          ],
-          "offset": [
-            0,
-            0.24,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "chair",
-      "pos": [
-        0,
-        0,
-        16.2
-      ],
-      "rot": 180,
-      "outline": true,
-      "colliders": [
-        {
-          "size": [
-            0.42,
-            0.45,
-            0.42
-          ],
-          "offset": [
-            0,
-            0.24,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "chair",
-      "pos": [
-        0,
-        0,
-        17.8
-      ],
-      "rot": 0,
-      "outline": true,
-      "colliders": [
-        {
-          "size": [
-            0.42,
-            0.45,
-            0.42
-          ],
-          "offset": [
-            0,
-            0.24,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "chair",
-      "pos": [
-        4,
-        0,
-        16.2
-      ],
-      "rot": 180,
-      "outline": true,
-      "colliders": [
-        {
-          "size": [
-            0.42,
-            0.45,
-            0.42
-          ],
-          "offset": [
-            0,
-            0.24,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "chair",
-      "pos": [
-        4,
-        0,
-        17.8
-      ],
-      "rot": 0,
-      "outline": true,
-      "colliders": [
-        {
-          "size": [
-            0.42,
-            0.45,
-            0.42
-          ],
-          "offset": [
-            0,
-            0.24,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "chair",
-      "pos": [
-        -2,
-        0,
-        21.8
-      ],
-      "rot": 0,
-      "outline": true,
-      "colliders": [
-        {
-          "size": [
-            0.42,
-            0.45,
-            0.42
-          ],
-          "offset": [
-            0,
-            0.24,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "chair",
-      "pos": [
-        2,
-        0,
-        21.8
-      ],
-      "rot": 0,
-      "outline": true,
-      "colliders": [
-        {
-          "size": [
-            0.42,
-            0.45,
-            0.42
-          ],
-          "offset": [
-            0,
-            0.24,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "umbrella",
-      "pos": [
-        -3.3,
-        0,
-        17.7
-      ],
-      "colliders": [
-        {
-          "size": [
-            0.1,
-            2.2,
-            0.1
-          ],
-          "offset": [
-            0,
-            1.1,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "umbrella",
-      "pos": [
-        4.7,
-        0,
-        17.7
-      ],
-      "colliders": [
-        {
-          "size": [
-            0.1,
-            2.2,
-            0.1
-          ],
-          "offset": [
-            0,
-            1.1,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "umbrella",
-      "pos": [
-        2.7,
-        0,
-        21.7
-      ],
-      "colliders": [
-        {
-          "size": [
-            0.1,
-            2.2,
-            0.1
-          ],
-          "offset": [
-            0,
-            1.1,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bin",
-      "pos": [
-        8,
-        0,
-        24
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.74,
-            1.12,
-            0.84
-          ],
-          "offset": [
-            0,
-            0.56,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bin",
-      "pos": [
-        9,
-        0,
-        24
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.74,
-            1.12,
-            0.84
-          ],
-          "offset": [
-            0,
-            0.56,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bush",
-      "pos": [
-        -8,
-        0,
-        24
-      ],
-      "rot": 0
-    },
-    {
-      "model": "bush",
-      "pos": [
-        8,
-        0,
-        14.5
-      ],
-      "rot": 20
-    },
-    {
-      "model": "puddle",
-      "water": true,
-      "pos": [
-        -6,
-        0,
-        19
-      ],
-      "rot": 30
-    },
-    {
-      "model": "bush",
-      "pos": [
-        -7.5,
-        0,
-        -13.0
-      ],
-      "rot": 294
-    },
-    {
-      "model": "bush",
-      "pos": [
-        -2.5,
-        0,
-        -13.0
-      ],
-      "rot": 193
-    },
-    {
-      "model": "bush",
-      "pos": [
-        0.0,
-        0,
-        -13.0
-      ],
-      "rot": 0
-    },
-    {
-      "model": "bush",
-      "pos": [
-        8.8,
-        0,
-        -13.0
-      ],
-      "rot": 277
-    },
-    {
-      "model": "bush",
-      "pos": [
-        4.6,
-        0,
-        -13.0
-      ],
-      "rot": 28
-    },
-    {
-      "model": "bush",
-      "pos": [
-        -11.0,
-        0,
-        -5.0
-      ],
-      "rot": 90
-    },
-    {
-      "model": "bush",
-      "pos": [
-        -11.0,
-        0,
-        0.5
-      ],
-      "rot": 90
-    },
-    {
-      "model": "grass",
-      "pos": [
-        -12.5,
-        0,
-        -12.5
-      ],
-      "rot": 205,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        12.5,
-        0,
-        -12.5
-      ],
-      "rot": 90,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        -12.5,
-        0,
-        9
-      ],
-      "rot": 210,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        12.5,
-        0,
-        9
-      ],
-      "rot": 95,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        -6,
-        0,
-        -12.8
-      ],
-      "rot": 184,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        6,
-        0,
-        -12.8
-      ],
-      "rot": 100,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        -12.8,
-        0,
-        -3
-      ],
-      "rot": 350,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        12.8,
-        0,
-        -3
-      ],
-      "rot": 267,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        3.5,
-        0,
-        4.2
-      ],
-      "rot": 256,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        -3,
-        0,
-        1.5
-      ],
-      "rot": 226,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        8.5,
-        0,
-        -5
-      ],
-      "rot": 5,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        -8.5,
-        0,
-        9.5
-      ],
-      "rot": 71,
-      "solid": false
-    },
-    {
-      "model": "ivy",
-      "pos": [
-        -6.0,
-        2.2,
-        -13.78
-      ],
-      "rot": 0,
-      "solid": false
-    },
-    {
-      "model": "ivy",
-      "pos": [
-        0.0,
-        2.2,
-        -13.78
-      ],
-      "rot": 0,
-      "solid": false
-    },
-    {
-      "model": "ivy",
-      "pos": [
-        8.0,
-        2.2,
-        -13.78
-      ],
-      "rot": 0,
-      "solid": false
-    }
-  ],
-  "hideouts": [
-    {
-      "kind": "box",
-      "pos": [
-        -2,
-        0.2,
-        -0.35
-      ],
-      "size": [
-        0.6,
-        0.4,
-        0.6
-      ]
-    },
-    {
-      "kind": "box",
-      "pos": [
-        -3.5,
-        0.2,
-        4.65
-      ],
-      "size": [
-        0.6,
-        0.4,
-        0.6
-      ]
-    },
-    {
-      "kind": "box",
-      "pos": [
-        6,
-        0.2,
-        -0.35
-      ],
-      "size": [
-        0.6,
-        0.4,
-        0.6
-      ]
-    },
-    {
-      "kind": "box",
-      "pos": [
-        2.6,
-        0.2,
-        -9.75
-      ],
-      "size": [
-        0.6,
-        0.4,
-        0.6
-      ]
-    },
-    {
-      "kind": "car",
-      "pos": [
-        8,
-        0.15,
-        4
-      ],
-      "size": [
-        1.4,
-        0.3,
-        3.2
-      ]
-    },
-    {
-      "kind": "car",
-      "pos": [
-        -8,
-        0.15,
-        7
-      ],
-      "rot": 15,
-      "size": [
-        1.4,
-        0.3,
-        3.2
-      ]
-    },
-    {
-      "kind": "bench",
-      "pos": [
-        0,
-        0.2,
-        7
-      ],
-      "size": [
-        1.3,
-        0.4,
-        0.4
-      ]
-    },
-    {
-      "kind": "bench",
-      "pos": [
-        -5,
-        0.2,
-        -8
-      ],
-      "rot": 90,
-      "size": [
-        1.3,
-        0.4,
-        0.4
-      ]
-    }
-  ],
-  "spawn_points": [
-    {
-      "pos": [
-        3.5,
-        0,
-        -10
-      ],
-      "allowed": [
-        0
-      ],
-      "foods": [
-        "sausage",
-        "cookie"
-      ]
-    },
-    {
-      "pos": [
-        -5,
-        0,
-        2.5
-      ],
-      "allowed": [
-        0
-      ],
-      "foods": [
-        "sausage",
-        "cookie"
-      ]
-    },
-    {
-      "pos": [
-        0,
-        0,
-        -4
-      ],
-      "allowed": [
-        0
-      ],
-      "foods": [
-        "sausage",
-        "cookie"
-      ]
-    },
-    {
-      "pos": [
-        -4,
-        0,
-        -4
-      ],
-      "allowed": [
-        0
-      ],
-      "foods": [
-        "sausage",
-        "cookie"
-      ]
-    },
-    {
-      "pos": [
-        1,
-        0,
-        6.3
-      ],
-      "allowed": [
-        0
-      ],
-      "foods": [
-        "sausage",
-        "cookie"
-      ]
-    },
-    {
-      "pos": [
-        -5.8,
-        0,
-        -7
-      ],
-      "allowed": [
-        0,
-        1
-      ],
-      "foods": [
-        "sausage",
-        "cookie",
-        "pizza",
-        "hotdog"
-      ]
-    },
-    {
-      "pos": [
-        4,
-        0,
-        4
-      ],
-      "allowed": [
-        0,
-        1
-      ],
-      "foods": [
-        "sausage",
-        "cookie",
-        "pizza",
-        "hotdog"
-      ]
-    },
-    {
-      "pos": [
-        -11.3,
-        1.0,
-        -9.0
-      ],
-      "allowed": [
-        1
-      ],
-      "foods": [
-        "pizza",
-        "hotdog"
-      ]
-    },
-    {
-      "pos": [
-        2,
-        0,
-        6
-      ],
-      "allowed": [
-        1,
-        3
-      ],
-      "foods": [
-        "pizza",
-        "hotdog",
-        "donut",
-        "ice_cream"
-      ]
-    },
-    {
-      "pos": [
-        7.5,
-        0,
-        -8
-      ],
-      "allowed": [
-        2,
-        3
-      ],
-      "foods": [
-        "croissant",
-        "fish",
-        "donut",
-        "ice_cream"
-      ]
-    },
-    {
-      "pos": [
-        -4,
-        0,
-        15.3
-      ],
-      "allowed": [
-        1
-      ],
-      "foods": [
-        "pizza",
-        "hotdog"
-      ]
-    },
-    {
-      "pos": [
-        4,
-        0,
-        15.3
-      ],
-      "allowed": [
-        1
-      ],
-      "foods": [
-        "pizza",
-        "hotdog"
-      ]
-    },
-    {
-      "pos": [
-        0,
-        0.75,
-        17
-      ],
-      "allowed": [
-        2
-      ],
-      "foods": [
-        "croissant",
-        "fish"
-      ]
-    },
-    {
-      "pos": [
-        -2,
-        0.75,
-        21
-      ],
-      "allowed": [
-        2
-      ],
-      "foods": [
-        "croissant",
-        "fish"
-      ]
-    },
-    {
-      "pos": [
-        2,
-        0.75,
-        21
-      ],
-      "allowed": [
-        3
-      ],
-      "foods": [
-        "donut",
-        "ice_cream"
-      ]
-    },
-    {
-      "pos": [
-        7,
-        0,
-        20
-      ],
-      "allowed": [
-        0,
-        1
-      ],
-      "foods": [
-        "sausage",
-        "cookie",
-        "pizza",
-        "hotdog"
-      ]
-    }
-  ],
-  "hazards": [
-    {
-      "type": "dog",
-      "pos": [
-        7,
-        0,
-        -7
-      ],
-      "rot": 90
-    },
-    {
-      "type": "wasp",
-      "pos": [
-        2,
-        0.5,
-        6
-      ],
-      "radius": 2.5
-    },
-    {
-      "type": "cyclist",
-      "pos": [
-        0,
-        0,
-        12
-      ]
-    },
-    {
-      "type": "wasp",
-      "pos": [
-        2,
-        1.1,
-        21
-      ],
-      "radius": 0.8,
-      "height": 1.0
-    }
-  ],
-  "road": {
-    "points": [
-      [
-        -25,
-        0,
-        12
-      ],
-      [
-        25,
-        0,
-        12
-      ]
-    ]
+ "props": [
+  {
+   "model": "house_a",
+   "pos": [
+    0,
+    0,
+    -14
+   ],
+   "rot": 0
   },
-  "yarn": [
+  {
+   "model": "house_c",
+   "pos": [
+    6,
+    0,
+    -14
+   ],
+   "rot": 0
+  },
+  {
+   "model": "house_b",
+   "pos": [
+    -6,
+    0,
+    -14
+   ],
+   "rot": 0
+  },
+  {
+   "model": "house_c",
+   "pos": [
+    -12,
+    0,
+    -8
+   ],
+   "rot": 90
+  },
+  {
+   "model": "house_a",
+   "pos": [
+    -12,
+    0,
+    -2
+   ],
+   "rot": 90
+  },
+  {
+   "model": "stairs",
+   "pos": [
+    -11.3,
+    0,
+    -11.5
+   ],
+   "rot": 0,
+   "colliders": [
     {
-      "pos": [
-        -11.3,
-        1.0,
-        -9.3
-      ]
-    },
-    {
-      "pos": [
-        -10.9,
-        0.5,
-        -11.0
-      ]
-    },
-    {
-      "pos": [
-        1.5,
-        0.6,
-        1.5
-      ]
-    },
-    {
-      "pos": [
-        0.4,
-        0.5,
-        7.0
-      ]
-    },
-    {
-      "pos": [
-        8.0,
-        0.0,
-        5.3
-      ]
-    },
-    {
-      "pos": [
-        -8.3,
-        0.0,
-        8.3
-      ]
-    },
-    {
-      "pos": [
-        -11.2,
-        0.0,
-        -13.2
-      ]
-    },
-    {
-      "pos": [
-        11.5,
-        0.0,
-        -13.0
-      ]
-    },
-    {
-      "pos": [
-        1.9,
-        0.0,
-        10.5
-      ]
-    },
-    {
-      "pos": [
-        -5.6,
-        0.0,
-        -9.0
-      ]
-    },
-    {
-      "pos": [
-        -4,
-        0.75,
-        17
-      ]
-    },
-    {
-      "pos": [
-        4,
-        0.75,
-        17
-      ]
-    }
-  ],
-  "gates": [
-    {
-      "pos": [
-        0,
-        0,
-        10.5
-      ],
-      "rot": 0,
-      "size": [
-        2.4,
-        2.6,
-        0.3
-      ],
-      "satiety": 10
-    }
-  ],
-  "shop": {
-    "pos": [
-      -4.5,
+     "size": [
+      1.2,
+      0.25,
+      0.5
+     ],
+     "offset": [
       0,
-      -1.5
-    ],
-    "rot": 180
-  },
-  "decals": [
-    {
-      "texture": "assets/images/world/decal_manhole.png",
-      "pos": [
-        3,
-        0,
-        -2
-      ],
-      "size": [
-        1.0,
-        1.0
-      ]
+      0.125,
+      0
+     ]
     },
     {
-      "texture": "assets/images/world/decal_cracks.png",
-      "pos": [
-        -6,
-        0,
-        4
-      ],
-      "size": [
-        2.0,
-        2.0
-      ],
-      "rot": 20
+     "size": [
+      1.2,
+      0.5,
+      0.5
+     ],
+     "offset": [
+      0,
+      0.25,
+      0.5
+     ]
     },
     {
-      "texture": "assets/images/world/decal_cracks.png",
-      "pos": [
-        8,
-        0,
-        -9
-      ],
-      "size": [
-        1.5,
-        1.5
-      ],
-      "rot": 110
+     "size": [
+      1.2,
+      0.75,
+      0.5
+     ],
+     "offset": [
+      0,
+      0.375,
+      1.0
+     ]
     },
     {
-      "texture": "assets/images/world/decal_leaves.png",
-      "pos": [
-        -2,
-        0,
-        -6
-      ],
-      "size": [
-        2.0,
-        2.0
-      ]
+     "size": [
+      1.2,
+      1.0,
+      0.5
+     ],
+     "offset": [
+      0,
+      0.5,
+      1.5
+     ]
     },
     {
-      "texture": "assets/images/world/decal_leaves.png",
-      "pos": [
-        6,
-        0,
-        6
-      ],
-      "size": [
-        2.0,
-        2.0
-      ],
-      "rot": 70
-    },
-    {
-      "texture": "assets/images/world/poster_cafe.png",
-      "pos": [
-        -5.0,
-        0.8,
-        -13.78
-      ],
-      "size": [
-        0.9,
-        0.9
-      ],
-      "wall": true
-    },
-    {
-      "texture": "assets/images/world/poster_cat.png",
-      "pos": [
-        6.5,
-        0.8,
-        -13.78
-      ],
-      "size": [
-        0.8,
-        0.8
-      ],
-      "wall": true
-    },
-    {
-      "texture": "assets/images/world/poster_paws.png",
-      "pos": [
-        -11.78,
-        0.8,
-        -6.5
-      ],
-      "size": [
-        0.7,
-        0.7
-      ],
-      "wall": true,
-      "rot": 90
+     "size": [
+      1.2,
+      0.12,
+      1.2
+     ],
+     "offset": [
+      0,
+      0.94,
+      2.55
+     ]
     }
+   ]
+  },
+  {
+   "model": "bin",
+   "pos": [
+    3,
+    0,
+    -11
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.74,
+      1.12,
+      0.84
+     ],
+     "offset": [
+      0,
+      0.56,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "bin",
+   "pos": [
+    4,
+    0,
+    -11
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.74,
+      1.12,
+      0.84
+     ],
+     "offset": [
+      0,
+      0.56,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "bin",
+   "pos": [
+    -6,
+    0,
+    2
+   ],
+   "rot": 90,
+   "colliders": [
+    {
+     "size": [
+      0.74,
+      1.12,
+      0.84
+     ],
+     "offset": [
+      0,
+      0.56,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "bin",
+   "pos": [
+    -6,
+    0,
+    3
+   ],
+   "rot": 90,
+   "colliders": [
+    {
+     "size": [
+      0.74,
+      1.12,
+      0.84
+     ],
+     "offset": [
+      0,
+      0.56,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "bag",
+   "pos": [
+    2.2,
+    0,
+    -11.2
+   ],
+   "rot": 30
+  },
+  {
+   "model": "bag",
+   "pos": [
+    -6.6,
+    0,
+    1.2
+   ],
+   "rot": 0
+  },
+  {
+   "model": "box",
+   "pos": [
+    1.5,
+    0,
+    1.5
+   ],
+   "rot": 0,
+   "outline": true
+  },
+  {
+   "model": "box",
+   "pos": [
+    1.5,
+    0.3,
+    1.5
+   ],
+   "rot": 20,
+   "outline": true
+  },
+  {
+   "model": "box",
+   "pos": [
+    -2,
+    0,
+    -1
+   ],
+   "rot": 45,
+   "outline": true
+  },
+  {
+   "model": "box",
+   "pos": [
+    -3.5,
+    0,
+    4
+   ],
+   "rot": 0,
+   "outline": true
+  },
+  {
+   "model": "box",
+   "pos": [
+    6,
+    0,
+    -1
+   ],
+   "rot": 0,
+   "outline": true
+  },
+  {
+   "model": "box",
+   "pos": [
+    2.6,
+    0,
+    -10.4
+   ],
+   "rot": 10,
+   "outline": true
+  },
+  {
+   "model": "car",
+   "pos": [
+    8,
+    0,
+    4
+   ],
+   "rot": 0,
+   "outline": true,
+   "colliders": [
+    {
+     "size": [
+      1.7,
+      1.2,
+      3.6
+     ],
+     "offset": [
+      0,
+      0.9,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "car",
+   "pos": [
+    -8,
+    0,
+    7
+   ],
+   "rot": 15,
+   "outline": true,
+   "colliders": [
+    {
+     "size": [
+      1.7,
+      1.2,
+      3.6
+     ],
+     "offset": [
+      0,
+      0.9,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "bench",
+   "pos": [
+    0,
+    0,
+    7
+   ],
+   "rot": 180,
+   "outline": true,
+   "colliders": [
+    {
+     "size": [
+      1.5,
+      0.1,
+      0.45
+     ],
+     "offset": [
+      0,
+      0.45,
+      0
+     ]
+    },
+    {
+     "size": [
+      1.5,
+      0.4,
+      0.06
+     ],
+     "offset": [
+      0,
+      0.72,
+      0.22
+     ]
+    }
+   ]
+  },
+  {
+   "model": "bench",
+   "pos": [
+    -5,
+    0,
+    -8
+   ],
+   "rot": 90,
+   "outline": true,
+   "colliders": [
+    {
+     "size": [
+      1.5,
+      0.1,
+      0.45
+     ],
+     "offset": [
+      0,
+      0.45,
+      0
+     ]
+    },
+    {
+     "size": [
+      1.5,
+      0.4,
+      0.06
+     ],
+     "offset": [
+      0,
+      0.72,
+      0.22
+     ]
+    }
+   ]
+  },
+  {
+   "model": "lamp",
+   "pos": [
+    5,
+    0,
+    8
+   ],
+   "rot": 0
+  },
+  {
+   "model": "lamp",
+   "pos": [
+    -9,
+    0,
+    -3
+   ],
+   "rot": 0
+  },
+  {
+   "model": "tree",
+   "pos": [
+    9,
+    0,
+    -6
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.3,
+      1.6,
+      0.3
+     ],
+     "offset": [
+      0,
+      0.8,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "tree",
+   "pos": [
+    -9,
+    0,
+    10
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.3,
+      1.6,
+      0.3
+     ],
+     "offset": [
+      0,
+      0.8,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "bush",
+   "pos": [
+    7,
+    0,
+    -10
+   ],
+   "rot": 0
+  },
+  {
+   "model": "bush",
+   "pos": [
+    -3,
+    0,
+    10
+   ],
+   "rot": 40
+  },
+  {
+   "model": "bush",
+   "pos": [
+    10,
+    0,
+    0
+   ],
+   "rot": 0
+  },
+  {
+   "model": "fence",
+   "pos": [
+    10,
+    0,
+    7
+   ],
+   "rot": 90
+  },
+  {
+   "model": "fence",
+   "pos": [
+    10,
+    0,
+    9
+   ],
+   "rot": 90
+  },
+  {
+   "model": "puddle",
+   "water": true,
+   "pos": [
+    3,
+    0,
+    3
+   ],
+   "rot": 0
+  },
+  {
+   "model": "puddle",
+   "water": true,
+   "pos": [
+    -5,
+    0,
+    -5
+   ],
+   "rot": 60
+  },
+  {
+   "model": "arch",
+   "pos": [
+    0,
+    0,
+    10.5
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.5,
+      2.6,
+      0.6
+     ],
+     "offset": [
+      -1.45,
+      1.3,
+      0
+     ]
+    },
+    {
+     "size": [
+      0.5,
+      2.6,
+      0.6
+     ],
+     "offset": [
+      1.45,
+      1.3,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "house_shallow",
+   "pos": [
+    0,
+    0,
+    28
+   ],
+   "rot": 180
+  },
+  {
+   "model": "house_shallow",
+   "pos": [
+    6,
+    0,
+    28
+   ],
+   "rot": 180
+  },
+  {
+   "model": "house_shallow",
+   "pos": [
+    -6,
+    0,
+    28
+   ],
+   "rot": 180
+  },
+  {
+   "model": "cafe_sign",
+   "pos": [
+    0,
+    0,
+    26.5
+   ],
+   "rot": 180
+  },
+  {
+   "model": "cafe_table",
+   "pos": [
+    -4,
+    0,
+    17
+   ],
+   "colliders": [
+    {
+     "size": [
+      0.9,
+      0.06,
+      0.9
+     ],
+     "offset": [
+      0,
+      0.72,
+      0
+     ]
+    },
+    {
+     "size": [
+      0.5,
+      0.72,
+      0.5
+     ],
+     "offset": [
+      0,
+      0.36,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "cafe_table",
+   "pos": [
+    0,
+    0,
+    17
+   ],
+   "colliders": [
+    {
+     "size": [
+      0.9,
+      0.06,
+      0.9
+     ],
+     "offset": [
+      0,
+      0.72,
+      0
+     ]
+    },
+    {
+     "size": [
+      0.5,
+      0.72,
+      0.5
+     ],
+     "offset": [
+      0,
+      0.36,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "cafe_table",
+   "pos": [
+    4,
+    0,
+    17
+   ],
+   "colliders": [
+    {
+     "size": [
+      0.9,
+      0.06,
+      0.9
+     ],
+     "offset": [
+      0,
+      0.72,
+      0
+     ]
+    },
+    {
+     "size": [
+      0.5,
+      0.72,
+      0.5
+     ],
+     "offset": [
+      0,
+      0.36,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "cafe_table",
+   "pos": [
+    -2,
+    0,
+    21
+   ],
+   "colliders": [
+    {
+     "size": [
+      0.9,
+      0.06,
+      0.9
+     ],
+     "offset": [
+      0,
+      0.72,
+      0
+     ]
+    },
+    {
+     "size": [
+      0.5,
+      0.72,
+      0.5
+     ],
+     "offset": [
+      0,
+      0.36,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "cafe_table",
+   "pos": [
+    2,
+    0,
+    21
+   ],
+   "colliders": [
+    {
+     "size": [
+      0.9,
+      0.06,
+      0.9
+     ],
+     "offset": [
+      0,
+      0.72,
+      0
+     ]
+    },
+    {
+     "size": [
+      0.5,
+      0.72,
+      0.5
+     ],
+     "offset": [
+      0,
+      0.36,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "chair",
+   "pos": [
+    -4,
+    0,
+    16.2
+   ],
+   "rot": 180,
+   "outline": true,
+   "colliders": [
+    {
+     "size": [
+      0.42,
+      0.45,
+      0.42
+     ],
+     "offset": [
+      0,
+      0.24,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "chair",
+   "pos": [
+    -4,
+    0,
+    17.8
+   ],
+   "rot": 0,
+   "outline": true,
+   "colliders": [
+    {
+     "size": [
+      0.42,
+      0.45,
+      0.42
+     ],
+     "offset": [
+      0,
+      0.24,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "chair",
+   "pos": [
+    0,
+    0,
+    16.2
+   ],
+   "rot": 180,
+   "outline": true,
+   "colliders": [
+    {
+     "size": [
+      0.42,
+      0.45,
+      0.42
+     ],
+     "offset": [
+      0,
+      0.24,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "chair",
+   "pos": [
+    0,
+    0,
+    17.8
+   ],
+   "rot": 0,
+   "outline": true,
+   "colliders": [
+    {
+     "size": [
+      0.42,
+      0.45,
+      0.42
+     ],
+     "offset": [
+      0,
+      0.24,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "chair",
+   "pos": [
+    4,
+    0,
+    16.2
+   ],
+   "rot": 180,
+   "outline": true,
+   "colliders": [
+    {
+     "size": [
+      0.42,
+      0.45,
+      0.42
+     ],
+     "offset": [
+      0,
+      0.24,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "chair",
+   "pos": [
+    4,
+    0,
+    17.8
+   ],
+   "rot": 0,
+   "outline": true,
+   "colliders": [
+    {
+     "size": [
+      0.42,
+      0.45,
+      0.42
+     ],
+     "offset": [
+      0,
+      0.24,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "chair",
+   "pos": [
+    -2,
+    0,
+    21.8
+   ],
+   "rot": 0,
+   "outline": true,
+   "colliders": [
+    {
+     "size": [
+      0.42,
+      0.45,
+      0.42
+     ],
+     "offset": [
+      0,
+      0.24,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "chair",
+   "pos": [
+    2,
+    0,
+    21.8
+   ],
+   "rot": 0,
+   "outline": true,
+   "colliders": [
+    {
+     "size": [
+      0.42,
+      0.45,
+      0.42
+     ],
+     "offset": [
+      0,
+      0.24,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "umbrella",
+   "pos": [
+    -3.3,
+    0,
+    17.7
+   ],
+   "colliders": [
+    {
+     "size": [
+      0.1,
+      2.2,
+      0.1
+     ],
+     "offset": [
+      0,
+      1.1,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "umbrella",
+   "pos": [
+    4.7,
+    0,
+    17.7
+   ],
+   "colliders": [
+    {
+     "size": [
+      0.1,
+      2.2,
+      0.1
+     ],
+     "offset": [
+      0,
+      1.1,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "umbrella",
+   "pos": [
+    2.7,
+    0,
+    21.7
+   ],
+   "colliders": [
+    {
+     "size": [
+      0.1,
+      2.2,
+      0.1
+     ],
+     "offset": [
+      0,
+      1.1,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "bin",
+   "pos": [
+    8,
+    0,
+    24
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.74,
+      1.12,
+      0.84
+     ],
+     "offset": [
+      0,
+      0.56,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "bin",
+   "pos": [
+    9,
+    0,
+    24
+   ],
+   "rot": 0,
+   "colliders": [
+    {
+     "size": [
+      0.74,
+      1.12,
+      0.84
+     ],
+     "offset": [
+      0,
+      0.56,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "model": "bush",
+   "pos": [
+    -8,
+    0,
+    24
+   ],
+   "rot": 0
+  },
+  {
+   "model": "bush",
+   "pos": [
+    8,
+    0,
+    14.5
+   ],
+   "rot": 20
+  },
+  {
+   "model": "puddle",
+   "water": true,
+   "pos": [
+    -6,
+    0,
+    19
+   ],
+   "rot": 30
+  },
+  {
+   "model": "bush",
+   "pos": [
+    -7.5,
+    0,
+    -13.0
+   ],
+   "rot": 294
+  },
+  {
+   "model": "bush",
+   "pos": [
+    -2.5,
+    0,
+    -13.0
+   ],
+   "rot": 193
+  },
+  {
+   "model": "bush",
+   "pos": [
+    0.0,
+    0,
+    -13.0
+   ],
+   "rot": 0
+  },
+  {
+   "model": "bush",
+   "pos": [
+    8.8,
+    0,
+    -13.0
+   ],
+   "rot": 277
+  },
+  {
+   "model": "bush",
+   "pos": [
+    4.6,
+    0,
+    -13.0
+   ],
+   "rot": 28
+  },
+  {
+   "model": "bush",
+   "pos": [
+    -11.0,
+    0,
+    -5.0
+   ],
+   "rot": 90
+  },
+  {
+   "model": "bush",
+   "pos": [
+    -11.0,
+    0,
+    0.5
+   ],
+   "rot": 90
+  },
+  {
+   "model": "grass",
+   "pos": [
+    -12.5,
+    0,
+    -12.5
+   ],
+   "rot": 205,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    12.5,
+    0,
+    -12.5
+   ],
+   "rot": 90,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    -12.5,
+    0,
+    9
+   ],
+   "rot": 210,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    12.5,
+    0,
+    9
+   ],
+   "rot": 95,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    -6,
+    0,
+    -12.8
+   ],
+   "rot": 184,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    6,
+    0,
+    -12.8
+   ],
+   "rot": 100,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    -12.8,
+    0,
+    -3
+   ],
+   "rot": 350,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    12.8,
+    0,
+    -3
+   ],
+   "rot": 267,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    3.5,
+    0,
+    4.2
+   ],
+   "rot": 256,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    -3,
+    0,
+    1.5
+   ],
+   "rot": 226,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    8.5,
+    0,
+    -5
+   ],
+   "rot": 5,
+   "solid": false
+  },
+  {
+   "model": "grass",
+   "pos": [
+    -8.5,
+    0,
+    9.5
+   ],
+   "rot": 71,
+   "solid": false
+  },
+  {
+   "model": "ivy",
+   "pos": [
+    -6.0,
+    2.2,
+    -13.78
+   ],
+   "rot": 0,
+   "solid": false
+  },
+  {
+   "model": "ivy",
+   "pos": [
+    0.0,
+    2.2,
+    -13.78
+   ],
+   "rot": 0,
+   "solid": false
+  },
+  {
+   "model": "ivy",
+   "pos": [
+    8.0,
+    2.2,
+    -13.78
+   ],
+   "rot": 0,
+   "solid": false
+  }
+ ],
+ "hideouts": [
+  {
+   "kind": "box",
+   "pos": [
+    -2,
+    0.2,
+    -0.35
+   ],
+   "size": [
+    0.6,
+    0.4,
+    0.6
+   ]
+  },
+  {
+   "kind": "box",
+   "pos": [
+    -3.5,
+    0.2,
+    4.65
+   ],
+   "size": [
+    0.6,
+    0.4,
+    0.6
+   ]
+  },
+  {
+   "kind": "box",
+   "pos": [
+    6,
+    0.2,
+    -0.35
+   ],
+   "size": [
+    0.6,
+    0.4,
+    0.6
+   ]
+  },
+  {
+   "kind": "box",
+   "pos": [
+    2.6,
+    0.2,
+    -9.75
+   ],
+   "size": [
+    0.6,
+    0.4,
+    0.6
+   ]
+  },
+  {
+   "kind": "car",
+   "pos": [
+    8,
+    0.15,
+    4
+   ],
+   "size": [
+    1.4,
+    0.3,
+    3.2
+   ]
+  },
+  {
+   "kind": "car",
+   "pos": [
+    -8,
+    0.15,
+    7
+   ],
+   "rot": 15,
+   "size": [
+    1.4,
+    0.3,
+    3.2
+   ]
+  },
+  {
+   "kind": "bench",
+   "pos": [
+    0,
+    0.2,
+    7
+   ],
+   "size": [
+    1.3,
+    0.4,
+    0.4
+   ]
+  },
+  {
+   "kind": "bench",
+   "pos": [
+    -5,
+    0.2,
+    -8
+   ],
+   "rot": 90,
+   "size": [
+    1.3,
+    0.4,
+    0.4
+   ]
+  }
+ ],
+ "spawn_points": [
+  {
+   "pos": [
+    3.5,
+    0,
+    -10
+   ],
+   "allowed": [
+    0
+   ],
+   "foods": [
+    "sausage",
+    "cookie"
+   ]
+  },
+  {
+   "pos": [
+    -5,
+    0,
+    2.5
+   ],
+   "allowed": [
+    0
+   ],
+   "foods": [
+    "sausage",
+    "cookie"
+   ]
+  },
+  {
+   "pos": [
+    0,
+    0,
+    -4
+   ],
+   "allowed": [
+    0
+   ],
+   "foods": [
+    "sausage",
+    "cookie"
+   ]
+  },
+  {
+   "pos": [
+    -4,
+    0,
+    -4
+   ],
+   "allowed": [
+    0
+   ],
+   "foods": [
+    "sausage",
+    "cookie"
+   ]
+  },
+  {
+   "pos": [
+    1,
+    0,
+    6.3
+   ],
+   "allowed": [
+    0
+   ],
+   "foods": [
+    "sausage",
+    "cookie"
+   ]
+  },
+  {
+   "pos": [
+    -5.8,
+    0,
+    -7
+   ],
+   "allowed": [
+    0,
+    1
+   ],
+   "foods": [
+    "sausage",
+    "cookie",
+    "pizza",
+    "hotdog"
+   ]
+  },
+  {
+   "pos": [
+    4,
+    0,
+    4
+   ],
+   "allowed": [
+    0,
+    1
+   ],
+   "foods": [
+    "sausage",
+    "cookie",
+    "pizza",
+    "hotdog"
+   ]
+  },
+  {
+   "pos": [
+    -11.3,
+    1.0,
+    -9.0
+   ],
+   "allowed": [
+    1
+   ],
+   "foods": [
+    "pizza",
+    "hotdog"
+   ]
+  },
+  {
+   "pos": [
+    2,
+    0,
+    6
+   ],
+   "allowed": [
+    1,
+    3
+   ],
+   "foods": [
+    "pizza",
+    "hotdog",
+    "donut",
+    "ice_cream"
+   ]
+  },
+  {
+   "pos": [
+    7.5,
+    0,
+    -8
+   ],
+   "allowed": [
+    2,
+    3
+   ],
+   "foods": [
+    "croissant",
+    "fish",
+    "donut",
+    "ice_cream"
+   ]
+  },
+  {
+   "pos": [
+    -4,
+    0,
+    15.3
+   ],
+   "allowed": [
+    1
+   ],
+   "foods": [
+    "pizza",
+    "hotdog"
+   ]
+  },
+  {
+   "pos": [
+    4,
+    0,
+    15.3
+   ],
+   "allowed": [
+    1
+   ],
+   "foods": [
+    "pizza",
+    "hotdog"
+   ]
+  },
+  {
+   "pos": [
+    0,
+    0.75,
+    17
+   ],
+   "allowed": [
+    2
+   ],
+   "foods": [
+    "croissant",
+    "fish"
+   ]
+  },
+  {
+   "pos": [
+    -2,
+    0.75,
+    21
+   ],
+   "allowed": [
+    2
+   ],
+   "foods": [
+    "croissant",
+    "fish"
+   ]
+  },
+  {
+   "pos": [
+    2,
+    0.75,
+    21
+   ],
+   "allowed": [
+    3
+   ],
+   "foods": [
+    "donut",
+    "ice_cream"
+   ]
+  },
+  {
+   "pos": [
+    7,
+    0,
+    20
+   ],
+   "allowed": [
+    0,
+    1
+   ],
+   "foods": [
+    "sausage",
+    "cookie",
+    "pizza",
+    "hotdog"
+   ]
+  }
+ ],
+ "hazards": [
+  {
+   "type": "dog",
+   "pos": [
+    7,
+    0,
+    -7
+   ],
+   "rot": 90
+  },
+  {
+   "type": "wasp",
+   "pos": [
+    2,
+    0.5,
+    6
+   ],
+   "radius": 2.5
+  },
+  {
+   "type": "cyclist",
+   "pos": [
+    0,
+    0,
+    12
+   ]
+  },
+  {
+   "type": "wasp",
+   "pos": [
+    2,
+    1.1,
+    21
+   ],
+   "radius": 0.8,
+   "height": 1.0
+  }
+ ],
+ "road": {
+  "points": [
+   [
+    -25,
+    0,
+    12
+   ],
+   [
+    25,
+    0,
+    12
+   ]
   ]
+ },
+ "yarn": [
+  {
+   "pos": [
+    -11.3,
+    1.0,
+    -9.3
+   ]
+  },
+  {
+   "pos": [
+    -10.9,
+    0.5,
+    -11.0
+   ]
+  },
+  {
+   "pos": [
+    1.5,
+    0.6,
+    1.5
+   ]
+  },
+  {
+   "pos": [
+    0.4,
+    0.5,
+    7.0
+   ]
+  },
+  {
+   "pos": [
+    8.0,
+    0.0,
+    5.3
+   ]
+  },
+  {
+   "pos": [
+    -8.3,
+    0.0,
+    8.3
+   ]
+  },
+  {
+   "pos": [
+    -11.2,
+    0.0,
+    -13.2
+   ]
+  },
+  {
+   "pos": [
+    11.5,
+    0.0,
+    -13.0
+   ]
+  },
+  {
+   "pos": [
+    1.9,
+    0.0,
+    10.5
+   ]
+  },
+  {
+   "pos": [
+    -5.6,
+    0.0,
+    -9.0
+   ]
+  },
+  {
+   "pos": [
+    -4,
+    0.75,
+    17
+   ]
+  },
+  {
+   "pos": [
+    4,
+    0.75,
+    17
+   ]
+  }
+ ],
+ "gates": [
+  {
+   "pos": [
+    0,
+    0,
+    10.5
+   ],
+   "rot": 0,
+   "size": [
+    2.4,
+    2.6,
+    0.3
+   ],
+   "satiety": 10
+  }
+ ],
+ "shop": {
+  "pos": [
+   -4.5,
+   0,
+   -1.5
+  ],
+  "rot": 180
+ },
+ "decals": [
+  {
+   "texture": "assets/images/world/decal_manhole.png",
+   "pos": [
+    3,
+    0,
+    -2
+   ],
+   "size": [
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "texture": "assets/images/world/decal_cracks.png",
+   "pos": [
+    -6,
+    0,
+    4
+   ],
+   "size": [
+    2.0,
+    2.0
+   ],
+   "rot": 20
+  },
+  {
+   "texture": "assets/images/world/decal_cracks.png",
+   "pos": [
+    8,
+    0,
+    -9
+   ],
+   "size": [
+    1.5,
+    1.5
+   ],
+   "rot": 110
+  },
+  {
+   "texture": "assets/images/world/decal_leaves.png",
+   "pos": [
+    -2,
+    0,
+    -6
+   ],
+   "size": [
+    2.0,
+    2.0
+   ]
+  },
+  {
+   "texture": "assets/images/world/decal_leaves.png",
+   "pos": [
+    6,
+    0,
+    6
+   ],
+   "size": [
+    2.0,
+    2.0
+   ],
+   "rot": 70
+  },
+  {
+   "texture": "assets/images/world/poster_cafe.png",
+   "pos": [
+    -5.0,
+    0.8,
+    -13.78
+   ],
+   "size": [
+    0.9,
+    0.9
+   ],
+   "wall": true
+  },
+  {
+   "texture": "assets/images/world/poster_cat.png",
+   "pos": [
+    6.5,
+    0.8,
+    -13.78
+   ],
+   "size": [
+    0.8,
+    0.8
+   ],
+   "wall": true
+  },
+  {
+   "texture": "assets/images/world/poster_paws.png",
+   "pos": [
+    -11.78,
+    0.8,
+    -6.5
+   ],
+   "size": [
+    0.7,
+    0.7
+   ],
+   "wall": true,
+   "rot": 90
+  }
+ ]
 }
 ```
 
