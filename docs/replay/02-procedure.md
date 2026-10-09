@@ -720,6 +720,12 @@ Blender-скриптов нет (`UV = 0` → ширина ровно −25 %) �
 на 4,5 мм от центра глаза; плашка заставки `anchor 0,72`; облака перегенерированы промптом «много мелких облаков».
 Контрольная точка: 183 GUT, 28 Blender.
 
+## Текстуры мира и экспорт
+
+В `.import` картинок `assets/images/world/*.png` и `assets/images/ui/heart.png`: `compress/mode=2` (VRAM), `mipmaps/generate=true`
+(декали и плакаты под углом не мерцают). Иконки UI остаются без сжатия. `make export` → `build/SnackRun.zip` 71 МБ, запуск
+`"build/Snack Run.app/Contents/MacOS/Snack Run" --quit-after 60` → код 0. Подпись коммитов с этого шага — Claude Opus 5.5.
+
 ## Известные грабли (сводка, чтобы не искать по тексту)
 
 **Godot 4.7:** `class_name` виден после `make import`; GUT не падает на parse error (grep в Makefile);
