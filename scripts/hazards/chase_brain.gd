@@ -9,6 +9,8 @@ const CHASE_MAX := 8.0
 const LOST_HIDDEN := 2.0
 
 var state: int = State.IDLE
+var alert_time := ALERT_TIME   # ребёнок парка настораживается быстрее и устаёт раньше собаки
+var chase_max := CHASE_MAX
 var _t := 0.0
 var _hidden_t := 0.0
 
@@ -38,7 +40,7 @@ func update(delta: float, sees_cat: bool, cat_hidden: bool, at_home: bool, cat_s
 				_t = 0.0
 			else:
 				_t += delta
-				if _t >= ALERT_TIME:
+				if _t >= alert_time:
 					state = State.CHASE
 					_t = 0.0
 					_hidden_t = 0.0
@@ -48,7 +50,7 @@ func update(delta: float, sees_cat: bool, cat_hidden: bool, at_home: bool, cat_s
 			else:
 				_t += delta
 				_hidden_t = _hidden_t + delta if cat_hidden else 0.0
-				if _t >= CHASE_MAX or _hidden_t >= LOST_HIDDEN:
+				if _t >= chase_max or _hidden_t >= LOST_HIDDEN:
 					state = State.RETURN
 		State.RETURN:
 			if at_home:

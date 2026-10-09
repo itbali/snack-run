@@ -29,6 +29,7 @@ var face := CatFace.new()   # выражения глаз, переключае�
 var fade := 1.0   # 1 = непрозрачен; значением владеет камера (set_fade), скин его не трогает
 var was_on_floor := true
 var wet_left := 0.0
+var petted_left := 0.0   # ребёнок гладит: кот стоит, не ранен
 var _drips: CPUParticles3D
 var flashing := false
 var _run_dust_t := 0.0
@@ -82,7 +83,8 @@ func _physics_process(delta: float) -> void:
 			_drips.emitting = wet_left > 0.0
 	stunned_left = maxf(stunned_left - delta, 0.0)
 	invulnerable_left = maxf(invulnerable_left - delta, 0.0)
-	if stunned_left > 0.0:
+	petted_left = maxf(petted_left - delta, 0.0)
+	if stunned_left > 0.0 or petted_left > 0.0:
 		velocity = CatMotion.step(velocity, Vector3.ZERO, false, is_on_floor(), false, delta)
 		move_and_slide()
 		return
@@ -249,6 +251,22 @@ func _fade_material(mat: StandardMaterial3D) -> void:
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED if fade >= 0.999 else BaseMaterial3D.TRANSPARENCY_ALPHA
 	# Полупрозрачное тело всё равно пишет глубину: иначе дальняя сторона hull-обводки рисуется поверх кота («рентген»).
 	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_OPAQUE_ONLY if fade >= 0.999 else BaseMaterial3D.DEPTH_DRAW_ALWAYS
+
+
+func pet(seconds: float) -> bool:
+	## Поймал ребёнок: 2 с стоим довольные, еда выпала, сердечко цело; потом неуязвимость, как после удара.
+	if petted_left > 0.0 or invulnerable_left > 0.0 or hidden or in_safe_zone:
+		return false
+	unhide()
+	petted_left = seconds
+	invulnerable_left = seconds + INVULNERABLE_TIME
+	velocity = Vector3.ZERO
+	face.cheer()
+	face.happy_left = seconds
+	state = &"idle"
+	Sfx.play(&"meow", 0.2)
+	GameState.pet()
+	return true
 
 
 func wet(seconds: float) -> void:

@@ -15,6 +15,7 @@ signal yarn_changed(count: int)
 signal upgrade_bought(id: StringName)
 signal skin_changed(id: StringName)
 signal food_stolen(food: FoodDef)
+signal cat_petted(spilled: Array)
 
 const MAX_HEARTS := 3
 const MOUTH_CAPACITY := 3
@@ -121,6 +122,13 @@ func steal_last() -> FoodDef:
 	mouth_changed.emit(mouth)
 	food_stolen.emit(f)
 	return f
+
+
+func pet() -> Array[FoodDef]:
+	## Ребёнок гладит кота: еда из зубов выпадает рядом, сердечко не снимается (этап 2).
+	var spilled := spill()
+	cat_petted.emit(spilled)
+	return spilled
 
 
 func take_hit() -> bool:

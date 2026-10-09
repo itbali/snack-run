@@ -8,6 +8,9 @@
 | bell.ogg | звонок велосипеда | Kenney «Impact Sounds», impactBell_heavy_000 | CC0 |
 | meow.wav | писк кота | синтез `tools/audio/gen_sfx.py` (`make sfx`) | проект |
 | bark.wav | лай | синтез `tools/audio/gen_sfx.py` (`make sfx`) | проект |
+| hiss.wav | шланг садовника | синтез `make sfx` | проект |
+| sprinkle.wav | дождеватель | синтез `make sfx` | проект |
+| coo.wav | голуби | синтез `make sfx` | проект |
 
 Паки: https://kenney.nl/assets/interface-sounds, https://kenney.nl/assets/impact-sounds.
 Правило: один `Sfx.play()` на игровое событие (сигнал), никогда из `_process`.

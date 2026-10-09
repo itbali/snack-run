@@ -149,3 +149,15 @@ func test_yard_spawns_never_give_park_food() -> void:
 	for sp in b.find_children("*", "FoodSpawnPoint", true, false):
 		for i in 60:
 			assert_false(StringName((sp as FoodSpawnPoint).pick_def().id) in park_food, "точка двора %s дала еду парка" % (sp as Node3D).global_position)
+
+func test_park_hazards_are_placed() -> void:
+	var types := {}
+	for hz in WorldBuilder.load_layout(PARK)["hazards"]:
+		types[hz["type"]] = types.get(hz["type"], 0) + 1
+	assert_eq(types.get("sprinkler", 0), 3, "три зоны дождевателей")
+	for t in ["pigeons", "gardener", "kid", "guard"]:
+		assert_gt(types.get(t, 0), 0, "в парке есть %s" % t)
+	var b := WorldBuilder.new()
+	add_child_autofree(b)
+	b.build(WorldBuilder.load_layout(PARK))
+	assert_eq(b.hazards_built, WorldBuilder.load_layout(PARK)["hazards"].size(), "все опасности построены")

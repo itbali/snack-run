@@ -43,6 +43,9 @@ func _ready() -> void:
 	_fade = _make_fade()
 	GameState.cat_hit.connect(_on_cat_hit)
 	GameState.food_eaten.connect(_on_food_eaten)
+	GameState.cat_petted.connect(func(spilled: Array) -> void:
+		if not spilled.is_empty():
+			_spill.spill_around(_cat.global_position, spilled))
 	GameState.cat_fainted.connect(_on_cat_fainted)
 	for c in get_tree().get_nodes_in_group("hazards"):
 		if c.has_signal("bell"):

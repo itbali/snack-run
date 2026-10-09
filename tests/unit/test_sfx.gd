@@ -4,7 +4,7 @@ func before_each() -> void:
 	Sfx.reset_counters()
 
 func test_all_six_streams_exist() -> void:
-	for key in [&"pickup", &"eat", &"hit", &"meow", &"bark", &"bell"]:
+	for key in [&"pickup", &"eat", &"hit", &"meow", &"bark", &"bell", &"hiss", &"sprinkle", &"coo"]:
 		assert_true(Sfx.has(key), "нет звука %s" % key)
 
 func test_play_assigns_stream_and_counts() -> void:

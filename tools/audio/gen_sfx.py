@@ -55,7 +55,54 @@ def bark(duration=0.16, gap=0.07):
 	return pulse() + [0.0] * int(RATE * gap) + pulse()
 
 
+def hiss(duration=0.9):
+	"""Шипение шланга: шум с плавной атакой 150 мс и затуханием, без тона."""
+	rnd = random.Random(11)
+	out = []
+	n = int(RATE * duration)
+	prev = 0.0
+	for i in range(n):
+		t = i / RATE
+		env = min(1.0, t / 0.15) * (1.0 - t / duration) ** 0.5
+		prev = prev * 0.55 + rnd.uniform(-1.0, 1.0) * 0.45   # мягкий фильтр: шипение, а не треск
+		out.append(env * 0.5 * prev)
+	return out
+
+
+def sprinkle(count=6, gap=0.11):
+	"""Бульканье дождевателя: короткие «бульки» — тон 300→700 Гц по 60 мс."""
+	out = []
+	for k in range(count):
+		n = int(RATE * 0.06)
+		phase = 0.0
+		for i in range(n):
+			u = i / n
+			phase += 2 * math.pi * (300 + 400 * u + 40 * k) / RATE
+			out.append(math.sin(phase) * 0.45 * (1 - u) ** 2)
+		out += [0.0] * int(RATE * gap)
+	return out
+
+
+def coo(duration=0.5):
+	"""Воркование голубя: два низких «гу-у» 320→260 Гц с вибрато 9 Гц."""
+	out = []
+	for part in (0.22, 0.28):
+		n = int(RATE * part)
+		phase = 0.0
+		for i in range(n):
+			t = i / RATE
+			u = t / part
+			phase += 2 * math.pi * (320 - 60 * u + 12 * math.sin(2 * math.pi * 9 * t)) / RATE
+			env = min(1.0, t / 0.03) * (1.0 - u) ** 1.2
+			out.append(env * 0.55 * (math.sin(phase) + 0.25 * math.sin(2 * phase)))
+		out += [0.0] * int(RATE * 0.05)
+	return out
+
+
 if __name__ == "__main__":
 	write("meow.wav", meow())
 	write("bark.wav", bark())
-	print("ОК assets/sfx/meow.wav, assets/sfx/bark.wav")
+	write("hiss.wav", hiss())
+	write("sprinkle.wav", sprinkle())
+	write("coo.wav", coo())
+	print("ОК assets/sfx/meow.wav, bark.wav, hiss.wav, sprinkle.wav, coo.wav")
