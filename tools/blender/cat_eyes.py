@@ -14,15 +14,27 @@ HEAD_GROUP = "head"
 SPHERE = {"segments": 8, "rings": 6}   # 80 треугольников на сферу
 
 
-def head_bbox(mesh):
-	"""Мировой bbox вершин, привязанных к кости головы весом > 0,5."""
+def group_bbox(mesh, bone):
+	"""Мировой bbox вершин, привязанных к кости bone весом > 0,5; при нехватке — порог 0,25,
+	а если и так пусто — отрезок head/tail самой кости (у кончика хвоста и шеи вершин может не быть)."""
 	bpy.context.view_layer.update()
-	gi = mesh.vertex_groups[HEAD_GROUP].index
-	pts = [mesh.matrix_world @ v.co for v in mesh.data.vertices
-	       if any(g.group == gi and g.weight > 0.5 for g in v.groups)]
+	gi = mesh.vertex_groups[bone].index
+	pts = []
+	for threshold in (0.5, 0.25):
+		pts = [mesh.matrix_world @ v.co for v in mesh.data.vertices
+		       if any(g.group == gi and g.weight > threshold for g in v.groups)]
+		if pts:
+			break
+	if not pts:
+		b = mesh.parent.data.bones[bone]
+		pts = [mesh.parent.matrix_world @ b.head_local, mesh.parent.matrix_world @ b.tail_local]
 	lo = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
 	hi = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
 	return lo, hi
+
+
+def head_bbox(mesh):
+	return group_bbox(mesh, HEAD_GROUP)
 
 
 def eye_centers(lo, hi):
@@ -94,14 +106,14 @@ def _join(name, objs):
 	return obj
 
 
-def _attach(obj, arm):
-	"""Переводит меш в пространство арматуры и скинит его к кости головы весом 1,0."""
+def _attach(obj, arm, bone=HEAD_GROUP):
+	"""Переводит меш в пространство арматуры и скинит его к кости bone весом 1,0."""
 	bpy.context.view_layer.update()
 	obj.data.transform(arm.matrix_world.inverted() @ obj.matrix_world)
 	obj.matrix_world = Matrix.Identity(4)
 	obj.parent = arm
 	obj.matrix_parent_inverse = Matrix.Identity(4)
-	vg = obj.vertex_groups.new(name=HEAD_GROUP)
+	vg = obj.vertex_groups.new(name=bone)
 	vg.add([v.index for v in obj.data.vertices], 1.0, "REPLACE")
 	mod = obj.modifiers.new("Armature", "ARMATURE")
 	mod.object = arm

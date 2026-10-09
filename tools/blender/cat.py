@@ -1,11 +1,13 @@
 """Готовит кота: канонический риг UniMate + клипы (idle/walk из Quaternius, остальные из UniMate),
-палитра, масштаб 0,35 м, разворот мордой по -Z Godot, плюс четыре набора глаз (cat_eyes.py)."""
+палитра, масштаб 0,35 м, разворот мордой по -Z Godot, плюс наборы глаз (cat_eyes.py), пучки шерсти, усы и ошейник (cat_fluff.py), сглаживание subdivision."""
 import math
 import os
 
+import bmesh
 import bpy
 
 import cat_eyes
+import cat_fluff
 import palette
 import rig_utils
 
@@ -111,6 +113,23 @@ def rescale(arm, mesh):
 	arm.scale = (arm.scale.x * factor, arm.scale.y * factor, arm.scale.z * factor)
 
 
+def smooth_body(mesh):
+	"""Сваривает вершины (импортёр glTF режет меш по нормалям и UV, и subdivision разводил бы
+	треугольники в мозаику), затем один уровень subdivision при экспорте (export_apply применяет
+	модификаторы, кроме арматуры) и smooth-шейдинг."""
+	bm = bmesh.new()
+	bm.from_mesh(mesh.data)
+	bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)   # группы вершин (deform-слой) сохраняются
+	bm.to_mesh(mesh.data)
+	bm.free()
+	mod = mesh.modifiers.new("Subdivision", "SUBSURF")
+	mod.levels = 1
+	mod.render_levels = 1
+	mesh.modifiers.move(mesh.modifiers.find(mod.name), 0)   # до Armature
+	for p in mesh.data.polygons:
+		p.use_smooth = True
+
+
 def build():
 	arm, mesh = load_canonical()
 	add_source_actions(arm)
@@ -120,9 +139,11 @@ def build():
 	for pb in arm.pose.bones:
 		pb.rotation_mode = "QUATERNION"
 	recolor(mesh)
+	smooth_body(mesh)
 	rig_utils.face_forward(arm)
 	rescale(arm, mesh)
 	eyes = cat_eyes.build_eyes(arm, mesh)
+	fluff = cat_fluff.build_fluff(arm, mesh)
 	arm.name = "CatRig"
 	mesh.name = "cat"
-	return [arm, mesh] + eyes
+	return [arm, mesh] + eyes + fluff

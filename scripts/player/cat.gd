@@ -40,8 +40,9 @@ func _ready() -> void:
 	collision_layer = Layers.CAT
 	collision_mask = Layers.WORLD | Layers.HAZARD
 	Toon.apply(_model, Toon.OUTLINE_CHARACTER)
-	for mi in _model.find_children("eyes_*", "MeshInstance3D", true, false):
-		(mi as MeshInstance3D).material_overlay = null   # обводка 6 мм на 3-см глазу — рамка
+	for mi in _model.find_children("*", "MeshInstance3D", true, false):
+		if String(mi.name).begins_with("eyes_") or mi.name == "whiskers" or mi.name == "eyelids":
+			(mi as MeshInstance3D).material_overlay = null   # обводка на глазах — рамка, на усах и веках — клякса
 	face.bind(_model)
 	_apply_skin(GameState.skin)
 	GameState.skin_changed.connect(_apply_skin)
