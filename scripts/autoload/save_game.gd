@@ -4,9 +4,12 @@ extends Node
 const VERSION := 1
 
 var path := "user://save.json"
+var read_only := false   # отладочные запуски (кадры, --at) не трогают настоящее сохранение (план 14)
 
 
 func save_now() -> bool:
+	if read_only:
+		return false
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f == null:
 		push_warning("не удалось открыть %s для записи" % path)

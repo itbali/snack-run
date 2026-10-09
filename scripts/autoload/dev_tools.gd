@@ -1,7 +1,21 @@
 extends Node
 ## Инструменты разработчика. Запуск: godot --path . ++ --screenshot=build/shot.png
 
+const DEV_ARGS := ["--screenshot=", "--at=", "--phase=", "--album"]
+
+
+static func is_dev_run(args: PackedStringArray) -> bool:
+	## Отладочный запуск: кадры и перенос кота не должны собирать клубочки в настоящее сохранение владельца.
+	for a in args:
+		for d in DEV_ARGS:
+			if a.begins_with(d):
+				return true
+	return false
+
+
 func _ready() -> void:
+	if is_dev_run(OS.get_cmdline_user_args()):
+		SaveGame.read_only = true
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--phase="):
 			_set_phase_later(DayCycle.parse_time(arg.trim_prefix("--phase=")))

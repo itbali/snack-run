@@ -71,3 +71,19 @@ func test_taken_yarn_keys_round_trip() -> void:
 	assert_false(GameState.is_yarn_taken("1.5,0.6,1.5"))
 	SaveGame.load_now()
 	assert_true(GameState.is_yarn_taken("1.5,0.6,1.5"), "список собранных клубочков сохраняется")
+
+func test_read_only_save_writes_nothing() -> void:
+	# План 14: кадры (make shot) собирали клубочки и автосохраняли их в настоящий save.json владельца.
+	SaveGame.path = "user://test_save_ro.json"
+	SaveGame.clear()
+	SaveGame.read_only = true
+	assert_false(SaveGame.save_now(), "в режиме только чтения не пишет")
+	assert_false(FileAccess.file_exists("user://test_save_ro.json"))
+	SaveGame.read_only = false
+
+func test_dev_runs_are_detected() -> void:
+	assert_true(DevTools.is_dev_run(PackedStringArray(["--screenshot=build/x.png"])))
+	assert_true(DevTools.is_dev_run(PackedStringArray(["--at=1,2,3"])))
+	assert_true(DevTools.is_dev_run(PackedStringArray(["--album"])))
+	assert_true(DevTools.is_dev_run(PackedStringArray(["--phase=night"])))
+	assert_false(DevTools.is_dev_run(PackedStringArray([])), "обычная игра пишет сохранение")
