@@ -737,6 +737,18 @@ Blender-скриптов нет (`UV = 0` → ширина ровно −25 %) �
 «Клубочков: N», цена с иконкой, «куплено»/«надет» вместо ✓. Тесты `test_theme` (вес, кегль, масштабирование, нет чужих
 символов), `test_hud` (иконки). `make shot` теперь снимает развёрнутое окно (флаг `--resolution` перекрывается режимом окна).
 
+## План 6. Текстуры крупных поверхностей (`docs/superpowers/plans/2026-10-09-snack-run-06-textures.md`, спек 2.9)
+
+Решение владельца №21 — «гибрид». Ветка `plan-6-textures`. В манифест добавлены три бесшовные текстуры
+(`assets/images/textures/asphalt.png`, `paving.png`, `stucco.png`, модель `gpt-image-2.5-sunburst`, промпты «seamless tileable…
+straight from above… flat even lighting… edges wrap seamlessly»); бесшовность проверена плиткой 2×2 (`Image.blit_rect` в
+скрипте `-s`) — все три тайлятся с первой генерации. `scripts/visual/surface_textures.gd` (`SurfaceTextures.TABLE` «меш →
+файл, тайл в метрах», `apply(root)`, `texture_or_null`): по имени меша (`ground`, `sidewalk`, `wall`) ставит текстуру,
+белый `albedo_color`, `uv1_triplanar` + `uv1_world_triplanar`, `uv1_scale = 1/тайл`; `Main._ready` зовёт его после
+`Toon.apply($DistrictYard)`. Тайлы подобраны по кадру: асфальт 4 м, плитка 1,2 м (при 2 м плитка была крупнее кота), штукатурка
+4,5 м. Импорт текстур: `compress/mode=2`, `mipmaps/generate=true`. Тест `tests/integration/test_surface_textures.gd` (3):
+нужные текстуры и трипланар у трёх мешей, окна/бак/лужа/коробка плоские, без файла текстуры не ошибка. Контрольная точка: 189 GUT.
+
 ## Известные грабли (сводка, чтобы не искать по тексту)
 
 **Godot 4.7:** `class_name` виден после `make import`; GUT не падает на parse error (grep в Makefile);

@@ -1,0 +1,42 @@
+class_name SurfaceTextures
+extends RefCounted
+## Текстуры крупных поверхностей (спек 2.9, «гибрид»): асфальт, плитка тротуара, штукатурка стен.
+## Трипланарная проекция по мировым координатам — UV у мешей из Blender-скриптов нет, а плитка должна
+## идти непрерывно через стыки модулей стены. Пропсы, еда и персонажи остаются плоскоцветными.
+
+const DIR := "res://assets/images/textures/"
+## имя меша -> [файл текстуры, размер тайла в метрах]
+const TABLE := {
+	"ground": ["asphalt.png", 4.0],
+	"sidewalk": ["paving.png", 1.2],
+	"wall": ["stucco.png", 4.5],
+}
+
+
+static func texture_or_null(path: String) -> Texture2D:
+	return load(path) as Texture2D if ResourceLoader.exists(path) else null
+
+
+static func apply(root: Node) -> int:
+	## Звать после Toon.apply: правит его пер-инстансные материалы. Возвращает число затекстурированных мешей.
+	var count := 0
+	for mi in root.find_children("*", "MeshInstance3D", true, false):
+		var m3 := mi as MeshInstance3D
+		if m3.mesh == null or not TABLE.has(String(m3.name)):
+			continue
+		var entry: Array = TABLE[String(m3.name)]
+		var tex := texture_or_null(DIR + entry[0])
+		if tex == null:
+			continue   # без картинки поверхность остаётся плоского цвета
+		for i in m3.mesh.get_surface_count():
+			var m := m3.get_surface_override_material(i) as StandardMaterial3D
+			if m == null:
+				continue
+			m.albedo_texture = tex
+			m.albedo_color = Color.WHITE
+			m.uv1_triplanar = true
+			m.uv1_world_triplanar = true
+			m.uv1_scale = Vector3.ONE / float(entry[1])
+			m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+		count += 1
+	return count

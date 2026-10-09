@@ -74,6 +74,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 - `scripts/autoload/sfx.gd` — звуки (`Sfx.play(&"eat")`, один вызов на событие), файлы и лицензии в `assets/sfx/README.md`; `assets/ui/theme.tres` (Nunito, плашки), `assets/shaders/vignette.gdshader`; `scripts/core/mouse.gd` (`Mouse.capture`, в headless no-op).
 - `scripts/autoload/input_setup.gd` (InputMap в коде), `dev_tools.gd` (`++ --screenshot=path`).
 - `tools/blender/`: `palette.py`, `lib.py` (rounded_box, world_extent, tri_count, check_asset), `export.py`, `build.py`, `cat.py` (сварка + subdivision) + `cat_eyes.py` (глаза) + `cat_fluff.py` (пучки, усы, ошейник), `dog.py` + `dog_sleep.py` (поза «спит»), `gen/*.py` (каждый: `SPEC` + `build()`); `tools/audio/gen_sfx.py`; `tools/images/gen.py` + `manifest.json`; `export_presets.cfg`.
+- `scripts/visual/surface_textures.gd` — текстуры крупных поверхностей по имени меша (`ground`, `sidewalk`, `wall`), трипланар по мировым координатам (спек 2.9).
 - `scenes/world/lighting.tscn` — солнце, заполняющий свет, окружение (SSAO, SSR, glow, облака `sky_cover`), листья; `WorldBuilder` читает `solid`, `water`, `decals` из `yard.json`.
 - `third_party/quaternius_animal_pack_v2/` (CC0 кот и собака), `third_party/unimate_clips/` (канонический риг + клипы jump/hide/hit/run + README с воспроизведением).
 - `tests/unit`, `tests/integration` (GUT 9.7.1 в `addons/gut`, вендор), `tools/blender/tests/`.
@@ -122,6 +123,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 
 ## Статус и что дальше
 
+- План 6 (текстуры крупных поверхностей, гибрид) выполнен 2026-10-09.
 - Планы 1–5 выполнены и слиты в `main` (2026-10-09): фундамент, игровой цикл, хаб и прогрессия, полировка под ролик, визуальная полировка (картинки OpenAI, гладкий кот с глазами в глазницах и пучками, короткие лапы, тун v2, яркий день, VFX, зелень и декали). Отложенные мелочи — в конце дорожной карты.
 - Следующий шаг: живой плейтест владельца с правками по его замечаниям, затем этапы 2+ (парк, сутки, порт) отдельными спеками через brainstorming.
 - Открытый вопрос владельцу: лицензия весов UniMate для сгенерированных движений (код MIT, для весов явной лицензии не найдено).

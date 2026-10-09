@@ -25,6 +25,7 @@ func _ready() -> void:
 		if GameState.is_yarn_taken(y.key):
 			y.queue_free()   # собранные в прошлых сессиях клубочки не возвращаются
 	Toon.apply($DistrictYard, Toon.OUTLINE_NONE)
+	SurfaceTextures.apply($DistrictYard)   # асфальт, плитка, штукатурка (спек 2.9)
 	_rig = RigScene.instantiate()
 	_rig.name = "CameraRig"
 	_cat = CatScene.instantiate()

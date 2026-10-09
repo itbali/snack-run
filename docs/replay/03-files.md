@@ -5,7 +5,7 @@
 Отступы в GDScript и Makefile — табы; в Python проекта — тоже табы, кроме
 `palette.py` и тестов Blender (пробелы). Копировать как есть.
 
-Файлов: 177
+Файлов: 179
 
 ## `CLAUDE.md`
 
@@ -86,6 +86,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 - `scripts/autoload/sfx.gd` — звуки (`Sfx.play(&"eat")`, один вызов на событие), файлы и лицензии в `assets/sfx/README.md`; `assets/ui/theme.tres` (Nunito, плашки), `assets/shaders/vignette.gdshader`; `scripts/core/mouse.gd` (`Mouse.capture`, в headless no-op).
 - `scripts/autoload/input_setup.gd` (InputMap в коде), `dev_tools.gd` (`++ --screenshot=path`).
 - `tools/blender/`: `palette.py`, `lib.py` (rounded_box, world_extent, tri_count, check_asset), `export.py`, `build.py`, `cat.py` (сварка + subdivision) + `cat_eyes.py` (глаза) + `cat_fluff.py` (пучки, усы, ошейник), `dog.py` + `dog_sleep.py` (поза «спит»), `gen/*.py` (каждый: `SPEC` + `build()`); `tools/audio/gen_sfx.py`; `tools/images/gen.py` + `manifest.json`; `export_presets.cfg`.
+- `scripts/visual/surface_textures.gd` — текстуры крупных поверхностей по имени меша (`ground`, `sidewalk`, `wall`), трипланар по мировым координатам (спек 2.9).
 - `scenes/world/lighting.tscn` — солнце, заполняющий свет, окружение (SSAO, SSR, glow, облака `sky_cover`), листья; `WorldBuilder` читает `solid`, `water`, `decals` из `yard.json`.
 - `third_party/quaternius_animal_pack_v2/` (CC0 кот и собака), `third_party/unimate_clips/` (канонический риг + клипы jump/hide/hit/run + README с воспроизведением).
 - `tests/unit`, `tests/integration` (GUT 9.7.1 в `addons/gut`, вендор), `tools/blender/tests/`.
@@ -134,6 +135,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 
 ## Статус и что дальше
 
+- План 6 (текстуры крупных поверхностей, гибрид) выполнен 2026-10-09.
 - Планы 1–5 выполнены и слиты в `main` (2026-10-09): фундамент, игровой цикл, хаб и прогрессия, полировка под ролик, визуальная полировка (картинки OpenAI, гладкий кот с глазами в глазницах и пучками, короткие лапы, тун v2, яркий день, VFX, зелень и декали). Отложенные мелочи — в конце дорожной карты.
 - Следующий шаг: живой плейтест владельца с правками по его замечаниям, затем этапы 2+ (парк, сутки, порт) отдельными спеками через brainstorming.
 - Открытый вопрос владельцу: лицензия весов UniMate для сгенерированных движений (код MIT, для весов явной лицензии не найдено).
@@ -2408,6 +2410,7 @@ func _ready() -> void:
 		if GameState.is_yarn_taken(y.key):
 			y.queue_free()   # собранные в прошлых сессиях клубочки не возвращаются
 	Toon.apply($DistrictYard, Toon.OUTLINE_NONE)
+	SurfaceTextures.apply($DistrictYard)   # асфальт, плитка, штукатурка (спек 2.9)
 	_rig = RigScene.instantiate()
 	_rig.name = "CameraRig"
 	_cat = CatScene.instantiate()
@@ -3847,6 +3850,53 @@ static func leaves(parent: Node, extents := Vector3(15, 1.5, 15)) -> CPUParticle
 	_start(p)
 	p.position = Vector3(0, 1.5 + extents.y, 0)   # низ бокса рождения на земле, не под ней
 	return p
+```
+
+## `scripts/visual/surface_textures.gd`
+
+```gdscript
+class_name SurfaceTextures
+extends RefCounted
+## Текстуры крупных поверхностей (спек 2.9, «гибрид»): асфальт, плитка тротуара, штукатурка стен.
+## Трипланарная проекция по мировым координатам — UV у мешей из Blender-скриптов нет, а плитка должна
+## идти непрерывно через стыки модулей стены. Пропсы, еда и персонажи остаются плоскоцветными.
+
+const DIR := "res://assets/images/textures/"
+## имя меша -> [файл текстуры, размер тайла в метрах]
+const TABLE := {
+	"ground": ["asphalt.png", 4.0],
+	"sidewalk": ["paving.png", 1.2],
+	"wall": ["stucco.png", 4.5],
+}
+
+
+static func texture_or_null(path: String) -> Texture2D:
+	return load(path) as Texture2D if ResourceLoader.exists(path) else null
+
+
+static func apply(root: Node) -> int:
+	## Звать после Toon.apply: правит его пер-инстансные материалы. Возвращает число затекстурированных мешей.
+	var count := 0
+	for mi in root.find_children("*", "MeshInstance3D", true, false):
+		var m3 := mi as MeshInstance3D
+		if m3.mesh == null or not TABLE.has(String(m3.name)):
+			continue
+		var entry: Array = TABLE[String(m3.name)]
+		var tex := texture_or_null(DIR + entry[0])
+		if tex == null:
+			continue   # без картинки поверхность остаётся плоского цвета
+		for i in m3.mesh.get_surface_count():
+			var m := m3.get_surface_override_material(i) as StandardMaterial3D
+			if m == null:
+				continue
+			m.albedo_texture = tex
+			m.albedo_color = Color.WHITE
+			m.uv1_triplanar = true
+			m.uv1_world_triplanar = true
+			m.uv1_scale = Vector3.ONE / float(entry[1])
+			m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+		count += 1
+	return count
 ```
 
 ## `scripts/visual/toon.gd`
@@ -5876,6 +5926,73 @@ func test_owned_skins_can_be_reselected() -> void:
 	assert_eq(GameState.yarn, 0, "повторный выбор бесплатен")
 	assert_true(black_btn.text.ends_with("— надет"))
 	main.close_shop()
+```
+
+## `tests/integration/test_surface_textures.gd`
+
+```gdscript
+extends GutTest
+
+const MAIN_SCENE := "res://scenes/main.tscn"
+
+func before_each() -> void:
+	SaveGame.path = "user://test_save.json"
+	SaveGame.clear()
+
+func after_each() -> void:
+	SaveGame.clear()
+
+func _meshes_named(root: Node, name: String) -> Array:
+	var out := []
+	for mi in root.find_children("*", "MeshInstance3D", true, false):
+		if mi.name == name:
+			out.append(mi)
+	return out
+
+func _mat(mi: MeshInstance3D) -> StandardMaterial3D:
+	return mi.get_surface_override_material(0) as StandardMaterial3D
+
+func test_large_surfaces_get_triplanar_textures() -> void:
+	var main := (load(MAIN_SCENE) as PackedScene).instantiate()
+	add_child_autofree(main)
+	await wait_process_frames(2)
+	var expected := {"ground": ["asphalt", 4.0], "sidewalk": ["paving", 1.2], "wall": ["stucco", 4.5]}
+	for name in expected:
+		var found: Array = _meshes_named(main, name)
+		assert_gt(found.size(), 0, "есть меш %s" % name)
+		for mi in found:
+			var m := _mat(mi)
+			assert_not_null(m.albedo_texture, "%s с текстурой" % name)
+			if m.albedo_texture:
+				assert_eq(m.albedo_texture.resource_path, "res://assets/images/textures/%s.png" % expected[name][0])
+			assert_true(m.uv1_triplanar and m.uv1_world_triplanar, "%s: трипланарно по мировым координатам" % name)
+			assert_almost_eq(m.uv1_scale.x, 1.0 / expected[name][1], 0.001, "%s: тайл %.0f м" % [name, expected[name][1]])
+			assert_eq(m.albedo_color.to_html(false), "ffffff", "цвет несёт текстура")
+			assert_eq(m.diffuse_mode, BaseMaterial3D.DIFFUSE_TOON, "тун сохраняется")
+
+func test_windows_props_and_puddles_stay_flat() -> void:
+	# Review Focus 1–2
+	var main := (load(MAIN_SCENE) as PackedScene).instantiate()
+	add_child_autofree(main)
+	await wait_process_frames(2)
+	for name in ["wall_frame0", "wall_glass0", "bin", "puddle", "box"]:
+		for mi in _meshes_named(main, name):
+			for i in (mi as MeshInstance3D).mesh.get_surface_count():
+				var m := (mi as MeshInstance3D).get_surface_override_material(i) as StandardMaterial3D
+				if m:
+					assert_null(m.albedo_texture, "%s остаётся плоским" % name)
+
+func test_missing_texture_file_is_not_an_error() -> void:
+	# Review Focus 3
+	var root := Node3D.new()
+	add_child_autofree(root)
+	var mi := MeshInstance3D.new()
+	mi.name = "nothing_known"
+	mi.mesh = BoxMesh.new()
+	root.add_child(mi)
+	Toon.apply(root, Toon.OUTLINE_NONE)
+	assert_eq(SurfaceTextures.apply(root), 0, "незнакомые меши не трогаются")
+	assert_eq(SurfaceTextures.texture_or_null("res://assets/images/textures/none.png"), null)
 ```
 
 ## `tests/integration/test_wasp.gd`
@@ -10041,6 +10158,20 @@ Blender и Godot. Успех этапа 1 — играбельный верти�
   заставки 1536×1024, 3 плаката, облака (прозрачные), 3 декали. В 3D-ассеты
   картинки не идут, кроме неба и декалей.
 
+### 2.9 Текстуры крупных поверхностей (решение владельца 2026-10-09, «гибрид»)
+
+Отступление от 2.1 «без рисованных текстур» для крупных плоскостей, которые без текстуры читаются как
+цветные кубики. Пол двора (асфальт), тротуар (плитка) и стены домов (штукатурка с проглядывающим
+кирпичом) получают бесшовные мультяшные текстуры из сгенерированных картинок (манифест
+`tools/images/manifest.json`, папка `assets/images/textures/`) в цветах палитры. Мелкие пропсы, еда и
+персонажи остаются плоскоцветными с тун-светом, как в Untitled Goose Game.
+
+- Наложение — трипланарная проекция по мировым координатам (`uv1_triplanar`, `uv1_world_triplanar`):
+  UV-развёртка мешей не нужна, плитка непрерывна через стыки модулей стены.
+- Размер тайла в метрах: асфальт 4 м, плитка тротуара 1,2 м (16 плиток по 0,3 м — соразмерно котёнку), штукатурка 4,5 м (кирпич проглядывает реже).
+- Тун-диффуз сохраняется, `albedo_color` белый (цвет несёт текстура), мипмапы и сжатие VRAM включены.
+- Таблица «меш → текстура» живёт в коде (`SurfaceTextures`), применяется к району в `Main._ready`.
+
 ## 3. Игровой цикл
 
 ### 3.1 Момент-к-моменту (10–30 с)
@@ -10365,6 +10496,12 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
 - ✓ план 4: прозрачность вместо скрытия.
 - ✓ план 4: мышь крутит камеру (правый стик был с плана 1).
 - Лицензия весов UniMate для сгенерированных движений — уточнить владельцу.
+
+## План 6. Текстуры крупных поверхностей (`2026-10-09-snack-run-06-textures.md`, спек 2.9) — ВЫПОЛНЕН 2026-10-09
+
+Гибрид по решению владельца: асфальт, плитка тротуара и штукатурка стен с проглядывающим кирпичом —
+бесшовные текстуры OpenAI с трипланарной проекцией; пропсы, еда и персонажи остаются плоскоцветными.
+Дальше можно: текстура дерева для лавки/забора, картон для коробок, черепица навеса будки.
 ```
 
 ## `docs/superpowers/notes/2026-10-07-unimate-attempt.md`
@@ -10733,6 +10870,24 @@ if __name__ == "__main__":
       "note": "опавшие листья",
       "background": "transparent",
       "prompt": "Top-down scatter of a few small fallen leaves in olive (#A9B087), leaf green (#458B59) and sand (#D3AB87), transparent background"
+    },
+    {
+      "file": "assets/images/textures/asphalt.png",
+      "note": "бесшовный асфальт (дорога и двор)",
+      "model": "gpt-image-2.5-sunburst",
+      "prompt": "Seamless tileable texture of stylized cartoon asphalt seen straight from above, flat even lighting with no shadows and no perspective, base color #5A5C6B with small lighter and darker speckles and a couple of subtle hairline cracks, painterly hand-painted game texture, edges must wrap seamlessly on all four sides, no text, no objects"
+    },
+    {
+      "file": "assets/images/textures/paving.png",
+      "note": "бесшовная плитка тротуара",
+      "model": "gpt-image-2.5-sunburst",
+      "prompt": "Seamless tileable texture of stylized cartoon square paving stones seen straight from above, exactly 4 by 4 rounded square tiles filling the whole image edge to edge, warm sand color #D3AB87 with slightly darker grout lines and soft color variation per tile, flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly, no text"
+    },
+    {
+      "file": "assets/images/textures/stucco.png",
+      "note": "бесшовная штукатурка с кирпичом (стены домов)",
+      "model": "gpt-image-2.5-sunburst",
+      "prompt": "Seamless tileable texture of a stylized cartoon plastered building wall seen straight on, warm sand stucco #D3AB87 with soft painterly variation and a few small patches where orange-red bricks (#BD4045) peek through the plaster, flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly on all sides, no windows, no text"
     }
   ]
 }

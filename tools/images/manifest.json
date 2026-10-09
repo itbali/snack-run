@@ -111,6 +111,24 @@
       "note": "опавшие листья",
       "background": "transparent",
       "prompt": "Top-down scatter of a few small fallen leaves in olive (#A9B087), leaf green (#458B59) and sand (#D3AB87), transparent background"
+    },
+    {
+      "file": "assets/images/textures/asphalt.png",
+      "note": "бесшовный асфальт (дорога и двор)",
+      "model": "gpt-image-2.5-sunburst",
+      "prompt": "Seamless tileable texture of stylized cartoon asphalt seen straight from above, flat even lighting with no shadows and no perspective, base color #5A5C6B with small lighter and darker speckles and a couple of subtle hairline cracks, painterly hand-painted game texture, edges must wrap seamlessly on all four sides, no text, no objects"
+    },
+    {
+      "file": "assets/images/textures/paving.png",
+      "note": "бесшовная плитка тротуара",
+      "model": "gpt-image-2.5-sunburst",
+      "prompt": "Seamless tileable texture of stylized cartoon square paving stones seen straight from above, exactly 4 by 4 rounded square tiles filling the whole image edge to edge, warm sand color #D3AB87 with slightly darker grout lines and soft color variation per tile, flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly, no text"
+    },
+    {
+      "file": "assets/images/textures/stucco.png",
+      "note": "бесшовная штукатурка с кирпичом (стены домов)",
+      "model": "gpt-image-2.5-sunburst",
+      "prompt": "Seamless tileable texture of a stylized cartoon plastered building wall seen straight on, warm sand stucco #D3AB87 with soft painterly variation and a few small patches where orange-red bricks (#BD4045) peek through the plaster, flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly on all sides, no windows, no text"
     }
   ]
 }
