@@ -1,0 +1,69 @@
+{
+  "note": "Демо террасы на data/terrain/demo.json: терраса x −18…−6, z −18…−8, высота 2 м.",
+  "props": [
+    {
+      "model": "ramp2",
+      "pos": [
+        -1.711,
+        0,
+        -10
+      ],
+      "rot": 90
+    },
+    {
+      "model": "terrace_stairs2",
+      "pos": [
+        -3.0,
+        0,
+        -15.5
+      ],
+      "rot": 90
+    },
+    {
+      "model": "retaining_wall2",
+      "pos": [
+        -5.8,
+        0,
+        -17.6
+      ],
+      "rot": 90,
+      "snap": false
+    },
+    {
+      "model": "retaining_wall2",
+      "pos": [
+        -12,
+        0,
+        -7.8
+      ],
+      "rot": 0,
+      "snap": false
+    },
+    {
+      "model": "retaining_wall2",
+      "pos": [
+        -16,
+        0,
+        -7.8
+      ],
+      "rot": 0,
+      "snap": false
+    },
+    {
+      "model": "bin",
+      "pos": [
+        8,
+        0,
+        8
+      ]
+    },
+    {
+      "model": "bench",
+      "pos": [
+        -12,
+        0,
+        -12
+      ]
+    }
+  ]
+}
