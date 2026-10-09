@@ -1,2649 +1,427 @@
 {
   "props": [
-    {
-      "model": "fence",
-      "pos": [
-        -14,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -14,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -12,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -12,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -10,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -10,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -8,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -8,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -6,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -6,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -4,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -4,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -2,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -2,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        0,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        0,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        2,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        2,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        4,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        4,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        6,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        6,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        8,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        8,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        10,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        10,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        12,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        14,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        14,
-        0,
-        60.9
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        31
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        31
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        33
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        33
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        35
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        35
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        37
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        37
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        39
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        39
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        41
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        41
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        43
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        43
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        45
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        45
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        47
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        47
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        49
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        49
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        51
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        51
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        53
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        53
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        55
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        55
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        57
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        57
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        -15,
-        0,
-        59
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fence",
-      "pos": [
-        15,
-        0,
-        59
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            1.8,
-            0.12
-          ],
-          "offset": [
-            0,
-            0.9,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "fountain",
-      "pos": [
-        0,
-        0,
-        45
-      ],
-      "rot": 0,
-      "water": true,
-      "colliders": [
-        {
-          "size": [
-            3.2,
-            0.45,
-            3.2
-          ],
-          "offset": [
-            0,
-            0.225,
-            0
-          ]
-        },
-        {
-          "size": [
-            0.5,
-            1.4,
-            0.5
-          ],
-          "offset": [
-            0,
-            0.7,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "slide",
-      "pos": [
-        -9,
-        0,
-        38
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            1.3,
-            0.06,
-            1.3
-          ],
-          "offset": [
-            0,
-            0.72,
-            0
-          ]
-        },
-        {
-          "size": [
-            1.2,
-            0.7,
-            0.08
-          ],
-          "offset": [
-            0,
-            0.35,
-            0.56
-          ]
-        },
-        {
-          "size": [
-            0.08,
-            0.7,
-            1.2
-          ],
-          "offset": [
-            -0.56,
-            0.35,
-            0
-          ]
-        },
-        {
-          "size": [
-            0.08,
-            0.7,
-            1.2
-          ],
-          "offset": [
-            0.56,
-            0.35,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "swings",
-      "pos": [
-        -9,
-        0,
-        45
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            0.2,
-            1.9,
-            0.8
-          ],
-          "offset": [
-            -1.15,
-            0.95,
-            0
-          ]
-        },
-        {
-          "size": [
-            0.2,
-            1.9,
-            0.8
-          ],
-          "offset": [
-            1.15,
-            0.95,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "sandbox",
-      "pos": [
-        -5,
-        0,
-        37.5
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            2.0,
-            0.2,
-            2.0
-          ],
-          "offset": [
-            0,
-            0.1,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "kiosk",
-      "pos": [
-        9,
-        0,
-        41.5
-      ],
-      "rot": 180
-    },
-    {
-      "model": "shed",
-      "pos": [
-        11,
-        0,
-        56
-      ],
-      "rot": 180
-    },
-    {
-      "model": "tree",
-      "pos": [
-        -12,
-        0,
-        32.5
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.3,
-            1.6,
-            0.3
-          ],
-          "offset": [
-            0,
-            0.8,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "tree",
-      "pos": [
-        12,
-        0,
-        51
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.3,
-            1.6,
-            0.3
-          ],
-          "offset": [
-            0,
-            0.8,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "tree",
-      "pos": [
-        -12,
-        0,
-        58
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.3,
-            1.6,
-            0.3
-          ],
-          "offset": [
-            0,
-            0.8,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "tree",
-      "pos": [
-        -6,
-        0,
-        57
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.3,
-            1.6,
-            0.3
-          ],
-          "offset": [
-            0,
-            0.8,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "tree",
-      "pos": [
-        7,
-        0,
-        48
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.3,
-            1.6,
-            0.3
-          ],
-          "offset": [
-            0,
-            0.8,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bench",
-      "pos": [
-        4,
-        0,
-        34
-      ],
-      "rot": -90,
-      "colliders": [
-        {
-          "size": [
-            1.5,
-            0.08,
-            0.45
-          ],
-          "offset": [
-            0,
-            0.45,
-            0
-          ]
-        },
-        {
-          "size": [
-            1.5,
-            0.4,
-            0.06
-          ],
-          "offset": [
-            0,
-            0.72,
-            0.22
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bench",
-      "pos": [
-        4,
-        0,
-        52
-      ],
-      "rot": -90,
-      "colliders": [
-        {
-          "size": [
-            1.5,
-            0.08,
-            0.45
-          ],
-          "offset": [
-            0,
-            0.45,
-            0
-          ]
-        },
-        {
-          "size": [
-            1.5,
-            0.4,
-            0.06
-          ],
-          "offset": [
-            0,
-            0.72,
-            0.22
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bench",
-      "pos": [
-        -4,
-        0,
-        52
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            1.5,
-            0.08,
-            0.45
-          ],
-          "offset": [
-            0,
-            0.45,
-            0
-          ]
-        },
-        {
-          "size": [
-            1.5,
-            0.4,
-            0.06
-          ],
-          "offset": [
-            0,
-            0.72,
-            0.22
-          ]
-        }
-      ]
-    },
-    {
-      "model": "bench",
-      "pos": [
-        -4,
-        0,
-        34
-      ],
-      "rot": 90,
-      "colliders": [
-        {
-          "size": [
-            1.5,
-            0.08,
-            0.45
-          ],
-          "offset": [
-            0,
-            0.45,
-            0
-          ]
-        },
-        {
-          "size": [
-            1.5,
-            0.4,
-            0.06
-          ],
-          "offset": [
-            0,
-            0.72,
-            0.22
-          ]
-        }
-      ]
-    },
-    {
-      "model": "lamp",
-      "pos": [
-        2,
-        0,
-        33
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.2,
-            2.6,
-            0.2
-          ],
-          "offset": [
-            0,
-            1.3,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "lamp",
-      "pos": [
-        2,
-        0,
-        41
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.2,
-            2.6,
-            0.2
-          ],
-          "offset": [
-            0,
-            1.3,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "lamp",
-      "pos": [
-        2,
-        0,
-        49
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.2,
-            2.6,
-            0.2
-          ],
-          "offset": [
-            0,
-            1.3,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "lamp",
-      "pos": [
-        2,
-        0,
-        57
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.2,
-            2.6,
-            0.2
-          ],
-          "offset": [
-            0,
-            1.3,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "lamp",
-      "pos": [
-        -2,
-        0,
-        37
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.2,
-            2.6,
-            0.2
-          ],
-          "offset": [
-            0,
-            1.3,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "lamp",
-      "pos": [
-        -2,
-        0,
-        53
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.2,
-            2.6,
-            0.2
-          ],
-          "offset": [
-            0,
-            1.3,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "lamp",
-      "pos": [
-        -12,
-        0,
-        47.5
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.2,
-            2.6,
-            0.2
-          ],
-          "offset": [
-            0,
-            1.3,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "lamp",
-      "pos": [
-        12,
-        0,
-        43
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            0.2,
-            2.6,
-            0.2
-          ],
-          "offset": [
-            0,
-            1.3,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "model": "flowerbed",
-      "pos": [
-        -5,
-        0,
-        49
-      ],
-      "rot": 0
-    },
-    {
-      "model": "flowerbed",
-      "pos": [
-        5,
-        0,
-        41
-      ],
-      "rot": 0
-    },
-    {
-      "model": "bush",
-      "pos": [
-        -13,
-        0,
-        50
-      ],
-      "rot": 0,
-      "solid": false
-    },
-    {
-      "model": "bush",
-      "pos": [
-        13,
-        0,
-        36
-      ],
-      "rot": 0,
-      "solid": false
-    },
-    {
-      "model": "bush",
-      "pos": [
-        6,
-        0,
-        58.5
-      ],
-      "rot": 0,
-      "solid": false
-    },
-    {
-      "model": "bush",
-      "pos": [
-        -13.5,
-        0,
-        40
-      ],
-      "rot": 30
-    },
-    {
-      "model": "bush",
-      "pos": [
-        9,
-        0,
-        59
-      ],
-      "rot": 30
-    },
-    {
-      "model": "bush",
-      "pos": [
-        -8,
-        0,
-        59
-      ],
-      "rot": 30
-    },
-    {
-      "model": "bush",
-      "pos": [
-        13.5,
-        0,
-        47
-      ],
-      "rot": 30
-    },
-    {
-      "model": "grass",
-      "pos": [
-        -14,
-        0,
-        31
-      ],
-      "rot": 143,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        14,
-        0,
-        31
-      ],
-      "rot": 291,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        -7,
-        0,
-        31.5
-      ],
-      "rot": 3,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        6,
-        0,
-        31.5
-      ],
-      "rot": 46,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        -14,
-        0,
-        59.5
-      ],
-      "rot": 342,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        3,
-        0,
-        59.5
-      ],
-      "rot": 149,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        -10,
-        0,
-        53
-      ],
-      "rot": 61,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        10,
-        0,
-        34
-      ],
-      "rot": 188,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        -3,
-        0,
-        41
-      ],
-      "rot": 194,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        3,
-        0,
-        49.5
-      ],
-      "rot": 79,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        8,
-        0,
-        53
-      ],
-      "rot": 259,
-      "solid": false
-    },
-    {
-      "model": "grass",
-      "pos": [
-        -11,
-        0,
-        41
-      ],
-      "rot": 306,
-      "solid": false
-    }
+    {"model": "fence", "pos": [-14, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-12, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-10, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-8, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-6, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-4, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [-2, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [0, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [2, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [4, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [6, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [8, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [10, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fence", "pos": [14, 0, 29.9], "rot": 0, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
+    {"model": "fountain", "pos": [0, 0, 45], "rot": 0, "water": true, "colliders": [{"size": [3.2, 0.45, 3.2], "offset": [0, 0.225, 0]}, {"size": [0.5, 1.4, 0.5], "offset": [0, 0.7, 0]}]},
+    {"model": "slide", "pos": [-9, 0, 38], "rot": 0, "colliders": [{"size": [1.3, 0.06, 1.3], "offset": [0, 0.72, 0]}, {"size": [1.2, 0.7, 0.08], "offset": [0, 0.35, 0.56]}, {"size": [0.08, 0.7, 1.2], "offset": [-0.56, 0.35, 0]}, {"size": [0.08, 0.7, 1.2], "offset": [0.56, 0.35, 0]}]},
+    {"model": "swings", "pos": [-9, 0, 45], "rot": 90, "colliders": [{"size": [0.2, 1.9, 0.8], "offset": [-1.15, 0.95, 0]}, {"size": [0.2, 1.9, 0.8], "offset": [1.15, 0.95, 0]}]},
+    {"model": "sandbox", "pos": [-5, 0, 37.5], "rot": 0, "colliders": [{"size": [2.0, 0.2, 2.0], "offset": [0, 0.1, 0]}]},
+    {"model": "kiosk", "pos": [9, 0, 41.5], "rot": 180},
+    {"model": "shed", "pos": [11, 0, 56], "rot": 180},
+    {"model": "tree", "pos": [-12, 0, 32.5], "rot": 0, "colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}]},
+    {"model": "tree", "pos": [12, 0, 51], "rot": 0, "colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}]},
+    {"model": "tree", "pos": [-12, 0, 58], "rot": 0, "colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}]},
+    {"model": "tree", "pos": [-6, 0, 57], "rot": 0, "colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}]},
+    {"model": "tree", "pos": [7, 0, 48], "rot": 0, "colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}]},
+    {"model": "bench", "pos": [4, 0, 34], "rot": -90, "colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}]},
+    {"model": "bench", "pos": [4, 0, 52], "rot": -90, "colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}]},
+    {"model": "bench", "pos": [-4, 0, 52], "rot": 90, "colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}]},
+    {"model": "bench", "pos": [-4, 0, 34], "rot": 90, "colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}]},
+    {"model": "lamp", "pos": [2, 0, 33], "rot": 0, "colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}]},
+    {"model": "lamp", "pos": [2, 0, 41], "rot": 0, "colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}]},
+    {"model": "lamp", "pos": [2, 0, 49], "rot": 0, "colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}]},
+    {"model": "lamp", "pos": [2, 0, 57], "rot": 0, "colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}]},
+    {"model": "lamp", "pos": [-2, 0, 37], "rot": 0, "colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}]},
+    {"model": "lamp", "pos": [-2, 0, 53], "rot": 0, "colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}]},
+    {"model": "lamp", "pos": [-12, 0, 47.5], "rot": 0, "colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}]},
+    {"model": "lamp", "pos": [12, 0, 43], "rot": 0, "colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}]},
+    {"model": "flowerbed", "pos": [-5, 0, 49], "rot": 0},
+    {"model": "flowerbed", "pos": [5, 0, 41], "rot": 0},
+    {"model": "bush", "pos": [-13, 0, 50], "rot": 0, "solid": false},
+    {"model": "bush", "pos": [13, 0, 36], "rot": 0, "solid": false},
+    {"model": "bush", "pos": [6, 0, 58.5], "rot": 0, "solid": false},
+    {"model": "bush", "pos": [-13.5, 0, 40], "rot": 30},
+    {"model": "bush", "pos": [9, 0, 59], "rot": 30},
+    {"model": "bush", "pos": [-8, 0, 59], "rot": 30},
+    {"model": "bush", "pos": [13.5, 0, 47], "rot": 30},
+    {"model": "grass", "pos": [-14, 0, 31], "rot": 143, "solid": false},
+    {"model": "grass", "pos": [14, 0, 31], "rot": 291, "solid": false},
+    {"model": "grass", "pos": [-7, 0, 31.5], "rot": 3, "solid": false},
+    {"model": "grass", "pos": [6, 0, 31.5], "rot": 46, "solid": false},
+    {"model": "grass", "pos": [-14, 0, 59.5], "rot": 342, "solid": false},
+    {"model": "grass", "pos": [3, 0, 59.5], "rot": 149, "solid": false},
+    {"model": "grass", "pos": [-10, 0, 53], "rot": 61, "solid": false},
+    {"model": "grass", "pos": [10, 0, 34], "rot": 188, "solid": false},
+    {"model": "grass", "pos": [-3, 0, 41], "rot": 194, "solid": false},
+    {"model": "grass", "pos": [3, 0, 49.5], "rot": 79, "solid": false},
+    {"model": "grass", "pos": [8, 0, 53], "rot": 259, "solid": false},
+    {"model": "grass", "pos": [-11, 0, 41], "rot": 306, "solid": false},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-44.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-42.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-40.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-38.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-36.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-34.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-32.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-30.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-28.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-26.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-24.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-22.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-20.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-18.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-16.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-14.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-12.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-10.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-8.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-6.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-4.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-2.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [0.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [2.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [4.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [6.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [8.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [10.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [12.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [14.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [16.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [18.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [20.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [22.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [24.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [26.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [28.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [30.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [32.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [34.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [36.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [38.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [40.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [42.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [44.0, 0, 125.0], "rot": 180},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 30.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 32.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 34.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 36.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 38.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 40.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 42.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 44.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 46.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 48.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 50.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 52.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 54.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 56.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 58.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 60.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 62.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 64.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 66.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 68.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 70.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 72.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 74.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 76.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 78.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 80.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 82.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 84.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 86.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 88.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 90.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 92.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 94.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 96.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 98.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 100.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 102.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 104.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 106.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 108.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 110.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 112.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 114.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 116.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 118.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 120.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-45.0, 0, 122.9], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-44.95, 0, 124.0], "rot": 90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 30.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 32.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 34.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 36.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 38.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 40.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 42.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 44.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 46.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 48.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 50.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 52.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 54.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 56.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 58.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 60.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 62.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 64.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 66.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 68.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 70.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 72.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 74.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 76.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 78.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 80.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 82.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 84.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 86.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 88.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 90.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 92.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 94.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 96.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 98.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 100.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 102.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 104.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 106.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 108.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 110.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 112.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 114.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 116.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 118.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 120.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [45.0, 0, 122.9], "rot": -90},
+    {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [44.95, 0, 124.0], "rot": -90},
+    {"model": "gazebo", "pos": [0, 0, 92], "rot": 0, "colliders": [{"size": [3.4, 0.3, 3.4], "offset": [0, 0.15, 0]}, {"size": [0.16, 2.2, 0.16], "offset": [1.85, 1.4, 0.0]}, {"size": [0.16, 2.2, 0.16], "offset": [0.925, 1.4, 1.602]}, {"size": [0.16, 2.2, 0.16], "offset": [-0.925, 1.4, 1.602]}, {"size": [0.16, 2.2, 0.16], "offset": [-1.85, 1.4, 0.0]}, {"size": [0.16, 2.2, 0.16], "offset": [-0.925, 1.4, -1.602]}, {"size": [0.16, 2.2, 0.16], "offset": [0.925, 1.4, -1.602]}]},
+    {"colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}], "model": "lamp", "pos": [2.5, 0, 64], "rot": 0},
+    {"colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}], "model": "lamp", "pos": [2.5, 0, 68], "rot": 0},
+    {"colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}], "model": "lamp", "pos": [2.5, 0, 72], "rot": 0},
+    {"colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}], "model": "lamp", "pos": [2.5, 0, 76], "rot": 0},
+    {"colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}], "model": "lamp", "pos": [2.5, 0, 80], "rot": 0},
+    {"colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}], "model": "lamp", "pos": [2.5, 0, 84], "rot": 0},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [-3, 0, 78], "rot": 90},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [5, 0, 98], "rot": 0},
+    {"solid": false, "model": "grass", "pos": [-16.4, 0, 69.08], "rot": 14},
+    {"solid": false, "model": "grass", "pos": [-19.5, 0, 74.47], "rot": 44},
+    {"solid": false, "model": "grass", "pos": [-24.87, 0, 77.59], "rot": 74},
+    {"solid": false, "model": "grass", "pos": [-31.08, 0, 77.6], "rot": 104},
+    {"solid": false, "model": "grass", "pos": [-36.47, 0, 74.5], "rot": 134},
+    {"solid": false, "model": "grass", "pos": [-39.59, 0, 69.13], "rot": 164},
+    {"solid": false, "model": "grass", "pos": [-39.6, 0, 62.92], "rot": 193},
+    {"solid": false, "model": "grass", "pos": [-36.5, 0, 57.53], "rot": 223},
+    {"solid": false, "model": "grass", "pos": [-31.13, 0, 54.41], "rot": 253},
+    {"solid": false, "model": "grass", "pos": [-24.92, 0, 54.4], "rot": 283},
+    {"solid": false, "model": "grass", "pos": [-19.53, 0, 57.5], "rot": 313},
+    {"solid": false, "model": "grass", "pos": [-16.41, 0, 62.87], "rot": 343},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [21, 0, 94], "rot": 0},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [24, 0, 94], "rot": 0},
+    {"model": "flowerbed", "pos": [-30, 0, 116], "rot": 0},
+    {"model": "flowerbed", "pos": [-10, 0, 116], "rot": 0},
+    {"model": "flowerbed", "pos": [10, 0, 116], "rot": 0},
+    {"model": "flowerbed", "pos": [30, 0, 116], "rot": 0},
+    {"solid": false, "model": "bush", "pos": [-0.7, 0, 94.9], "rot": 75},
+    {"solid": false, "model": "bush", "pos": [4.7, 0, 72.3], "rot": 150},
+    {"solid": false, "model": "bush", "pos": [-13.7, 0, 82.5], "rot": 90},
+    {"solid": false, "model": "bush", "pos": [-6.3, 0, 101.7], "rot": 15},
+    {"solid": false, "model": "bush", "pos": [5.3, 0, 92.5], "rot": 270},
+    {"solid": false, "model": "bush", "pos": [-9.9, 0, 85.4], "rot": 90},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [5.5, 0, 66.4], "rot": 90},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [30.7, 0, 40.3], "rot": 210},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [33.2, 0, 70.7], "rot": 255},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [29.7, 0, 67.7], "rot": 165},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [20.1, 0, 46.0], "rot": 75},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [37.7, 0, 49.6], "rot": 90},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [41.5, 0, 81.0], "rot": 345},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [27.6, 0, 52.1], "rot": 105},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [24.3, 0, 53.4], "rot": 285},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [37.1, 0, 45.3], "rot": 0},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [27.5, 0, 80.7], "rot": 120},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [18.8, 0, 37.3], "rot": 150},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [34.9, 0, 38.3], "rot": 75},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [23.1, 0, 67.6], "rot": 105},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [19.9, 0, 50.2], "rot": 0},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [28.8, 0, 61.9], "rot": 240},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [30.9, 0, 55.2], "rot": 15},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [35.4, 0, 80.5], "rot": 105},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [24.0, 0, 87.4], "rot": 285},
+    {"solid": false, "model": "bush", "pos": [20.9, 0, 54.8], "rot": 120},
+    {"solid": false, "model": "bush", "pos": [31.7, 0, 44.0], "rot": 195},
+    {"solid": false, "model": "bush", "pos": [34.7, 0, 50.5], "rot": 60},
+    {"solid": false, "model": "bush", "pos": [21.0, 0, 76.8], "rot": 105},
+    {"solid": false, "model": "bush", "pos": [26.8, 0, 71.6], "rot": 90},
+    {"solid": false, "model": "bush", "pos": [29.1, 0, 74.4], "rot": 195},
+    {"solid": false, "model": "bush", "pos": [39.6, 0, 69.3], "rot": 225},
+    {"solid": false, "model": "bush", "pos": [29.1, 0, 77.2], "rot": 15},
+    {"solid": false, "model": "bush", "pos": [36.4, 0, 63.1], "rot": 255},
+    {"solid": false, "model": "bush", "pos": [18.7, 0, 65.0], "rot": 270},
+    {"solid": false, "model": "bush", "pos": [30.2, 0, 59.1], "rot": 15},
+    {"solid": false, "model": "bush", "pos": [22.5, 0, 70.7], "rot": 195},
+    {"solid": false, "model": "bush", "pos": [25.0, 0, 46.5], "rot": 165},
+    {"solid": false, "model": "bush", "pos": [31.6, 0, 49.1], "rot": 135},
+    {"solid": false, "model": "bush", "pos": [-7.9, 0, 114.4], "rot": 75},
+    {"solid": false, "model": "bush", "pos": [-18.7, 0, 118.7], "rot": 75},
+    {"solid": false, "model": "bush", "pos": [24.9, 0, 114.0], "rot": 90},
+    {"solid": false, "model": "bush", "pos": [-30.3, 0, 106.0], "rot": 120},
+    {"solid": false, "model": "bush", "pos": [-40.2, 0, 115.1], "rot": 45},
+    {"solid": false, "model": "bush", "pos": [25.5, 0, 108.7], "rot": 120},
+    {"solid": false, "model": "bush", "pos": [-13.8, 0, 117.7], "rot": 240},
+    {"solid": false, "model": "bush", "pos": [-0.6, 0, 121.6], "rot": 15},
+    {"solid": false, "model": "grass", "pos": [31.7, 0, 115.0], "rot": 0},
+    {"solid": false, "model": "grass", "pos": [20.8, 0, 116.5], "rot": 300},
+    {"solid": false, "model": "grass", "pos": [41.3, 0, 121.0], "rot": 60},
+    {"solid": false, "model": "grass", "pos": [23.3, 0, 119.8], "rot": 180},
+    {"solid": false, "model": "grass", "pos": [-16.3, 0, 120.1], "rot": 240},
+    {"solid": false, "model": "grass", "pos": [4.8, 0, 101.0], "rot": 225},
+    {"solid": false, "model": "grass", "pos": [26.7, 0, 104.5], "rot": 300},
+    {"solid": false, "model": "grass", "pos": [-26.1, 0, 118.6], "rot": 135},
+    {"solid": false, "model": "grass", "pos": [36.7, 0, 122.6], "rot": 210},
+    {"solid": false, "model": "grass", "pos": [-41.1, 0, 120.9], "rot": 165},
+    {"solid": false, "model": "grass", "pos": [-11.6, 0, 111.5], "rot": 300},
+    {"solid": false, "model": "grass", "pos": [-25.8, 0, 102.3], "rot": 180},
+    {"solid": false, "model": "bush", "pos": [-37.9, 0, 118.3], "rot": 225},
+    {"solid": false, "model": "bush", "pos": [16.0, 0, 122.7], "rot": 285},
+    {"solid": false, "model": "bush", "pos": [-30.8, 0, 102.8], "rot": 60},
+    {"colliders": [{"size": [1.5, 0.08, 0.45], "offset": [0, 0.45, 0]}, {"size": [1.5, 0.4, 0.06], "offset": [0, 0.72, 0.22]}], "model": "bench", "pos": [14.5, 0, 100.3], "rot": 90},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-39.8, 0, 40.6], "rot": 285},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-34.2, 0, 39.9], "rot": 300},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-34.7, 0, 44.1], "rot": 255},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-23.1, 0, 50.4], "rot": 285},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-21.9, 0, 38.5], "rot": 165},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-41.3, 0, 86.1], "rot": 45},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-36.1, 0, 90.2], "rot": 345},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-21.2, 0, 92.0], "rot": 270},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-31.6, 0, 85.0], "rot": 300},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-34.1, 0, 97.8], "rot": 225},
+    {"solid": false, "model": "bush", "pos": [-31.6, 0, 49.9], "rot": 90},
+    {"solid": false, "model": "bush", "pos": [-21.1, 0, 46.6], "rot": 120}
   ],
   "hideouts": [
-    {
-      "kind": "bush",
-      "pos": [
-        -13,
-        0.25,
-        50
-      ],
-      "size": [
-        0.9,
-        0.5,
-        0.9
-      ]
-    },
-    {
-      "kind": "bush",
-      "pos": [
-        13,
-        0.25,
-        36
-      ],
-      "size": [
-        0.9,
-        0.5,
-        0.9
-      ]
-    },
-    {
-      "kind": "bush",
-      "pos": [
-        6,
-        0.25,
-        58.5
-      ],
-      "size": [
-        0.9,
-        0.5,
-        0.9
-      ]
-    },
-    {
-      "kind": "bench",
-      "pos": [
-        4,
-        0.2,
-        52
-      ],
-      "rot": -90,
-      "size": [
-        1.2,
-        0.4,
-        0.35
-      ]
-    },
-    {
-      "kind": "bench",
-      "pos": [
-        -4,
-        0.2,
-        34
-      ],
-      "rot": 90,
-      "size": [
-        1.2,
-        0.4,
-        0.35
-      ]
-    },
-    {
-      "kind": "slide",
-      "pos": [
-        -9,
-        0.3,
-        38
-      ],
-      "size": [
-        0.9,
-        0.5,
-        0.9
-      ]
-    }
+    {"kind": "bush", "pos": [-13, 0.25, 50], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bush", "pos": [13, 0.25, 36], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bush", "pos": [6, 0.25, 58.5], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bench", "pos": [4, 0.2, 52], "rot": -90, "size": [1.2, 0.4, 0.35]},
+    {"kind": "bench", "pos": [-4, 0.2, 34], "rot": 90, "size": [1.2, 0.4, 0.35]},
+    {"kind": "slide", "pos": [-9, 0.3, 38], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bench", "pos": [5.5, 0.2, 66.4], "rot": 90, "size": [1.3, 0.4, 0.4]},
+    {"kind": "bush", "pos": [30.2, 0.25, 59.1], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bush", "pos": [22.5, 0.25, 70.7], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bush", "pos": [25.0, 0.25, 46.5], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bush", "pos": [31.6, 0.25, 49.1], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bush", "pos": [-37.9, 0.25, 118.3], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bush", "pos": [16.0, 0.25, 122.7], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bush", "pos": [-30.8, 0.25, 102.8], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bench", "pos": [14.5, 0.2, 100.3], "rot": 90, "size": [1.3, 0.4, 0.4]},
+    {"kind": "bush", "pos": [-31.6, 0.25, 49.9], "size": [0.9, 0.5, 0.9]},
+    {"kind": "bush", "pos": [-21.1, 0.25, 46.6], "size": [0.9, 0.5, 0.9]}
   ],
   "spawn_points": [
-    {
-      "pos": [
-        8,
-        0,
-        39.3
-      ],
-      "allowed": [
-        0
-      ],
-      "foods": [
-        "popcorn",
-        "bagel"
-      ]
-    },
-    {
-      "pos": [
-        3,
-        0,
-        35.5
-      ],
-      "allowed": [
-        0
-      ],
-      "foods": [
-        "popcorn",
-        "bagel"
-      ]
-    },
-    {
-      "pos": [
-        3,
-        0,
-        53.5
-      ],
-      "allowed": [
-        0
-      ],
-      "foods": [
-        "bagel"
-      ]
-    },
-    {
-      "pos": [
-        -3,
-        0,
-        50.5
-      ],
-      "allowed": [
-        0
-      ],
-      "foods": [
-        "popcorn"
-      ]
-    },
-    {
-      "pos": [
-        -11,
-        0,
-        49
-      ],
-      "allowed": [
-        0
-      ],
-      "foods": [
-        "bagel"
-      ]
-    },
-    {
-      "pos": [
-        -1,
-        0,
-        31.5
-      ],
-      "allowed": [
-        0
-      ],
-      "foods": [
-        "popcorn",
-        "bagel"
-      ]
-    },
-    {
-      "pos": [
-        9.5,
-        0,
-        53.8
-      ],
-      "allowed": [
-        1
-      ],
-      "foods": [
-        "sandwich"
-      ]
-    },
-    {
-      "pos": [
-        2.3,
-        0,
-        42.6
-      ],
-      "allowed": [
-        1
-      ],
-      "foods": [
-        "corn"
-      ]
-    },
-    {
-      "pos": [
-        -2.3,
-        0,
-        47.4
-      ],
-      "allowed": [
-        1
-      ],
-      "foods": [
-        "corn"
-      ]
-    },
-    {
-      "pos": [
-        -7,
-        0,
-        40.2
-      ],
-      "allowed": [
-        2
-      ],
-      "foods": [
-        "cotton_candy"
-      ]
-    },
-    {
-      "pos": [
-        -6.3,
-        0,
-        35.2
-      ],
-      "allowed": [
-        2
-      ],
-      "foods": [
-        "cotton_candy"
-      ]
-    },
-    {
-      "pos": [
-        1.45,
-        0.45,
-        45
-      ],
-      "allowed": [
-        3
-      ],
-      "foods": [
-        "cupcake"
-      ]
-    }
+    {"pos": [8, 0, 39.3], "allowed": [0], "foods": ["popcorn", "bagel"]},
+    {"pos": [3, 0, 35.5], "allowed": [0], "foods": ["popcorn", "bagel"]},
+    {"pos": [3, 0, 53.5], "allowed": [0], "foods": ["bagel"]},
+    {"pos": [-3, 0, 50.5], "allowed": [0], "foods": ["popcorn"]},
+    {"pos": [-11, 0, 49], "allowed": [0], "foods": ["bagel"]},
+    {"pos": [-1, 0, 31.5], "allowed": [0], "foods": ["popcorn", "bagel"]},
+    {"pos": [9.5, 0, 53.8], "allowed": [1], "foods": ["sandwich"]},
+    {"pos": [2.3, 0, 42.6], "allowed": [1], "foods": ["corn"]},
+    {"pos": [-2.3, 0, 47.4], "allowed": [1], "foods": ["corn"]},
+    {"pos": [-7, 0, 40.2], "allowed": [2], "foods": ["cotton_candy"]},
+    {"pos": [-6.3, 0, 35.2], "allowed": [2], "foods": ["cotton_candy"]},
+    {"pos": [1.45, 0.45, 45], "allowed": [3], "foods": ["cupcake"]},
+    {"pos": [0, 0.3, 92], "allowed": [2], "foods": ["cotton_candy"]},
+    {"pos": [-11.9, 0, 95.6], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [-4.6, 0, 82.6], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [9.6, 0, 64.9], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [-12.3, 0, 106.1], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [0.2, 0, 68.2], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [33.6, 0, 83.8], "allowed": [0, 1, 3], "foods": ["popcorn", "bagel", "corn", "sandwich", "cupcake"]},
+    {"pos": [42.0, 0, 75.5], "allowed": [0, 1, 3], "foods": ["popcorn", "bagel", "corn", "sandwich", "cupcake"]},
+    {"pos": [32.1, 0, 36.9], "allowed": [0, 1, 3], "foods": ["popcorn", "bagel", "corn", "sandwich", "cupcake"]},
+    {"pos": [37.9, 0, 82.7], "allowed": [0, 1, 3], "foods": ["popcorn", "bagel", "corn", "sandwich", "cupcake"]},
+    {"pos": [40.8, 0, 63.8], "allowed": [0, 1, 3], "foods": ["popcorn", "bagel", "corn", "sandwich", "cupcake"]},
+    {"pos": [37.7, 0, 55.7], "allowed": [0, 1, 3], "foods": ["popcorn", "bagel", "corn", "sandwich", "cupcake"]},
+    {"pos": [30.3, 0, 120.5], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [-41.2, 0, 103.6], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [22.1, 0, 108.4], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [-34.1, 0, 119.4], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [39.8, 0, 108.6], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [-36.8, 0, 121.1], "allowed": [0, 1, 2], "foods": ["popcorn", "bagel", "corn", "sandwich", "cotton_candy"]},
+    {"pos": [-27.5, 0, 43.7], "allowed": [0, 1], "foods": ["popcorn", "bagel", "corn", "sandwich"]},
+    {"pos": [-33.8, 0, 52.9], "allowed": [0, 1], "foods": ["popcorn", "bagel", "corn", "sandwich"]},
+    {"pos": [-31.0, 0, 34.8], "allowed": [0, 1], "foods": ["popcorn", "bagel", "corn", "sandwich"]},
+    {"pos": [-34.6, 0, 86.6], "allowed": [1, 2], "foods": ["corn", "sandwich", "cotton_candy"]},
+    {"pos": [-25.9, 0, 87.2], "allowed": [1, 2], "foods": ["corn", "sandwich", "cotton_candy"]}
   ],
   "yarn": [
-    {
-      "pos": [
-        -1.45,
-        0.45,
-        45
-      ]
-    },
-    {
-      "pos": [
-        0,
-        0.45,
-        46.45
-      ]
-    },
-    {
-      "pos": [
-        -9,
-        0.75,
-        38
-      ]
-    },
-    {
-      "pos": [
-        -5,
-        0.2,
-        36.6
-      ]
-    },
-    {
-      "pos": [
-        12.5,
-        0,
-        57.8
-      ]
-    },
-    {
-      "pos": [
-        -12.6,
-        0,
-        33.2
-      ]
-    },
-    {
-      "pos": [
-        -14,
-        0,
-        60
-      ]
-    },
-    {
-      "pos": [
-        14,
-        0,
-        30.6
-      ]
-    },
-    {
-      "pos": [
-        -14,
-        0,
-        30.6
-      ]
-    },
-    {
-      "pos": [
-        13.7,
-        0,
-        52.5
-      ]
-    },
-    {
-      "pos": [
-        -5.5,
-        0,
-        58.5
-      ]
-    },
-    {
-      "pos": [
-        7.6,
-        0,
-        47.3
-      ]
-    }
-  ],
-  "gates": [
-    {
-      "pos": [
-        12,
-        0,
-        29.9
-      ],
-      "rot": 0,
-      "size": [
-        2.2,
-        2.6,
-        0.3
-      ],
-      "satiety": 25,
-      "label": "Ворота в парк открыты!"
-    }
+    {"pos": [-1.45, 0.45, 45]},
+    {"pos": [0, 0.45, 46.45]},
+    {"pos": [-9, 0.75, 38]},
+    {"pos": [-5, 0.2, 36.6]},
+    {"pos": [12.5, 0, 57.8]},
+    {"pos": [-12.6, 0, 33.2]},
+    {"pos": [-14, 0, 60]},
+    {"pos": [14, 0, 30.6]},
+    {"pos": [-14, 0, 30.6]},
+    {"pos": [13.7, 0, 52.5]},
+    {"pos": [-5.5, 0, 58.5]},
+    {"pos": [7.6, 0, 47.3]},
+    {"pos": [0.8, 0.3, 92.6]},
+    {"pos": [-0.8, 0.3, 91.4]},
+    {"pos": [13.6, 0, 107.5]},
+    {"pos": [-10.2, 0, 78.4]},
+    {"pos": [25.8, 0, 84.6]},
+    {"pos": [27.9, 0, 48.8]},
+    {"pos": [35.4, 0, 75.5]},
+    {"pos": [27.1, 0, 37.5]},
+    {"pos": [-6.6, 0, 118.5]},
+    {"pos": [5.6, 0, 121.2]},
+    {"pos": [8.0, 0, 113.5]},
+    {"pos": [-3.4, 0, 107.7]},
+    {"pos": [12.9, 0, 119.1]},
+    {"pos": [-41.1, 0, 45.8]},
+    {"pos": [-40.4, 0, 36.5]},
+    {"pos": [-21.9, 0, 97.8]}
   ],
   "hazards": [
-    {
-      "type": "pigeons",
-      "pos": [
-        3.2,
-        0,
-        47.5
-      ]
-    },
-    {
-      "type": "pigeons",
-      "pos": [
-        -3.5,
-        0,
-        33.2
-      ]
-    },
-    {
-      "type": "gardener",
-      "pos": [
-        11,
-        0,
-        54.3
-      ],
-      "rot": 180,
-      "path": [
-        [
-          11,
-          50
-        ],
-        [
-          12,
-          39
-        ],
-        [
-          6,
-          38.5
-        ],
-        [
-          1,
-          38.5
-        ],
-        [
-          1,
-          52
-        ],
-        [
-          10,
-          53
-        ]
-      ]
-    },
-    {
-      "type": "sprinkler",
-      "pos": [
-        -7,
-        0,
-        52
-      ],
-      "offset": 0
-    },
-    {
-      "type": "sprinkler",
-      "pos": [
-        7,
-        0,
-        33.5
-      ],
-      "offset": 7
-    },
-    {
-      "type": "sprinkler",
-      "pos": [
-        9,
-        0,
-        46
-      ],
-      "offset": 14
-    },
-    {
-      "type": "kid",
-      "pos": [
-        -7.5,
-        0,
-        41
-      ],
-      "rot": 90
-    },
-    {
-      "type": "guard",
-      "pos": [
-        0,
-        0,
-        31
-      ],
-      "rot": 180,
-      "path": [
-        [
-          0,
-          31
-        ],
-        [
-          0,
-          58
-        ],
-        [
-          -13,
-          58
-        ],
-        [
-          -13,
-          45
-        ],
-        [
-          0,
-          45
-        ],
-        [
-          13,
-          45
-        ],
-        [
-          13,
-          31
-        ]
-      ]
-    }
+    {"type": "pigeons", "pos": [3.2, 0, 47.5]},
+    {"type": "pigeons", "pos": [-3.5, 0, 33.2]},
+    {"type": "gardener", "pos": [11, 0, 54.3], "rot": 180, "path": [[11, 50], [12, 39], [6, 38.5], [1, 38.5], [1, 52], [10, 53]]},
+    {"type": "sprinkler", "pos": [-7, 0, 52], "offset": 0},
+    {"type": "sprinkler", "pos": [7, 0, 33.5], "offset": 7},
+    {"type": "sprinkler", "pos": [9, 0, 46], "offset": 14},
+    {"type": "kid", "pos": [-7.5, 0, 41], "rot": 90},
+    {"type": "guard", "pos": [0, 0, 31], "rot": 180, "path": [[0, 31], [0, 58], [-13, 58], [-13, 45], [0, 45], [13, 45], [13, 31]]},
+    {"type": "pigeons", "pos": [-4, 0, 80]},
+    {"type": "kid", "pos": [-22, 0, 82], "rot": 180},
+    {"type": "gardener", "pos": [16.5, 0, 40], "rot": 0, "path": [[16.5, 40], [16.5, 86], [30, 90], [16.5, 86]]},
+    {"type": "pigeons", "pos": [20, 0, 92]},
+    {"type": "sprinkler", "pos": [-20, 0, 110], "offset": 3},
+    {"type": "sprinkler", "pos": [20, 0, 112], "offset": 10},
+    {"type": "sprinkler", "pos": [-30, 0, 40], "offset": 17},
+    {"type": "guard", "pos": [-10, 0, 70], "rot": 0, "path": [[-10, 70], [-12, 104], [12, 104], [14, 70]]}
+  ],
+  "decals": [
+  ],
+  "gates": [
+    {"pos": [12, 0, 29.9], "rot": 0, "size": [2.2, 2.6, 0.3], "satiety": 25, "label": "Ворота в парк открыты!"}
+  ],
+  "water_zones": [
+    {"pos": [-28, -0.5, 66], "size": [22, 2.0, 22]}
+  ],
+  "shore": [
+    {"pos": [-15.5, 0, 66.0]},
+    {"pos": [-19.16, 0, 74.84]},
+    {"pos": [-28.0, 0, 78.5]},
+    {"pos": [-36.84, 0, 74.84]},
+    {"pos": [-40.5, 0, 66.0]},
+    {"pos": [-36.84, 0, 57.16]},
+    {"pos": [-28.0, 0, 53.5]},
+    {"pos": [-19.16, 0, 57.16]}
   ]
 }

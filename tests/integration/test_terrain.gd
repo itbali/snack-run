@@ -176,8 +176,22 @@ func test_cat_cannot_walk_up_a_one_metre_terrace() -> void:
 
 func test_flat_tiles_are_two_triangles() -> void:
 	# План 11: плоский тайл 30×30 — 2 треугольника вместо 1800 (спек: ≤ 40 000 на район).
+	# Плоский рельеф 61×61 пишется прямо в тесте: районы игры теперь холмистые (планы 11–12).
+	var n := 61
+	var rows := []
+	for j in n:
+		var row := []
+		row.resize(n)
+		row.fill(0.0)
+		rows.append(row)
+	var splat := PackedByteArray()
+	splat.resize(n * n * 4)
+	var f := FileAccess.open("user://flat_terrain.json", FileAccess.WRITE)
+	f.store_string(JSON.stringify({"nx": n, "nz": n, "cell": 1.0, "origin": [-30, -30], "size": [60, 60],
+		"heights": rows, "splat": Marshalls.raw_to_base64(splat)}))
+	f.close()
 	var flat := Terrain.new()
-	flat.data_path = "res://data/terrain/park.json"   # плоский район
+	flat.data_path = "user://flat_terrain.json"
 	add_child_autofree(flat)
 	await wait_physics_frames(1)
 	var tiles := flat.find_children("Tile*", "MeshInstance3D", false, false)

@@ -1,0 +1,1011 @@
+{
+ "name": "park",
+ "seed": 12,
+ "core": "data/layout_src/park_core.json",
+ "note": "Парк ×3 (спек «Масштаб ×3 и рельеф»): ядро — прежний парк (поляна с фонтаном); холм с беседкой, пруд, роща, северный луг.",
+ "terrain": {
+  "size": [
+   90,
+   96
+  ],
+  "origin": [
+   -45,
+   29
+  ],
+  "cell": 1.0,
+  "base": 0.01,
+  "channels": [
+   "asphalt",
+   "paving",
+   "grass",
+   "gravel"
+  ],
+  "default": "grass",
+  "features": [],
+  "paint": [
+   {
+    "rect": [
+     -1.1,
+     29,
+     1.1,
+     61
+    ],
+    "type": "gravel"
+   },
+   {
+    "rect": [
+     -15,
+     43.9,
+     15,
+     46.1
+    ],
+    "type": "gravel"
+   },
+   {
+    "rect": [
+     10.9,
+     29,
+     13.1,
+     38
+    ],
+    "type": "gravel"
+   },
+   {
+    "rect": [
+     0,
+     36.9,
+     12,
+     39.1
+    ],
+    "type": "gravel"
+   },
+   {
+    "rect": [
+     -12,
+     40.9,
+     -4,
+     43.1
+    ],
+    "type": "gravel"
+   }
+  ]
+ },
+ "counts": {
+  "spawn_points": 35,
+  "yarn": 25,
+  "hideouts": 14
+ },
+ "zones": [
+  {
+   "name": "край парка",
+   "ops": [
+    {
+     "type": "perimeter",
+     "rect": [
+      -45,
+      29.9,
+      45,
+      125
+     ],
+     "model": "fence",
+     "length": 2.0,
+     "sides": "swe",
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         2.0,
+         1.8,
+         0.12
+        ],
+        "offset": [
+         0,
+         0.9,
+         0
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "холм с беседкой",
+   "ops": [
+    {
+     "type": "hill",
+     "center": [
+      0,
+      92
+     ],
+     "radius": 18,
+     "height": 3
+    },
+    {
+     "type": "paint",
+     "rect": [
+      -1.5,
+      61,
+      1.5,
+      90
+     ],
+     "surface": "gravel"
+    },
+    {
+     "type": "place",
+     "props": [
+      {
+       "model": "gazebo",
+       "pos": [
+        0,
+        0,
+        92
+       ],
+       "rot": 0,
+       "colliders": [
+        {
+         "size": [
+          3.4,
+          0.3,
+          3.4
+         ],
+         "offset": [
+          0,
+          0.15,
+          0
+         ]
+        },
+        {
+         "size": [
+          0.16,
+          2.2,
+          0.16
+         ],
+         "offset": [
+          1.85,
+          1.4,
+          0.0
+         ]
+        },
+        {
+         "size": [
+          0.16,
+          2.2,
+          0.16
+         ],
+         "offset": [
+          0.925,
+          1.4,
+          1.602
+         ]
+        },
+        {
+         "size": [
+          0.16,
+          2.2,
+          0.16
+         ],
+         "offset": [
+          -0.925,
+          1.4,
+          1.602
+         ]
+        },
+        {
+         "size": [
+          0.16,
+          2.2,
+          0.16
+         ],
+         "offset": [
+          -1.85,
+          1.4,
+          0.0
+         ]
+        },
+        {
+         "size": [
+          0.16,
+          2.2,
+          0.16
+         ],
+         "offset": [
+          -0.925,
+          1.4,
+          -1.602
+         ]
+        },
+        {
+         "size": [
+          0.16,
+          2.2,
+          0.16
+         ],
+         "offset": [
+          0.925,
+          1.4,
+          -1.602
+         ]
+        }
+       ]
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        2.5,
+        0,
+        64
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        2.5,
+        0,
+        68
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        2.5,
+        0,
+        72
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        2.5,
+        0,
+        76
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        2.5,
+        0,
+        80
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        2.5,
+        0,
+        84
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bench",
+       "pos": [
+        -3,
+        0,
+        78
+       ],
+       "rot": 90
+      },
+      {
+       "model": "bench",
+       "pos": [
+        5,
+        0,
+        98
+       ],
+       "rot": 0
+      }
+     ],
+     "spawn_points": [
+      {
+       "pos": [
+        0,
+        0.3,
+        92
+       ],
+       "allowed": [
+        2
+       ],
+       "foods": [
+        "cotton_candy"
+       ]
+      }
+     ],
+     "yarn": [
+      {
+       "pos": [
+        0.8,
+        0.3,
+        92.6
+       ]
+      },
+      {
+       "pos": [
+        -0.8,
+        0.3,
+        91.4
+       ]
+      }
+     ],
+     "hazards": [
+      {
+       "type": "pigeons",
+       "pos": [
+        -4,
+        0,
+        80
+       ]
+      }
+     ]
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush",
+     "rect": [
+      -14,
+      66,
+      14,
+      110
+     ],
+     "count": 6,
+     "rot": "random",
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      -14,
+      64,
+      14,
+      110
+     ],
+     "count": 5,
+     "allowed": [
+      0,
+      1,
+      2
+     ],
+     "foods": [
+      "popcorn",
+      "bagel",
+      "corn",
+      "sandwich",
+      "cotton_candy"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      -14,
+      64,
+      14,
+      110
+     ],
+     "count": 2,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "bench",
+     "rect": [
+      -14,
+      64,
+      14,
+      110
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "пруд",
+   "ops": [
+    {
+     "type": "pond",
+     "center": [
+      -28,
+      66
+     ],
+     "radius": 11,
+     "depth": 1.5,
+     "level": -0.5
+    },
+    {
+     "type": "place",
+     "props": [
+      {
+       "model": "grass",
+       "pos": [
+        -16.4,
+        0,
+        69.08
+       ],
+       "rot": 14,
+       "solid": false
+      },
+      {
+       "model": "grass",
+       "pos": [
+        -19.5,
+        0,
+        74.47
+       ],
+       "rot": 44,
+       "solid": false
+      },
+      {
+       "model": "grass",
+       "pos": [
+        -24.87,
+        0,
+        77.59
+       ],
+       "rot": 74,
+       "solid": false
+      },
+      {
+       "model": "grass",
+       "pos": [
+        -31.08,
+        0,
+        77.6
+       ],
+       "rot": 104,
+       "solid": false
+      },
+      {
+       "model": "grass",
+       "pos": [
+        -36.47,
+        0,
+        74.5
+       ],
+       "rot": 134,
+       "solid": false
+      },
+      {
+       "model": "grass",
+       "pos": [
+        -39.59,
+        0,
+        69.13
+       ],
+       "rot": 164,
+       "solid": false
+      },
+      {
+       "model": "grass",
+       "pos": [
+        -39.6,
+        0,
+        62.92
+       ],
+       "rot": 193,
+       "solid": false
+      },
+      {
+       "model": "grass",
+       "pos": [
+        -36.5,
+        0,
+        57.53
+       ],
+       "rot": 223,
+       "solid": false
+      },
+      {
+       "model": "grass",
+       "pos": [
+        -31.13,
+        0,
+        54.41
+       ],
+       "rot": 253,
+       "solid": false
+      },
+      {
+       "model": "grass",
+       "pos": [
+        -24.92,
+        0,
+        54.4
+       ],
+       "rot": 283,
+       "solid": false
+      },
+      {
+       "model": "grass",
+       "pos": [
+        -19.53,
+        0,
+        57.5
+       ],
+       "rot": 313,
+       "solid": false
+      },
+      {
+       "model": "grass",
+       "pos": [
+        -16.41,
+        0,
+        62.87
+       ],
+       "rot": 343,
+       "solid": false
+      }
+     ],
+     "hazards": [
+      {
+       "type": "kid",
+       "pos": [
+        -22,
+        0,
+        82
+       ],
+       "rot": 180
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "роща",
+   "ops": [
+    {
+     "type": "place",
+     "hazards": [
+      {
+       "type": "gardener",
+       "pos": [
+        16.5,
+        0,
+        40
+       ],
+       "rot": 0,
+       "path": [
+        [
+         16.5,
+         40
+        ],
+        [
+         16.5,
+         86
+        ],
+        [
+         30,
+         90
+        ],
+        [
+         16.5,
+         86
+        ]
+       ]
+      },
+      {
+       "type": "pigeons",
+       "pos": [
+        20,
+        0,
+        92
+       ]
+      }
+     ],
+     "props": [
+      {
+       "model": "bench",
+       "pos": [
+        21,
+        0,
+        94
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bench",
+       "pos": [
+        24,
+        0,
+        94
+       ],
+       "rot": 0
+      }
+     ]
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree",
+     "rect": [
+      18,
+      36,
+      43,
+      88
+     ],
+     "count": 18,
+     "rot": "random",
+     "min_dist": 3.5
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush",
+     "rect": [
+      18,
+      36,
+      43,
+      88
+     ],
+     "count": 10,
+     "rot": "random",
+     "min_dist": 2.5
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      18,
+      36,
+      43,
+      88
+     ],
+     "count": 6,
+     "allowed": [
+      0,
+      1,
+      3
+     ],
+     "foods": [
+      "popcorn",
+      "bagel",
+      "corn",
+      "sandwich",
+      "cupcake"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      18,
+      36,
+      43,
+      88
+     ],
+     "count": 4,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "bush",
+     "rect": [
+      18,
+      36,
+      43,
+      88
+     ],
+     "count": 4,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "северный луг",
+   "ops": [
+    {
+     "type": "place",
+     "props": [
+      {
+       "model": "flowerbed",
+       "pos": [
+        -30,
+        0,
+        116
+       ],
+       "rot": 0
+      },
+      {
+       "model": "flowerbed",
+       "pos": [
+        -10,
+        0,
+        116
+       ],
+       "rot": 0
+      },
+      {
+       "model": "flowerbed",
+       "pos": [
+        10,
+        0,
+        116
+       ],
+       "rot": 0
+      },
+      {
+       "model": "flowerbed",
+       "pos": [
+        30,
+        0,
+        116
+       ],
+       "rot": 0
+      }
+     ],
+     "hazards": [
+      {
+       "type": "sprinkler",
+       "pos": [
+        -20,
+        0,
+        110
+       ],
+       "offset": 3
+      },
+      {
+       "type": "sprinkler",
+       "pos": [
+        20,
+        0,
+        112
+       ],
+       "offset": 10
+      },
+      {
+       "type": "sprinkler",
+       "pos": [
+        -30,
+        0,
+        40
+       ],
+       "offset": 17
+      },
+      {
+       "type": "guard",
+       "pos": [
+        -10,
+        0,
+        70
+       ],
+       "rot": 0,
+       "path": [
+        [
+         -10,
+         70
+        ],
+        [
+         -12,
+         104
+        ],
+        [
+         12,
+         104
+        ],
+        [
+         14,
+         70
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush",
+     "rect": [
+      -43,
+      100,
+      43,
+      123
+     ],
+     "count": 8,
+     "rot": "random",
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "grass",
+     "rect": [
+      -43,
+      100,
+      43,
+      123
+     ],
+     "count": 12,
+     "rot": "random",
+     "min_dist": 2.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      -43,
+      100,
+      43,
+      123
+     ],
+     "count": 6,
+     "allowed": [
+      0,
+      1,
+      2
+     ],
+     "foods": [
+      "popcorn",
+      "bagel",
+      "corn",
+      "sandwich",
+      "cotton_candy"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      -43,
+      100,
+      43,
+      123
+     ],
+     "count": 5,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "bush",
+     "rect": [
+      -43,
+      100,
+      43,
+      123
+     ],
+     "count": 3,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "bench",
+     "rect": [
+      -43,
+      100,
+      43,
+      123
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "западные поляны",
+   "ops": [
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree",
+     "rect": [
+      -43,
+      31,
+      -17,
+      53
+     ],
+     "count": 5,
+     "rot": "random",
+     "min_dist": 4.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree",
+     "rect": [
+      -43,
+      80,
+      -17,
+      98
+     ],
+     "count": 5,
+     "rot": "random",
+     "min_dist": 4.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      -43,
+      31,
+      -17,
+      53
+     ],
+     "count": 3,
+     "allowed": [
+      0,
+      1
+     ],
+     "foods": [
+      "popcorn",
+      "bagel",
+      "corn",
+      "sandwich"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      -43,
+      80,
+      -17,
+      98
+     ],
+     "count": 2,
+     "allowed": [
+      1,
+      2
+     ],
+     "foods": [
+      "corn",
+      "sandwich",
+      "cotton_candy"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      -43,
+      31,
+      -17,
+      53
+     ],
+     "count": 2,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      -43,
+      80,
+      -17,
+      98
+     ],
+     "count": 1,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "bush",
+     "rect": [
+      -43,
+      31,
+      -17,
+      98
+     ],
+     "count": 2,
+     "min_dist": 3.0
+    }
+   ]
+  }
+ ]
+}

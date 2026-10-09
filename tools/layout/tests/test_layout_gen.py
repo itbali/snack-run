@@ -187,3 +187,9 @@ class Generate(unittest.TestCase):
 		layout, _ = lg.generate(json.loads((ROOT / "data/layout_src/yard.json").read_text()))
 		keys = {tuple(y["pos"]) for y in layout["yarn"]}
 		self.assertTrue(all(tuple(y["pos"]) in keys for y in core["yarn"]), "клубочки ядра на прежних местах")
+
+	def test_core_park_yarn_keys_preserved(self):
+		core = json.loads((ROOT / "data/layout_src/park_core.json").read_text())
+		layout, _ = lg.generate(json.loads((ROOT / "data/layout_src/park.json").read_text()))
+		keys = {tuple(y["pos"]) for y in layout["yarn"]}
+		self.assertTrue(all(tuple(y["pos"]) in keys for y in core["yarn"]), "клубочки ядра парка на прежних местах")

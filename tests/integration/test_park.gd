@@ -36,7 +36,7 @@ func test_park_layout_has_the_spec_content() -> void:
 	for m in ["fountain", "slide", "swings", "sandbox", "kiosk", "shed", "lamp", "bench", "fence", "tree", "flowerbed"]:
 		assert_gt(models.get(m, 0), 0, "в парке есть %s" % m)
 	assert_gte(models.get("lamp", 0), 8, "аллея фонарей")
-	assert_between(d["yarn"].size(), 10, 15, "10–15 клубочков")
+	assert_gte(d["yarn"].size(), 25, "парк ×3: не меньше 25 клубочков (спек «Масштаб», раздел 2)")
 	var kinds := {}
 	for h in d["hideouts"]:
 		kinds[h["kind"]] = true
@@ -109,7 +109,8 @@ func test_park_is_fenced_and_floored() -> void:
 	var world := _park_with_floor()
 	await wait_physics_frames(3)
 	var space := world.get_world_3d().direct_space_state
-	for p in [Vector3(-14.5, 0.5, 45), Vector3(14.5, 0.5, 45), Vector3(0, 0.5, 60.9), Vector3(-5, 0.5, 30)]:
+	# План 12: края парка ×3 (x ±45, z 125) проверяет test_park_x3; здесь — южный забор ядра у двора.
+	for p in [Vector3(-5, 0.5, 30), Vector3(5, 0.5, 30)]:
 		var from := Vector3(0, 0.5, 45)
 		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(from + (p - from).normalized() * 3.0, p + (p - from).normalized() * 1.5, Layers.WORLD))
 		assert_false(hit.is_empty(), "к %s не выйти: забор" % p)
@@ -159,7 +160,7 @@ func test_park_hazards_are_placed() -> void:
 	var types := {}
 	for hz in WorldBuilder.load_layout(PARK)["hazards"]:
 		types[hz["type"]] = types.get(hz["type"], 0) + 1
-	assert_eq(types.get("sprinkler", 0), 3, "три зоны дождевателей")
+	assert_eq(types.get("sprinkler", 0), 6, "парк ×3: шесть дождевателей")
 	for t in ["pigeons", "gardener", "kid", "guard"]:
 		assert_gt(types.get(t, 0), 0, "в парке есть %s" % t)
 	var b := WorldBuilder.new()
