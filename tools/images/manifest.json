@@ -195,6 +195,12 @@
       "note": "иконка капкейка",
       "prompt": "Game icon of a cupcake with swirled pink frosting, sprinkles and a cherry on top, paper cup in sky blue #659ECF, centered, transparent background",
       "background": "transparent"
+    },
+    {
+      "file": "assets/images/textures/stone.png",
+      "note": "бесшовный камень (обрывы, подпорные стены)",
+      "model": "gpt-image-2.5-sunburst",
+      "prompt": "Seamless tileable texture of a stylized cartoon stone retaining wall seen straight on, irregular rounded stones in sand (#D3AB87), cream (#FCD3A1) and soft grey tones with darker mortar lines, flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly on all four sides, no text"
     }
   ]
 }

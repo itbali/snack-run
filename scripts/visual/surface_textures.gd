@@ -12,6 +12,7 @@ const TABLE := {
 	"wall": ["stucco.png", 4.5],
 	"lawn": ["grass.png", 2.0],
 	"path": ["gravel.png", 0.8],
+	"retaining_wall": ["stone.png", 3.0],
 }
 
 
