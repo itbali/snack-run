@@ -6,7 +6,7 @@ PHASE   ?=
 AT      ?=
 TEMPLATES_DIR := $(HOME)/Library/Application Support/Godot/export_templates/4.7.2.stable
 
-.PHONY: import test test-godot test-blender test-tools terrain assets shot run replay sfx templates export images
+.PHONY: import test test-godot test-blender test-tools terrain layout assets shot run replay sfx templates export images
 
 import:
 	$(GODOT) --headless --path . --import
@@ -15,6 +15,11 @@ test: test-tools test-blender test-godot
 
 test-tools:
 	set -o pipefail; python3 -m unittest discover -s tools/terrain/tests -p "test_*.py" 2>&1 | tail -3
+	set -o pipefail; python3 -m unittest discover -s tools/layout/tests -p "test_*.py" 2>&1 | tail -3
+
+layout:
+	for f in data/layout_src/*.json; do case $$f in *_core.json) ;; *) python3 tools/layout/layout_gen.py $$f || exit 1;; esac; done
+	$(MAKE) terrain
 
 terrain:
 	python3 tools/terrain/terrain_gen.py
