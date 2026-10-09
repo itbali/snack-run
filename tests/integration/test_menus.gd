@@ -39,6 +39,8 @@ func test_album_shows_cards_locked_and_unlocked() -> void:
 	assert_eq((donut.get_node("Name") as Label).text, "???")
 	assert_almost_eq(donut.modulate.a, 0.4, 0.01)
 	assert_eq((donut.get_node("Rarity") as ColorRect).color, Rarity.COLORS[Rarity.Tier.LEGENDARY])
+	assert_not_null((pizza.get_node("Icon") as TextureRect).texture, "у карточки иконка")
+	assert_lt((donut.get_node("Icon") as TextureRect).self_modulate.r, 0.5, "закрытая карточка — тёмный силуэт")
 	main.toggle_album()
 	assert_false(main.album_menu.is_open)
 	assert_false(get_tree().paused, "после закрытия альбома игра не заморожена")
@@ -84,6 +86,7 @@ func test_title_offers_continue_only_with_save() -> void:
 	add_child_autofree(title)
 	assert_false((title.get_node("VBox/Continue") as Button).visible, "без сохранения «Продолжить» скрыта")
 	assert_eq((title.get_node("VBox/Play") as Button).text, "Новая игра")
+	assert_not_null((title.get_node("Background") as TextureRect).texture, "фон заставки — арт")
 	SaveGame.save_now()
 	var title2 := (load("res://scenes/ui/title.tscn") as PackedScene).instantiate()
 	title2.switch_scenes = false

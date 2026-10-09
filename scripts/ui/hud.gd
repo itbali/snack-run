@@ -21,11 +21,19 @@ func _ready() -> void:
 	_bell_panel.visible = false
 	for i in MAX_MOUTH:
 		var panel := PanelContainer.new()
-		panel.custom_minimum_size = Vector2(90, 32)
+		panel.custom_minimum_size = Vector2(64, 64)
+		var row := HBoxContainer.new()
+		var icon := TextureRect.new()
+		icon.name = "Icon"
+		icon.custom_minimum_size = Vector2(48, 48)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		row.add_child(icon)
 		var label := Label.new()
 		label.name = "Name"
-		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		panel.add_child(label)
+		label.visible = false   # текст остаётся для тестов и подписи, в кадре — иконка еды
+		row.add_child(label)
+		panel.add_child(row)
 		_mouth.add_child(panel)
 	GameState.hearts_changed.connect(_on_hearts)
 	GameState.mouth_changed.connect(_on_mouth)
@@ -50,7 +58,7 @@ func mouth_names() -> Array[String]:
 	var out: Array[String] = []
 	for panel in _mouth.get_children():
 		if panel.visible:
-			out.append((panel.get_node("Name") as Label).text)
+			out.append((panel.find_child("Name", true, false) as Label).text)
 	return out
 
 
@@ -81,8 +89,9 @@ func _on_hearts(hearts: int, max_hearts: int) -> void:
 func _on_mouth(items: Array) -> void:
 	var panels := _mouth.get_children()
 	for i in panels.size():
-		var label := panels[i].get_node("Name") as Label
+		var label := panels[i].find_child("Name", true, false) as Label
 		label.text = items[i].display_name if i < items.size() else ""
+		(panels[i].find_child("Icon", true, false) as TextureRect).texture = items[i].icon() if i < items.size() else null
 
 
 func satiety_label_text() -> String:

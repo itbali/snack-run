@@ -43,6 +43,15 @@ func test_mouth_slots_grow_with_capacity_upgrade() -> void:
 		GameState.pick_up(FoodCatalog.get_by_id(StringName(id)))
 	assert_eq(hud.mouth_names()[4], "Рыба", "пятая еда видна в HUD")
 
+func test_mouth_slot_shows_food_icon() -> void:
+	GameState.pick_up(FoodCatalog.get_by_id(&"pizza"))
+	var icon := hud.get_node("%Mouth").get_child(0).find_child("Icon", true, false) as TextureRect
+	assert_not_null(icon.texture, "в слоте иконка пиццы")
+	if icon.texture:
+		assert_eq(icon.texture.resource_path, "res://assets/images/ui/food_pizza.png")
+	GameState.eat_all()
+	assert_null((hud.get_node("%Mouth").get_child(0).find_child("Icon", true, false) as TextureRect).texture, "пустой слот без иконки")
+
 func test_hud_elements_sit_on_white_panels() -> void:
 	# Спек 2.6: сердечки, сытость и клубочки на одной плашке; цель и звонок — на своих.
 	for path in ["%Hearts", "%Satiety", "%Yarn", "%Goal", "%Bell"]:

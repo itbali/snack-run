@@ -32,6 +32,13 @@ func _make_card(f: FoodDef) -> Control:
 	strip.color = Rarity.COLORS[f.tier]
 	strip.custom_minimum_size = Vector2(0, 8)
 	card.add_child(strip)
+	var icon := TextureRect.new()
+	icon.name = "Icon"
+	icon.custom_minimum_size = Vector2(96, 96)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.texture = f.icon()
+	card.add_child(icon)
 	var name_label := Label.new()
 	name_label.name = "Name"
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -71,3 +78,4 @@ func refresh() -> void:
 		(card.get_node("Name") as Label).text = f.display_name if n > 0 else "???"
 		(card.get_node("Count") as Label).text = "×%d" % n
 		card.modulate.a = 1.0 if n > 0 else LOCKED_ALPHA
+		(card.get_node("Icon") as TextureRect).self_modulate = Color.WHITE if n > 0 else Color(0.2, 0.2, 0.25)   # серый силуэт (спек 2.6)

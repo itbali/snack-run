@@ -11,3 +11,13 @@ extends Resource
 
 func satiety() -> int:
 	return Rarity.SATIETY[tier]
+
+
+func icon_path() -> String:
+	return "res://assets/images/ui/food_%s.png" % id
+
+
+func icon() -> Texture2D:
+	## Иконка из сгенерированных картинок; без файла — null (пустой слот, не ошибка).
+	var path := icon_path()
+	return load(path) as Texture2D if ResourceLoader.exists(path) else null

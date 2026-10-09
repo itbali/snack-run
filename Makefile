@@ -4,7 +4,7 @@ BLENDER ?= /Applications/Blender.app/Contents/MacOS/Blender
 SHOT    ?= build/shot.png
 TEMPLATES_DIR := $(HOME)/Library/Application Support/Godot/export_templates/4.7.2.stable
 
-.PHONY: import test test-godot test-blender assets shot run replay sfx templates export
+.PHONY: import test test-godot test-blender assets shot run replay sfx templates export images
 
 import:
 	$(GODOT) --headless --path . --import
@@ -35,6 +35,9 @@ replay:
 
 sfx:
 	python3 tools/audio/gen_sfx.py
+
+images:
+	python3 tools/images/gen.py $(if $(FORCE),--force,)
 
 templates:
 	mkdir -p "$(TEMPLATES_DIR)" build
