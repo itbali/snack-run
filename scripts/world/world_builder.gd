@@ -152,7 +152,9 @@ func _build_floater(f: Dictionary) -> void:
 	model.name = "Model"
 	body.add_child(model)
 	var colliders: Array = f.get("colliders", [])
-	if colliders.is_empty():
+	if not bool(f.get("solid", true)):
+		body.solid = false   # декоративная опора (буёк): на неё не встать
+	elif colliders.is_empty():
 		var aabb := _model_aabb(model)
 		colliders = [{"size": [aabb.size.x, aabb.size.y, aabb.size.z],
 			"offset": [aabb.position.x + aabb.size.x / 2, aabb.position.y + aabb.size.y / 2, aabb.position.z + aabb.size.z / 2]}]

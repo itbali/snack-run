@@ -124,3 +124,9 @@ func test_album_with_twenty_cards_fits_the_window() -> void:
 	assert_lte(need.y, 700.0, "альбом по высоте влезает в 720: %s" % need)
 	assert_lte(need.x, 1260.0, "альбом по ширине влезает в 1280: %s" % need)
 	m.toggle_album()
+
+func test_dev_album_fill_does_not_touch_the_save() -> void:
+	# Ревью плана 13: ++ --album открывал все карточки и сохранял их в настоящий save.json.
+	DevTools.fill_album(main)
+	assert_false(main.autosave, "кадр альбома не пишет сохранение")
+	main.autosave = true

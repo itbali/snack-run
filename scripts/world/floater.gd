@@ -7,6 +7,7 @@ extends AnimatableBody3D
 @export var roll_deg := 6.0
 @export var period := 3.5
 @export var phase := 0.0
+@export var solid := true   # false — декоративная опора (буёк), без коллизии
 var base: Transform3D
 var _t := 0.0
 
@@ -19,7 +20,7 @@ static func offset_at(t: float, a: float, roll: float, p: float, ph: float) -> V
 
 func _ready() -> void:
 	add_to_group("floaters")
-	collision_layer = Layers.WORLD
+	collision_layer = Layers.WORLD if solid else 0
 	collision_mask = 0
 	sync_to_physics = true
 	base = transform

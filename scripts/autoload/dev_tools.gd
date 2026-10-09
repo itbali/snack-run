@@ -42,14 +42,21 @@ func _open_album_later() -> void:
 	## Кадр альбома: ++ --album открывает альбом со всеми карточками (план 13: 20 вкусняшек).
 	for i in 6:
 		await get_tree().process_frame
-	for f in FoodCatalog.all():
-		GameState.album[f.id] = GameState.album.get(f.id, 0) + 1
-	GameState.album_changed.emit(GameState.album)
 	var main := get_tree().get_first_node_in_group("main")
 	if main == null:
 		main = get_tree().current_scene
+	fill_album(main)
 	if main and main.has_method("toggle_album"):
 		main.call("toggle_album")
+
+
+func fill_album(main: Node) -> void:
+	## Все карточки — только для кадра: автосохранение выключается, настоящий save.json не меняется (ревью плана 13).
+	if main and "autosave" in main:
+		main.set("autosave", false)
+	for f in FoodCatalog.all():
+		GameState.album[f.id] = maxi(int(GameState.album.get(f.id, 0)), 1)
+	GameState.album_changed.emit(GameState.album)
 
 
 func _screenshot_and_quit(path: String) -> void:
