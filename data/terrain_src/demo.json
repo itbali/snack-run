@@ -1,0 +1,16 @@
+{
+  "note": "Демо-рельеф для тестов и кадров: холм, низина, терраса 2 м, гравийная дорожка, газон на холме.",
+  "size": [40, 40], "origin": [-20, -20], "cell": 1.0, "base": 0.0,
+  "channels": ["asphalt", "paving", "grass", "gravel"], "default": "paving",
+  "features": [
+    {"type": "hill", "center": [8, 8], "radius": 10, "height": 3},
+    {"type": "basin", "center": [-10, 10], "radius": 6, "depth": 1},
+    {"type": "terrace", "rect": [-18, -18, -6, -8], "height": 2}
+  ],
+  "paint": [
+    {"circle": [8, 8, 9], "type": "grass", "soft": 3},
+    {"circle": [-10, 10, 6], "type": "grass", "soft": 2},
+    {"rect": [-20, -2, 20, 0], "type": "gravel", "soft": 1},
+    {"rect": [-18, -18, -6, -8], "type": "asphalt"}
+  ]
+}

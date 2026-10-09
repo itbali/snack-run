@@ -1,0 +1,68 @@
+{
+  "note": "Парк 30×32 (до масштаба ×3): плоский газон, гравийные дорожки как прежний park_ground.glb.",
+  "size": [
+    30,
+    32
+  ],
+  "origin": [
+    -15,
+    29
+  ],
+  "cell": 1.0,
+  "base": 0.01,
+  "channels": [
+    "asphalt",
+    "paving",
+    "grass",
+    "gravel"
+  ],
+  "default": "grass",
+  "features": [],
+  "paint": [
+    {
+      "rect": [
+        -1.1,
+        29,
+        1.1,
+        61
+      ],
+      "type": "gravel"
+    },
+    {
+      "rect": [
+        -15,
+        43.9,
+        15,
+        46.1
+      ],
+      "type": "gravel"
+    },
+    {
+      "rect": [
+        10.9,
+        29,
+        13.1,
+        38
+      ],
+      "type": "gravel"
+    },
+    {
+      "rect": [
+        0,
+        36.9,
+        12,
+        39.1
+      ],
+      "type": "gravel"
+    },
+    {
+      "rect": [
+        -12,
+        40.9,
+        -4,
+        43.1
+      ],
+      "type": "gravel"
+    }
+  ]
+}

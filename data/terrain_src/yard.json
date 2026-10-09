@@ -1,0 +1,32 @@
+{
+  "note": "Двор с кафе 60×60 (до масштаба ×3): плоский, асфальт и плитка тротуара как прежний ground.glb.",
+  "size": [
+    60,
+    60
+  ],
+  "origin": [
+    -30,
+    -30
+  ],
+  "cell": 1.0,
+  "base": 0.0,
+  "channels": [
+    "asphalt",
+    "paving",
+    "grass",
+    "gravel"
+  ],
+  "default": "asphalt",
+  "features": [],
+  "paint": [
+    {
+      "rect": [
+        -25,
+        -25,
+        5,
+        5
+      ],
+      "type": "paving"
+    }
+  ]
+}
