@@ -80,7 +80,7 @@ def _local(origin, rot, dx, dz):
 SIDES = {"n": 0, "s": 180, "w": 90, "e": -90}   # стена дома лицом внутрь прямоугольника
 
 
-def perimeter(rect, model="wall", length=6.0, sides="nswe", gaps=()):
+def perimeter(rect, model="wall", length=6.0, sides="nswe", gaps=(), extra=None):
 	"""Модули стен по сторонам rect; gaps — [(сторона, центр вдоль стороны, ширина)] — проходы без стен."""
 	x0, z0, x1, z1 = rect
 	out = []
@@ -102,7 +102,7 @@ def perimeter(rect, model="wall", length=6.0, sides="nswe", gaps=()):
 			line = (z0 if side == "n" else z1) if horiz else (x0 if side == "w" else x1)
 			line = round(line + shift, 3)
 			pos = [c, 0, line] if horiz else [line, 0, c]
-			out.append({"model": model, "pos": pos, "rot": SIDES[side]})
+			out.append({"model": model, "pos": pos, "rot": SIDES[side], **(extra or {})})
 	return out
 
 
@@ -247,7 +247,7 @@ def generate(desc):
 	for op in [o for o in ops if o["type"] != "scatter"] + [o for o in ops if o["type"] == "scatter"]:
 		t = op["type"]
 		if t == "perimeter":
-			add("props", perimeter(op["rect"], op.get("model", "wall"), op.get("length", 6.0), op.get("sides", "nswe"), [tuple(g) for g in op.get("gaps", [])]))
+			add("props", perimeter(op["rect"], op.get("model", "wall"), op.get("length", 6.0), op.get("sides", "nswe"), [tuple(g) for g in op.get("gaps", [])], op.get("extra")))
 		elif t == "terrace":
 			feature, props, bl = terrace(op["rect"], op["height"], [tuple(a) for a in op.get("access", [])])
 			terrain["features"].append(feature)

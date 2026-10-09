@@ -88,3 +88,12 @@ func test_zones_reachable_through_gaps() -> void:
 			[Vector3(-12, 0.4, -64), Vector3(-12, 2.4, -74)], [Vector3(-8, 0.4, 20), Vector3(-15, 1.4, 20)]]:
 		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(path[0] + Vector3.UP * 0.5, path[1] + Vector3.UP * 0.5, Layers.WORLD))
 		assert_true(hit.is_empty() or not String(hit["collider"].name).begins_with("retaining_wall"), "проход %s свободен" % [path[0]])
+
+func test_street_is_closed_except_arch() -> void:
+	# План 12: из двора на улицу и в кафе — только через арку с воротами по сытости 10 (спек 3.4).
+	var space := world.get_world_3d().direct_space_state
+	for x in range(-87, 88, 6):
+		if absi(x) < 2:
+			continue
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(x, 0.3, 9.5), Vector3(x, 0.3, 11.5), Layers.WORLD))
+		assert_false(hit.is_empty(), "забор вдоль улицы у x %d" % x)

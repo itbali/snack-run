@@ -39,6 +39,16 @@ class Primitives(unittest.TestCase):
 		self.assertAlmostEqual(f[3] - f[1], 1.5, 3, "rot 90 меняет оси")
 		self.assertEqual(lg.footprints({"model": "grass", "pos": [0, 0, 0], "solid": False}), [])
 
+	def test_perimeter_extra_flags_reach_every_module(self):
+		col = [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]
+		fences = lg.perimeter([0, 0, 4, 1], "fence", 2.0, "s", extra={"colliders": col})
+		self.assertEqual(len(fences), 2)
+		self.assertTrue(all(f["colliders"] == col for f in fences))
+		d = {"name": "t", "terrain": DESC["terrain"], "zones": [{"name": "z", "ops": [
+			{"type": "perimeter", "rect": [0, 0, 4, 1], "model": "fence", "length": 2.0, "sides": "s", "extra": {"colliders": col}}]}]}
+		layout, _ = lg.generate(d)
+		self.assertTrue(all(p.get("colliders") == col for p in layout["props"]))
+
 	def test_terrace_stairs_land_on_edge_and_walls_cover_cliff(self):
 		feature, props, blocked = lg.terrace([10, -20, 30, -10], 2, access=[("s", 20.0, "stairs"), ("w", -15.0, "ramp")])
 		self.assertEqual(feature, {"type": "terrace", "rect": [10, -20, 30, -10], "height": 2.0})
