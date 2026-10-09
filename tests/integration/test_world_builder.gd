@@ -229,3 +229,14 @@ func test_wall_decals_and_ivy_hang_on_real_walls() -> void:
 			if along <= 3.0 and across <= 0.5 and w["rot"] == it["rot"]:
 				backed = true
 		assert_true(backed, "%s в %s висит на стене" % [it["name"], it["pos"]])
+
+func test_garage_roof_is_walkable_at_2_28() -> void:
+	# План 11: крыши гаражей — площадки для паркура.
+	var b = _builder()
+	b.build({"props": [{"model": "garage", "pos": [0, 0, 0]}]})
+	await wait_physics_frames(1)
+	var space: PhysicsDirectSpaceState3D = b.get_world_3d().direct_space_state
+	var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(0, 5, 0), Vector3(0, -1, 0), Layers.WORLD))
+	assert_false(hit.is_empty(), "крыша гаража твёрдая")
+	if not hit.is_empty():
+		assert_almost_eq((hit["position"] as Vector3).y, 2.28, 0.05)
