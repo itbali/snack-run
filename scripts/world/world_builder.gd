@@ -107,6 +107,8 @@ func _build_prop(p: Dictionary) -> void:
 		body.add_child(_night_light())
 	for mi in model.find_children("wall_glass*", "MeshInstance3D", true, false):
 		mi.add_to_group("night_windows")   # ночью окна светятся тёплым (DayNight)
+	for mi in model.find_children("lamp_head", "MeshInstance3D", true, false):
+		mi.add_to_group("night_windows")   # и плафоны фонарей
 	if not solid:
 		for mi in model.find_children("*", "MeshInstance3D", true, false):   # листья и трава видны с обеих сторон
 			if (mi as MeshInstance3D).mesh == null:
@@ -129,17 +131,20 @@ func _night_light() -> SpotLight3D:
 	l.position = Vector3(0, 2.45, 0)
 	l.rotation_degrees = Vector3(-90, 0, 0)
 	l.spot_angle = 50.0
-	l.spot_range = 6.0
+	l.spot_range = 7.0
 	l.light_color = Color("#FFD9A0")
-	l.light_energy = 2.0
+	l.light_energy = 4.0
 	l.shadow_enabled = false
 	l.visible = false
 	return l
 
 
 func _make_water(model: Node3D) -> void:
-	## Лужа: зеркальный материал, отражает небо через SSR окружения (спек 2.8).
-	for mi in model.find_children("*", "MeshInstance3D", true, false):
+	## Лужа/вода фонтана: зеркальный материал, отражает небо через SSR окружения (спек 2.8).
+	## Если у модели есть меши с «water» в имени — зеркальными становятся только они (чаша фонтана остаётся тун).
+	var meshes := model.find_children("*", "MeshInstance3D", true, false)
+	var water := meshes.filter(func(m): return String(m.name).contains("water"))
+	for mi in (water if not water.is_empty() else meshes):
 		var m3 := mi as MeshInstance3D
 		if m3.mesh == null:
 			continue
@@ -218,6 +223,7 @@ func _build_spawn(s: Dictionary) -> void:
 	for t in s.get("allowed", [0]):
 		allowed.append(int(t))   # JSON даёт float, ключи словарей Rarity — int
 	node.allowed = allowed
+	node.foods = s.get("foods", [])
 	_container("Spawns").add_child(node)
 	node.global_position = _v3(s["pos"])
 	spawns_built += 1
@@ -262,6 +268,7 @@ func _build_gate(g: Dictionary) -> void:
 	var node := GateScene.instantiate() as Gate
 	node.name = "gate_%d" % gates_built
 	node.satiety_required = int(g.get("satiety", GameState.SATIETY_GATE))
+	node.label = String(g.get("label", node.label))
 	node.size = _v3(g.get("size", [2.4, 2.6, 0.3]))
 	_container("Gates").add_child(node)
 	node.global_position = _v3(g["pos"])

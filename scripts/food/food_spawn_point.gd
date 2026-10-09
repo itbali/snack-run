@@ -7,6 +7,7 @@ signal spawned(pickup: FoodPickup)
 const PickupScene := preload("res://scenes/food/food_pickup.tscn")
 
 @export var allowed: Array = [Rarity.Tier.COMMON]
+@export var foods: Array = []   # id еды; пусто — любая еда допустимой редкости (парк задаёт свою еду)
 @export var respawn_min := 30.0
 @export var respawn_max := 90.0
 var rng := RandomNumberGenerator.new()
@@ -22,6 +23,16 @@ func pick_def() -> FoodDef:
 	var night := is_inside_tree() and DayNight.is_night(get_tree())
 	var tier := Rarity.pick_weighted(allowed, rng, Rarity.NIGHT_WEIGHTS if night else Rarity.WEIGHTS)
 	var pool := FoodCatalog.by_tier(tier)
+	if not foods.is_empty():
+		var only: Array[FoodDef] = []
+		for f in FoodCatalog.all():
+			if StringName(f.id) in foods.map(func(x): return StringName(x)) and (f.tier == tier or pool.is_empty()):
+				only.append(f)
+		if only.is_empty():   # редкость не совпала со списком — берём любую еду из списка
+			for f in FoodCatalog.all():
+				if StringName(f.id) in foods.map(func(x): return StringName(x)):
+					only.append(f)
+		pool = only
 	if pool.is_empty():
 		pool = FoodCatalog.all()
 	return pool[rng.randi_range(0, pool.size() - 1)]

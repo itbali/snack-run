@@ -26,7 +26,7 @@ func test_album_shows_cards_locked_and_unlocked() -> void:
 	assert_true(main.album_menu.is_open)
 	assert_true(get_tree().paused)
 	var cards: Array = main.album_menu.cards()
-	assert_eq(cards.size(), 8)
+	assert_eq(cards.size(), 14, "8 карточек двора и 6 парка")
 	var pizza: Control = null
 	var donut: Control = null
 	for c in cards:

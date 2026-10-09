@@ -147,6 +147,54 @@
       "note": "иконка фазы суток: moon",
       "background": "transparent",
       "prompt": "Game icon of a cute crescent moon with two small stars, pale blue (#9FB8FF), centered, transparent background"
+    },
+    {
+      "file": "assets/images/textures/grass.png",
+      "note": "бесшовный газон парка",
+      "prompt": "Seamless tileable texture of a stylized cartoon lawn seen straight from above, short grass in leaf green (#458B59) and olive (#A9B087) with tiny painted blades and a few small white clover flowers, flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly on all four sides, no objects, no text",
+      "model": "gpt-image-2.5-sunburst"
+    },
+    {
+      "file": "assets/images/textures/gravel.png",
+      "note": "бесшовный гравий дорожек",
+      "prompt": "Seamless tileable texture of a stylized cartoon fine gravel path seen straight from above, small rounded pebbles in sand (#D3AB87), cream (#FCD3A1) and light grey tones, flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly on all four sides, no text",
+      "model": "gpt-image-2.5-sunburst"
+    },
+    {
+      "file": "assets/images/ui/food_popcorn.png",
+      "note": "иконка попкорна",
+      "prompt": "Game icon of a striped red and white popcorn box overflowing with fluffy popcorn, red #BD4045, cream popcorn #FCD3A1, centered, transparent background",
+      "background": "transparent"
+    },
+    {
+      "file": "assets/images/ui/food_bagel.png",
+      "note": "иконка бублика",
+      "prompt": "Game icon of a round golden bagel with sesame seeds, #FAAE45 with #D3AB87 shading, centered, transparent background",
+      "background": "transparent"
+    },
+    {
+      "file": "assets/images/ui/food_sandwich.png",
+      "note": "иконка сэндвича",
+      "prompt": "Game icon of a triangle sandwich with lettuce, tomato and cheese, bread #FCD3A1, centered, transparent background",
+      "background": "transparent"
+    },
+    {
+      "file": "assets/images/ui/food_corn.png",
+      "note": "иконка кукурузы",
+      "prompt": "Game icon of a grilled corn cob with green husk leaves, kernels #FABE32, husk #458B59, centered, transparent background",
+      "background": "transparent"
+    },
+    {
+      "file": "assets/images/ui/food_cotton_candy.png",
+      "note": "иконка сахарной ваты",
+      "prompt": "Game icon of fluffy pink cotton candy on a paper cone stick, pink #F57485 and lilac #B46DB5 swirl, centered, transparent background",
+      "background": "transparent"
+    },
+    {
+      "file": "assets/images/ui/food_cupcake.png",
+      "note": "иконка капкейка",
+      "prompt": "Game icon of a cupcake with swirled pink frosting, sprinkles and a cherry on top, paper cup in sky blue #659ECF, centered, transparent background",
+      "background": "transparent"
     }
   ]
 }

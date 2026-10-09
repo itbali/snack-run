@@ -58,6 +58,18 @@ func test_windows_glow_at_night() -> void:
 	assert_true(m.emission_enabled, "ночью в окнах тёплый свет")
 	assert_eq(m.emission.to_html(false), "ffd9a0")
 
+func test_lamp_head_glows_at_night() -> void:
+	var b := WorldBuilder.new()
+	add_child_autofree(b)
+	b.build({"props": [{"model": "lamp", "pos": [0, 0, 0]}]})
+	var head := b.find_child("lamp_head", true, false) as MeshInstance3D
+	assert_not_null(head)
+	if head == null:
+		return
+	dn.set_time(220.0)
+	await wait_process_frames(1)
+	assert_true((head.get_surface_override_material(0) as StandardMaterial3D).emission_enabled, "плафон светится ночью")
+
 func test_time_advances_and_pause_stops_it() -> void:
 	# Review Focus 1
 	dn.set_time(10.0)

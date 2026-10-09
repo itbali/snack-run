@@ -69,10 +69,10 @@ func _bind_day_night() -> void:
 
 func _process(_delta: float) -> void:
 	if _day_night == null or not is_instance_valid(_day_night):
-		return
+		_bind_day_night()   # ленивая привязка: Lighting мог появиться позже HUD или быть пересоздан
+		if _day_night == null:
+			return
 	_phase_bar.value = DayCycle.phase_progress(_day_night.time)
-	if _phase_icon.texture == null or _phase_icon.texture.resource_path != PHASE_ICONS[_day_night.phase]:
-		_on_phase(_day_night.phase)
 
 
 func _on_phase(phase: StringName) -> void:
@@ -149,8 +149,17 @@ func satiety_label_text() -> String:
 
 
 func _on_satiety(value: int) -> void:
+	# Ближайшая цель сытости: кафе (10), потом парк (25).
+	if value < GameState.SATIETY_GATE:
+		_satiety.max_value = GameState.SATIETY_GATE
+		_satiety_label.text = "Сытость %d/%d" % [value, GameState.SATIETY_GATE]
+	elif value < GameState.PARK_GATE:
+		_satiety.max_value = GameState.PARK_GATE
+		_satiety_label.text = "До парка %d/%d" % [value, GameState.PARK_GATE]
+	else:
+		_satiety.max_value = GameState.PARK_GATE
+		_satiety_label.text = "Парк открыт"
 	_satiety.value = value
-	_satiety_label.text = "Кафе открыто" if value >= GameState.SATIETY_GATE else "Сытость %d/%d" % [value, GameState.SATIETY_GATE]
 
 
 func _on_goal(done: int, target: int) -> void:

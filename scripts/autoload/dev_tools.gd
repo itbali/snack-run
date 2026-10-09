@@ -5,6 +5,10 @@ func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--phase="):
 			_set_phase_later(DayCycle.parse_time(arg.trim_prefix("--phase=")))
+		if arg.begins_with("--at="):
+			var v := arg.trim_prefix("--at=").split_floats(",")
+			if v.size() >= 3:
+				_teleport_later(Vector3(v[0], v[1], v[2]), deg_to_rad(v[3]) if v.size() > 3 else 0.0)
 		if arg.begins_with("--screenshot="):
 			_screenshot_and_quit(arg.trim_prefix("--screenshot="))
 
@@ -17,6 +21,19 @@ func _set_phase_later(t: float) -> void:
 	if dn:
 		dn.call("set_time", t)
 		dn.set("time_scale", 0.0)
+
+
+func _teleport_later(pos: Vector3, yaw := 0.0) -> void:
+	## Для кадров других районов: ++ --at=x,y,z[,yaw°] ставит кота в точку и поворачивает камеру.
+	for i in 4:
+		await get_tree().process_frame
+	var cat := get_tree().get_first_node_in_group("cat")
+	if cat:
+		cat.call("teleport", pos)
+		var rig := cat.get("camera_rig") as Node3D
+		if rig:
+			rig.global_position = pos + Vector3(0, 0.6, 0)
+			rig.set("_yaw", yaw)
 
 
 func _screenshot_and_quit(path: String) -> void:

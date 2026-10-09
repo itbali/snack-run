@@ -3,6 +3,7 @@ GODOT   ?= /Applications/Godot.app/Contents/MacOS/Godot
 BLENDER ?= /Applications/Blender.app/Contents/MacOS/Blender
 SHOT    ?= build/shot.png
 PHASE   ?=
+AT      ?=
 TEMPLATES_DIR := $(HOME)/Library/Application Support/Godot/export_templates/4.7.2.stable
 
 .PHONY: import test test-godot test-blender assets shot run replay sfx templates export images
@@ -26,7 +27,7 @@ assets:
 
 shot: import
 	mkdir -p build
-	$(GODOT) --path . --resolution 1280x720 res://scenes/main.tscn ++ $(if $(PHASE),--phase=$(PHASE),) --screenshot=$(SHOT)
+	$(GODOT) --path . --resolution 1280x720 res://scenes/main.tscn ++ $(if $(PHASE),--phase=$(PHASE),) $(if $(AT),--at=$(AT),) --screenshot=$(SHOT)
 
 run: import
 	$(GODOT) --path .

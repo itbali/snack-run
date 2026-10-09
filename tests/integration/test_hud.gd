@@ -23,7 +23,7 @@ func test_satiety_and_goal_labels() -> void:
 	GameState.pick_up(FoodCatalog.get_by_id(&"donut"))
 	GameState.eat_all()
 	# Полоска показывает прогресс до порога арки (10) и упирается в максимум.
-	assert_eq((hud.get_node("%Satiety") as ProgressBar).value, float(GameState.SATIETY_GATE))
+	assert_eq((hud.get_node("%Satiety") as ProgressBar).value, 15.0, "после кафе полоска считает до парка (25)")
 	assert_eq((hud.get_node("%Goal") as Label).text, "Открой новых карточек: 1/3")
 
 func test_bell_flash_shows_and_hides() -> void:
@@ -72,3 +72,16 @@ func test_hearts_and_yarn_are_icons() -> void:
 	assert_gt((hearts.get_child(0) as TextureRect).modulate.a, 0.9)
 	assert_not_null((hud.get_node("%YarnIcon") as TextureRect).texture, "иконка клубочка")
 	assert_eq(hud.yarn_text(), "0")
+
+func test_satiety_target_moves_from_cafe_to_park() -> void:
+	# Review Focus 4
+	GameState.satiety = 12
+	GameState.satiety_changed.emit(12)
+	assert_eq(hud.satiety_label_text(), "До парка 12/25")
+	assert_almost_eq((hud.get_node("%Satiety") as ProgressBar).max_value, 25.0, 0.01)
+	GameState.satiety = 25
+	GameState.satiety_changed.emit(25)
+	assert_eq(hud.satiety_label_text(), "Парк открыт")
+	GameState.satiety = 4
+	GameState.satiety_changed.emit(4)
+	assert_eq(hud.satiety_label_text(), "Сытость 4/10")

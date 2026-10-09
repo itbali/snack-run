@@ -20,6 +20,7 @@ const MOUTH_CAPACITY := 3
 const GOAL_FIRST := 3
 const GOAL_STEP := 2
 const SATIETY_GATE := 10   # сытость, открывающая арку в кафе (план 3)
+const PARK_GATE := 25      # сытость, открывающая ворота в парк (этап 2)
 const YARN_PER_CARD := 3
 const SPEED_BONUS := 1.15
 const STEALTH_BONUS := 0.7

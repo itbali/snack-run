@@ -749,6 +749,27 @@ straight from above… flat even lighting… edges wrap seamlessly»); бесш�
 4,5 м. Импорт текстур: `compress/mode=2`, `mipmaps/generate=true`. Тест `tests/integration/test_surface_textures.gd` (3):
 нужные текстуры и трипланар у трёх мешей, окна/бак/лужа/коробка плоские, без файла текстуры не ошибка. Контрольная точка: 189 GUT.
 
+## Этап 2: спек и план 7 «Смена суток»
+
+Брейншторм этапа 2 (решения владельца №22–24 в `01-decisions.md`): опасности парка — все четыре (голуби, садовник,
+дождеватели, ребёнок); смена суток ≈ 5 мин меняет правила; парк — ворота из кафе при сытости 25. Спек
+`docs/superpowers/specs/2026-10-09-snack-run-stage2-park-design.md` (ночной сторож — предложение агента, подтверждено вместе
+со спеком). План `docs/superpowers/plans/2026-10-09-snack-run-07-day-cycle.md`, ветка `plan-7-day-cycle`.
+
+- Иконки фазы `assets/images/ui/{sun,sunset,moon}.png` — манифест + `make images`.
+- `scripts/world/day_cycle.gd` (`DayCycle`: `CYCLE 300`, `phase_at`, `phase_progress`, `light_at` с ключевыми кадрами
+  день/закат/ночь и smoothstep, `lamps_on` [165, 285), `wrap_time`). **Грабля:** статическая функция `wrap` конфликтует со
+  встроенной `wrap()` GDScript — вызов `DayCycle.wrap()` падает «Nonexistent function 'wrap' in base 'GDScript'».
+- `scripts/world/day_night.gd` (`DayNight`, узел в `lighting.tscn`, группа `day_night`): время, применение света/неба/облаков,
+  группы `night_lights` (фонари) и `night_windows` (стёкла стен светятся `#FFD9A0` ночью), сигнал `phase_changed`,
+  статические `current_phase/is_night` (без узла — день).
+- `WorldBuilder`: каждому `lamp` — `SpotLight3D "NightLight"` (2,45 м вниз, 50°, 6 м); стёкла `wall_glass*` — в `night_windows`.
+- `Rarity.NIGHT_WEIGHTS` (40/30/20/10), `pick_weighted(..., weights)`, `FoodSpawnPoint` ночью берёт ночные веса.
+- `Dog.sees_cat()` ночью false. HUD: плашка `PhasePanel` справа (иконка + полоска фазы).
+- `DevTools`: `++ --phase=<сек>` ставит время и замораживает цикл; `make shot PHASE=220`.
+- Тесты: `test_day_cycle.gd` (5), `test_day_night.gd` (7), `test_rarity.gd` (+1). Ночь по кадру притушена: солнце 0,22,
+  ambient 0,18. Кадры: `build/shot_phase_165.png`, `build/shot_phase_220.png`.
+
 ## Известные грабли (сводка, чтобы не искать по тексту)
 
 **Godot 4.7:** `class_name` виден после `make import`; GUT не падает на parse error (grep в Makefile);

@@ -148,3 +148,33 @@ def check_asset(objs, max_tris: int, max_dim: float):
 			if not palette.is_palette_material(m):
 				errors.append(f"{o.name}: материал {getattr(m, 'name', None)!r} не из палитры")
 	return errors
+
+
+def join(name, objs):
+	"""Сливает объекты в один меш (мировые координаты, материалы по граням); исходники удаляются.
+	Нужно, когда поверхность должна быть одним мешем с одним именем (SurfaceTextures ищет по имени)."""
+	import bmesh as _bm
+	bpy.context.view_layer.update()
+	bm = _bm.new()
+	mats = []
+	for o in objs:
+		depsgraph = bpy.context.evaluated_depsgraph_get()
+		tmp = o.evaluated_get(depsgraph).to_mesh().copy()
+		tmp.transform(o.matrix_world)
+		for poly in tmp.polygons:
+			mat = o.data.materials[poly.material_index] if o.data.materials else None
+			if mat not in mats:
+				mats.append(mat)
+			poly.material_index = mats.index(mat)
+		bm.from_mesh(tmp)
+		bpy.data.meshes.remove(tmp)
+		bpy.data.objects.remove(o)
+	mesh = bpy.data.meshes.new(name)
+	bm.to_mesh(mesh)
+	bm.free()
+	for m in mats:
+		mesh.materials.append(m)
+	obj = bpy.data.objects.new(name, mesh)
+	bpy.context.scene.collection.objects.link(obj)
+	bpy.context.view_layer.update()
+	return obj

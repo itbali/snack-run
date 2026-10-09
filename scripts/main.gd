@@ -54,7 +54,7 @@ func _ready() -> void:
 	pause_menu.resumed.connect(func() -> void: _set_paused(false))
 	pause_menu.reset_requested.connect(reset_progress)
 	for g in get_tree().get_nodes_in_group("gates"):
-		g.opened.connect(func() -> void: hud.flash_bell("🎉 Арка в кафе открыта!", 3.0))
+		g.opened.connect(func() -> void: hud.flash_bell(g.label, 3.0))
 	for sig in [GameState.album_changed, GameState.satiety_changed, GameState.yarn_changed, GameState.upgrade_bought, GameState.skin_changed]:
 		sig.connect(_on_progress_changed.unbind(1))
 	Mouse.capture(true)

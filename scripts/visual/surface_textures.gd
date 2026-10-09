@@ -10,6 +10,8 @@ const TABLE := {
 	"ground": ["asphalt.png", 4.0],
 	"sidewalk": ["paving.png", 1.2],
 	"wall": ["stucco.png", 4.5],
+	"lawn": ["grass.png", 2.0],
+	"path": ["gravel.png", 0.8],
 }
 
 

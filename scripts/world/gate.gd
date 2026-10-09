@@ -10,6 +10,7 @@ const BARS := 5
 @export var satiety_required := GameState.SATIETY_GATE
 @export var size := Vector3(2.4, 2.6, 0.3)
 var open := false
+var label := "🎉 Арка в кафе открыта!"   # сообщение при открытии (раскладка задаёт своё)
 
 @onready var _shape: CollisionShape3D = $Collision
 @onready var _bars: Node3D = $Bars

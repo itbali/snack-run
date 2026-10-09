@@ -29,10 +29,12 @@ func test_pick_weighted_respects_allowed() -> void:
 func test_pick_weighted_empty_gives_common() -> void:
 	assert_eq(Rarity.pick_weighted([], _rng(1)), Rarity.Tier.COMMON)
 
-func test_catalog_has_eight_foods_two_per_tier() -> void:
-	assert_eq(FoodCatalog.all().size(), 8)
+func test_catalog_has_fourteen_foods_in_every_tier() -> void:
+	# Двор — по две еды в редкости, парк (этап 2) добавил ещё шесть: 4/4/3/3.
+	assert_eq(FoodCatalog.all().size(), 14)
+	var expected := {0: 4, 1: 4, 2: 3, 3: 3}
 	for t in 4:
-		assert_eq(FoodCatalog.by_tier(t).size(), 2, "по две еды в редкости %d" % t)
+		assert_eq(FoodCatalog.by_tier(t).size(), expected[t], "еды в редкости %d" % t)
 	var donut := FoodCatalog.get_by_id(&"donut")
 	assert_not_null(donut)
 	assert_eq(donut.tier, Rarity.Tier.LEGENDARY)
