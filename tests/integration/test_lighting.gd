@@ -16,7 +16,7 @@ func test_sun_is_high_warm_and_soft() -> void:
 	assert_almost_eq(sun.light_angular_distance, 1.5, 0.01, "мягкая полутень")
 	assert_almost_eq(sun.shadow_blur, 1.5, 0.01)
 	assert_eq(sun.directional_shadow_mode, DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS)
-	assert_almost_eq(sun.directional_shadow_max_distance, 30.0, 0.1)
+	assert_almost_eq(sun.directional_shadow_max_distance, 40.0, 0.1, "каскады на 40 м (спек «Масштаб», раздел 5)")
 
 func test_fill_light_from_the_sky_without_shadows() -> void:
 	var fill := light.get_node_or_null("Fill") as DirectionalLight3D

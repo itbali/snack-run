@@ -47,7 +47,7 @@ light_angular_distance = 1.5
 shadow_enabled = true
 shadow_blur = 1.5
 directional_shadow_mode = 2
-directional_shadow_max_distance = 30.0
+directional_shadow_max_distance = 40.0
 
 [node name="Fill" type="DirectionalLight3D" parent="."]
 light_color = Color(0.624, 0.769, 0.910, 1)

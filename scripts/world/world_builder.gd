@@ -55,6 +55,9 @@ const KIT_STEP_RISE := 0.2
 const KIT_STEP_TREAD := 0.3
 const KIT_RAMP_DEG := 25.0
 const KIT_WIDTH := 1.6
+## Мелкие пропсы гаснут дальше SMALL_RANGE (спек «Масштаб ×3», раздел 5).
+const SMALL_PROPS := ["grass", "bush", "box", "bag", "chair", "bin", "puddle", "flowerbed", "ivy"]
+const SMALL_RANGE := 40.0
 
 
 static func kit_colliders(model: String) -> Array:
@@ -161,6 +164,11 @@ func _build_prop(p: Dictionary) -> void:
 	body.transform = props.global_transform.affine_inverse() * Transform3D(Basis(Vector3.UP, deg_to_rad(float(p.get("rot", 0)))), _place(p))
 	props.add_child(body)
 	Toon.apply(model, Toon.OUTLINE_FOOD if p.get("outline", false) else Toon.OUTLINE_NONE)
+	if String(p["model"]) in SMALL_PROPS:
+		for mi in model.find_children("*", "MeshInstance3D", true, false):
+			(mi as MeshInstance3D).visibility_range_end = SMALL_RANGE
+			(mi as MeshInstance3D).visibility_range_end_margin = 4.0
+			(mi as MeshInstance3D).visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	if p["model"] == "lamp":
 		body.add_child(_night_light())
 	for mi in model.find_children("wall_glass*", "MeshInstance3D", true, false):
@@ -193,6 +201,9 @@ func _night_light() -> SpotLight3D:
 	l.light_color = Color("#FFD9A0")
 	l.light_energy = 4.0
 	l.shadow_enabled = false
+	l.distance_fade_enabled = true   # на большом дворе дальние фонари гаснут (спек «Масштаб», раздел 5)
+	l.distance_fade_begin = 35.0
+	l.distance_fade_length = 5.0
 	l.visible = false
 	return l
 

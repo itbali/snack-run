@@ -235,3 +235,20 @@ func test_garage_roof_is_walkable_at_2_28() -> void:
 	assert_false(hit.is_empty(), "крыша гаража твёрдая")
 	if not hit.is_empty():
 		assert_almost_eq((hit["position"] as Vector3).y, 2.28, 0.05)
+
+func test_small_props_fade_out_beyond_40m() -> void:
+	# План 11: на большом дворе мелочь не рисуется дальше 40 м.
+	var b = _builder()
+	b.build({"props": [{"model": "bush", "pos": [0, 0, 0]}, {"model": "garage", "pos": [10, 0, 0]}]})
+	var bush_mi := b.get_node("Props").get_child(0).find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D
+	assert_almost_eq(bush_mi.visibility_range_end, 40.0, 0.01)
+	var garage_mi := b.get_node("Props").get_child(1).find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D
+	assert_eq(garage_mi.visibility_range_end, 0.0, "крупное видно всегда")
+
+func test_lamp_light_fades_at_35m() -> void:
+	var b = _builder()
+	b.build({"props": [{"model": "lamp", "pos": [0, 0, 0]}]})
+	var l := b.find_child("NightLight", true, false) as SpotLight3D
+	assert_true(l.distance_fade_enabled)
+	assert_almost_eq(l.distance_fade_begin, 35.0, 0.01)
+	assert_false(l.shadow_enabled)
