@@ -105,6 +105,8 @@ func _build_prop(p: Dictionary) -> void:
 	Toon.apply(model, Toon.OUTLINE_FOOD if p.get("outline", false) else Toon.OUTLINE_NONE)
 	if not solid:
 		for mi in model.find_children("*", "MeshInstance3D", true, false):   # листья и трава видны с обеих сторон
+			if (mi as MeshInstance3D).mesh == null:
+				continue
 			for i in (mi as MeshInstance3D).mesh.get_surface_count():
 				var m := (mi as MeshInstance3D).get_surface_override_material(i) as StandardMaterial3D
 				if m:
@@ -119,6 +121,8 @@ func _make_water(model: Node3D) -> void:
 	## Лужа: зеркальный материал, отражает небо через SSR окружения (спек 2.8).
 	for mi in model.find_children("*", "MeshInstance3D", true, false):
 		var m3 := mi as MeshInstance3D
+		if m3.mesh == null:
+			continue
 		for i in m3.mesh.get_surface_count():
 			var m := m3.get_surface_override_material(i) as StandardMaterial3D
 			if m == null:

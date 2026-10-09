@@ -787,9 +787,9 @@ stretch_mode = 6
 [node name="Panel" type="PanelContainer" parent="."]
 layout_mode = 1
 anchors_preset = 8
-anchor_left = 0.68
+anchor_left = 0.72
 anchor_top = 0.5
-anchor_right = 0.68
+anchor_right = 0.72
 anchor_bottom = 0.5
 offset_left = -290.0
 offset_top = -175.0
@@ -801,9 +801,9 @@ grow_vertical = 2
 [node name="VBox" type="VBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 8
-anchor_left = 0.68
+anchor_left = 0.72
 anchor_top = 0.5
-anchor_right = 0.68
+anchor_right = 0.72
 anchor_bottom = 0.5
 offset_left = -270.0
 offset_top = -150.0
@@ -2837,6 +2837,8 @@ func flash(seconds := 0.1) -> void:
 
 func _apply_skin(id: StringName) -> void:
 	var skin := SkinCatalog.get_by_id(id)
+	if skin == null:
+		skin = SkinCatalog.get_by_id(GameState.DEFAULT_SKIN)   # битый сейв: не оставлять кота белым после вспышки
 	if skin and not flashing:   # во время вспышки скин перекрасится по её концу
 		CatSkin.apply(_model, skin)
 		if fade < 1.0:
@@ -2917,6 +2919,8 @@ func _fade_material(mat: StandardMaterial3D) -> void:
 		return
 	mat.albedo_color.a = fade
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED if fade >= 0.999 else BaseMaterial3D.TRANSPARENCY_ALPHA
+	# Полупрозрачное тело всё равно пишет глубину: иначе дальняя сторона hull-обводки рисуется поверх кота («рентген»).
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_OPAQUE_ONLY if fade >= 0.999 else BaseMaterial3D.DEPTH_DRAW_ALWAYS
 
 
 func threaten() -> void:
@@ -3628,11 +3632,11 @@ static func burst(parent: Node, pos: Vector3, color: Color, amount := 24, size :
 ## Одноразовые системы удаляются по таймеру, а не по finished: созданные во время физического шага
 ## CPUParticles3D шлют finished в том же кадре и исчезали бы, не родив ни одной частицы.
 static func _free_later(p: CPUParticles3D) -> void:
-	p.get_tree().create_timer(p.lifetime + 0.3, false).timeout.connect(p.queue_free)
+	p.get_tree().create_timer(p.lifetime * (2.0 - p.explosiveness) + 0.3, false).timeout.connect(p.queue_free)   # последние частицы рождаются к lifetime·(1−explosiveness)
 
 
 const DUST_COLOR := Color("#D3AB87")
-const HeartTexture := preload("res://assets/images/ui/heart.png")
+const HEART_PATH := "res://assets/images/ui/heart.png"   # load, не preload: без файла проект должен стартовать
 
 
 static func _particles(parent: Node, name: String, one_shot: bool) -> CPUParticles3D:
@@ -3708,7 +3712,9 @@ static func hearts(parent: Node, pos: Vector3) -> CPUParticles3D:
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	mat.albedo_texture = HeartTexture
+	mat.albedo_texture = load(HEART_PATH) as Texture2D if ResourceLoader.exists(HEART_PATH) else null
+	if mat.albedo_texture == null:
+		mat.albedo_color = Color("#F57485")   # без картинки — розовые квадратики
 	quad.material = mat
 	p.mesh = quad
 	return _start(p, pos)
@@ -3770,7 +3776,7 @@ static func zzz(parent: Node, pos: Vector3) -> Label3D:
 	return z
 
 
-static func leaves(parent: Node, extents := Vector3(15, 3, 15)) -> CPUParticles3D:
+static func leaves(parent: Node, extents := Vector3(15, 1.5, 15)) -> CPUParticles3D:
 	## Листья по ветру над двором: медленный дрейф, вращение, 40 штук на 8 с.
 	var p := _particles(parent, "Leaves", false)
 	p.amount = 40
@@ -3795,7 +3801,7 @@ static func leaves(parent: Node, extents := Vector3(15, 3, 15)) -> CPUParticles3
 	quad.material = mat
 	p.mesh = quad
 	_start(p)
-	p.position = Vector3(0, 2.0, 0)
+	p.position = Vector3(0, 1.5 + extents.y, 0)   # низ бокса рождения на земле, не под ней
 	return p
 ```
 
@@ -4100,6 +4106,8 @@ func _build_prop(p: Dictionary) -> void:
 	Toon.apply(model, Toon.OUTLINE_FOOD if p.get("outline", false) else Toon.OUTLINE_NONE)
 	if not solid:
 		for mi in model.find_children("*", "MeshInstance3D", true, false):   # листья и трава видны с обеих сторон
+			if (mi as MeshInstance3D).mesh == null:
+				continue
 			for i in (mi as MeshInstance3D).mesh.get_surface_count():
 				var m := (mi as MeshInstance3D).get_surface_override_material(i) as StandardMaterial3D
 				if m:
@@ -4114,6 +4122,8 @@ func _make_water(model: Node3D) -> void:
 	## Лужа: зеркальный материал, отражает небо через SSR окружения (спек 2.8).
 	for mi in model.find_children("*", "MeshInstance3D", true, false):
 		var m3 := mi as MeshInstance3D
+		if m3.mesh == null:
+			continue
 		for i in m3.mesh.get_surface_count():
 			var m := m3.get_surface_override_material(i) as StandardMaterial3D
 			if m == null:
@@ -4440,6 +4450,7 @@ func test_camera_rig_fades_target_instead_of_hiding() -> void:
 	var body := _body_material(cat)
 	assert_eq(body.transparency, BaseMaterial3D.TRANSPARENCY_ALPHA)
 	assert_almost_eq(body.albedo_color.a, cat.fade, 0.01)
+	assert_eq(body.depth_draw_mode, BaseMaterial3D.DEPTH_DRAW_ALWAYS, "полупрозрачное тело пишет глубину: обводка не просвечивает")
 	var outline := _body_outline(cat)
 	assert_almost_eq(float(outline.get_shader_parameter("alpha")), cat.fade, 0.01, "обводка тоже полупрозрачна (Review Focus 2)")
 	rig.apply_arm_length(3.5)
@@ -4976,6 +4987,7 @@ func test_dust_hearts_sparkles_trail_leaves_zzz_factories() -> void:
 	var l := Effects.leaves(root)
 	assert_eq(l.amount, 40)
 	assert_false(l.one_shot)
+	assert_gte(l.position.y - l.emission_box_extents.y, 0.0, "листья рождаются над землёй, не под ней")
 ```
 
 ## `tests/integration/test_food.gd`
@@ -6131,6 +6143,30 @@ func test_real_yard_has_greenery_and_decals() -> void:
 	add_child_autofree(b)
 	b.build(data)
 	assert_eq(b.decals_built, data.get("decals", []).size(), "все текстуры декалей существуют")
+
+func test_wall_decals_and_ivy_hang_on_real_walls() -> void:
+	# Ревью плана 5: плакат висел в воздухе за краем северной стены. У каждой настенной декали и плюща должна быть стена сзади.
+	var data := WorldBuilder.load_layout("res://data/layout/yard.json")
+	var walls := []
+	for p in data["props"]:
+		if p["model"] == "wall":
+			walls.append({"pos": WorldBuilder._v3(p["pos"]), "rot": int(p.get("rot", 0)) % 180})
+	var items := []
+	for dc in data["decals"]:
+		if dc.get("wall", false):
+			items.append({"pos": WorldBuilder._v3(dc["pos"]), "rot": int(dc.get("rot", 0)) % 180, "name": dc["texture"]})
+	for p in data["props"]:
+		if p["model"] == "ivy":
+			items.append({"pos": WorldBuilder._v3(p["pos"]), "rot": int(p.get("rot", 0)) % 180, "name": "ivy"})
+	for it in items:
+		var backed := false
+		for w in walls:
+			var d: Vector3 = (it["pos"] as Vector3) - (w["pos"] as Vector3)
+			var along := absf(d.x) if w["rot"] == 0 else absf(d.z)
+			var across := absf(d.z) if w["rot"] == 0 else absf(d.x)
+			if along <= 3.0 and across <= 0.5 and w["rot"] == it["rot"]:
+				backed = true
+		assert_true(backed, "%s в %s висит на стене" % [it["name"], it["pos"]])
 ```
 
 ## `tests/integration/test_yarn.gd`
@@ -7381,13 +7417,13 @@ def _parts(kind, side, c):
 	if kind == "scared":
 		return _eyeball(p, c, WHITE_R + 0.002, 0.0055, 0.0023, 0.003)   # белок выпучен на 3 мм, зрачок точкой
 	if kind == "happy":   # «^»: левый штрих поднимается к центру, правый — от центра вниз
-		a = _line(p + "_a", c + Vector((-0.006, 0.006, -0.002)), -35, 0.016, 0.0025, "ink")
-		b = _line(p + "_b", c + Vector((0.006, 0.006, -0.002)), 35, 0.016, 0.0025, "ink")
+		a = _line(p + "_a", c + Vector((-0.006, 0.0045, -0.002)), -35, 0.016, 0.0025, "ink")
+		b = _line(p + "_b", c + Vector((0.006, 0.0045, -0.002)), 35, 0.016, 0.0025, "ink")
 		return [a, b]
 	if kind == "blink":   # закрытый глаз: одна горизонтальная ресница
-		return [_line(p + "_a", c + fwd * 0.006, 0, 0.024, 0.0025, "ink")]
-	a = _line(p + "_a", c + fwd * 0.006, 45, 0.026, 0.0025, "ink")    # dizzy: «×»
-	b = _line(p + "_b", c + fwd * 0.006, -45, 0.026, 0.0025, "ink")
+		return [_line(p + "_a", c + fwd * 0.0045, 0, 0.024, 0.0025, "ink")]   # у поверхности глаза, не перед мордой
+	a = _line(p + "_a", c + fwd * 0.0045, 45, 0.026, 0.0025, "ink")    # dizzy: «×»
+	b = _line(p + "_b", c + fwd * 0.0045, -45, 0.026, 0.0025, "ink")
 	return [a, b]
 
 
@@ -8327,16 +8363,16 @@ import bpy
 
 import palette
 
-SPEC = {"max_tris": 60, "max_dim": 2.5}
+SPEC = {"max_tris": 120, "max_dim": 2.5}
 
 
 def build():
 	rnd = random.Random(3)
 	bm = bmesh.new()
-	for i in range(12):
-		x = -0.9 + i * 0.16 + rnd.uniform(-0.03, 0.03)
-		z = 0.15 + (i % 3) * 0.3 + rnd.uniform(-0.05, 0.05)
-		s = rnd.uniform(0.12, 0.18)
+	for i in range(26):   # два ряда внахлёст: листва, а не конфетти
+		x = -0.95 + (i % 13) * 0.158 + rnd.uniform(-0.03, 0.03)
+		z = 0.2 + (i // 13) * 0.42 + (i % 2) * 0.12 + rnd.uniform(-0.05, 0.05)
+		s = rnd.uniform(0.17, 0.24)
 		rot = rnd.uniform(-0.5, 0.5)
 		verts = []
 		for dx, dz in ((-s, -s), (s, -s), (s, s), (-s, s)):
@@ -10204,17 +10240,16 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
   еды, шлейфы осы и велосипеда, листья по ветру, «z» у спящей собаки.
 - Мир: кусты, плющ, трава, декали и плакаты.
 - Сознательно не сделано: веки (читались как брови), hit-stop, настоящая шерсть.
-- Отложено из плана 5 и его ревью: облака на небе крупноваты (масштаб `sky_cover`);
-  щёчные кисточки спорны по вкусу; HUD-иконки сердечка/клубочка остались текстом;
-  три PNG — жёсткие зависимости (`heart.png` через `preload`, `clouds.png`, `title_bg.png`
-  в сценах); PNG без мипмапов и сжатия (шиммер декалей); сквош держит объём
-  (1,118/0,93 вместо 1,2/0,85 спека); листья рождаются и под землёй (бокс y 2±3);
-  таймер одноразовых частиц не учитывает `explosiveness`; обводка поверх
-  полупрозрачного кота у стены (depth draw); `mesh == null` в не-solid пропсах не
-  защищён; `gen.py` ловит только `HTTPError`; после вспышки кот останется белым,
-  если `SkinCatalog.get_by_id` вернёт null; плакаты частично за кустами, плющ читается
-  как конфетти, плашка заставки задевает глаз кота на арте, линии моргания висят перед
-  мордой, жетон ошейника не виден спереди.
+- Закрыто после плана 5 (ветка polish-minors, 2026-10-09): облака мельче (перегенерированы),
+  плакаты не за кустами, плакат с лапками перенесён на западную стену (висел в воздухе), плющ
+  гуще (26 листьев в два ряда), линии моргания у глаз, плашка заставки правее, листья
+  рождаются над землёй, таймер одноразовых частиц учитывает `explosiveness`, полупрозрачный
+  кот пишет глубину, `mesh == null` защищён, `gen.py` ловит сетевые ошибки, `heart.png` через
+  `load` с фолбэком, скин-фолбэк после вспышки; тест «настенные декали и плющ висят на стене».
+- Отложено: щёчные кисточки спорны по вкусу; HUD-иконки сердечка/клубочка остались текстом;
+  `clouds.png` и `title_bg.png` — жёсткие зависимости сцен; PNG без мипмапов и сжатия (шиммер
+  декалей); сквош держит объём (1,118/0,93 вместо 1,2/0,85 спека); жетон ошейника не виден
+  спереди.
 
 ## Отложено сознательно
 
@@ -10469,6 +10504,13 @@ def generate(entry, key):
 				time.sleep(5 * (attempt + 1))
 				continue
 			raise RuntimeError(f"{entry['file']}: HTTP {e.code} {text}") from None
+		except (urllib.error.URLError, TimeoutError, OSError) as e:   # сеть/таймаут: ключ в сообщение не попадает
+			if attempt < 2:
+				time.sleep(5 * (attempt + 1))
+				continue
+			raise RuntimeError(f"{entry['file']}: сеть недоступна ({e.__class__.__name__})") from None
+		except (KeyError, IndexError, ValueError) as e:
+			raise RuntimeError(f"{entry['file']}: неожиданный ответ API ({e.__class__.__name__})") from None
 
 
 def main(argv):
@@ -10502,40 +10544,111 @@ if __name__ == "__main__":
 {
   "style_note": "Все промпты дополняются STYLE из gen.py: плоский мультяшный стиль, графитовая обводка, пастель. Перегенерация одного файла: python3 tools/images/gen.py --force <путь>.",
   "images": [
-    {"file": "assets/images/ui/food_sausage.png", "note": "иконка сосиски", "background": "transparent",
-     "prompt": "Game icon of a single plump sausage with a small bite mark, warm red-brown (#BD4045) with lighter highlights, centered, transparent background"},
-    {"file": "assets/images/ui/food_cookie.png", "note": "иконка печенья", "background": "transparent",
-     "prompt": "Game icon of a round chocolate chip cookie, sandy (#D3AB87) with dark chips, centered, transparent background"},
-    {"file": "assets/images/ui/food_pizza.png", "note": "иконка пиццы", "background": "transparent",
-     "prompt": "Game icon of a pizza slice with pepperoni, crust #D3AB87, cheese #FABE32, pepperoni #BD4045, centered, transparent background"},
-    {"file": "assets/images/ui/food_hotdog.png", "note": "иконка хот-дога", "background": "transparent",
-     "prompt": "Game icon of a hot dog in a bun with a mustard zigzag, bun #D3AB87, sausage #BD4045, mustard #FABE32, centered, transparent background"},
-    {"file": "assets/images/ui/food_croissant.png", "note": "иконка круассана", "background": "transparent",
-     "prompt": "Game icon of a golden croissant, #FAAE45 with #D3AB87 shading, centered, transparent background"},
-    {"file": "assets/images/ui/food_fish.png", "note": "иконка рыбы", "background": "transparent",
-     "prompt": "Game icon of a whole cartoon fish, silver-blue (#2F9CCF) with a cute eye, centered, transparent background"},
-    {"file": "assets/images/ui/food_donut.png", "note": "иконка пончика", "background": "transparent",
-     "prompt": "Game icon of a ring donut with pink (#F57485) glaze and colorful sprinkles, centered, transparent background"},
-    {"file": "assets/images/ui/food_ice_cream.png", "note": "иконка мороженого", "background": "transparent",
-     "prompt": "Game icon of a soft-serve ice cream cone, cream (#FCD3A1) swirl and sandy (#D3AB87) waffle cone, centered, transparent background"},
-    {"file": "assets/images/ui/heart.png", "note": "сердечко для частиц", "background": "transparent",
-     "prompt": "Game icon of a simple glossy heart, coral pink (#F57485) with a white highlight, centered, transparent background"},
-    {"file": "assets/images/title/title_bg.png", "note": "фон заставки", "size": "1536x1024", "model": "gpt-image-2.5-sunburst", "quality": "high",
-     "prompt": "Wide illustration for a cozy game title screen: a fluffy orange kitten with big green eyes and a white chest crouches on a sunny city sidewalk next to a pizza slice, green bins and a bench behind, blue sky with cumulus clouds, warm midday light, soft shadows, lots of greenery. Leave the center-bottom area calm and uncluttered for menu buttons. No text."},
-    {"file": "assets/images/world/clouds.png", "note": "слой облаков для неба (sky_cover)", "size": "1536x1024", "background": "transparent", "model": "gpt-image-2.5-sunburst",
-     "prompt": "Seamless wide panoramic layer of scattered fluffy white cumulus clouds, cartoon style with soft shading, clouds only, lots of empty space between them, transparent background, suitable for tiling across a sky dome"},
-    {"file": "assets/images/world/poster_cafe.png", "note": "плакат кафе", "model": "gpt-image-2.5-sunburst",
-     "prompt": "Square chalkboard poster for a street cafe with the text 'Good Food Better Days' in friendly hand lettering, a small paw print and a croissant doodle, dark board with chalk colors"},
-    {"file": "assets/images/world/poster_cat.png", "note": "плакат с котом", "model": "gpt-image-2.5-sunburst",
-     "prompt": "Square street poster of a cute cartoon cat face silhouette in white on a dark green (#458B59) background, slightly weathered paper look, no text"},
-    {"file": "assets/images/world/poster_paws.png", "note": "плакат с лапками",
-     "prompt": "Square playful poster with a trail of cat paw prints in coral pink (#F57485) on cream (#FCD3A1) paper, no text"},
-    {"file": "assets/images/world/decal_manhole.png", "note": "люк на асфальт", "background": "transparent",
-     "prompt": "Top-down round cast iron manhole cover with a simple grid pattern, dark grey (#5A5C6B) with lighter rim, centered, transparent background"},
-    {"file": "assets/images/world/decal_cracks.png", "note": "трещины на асфальте", "background": "transparent",
-     "prompt": "Top-down subtle asphalt cracks and a faint dark stain, thin graphite lines, mostly empty, transparent background"},
-    {"file": "assets/images/world/decal_leaves.png", "note": "опавшие листья", "background": "transparent",
-     "prompt": "Top-down scatter of a few small fallen leaves in olive (#A9B087), leaf green (#458B59) and sand (#D3AB87), transparent background"}
+    {
+      "file": "assets/images/ui/food_sausage.png",
+      "note": "иконка сосиски",
+      "background": "transparent",
+      "prompt": "Game icon of a single plump sausage with a small bite mark, warm red-brown (#BD4045) with lighter highlights, centered, transparent background"
+    },
+    {
+      "file": "assets/images/ui/food_cookie.png",
+      "note": "иконка печенья",
+      "background": "transparent",
+      "prompt": "Game icon of a round chocolate chip cookie, sandy (#D3AB87) with dark chips, centered, transparent background"
+    },
+    {
+      "file": "assets/images/ui/food_pizza.png",
+      "note": "иконка пиццы",
+      "background": "transparent",
+      "prompt": "Game icon of a pizza slice with pepperoni, crust #D3AB87, cheese #FABE32, pepperoni #BD4045, centered, transparent background"
+    },
+    {
+      "file": "assets/images/ui/food_hotdog.png",
+      "note": "иконка хот-дога",
+      "background": "transparent",
+      "prompt": "Game icon of a hot dog in a bun with a mustard zigzag, bun #D3AB87, sausage #BD4045, mustard #FABE32, centered, transparent background"
+    },
+    {
+      "file": "assets/images/ui/food_croissant.png",
+      "note": "иконка круассана",
+      "background": "transparent",
+      "prompt": "Game icon of a golden croissant, #FAAE45 with #D3AB87 shading, centered, transparent background"
+    },
+    {
+      "file": "assets/images/ui/food_fish.png",
+      "note": "иконка рыбы",
+      "background": "transparent",
+      "prompt": "Game icon of a whole cartoon fish, silver-blue (#2F9CCF) with a cute eye, centered, transparent background"
+    },
+    {
+      "file": "assets/images/ui/food_donut.png",
+      "note": "иконка пончика",
+      "background": "transparent",
+      "prompt": "Game icon of a ring donut with pink (#F57485) glaze and colorful sprinkles, centered, transparent background"
+    },
+    {
+      "file": "assets/images/ui/food_ice_cream.png",
+      "note": "иконка мороженого",
+      "background": "transparent",
+      "prompt": "Game icon of a soft-serve ice cream cone, cream (#FCD3A1) swirl and sandy (#D3AB87) waffle cone, centered, transparent background"
+    },
+    {
+      "file": "assets/images/ui/heart.png",
+      "note": "сердечко для частиц",
+      "background": "transparent",
+      "prompt": "Game icon of a simple glossy heart, coral pink (#F57485) with a white highlight, centered, transparent background"
+    },
+    {
+      "file": "assets/images/title/title_bg.png",
+      "note": "фон заставки",
+      "size": "1536x1024",
+      "model": "gpt-image-2.5-sunburst",
+      "quality": "high",
+      "prompt": "Wide illustration for a cozy game title screen: a fluffy orange kitten with big green eyes and a white chest crouches on a sunny city sidewalk next to a pizza slice, green bins and a bench behind, blue sky with cumulus clouds, warm midday light, soft shadows, lots of greenery. Leave the center-bottom area calm and uncluttered for menu buttons. No text."
+    },
+    {
+      "file": "assets/images/world/clouds.png",
+      "note": "слой облаков для неба (sky_cover)",
+      "size": "1536x1024",
+      "background": "transparent",
+      "model": "gpt-image-2.5-sunburst",
+      "prompt": "Seamless wide panoramic layer of many small scattered fluffy white cumulus clouds (at least 40 clouds, each small, none larger than a tenth of the image width), cartoon style with soft shading, clouds only, lots of empty space between them, transparent background, suitable for tiling across a sky dome"
+    },
+    {
+      "file": "assets/images/world/poster_cafe.png",
+      "note": "плакат кафе",
+      "model": "gpt-image-2.5-sunburst",
+      "prompt": "Square chalkboard poster for a street cafe with the text 'Good Food Better Days' in friendly hand lettering, a small paw print and a croissant doodle, dark board with chalk colors"
+    },
+    {
+      "file": "assets/images/world/poster_cat.png",
+      "note": "плакат с котом",
+      "model": "gpt-image-2.5-sunburst",
+      "prompt": "Square street poster of a cute cartoon cat face silhouette in white on a dark green (#458B59) background, slightly weathered paper look, no text"
+    },
+    {
+      "file": "assets/images/world/poster_paws.png",
+      "note": "плакат с лапками",
+      "prompt": "Square playful poster with a trail of cat paw prints in coral pink (#F57485) on cream (#FCD3A1) paper, no text"
+    },
+    {
+      "file": "assets/images/world/decal_manhole.png",
+      "note": "люк на асфальт",
+      "background": "transparent",
+      "prompt": "Top-down round cast iron manhole cover with a simple grid pattern, dark grey (#5A5C6B) with lighter rim, centered, transparent background"
+    },
+    {
+      "file": "assets/images/world/decal_cracks.png",
+      "note": "трещины на асфальте",
+      "background": "transparent",
+      "prompt": "Top-down subtle asphalt cracks and a faint dark stain, thin graphite lines, mostly empty, transparent background"
+    },
+    {
+      "file": "assets/images/world/decal_leaves.png",
+      "note": "опавшие листья",
+      "background": "transparent",
+      "prompt": "Top-down scatter of a few small fallen leaves in olive (#A9B087), leaf green (#458B59) and sand (#D3AB87), transparent background"
+    }
   ]
 }
 ```

@@ -205,3 +205,27 @@ func test_real_yard_has_greenery_and_decals() -> void:
 	add_child_autofree(b)
 	b.build(data)
 	assert_eq(b.decals_built, data.get("decals", []).size(), "все текстуры декалей существуют")
+
+func test_wall_decals_and_ivy_hang_on_real_walls() -> void:
+	# Ревью плана 5: плакат висел в воздухе за краем северной стены. У каждой настенной декали и плюща должна быть стена сзади.
+	var data := WorldBuilder.load_layout("res://data/layout/yard.json")
+	var walls := []
+	for p in data["props"]:
+		if p["model"] == "wall":
+			walls.append({"pos": WorldBuilder._v3(p["pos"]), "rot": int(p.get("rot", 0)) % 180})
+	var items := []
+	for dc in data["decals"]:
+		if dc.get("wall", false):
+			items.append({"pos": WorldBuilder._v3(dc["pos"]), "rot": int(dc.get("rot", 0)) % 180, "name": dc["texture"]})
+	for p in data["props"]:
+		if p["model"] == "ivy":
+			items.append({"pos": WorldBuilder._v3(p["pos"]), "rot": int(p.get("rot", 0)) % 180, "name": "ivy"})
+	for it in items:
+		var backed := false
+		for w in walls:
+			var d: Vector3 = (it["pos"] as Vector3) - (w["pos"] as Vector3)
+			var along := absf(d.x) if w["rot"] == 0 else absf(d.z)
+			var across := absf(d.z) if w["rot"] == 0 else absf(d.x)
+			if along <= 3.0 and across <= 0.5 and w["rot"] == it["rot"]:
+				backed = true
+		assert_true(backed, "%s в %s висит на стене" % [it["name"], it["pos"]])

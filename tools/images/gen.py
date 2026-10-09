@@ -42,6 +42,13 @@ def generate(entry, key):
 				time.sleep(5 * (attempt + 1))
 				continue
 			raise RuntimeError(f"{entry['file']}: HTTP {e.code} {text}") from None
+		except (urllib.error.URLError, TimeoutError, OSError) as e:   # сеть/таймаут: ключ в сообщение не попадает
+			if attempt < 2:
+				time.sleep(5 * (attempt + 1))
+				continue
+			raise RuntimeError(f"{entry['file']}: сеть недоступна ({e.__class__.__name__})") from None
+		except (KeyError, IndexError, ValueError) as e:
+			raise RuntimeError(f"{entry['file']}: неожиданный ответ API ({e.__class__.__name__})") from None
 
 
 def main(argv):

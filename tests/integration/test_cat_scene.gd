@@ -64,6 +64,7 @@ func test_camera_rig_fades_target_instead_of_hiding() -> void:
 	var body := _body_material(cat)
 	assert_eq(body.transparency, BaseMaterial3D.TRANSPARENCY_ALPHA)
 	assert_almost_eq(body.albedo_color.a, cat.fade, 0.01)
+	assert_eq(body.depth_draw_mode, BaseMaterial3D.DEPTH_DRAW_ALWAYS, "полупрозрачное тело пишет глубину: обводка не просвечивает")
 	var outline := _body_outline(cat)
 	assert_almost_eq(float(outline.get_shader_parameter("alpha")), cat.fade, 0.01, "обводка тоже полупрозрачна (Review Focus 2)")
 	rig.apply_arm_length(3.5)

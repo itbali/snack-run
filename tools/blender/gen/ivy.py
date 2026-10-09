@@ -8,16 +8,16 @@ import bpy
 
 import palette
 
-SPEC = {"max_tris": 60, "max_dim": 2.5}
+SPEC = {"max_tris": 120, "max_dim": 2.5}
 
 
 def build():
 	rnd = random.Random(3)
 	bm = bmesh.new()
-	for i in range(12):
-		x = -0.9 + i * 0.16 + rnd.uniform(-0.03, 0.03)
-		z = 0.15 + (i % 3) * 0.3 + rnd.uniform(-0.05, 0.05)
-		s = rnd.uniform(0.12, 0.18)
+	for i in range(26):   # два ряда внахлёст: листва, а не конфетти
+		x = -0.95 + (i % 13) * 0.158 + rnd.uniform(-0.03, 0.03)
+		z = 0.2 + (i // 13) * 0.42 + (i % 2) * 0.12 + rnd.uniform(-0.05, 0.05)
+		s = rnd.uniform(0.17, 0.24)
 		rot = rnd.uniform(-0.5, 0.5)
 		verts = []
 		for dx, dz in ((-s, -s), (s, -s), (s, s), (-s, s)):

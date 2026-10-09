@@ -30,3 +30,4 @@ func test_dust_hearts_sparkles_trail_leaves_zzz_factories() -> void:
 	var l := Effects.leaves(root)
 	assert_eq(l.amount, 40)
 	assert_false(l.one_shot)
+	assert_gte(l.position.y - l.emission_box_extents.y, 0.0, "листья рождаются над землёй, не под ней")

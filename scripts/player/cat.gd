@@ -158,6 +158,8 @@ func flash(seconds := 0.1) -> void:
 
 func _apply_skin(id: StringName) -> void:
 	var skin := SkinCatalog.get_by_id(id)
+	if skin == null:
+		skin = SkinCatalog.get_by_id(GameState.DEFAULT_SKIN)   # битый сейв: не оставлять кота белым после вспышки
 	if skin and not flashing:   # во время вспышки скин перекрасится по её концу
 		CatSkin.apply(_model, skin)
 		if fade < 1.0:
@@ -238,6 +240,8 @@ func _fade_material(mat: StandardMaterial3D) -> void:
 		return
 	mat.albedo_color.a = fade
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED if fade >= 0.999 else BaseMaterial3D.TRANSPARENCY_ALPHA
+	# Полупрозрачное тело всё равно пишет глубину: иначе дальняя сторона hull-обводки рисуется поверх кота («рентген»).
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_OPAQUE_ONLY if fade >= 0.999 else BaseMaterial3D.DEPTH_DRAW_ALWAYS
 
 
 func threaten() -> void:

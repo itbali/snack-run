@@ -45,11 +45,11 @@ static func burst(parent: Node, pos: Vector3, color: Color, amount := 24, size :
 ## Одноразовые системы удаляются по таймеру, а не по finished: созданные во время физического шага
 ## CPUParticles3D шлют finished в том же кадре и исчезали бы, не родив ни одной частицы.
 static func _free_later(p: CPUParticles3D) -> void:
-	p.get_tree().create_timer(p.lifetime + 0.3, false).timeout.connect(p.queue_free)
+	p.get_tree().create_timer(p.lifetime * (2.0 - p.explosiveness) + 0.3, false).timeout.connect(p.queue_free)   # последние частицы рождаются к lifetime·(1−explosiveness)
 
 
 const DUST_COLOR := Color("#D3AB87")
-const HeartTexture := preload("res://assets/images/ui/heart.png")
+const HEART_PATH := "res://assets/images/ui/heart.png"   # load, не preload: без файла проект должен стартовать
 
 
 static func _particles(parent: Node, name: String, one_shot: bool) -> CPUParticles3D:
@@ -125,7 +125,9 @@ static func hearts(parent: Node, pos: Vector3) -> CPUParticles3D:
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	mat.albedo_texture = HeartTexture
+	mat.albedo_texture = load(HEART_PATH) as Texture2D if ResourceLoader.exists(HEART_PATH) else null
+	if mat.albedo_texture == null:
+		mat.albedo_color = Color("#F57485")   # без картинки — розовые квадратики
 	quad.material = mat
 	p.mesh = quad
 	return _start(p, pos)
@@ -187,7 +189,7 @@ static func zzz(parent: Node, pos: Vector3) -> Label3D:
 	return z
 
 
-static func leaves(parent: Node, extents := Vector3(15, 3, 15)) -> CPUParticles3D:
+static func leaves(parent: Node, extents := Vector3(15, 1.5, 15)) -> CPUParticles3D:
 	## Листья по ветру над двором: медленный дрейф, вращение, 40 штук на 8 с.
 	var p := _particles(parent, "Leaves", false)
 	p.amount = 40
@@ -212,5 +214,5 @@ static func leaves(parent: Node, extents := Vector3(15, 3, 15)) -> CPUParticles3
 	quad.material = mat
 	p.mesh = quad
 	_start(p)
-	p.position = Vector3(0, 2.0, 0)
+	p.position = Vector3(0, 1.5 + extents.y, 0)   # низ бокса рождения на земле, не под ней
 	return p
