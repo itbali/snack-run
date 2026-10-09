@@ -86,6 +86,51 @@ def splash(duration=0.45):
 	return out
 
 
+def gull(duration=0.7):
+	"""Крик чайки: два «кья» — тон 1400→900 Гц с хрипотцой (шум 0,2), между ними пауза."""
+	rnd = random.Random(23)
+	out = []
+	for part in (0.3, 0.32):
+		phase = 0.0
+		n = int(RATE * part)
+		for i in range(n):
+			t = i / RATE
+			u = t / part
+			phase += 2 * math.pi * (1400 - 500 * u) / RATE
+			env = min(1.0, t / 0.02) * (1.0 - u) ** 1.2
+			out.append(env * 0.45 * (math.sin(phase) + 0.35 * math.sin(2 * phase) + 0.2 * rnd.uniform(-1, 1)))
+		out += [0.0] * int(RATE * 0.06)
+	return out
+
+
+def wave_sound(duration=1.6):
+	"""Шум наката: мягкий шум с плавным нарастанием и спадом."""
+	rnd = random.Random(29)
+	out = []
+	n = int(RATE * duration)
+	prev = 0.0
+	for i in range(n):
+		u = i / n
+		prev = prev * 0.8 + rnd.uniform(-1.0, 1.0) * 0.2
+		env = math.sin(math.pi * u) ** 1.5
+		out.append(env * 0.9 * prev)
+	return out
+
+
+def horn(duration=0.8):
+	"""Гудок погрузчика: два коротких тона 420 Гц с квадратной окраской."""
+	out = []
+	for part in (0.3, 0.3):
+		n = int(RATE * part)
+		for i in range(n):
+			t = i / RATE
+			s = math.sin(2 * math.pi * 420 * t)
+			env = min(1.0, t / 0.01) * min(1.0, (part - t) / 0.02)
+			out.append(env * 0.35 * (s + 0.3 * math.copysign(1.0, s)))
+		out += [0.0] * int(RATE * 0.1)
+	return out
+
+
 def sprinkle(count=6, gap=0.11):
 	"""Бульканье дождевателя: короткие «бульки» — тон 300→700 Гц по 60 мс."""
 	out = []
@@ -122,5 +167,8 @@ if __name__ == "__main__":
 	write("hiss.wav", hiss())
 	write("sprinkle.wav", sprinkle())
 	write("splash.wav", splash())
+	write("gull.wav", gull())
+	write("wave.wav", wave_sound())
+	write("horn.wav", horn())
 	write("coo.wav", coo())
-	print("ОК assets/sfx/meow.wav, bark.wav, hiss.wav, sprinkle.wav, coo.wav, splash.wav")
+	print("ОК assets/sfx/meow.wav, bark.wav, hiss.wav, sprinkle.wav, coo.wav, splash.wav, gull.wav, wave.wav, horn.wav")

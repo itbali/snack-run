@@ -11,6 +11,10 @@
 | hiss.wav | шланг садовника | синтез `make sfx` | проект |
 | sprinkle.wav | дождеватель | синтез `make sfx` | проект |
 | coo.wav | голуби | синтез `make sfx` | проект |
+| splash.wav | кот упал в воду | синтез `make sfx` | проект |
+| gull.wav | крик чайки | синтез `make sfx` | проект |
+| wave.wav | шум наката | синтез `make sfx` | проект |
+| horn.wav | гудок погрузчика | синтез `make sfx` | проект |
 
 Паки: https://kenney.nl/assets/interface-sounds, https://kenney.nl/assets/impact-sounds.
 Правило: один `Sfx.play()` на игровое событие (сигнал), никогда из `_process`.
