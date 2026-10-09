@@ -130,3 +130,22 @@ func test_sleeping_dog_emits_zzz() -> void:
 		if n is Label3D and n.text == "z":
 			zs += 1
 	assert_gt(zs, 0, "над спящей собакой всплывает «z»")
+
+func test_dog_returns_home_onto_terrace_even_through_wall() -> void:
+	# Ревью плана 11: собака с террасы шла домой по прямой, упиралась в подпорную стену и стояла так до конца игры.
+	var t := Terrain.new()
+	t.data_path = "res://data/terrain/demo.json"   # терраса 2 м: x −18…−6, z −18…−8, обрыв x −6…−5
+	world.add_child(t)
+	var b := WorldBuilder.new()
+	b.terrain = t
+	world.add_child(b)
+	b.build({"props": [{"model": "retaining_wall2", "pos": [-5.5, 0, -13], "rot": 90, "snap": false}]})
+	var d = DogScene.instantiate()
+	d.position = Vector3(-12, 2.05, -13)
+	world.add_child(d)
+	await wait_physics_frames(3)   # дом — на террасе
+	d.global_position = Vector3(-2, 0.1, -13)   # погоня увела вниз, за стену
+	d.brain.state = ChaseBrain.State.RETURN
+	await wait_seconds(10.0)
+	assert_lt(d.global_position.distance_to(Vector3(-12, 2.05, -13)), 1.0, "собака вернулась домой на террасу")
+	assert_ne(d.brain.state, ChaseBrain.State.RETURN, "возврат закончился")

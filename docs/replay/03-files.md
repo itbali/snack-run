@@ -2404,10 +2404,12 @@ extends HazardBase
 const VISION_HALF_ANGLE := 45.0
 const VISION_RANGE := 6.0
 const HOME_RADIUS := 0.4
+const RETURN_TIMEOUT := 8.0   # дольше идёт домой — значит упёрлась (стена террасы): переносится домой (ревью плана 11)
 
 var brain := ChaseBrain.new()
 var _last_state: int = ChaseBrain.State.IDLE
 var _zzz_t := 0.0
+var _return_t := 0.0
 
 @onready var _model: Node3D = $Model
 @onready var _anim: AnimationPlayer = $Model.find_child("AnimationPlayer", true, false)
@@ -2448,6 +2450,8 @@ func _physics_process(delta: float) -> void:
 	if s == ChaseBrain.State.ALERT and _last_state != ChaseBrain.State.ALERT:
 		Sfx.play(&"bark")   # один лай на настороженность
 	_last_state = s
+	if s != ChaseBrain.State.RETURN:
+		_return_t = 0.0
 	if c and c.has_method("threaten") and s in [ChaseBrain.State.ALERT, ChaseBrain.State.CHASE] and global_position.distance_to(c.global_position) < VISION_RANGE:
 		c.call("threaten")   # испуг, пока собака насторожилась или гонится и она ближе 6 м
 	match s:
@@ -2477,7 +2481,13 @@ func _physics_process(delta: float) -> void:
 				move_towards_point(c.global_position, run_speed, delta)
 			play_clip(&"run")
 		ChaseBrain.State.RETURN:
-			move_towards_point(home, walk_speed, delta)
+			_return_t += delta
+			if _return_t >= RETURN_TIMEOUT:
+				global_position = home   # прямой путь домой перекрыт: на большом дворе это за кадром
+				velocity = Vector3.ZERO
+				Effects.dust(get_parent(), home)
+			else:
+				move_towards_point(home, walk_speed, delta)
 			play_clip(&"walk")
 
 
@@ -6601,6 +6611,25 @@ func test_sleeping_dog_emits_zzz() -> void:
 		if n is Label3D and n.text == "z":
 			zs += 1
 	assert_gt(zs, 0, "над спящей собакой всплывает «z»")
+
+func test_dog_returns_home_onto_terrace_even_through_wall() -> void:
+	# Ревью плана 11: собака с террасы шла домой по прямой, упиралась в подпорную стену и стояла так до конца игры.
+	var t := Terrain.new()
+	t.data_path = "res://data/terrain/demo.json"   # терраса 2 м: x −18…−6, z −18…−8, обрыв x −6…−5
+	world.add_child(t)
+	var b := WorldBuilder.new()
+	b.terrain = t
+	world.add_child(b)
+	b.build({"props": [{"model": "retaining_wall2", "pos": [-5.5, 0, -13], "rot": 90, "snap": false}]})
+	var d = DogScene.instantiate()
+	d.position = Vector3(-12, 2.05, -13)
+	world.add_child(d)
+	await wait_physics_frames(3)   # дом — на террасе
+	d.global_position = Vector3(-2, 0.1, -13)   # погоня увела вниз, за стену
+	d.brain.state = ChaseBrain.State.RETURN
+	await wait_seconds(10.0)
+	assert_lt(d.global_position.distance_to(Vector3(-12, 2.05, -13)), 1.0, "собака вернулась домой на террасу")
+	assert_ne(d.brain.state, ChaseBrain.State.RETURN, "возврат закончился")
 ```
 
 ## `tests/integration/test_dog_asset.gd`
@@ -14266,6 +14295,13 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
 - План 11. Генератор раскладки и двор ×3 (`2026-10-09-snack-run-11-yard-x3.md`) — ВЫПОЛНЕН 2026-10-09: `tools/layout/`,
   двор 180×180 с гаражами и крышами, площадкой и верхним двором на террасах, сквером с холмом, верандой; плоские тайлы рельефа,
   оса над рельефом, отсечение мелочи 40 м.
+- Отложено из ревью плана 11: выемки 0,5×0,5 м на внешних углах подпорных стен; проёмы под лестницы шире нужного (убираются
+  модули по 4 м — виден склон обрыва); перекрытие последнего модуля стены — возможное мерцание верхних граней; `check()` генератора
+  не проверяет укрытия и сравнивает позиции, а не ключи `%.1f`; дома верхнего двора на z −116 вместо −122 из плана (−122 вне террасы),
+  в сквере еда только [0, 1], нет десертного стола с осой на веранде (иначе ос 5 при итоге 4); тесты проходов и цепочки слабее
+  формулировок (лучи, один ряд гаражей) — вынести проверку достижимости по карте поверхности в тест; замер fps на M4 не делался;
+  деревья россыпи сразу за верхней площадкой лестниц; местами пустые поля травы — смотреть на плейтесте; арку кафе (ворота 10)
+  обходят по улице — решение владельца.
 - План 12. Парк ×3 (90×96: холм с беседкой, пруд, роща, аллея на склоне).
 - Планы 13–15. Этап 3: порт 120×102 (район и вода, опасности, рыбалка) по спеку `2026-10-09-snack-run-stage3-port-design.md`.
 ```

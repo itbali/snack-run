@@ -6,10 +6,12 @@ extends HazardBase
 const VISION_HALF_ANGLE := 45.0
 const VISION_RANGE := 6.0
 const HOME_RADIUS := 0.4
+const RETURN_TIMEOUT := 8.0   # дольше идёт домой — значит упёрлась (стена террасы): переносится домой (ревью плана 11)
 
 var brain := ChaseBrain.new()
 var _last_state: int = ChaseBrain.State.IDLE
 var _zzz_t := 0.0
+var _return_t := 0.0
 
 @onready var _model: Node3D = $Model
 @onready var _anim: AnimationPlayer = $Model.find_child("AnimationPlayer", true, false)
@@ -50,6 +52,8 @@ func _physics_process(delta: float) -> void:
 	if s == ChaseBrain.State.ALERT and _last_state != ChaseBrain.State.ALERT:
 		Sfx.play(&"bark")   # один лай на настороженность
 	_last_state = s
+	if s != ChaseBrain.State.RETURN:
+		_return_t = 0.0
 	if c and c.has_method("threaten") and s in [ChaseBrain.State.ALERT, ChaseBrain.State.CHASE] and global_position.distance_to(c.global_position) < VISION_RANGE:
 		c.call("threaten")   # испуг, пока собака насторожилась или гонится и она ближе 6 м
 	match s:
@@ -79,7 +83,13 @@ func _physics_process(delta: float) -> void:
 				move_towards_point(c.global_position, run_speed, delta)
 			play_clip(&"run")
 		ChaseBrain.State.RETURN:
-			move_towards_point(home, walk_speed, delta)
+			_return_t += delta
+			if _return_t >= RETURN_TIMEOUT:
+				global_position = home   # прямой путь домой перекрыт: на большом дворе это за кадром
+				velocity = Vector3.ZERO
+				Effects.dust(get_parent(), home)
+			else:
+				move_towards_point(home, walk_speed, delta)
 			play_clip(&"walk")
 
 
