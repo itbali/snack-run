@@ -21,6 +21,7 @@ ROLES = {
 	"gardener": {"height": 1.7, "skin": "cream", "hair": "brick", "pants": "olive", "shirt": "leaf"},
 	"kid": {"height": 1.1, "skin": "cream", "hair": "cat_orange", "pants": "sky", "shirt": "rarity_legendary"},
 	"guard": {"height": 1.7, "skin": "cream", "hair": "ink", "pants": "ink", "shirt": "sea_deep"},
+	"fisher": {"height": 1.7, "skin": "cream", "hair": "sand", "pants": "sky", "shirt": "cat_orange"},   # панама и жилет (план 15)
 }
 
 
