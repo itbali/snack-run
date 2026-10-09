@@ -9,6 +9,8 @@ func _ready() -> void:
 			var v := arg.trim_prefix("--at=").split_floats(",")
 			if v.size() >= 3:
 				_teleport_later(Vector3(v[0], v[1], v[2]), deg_to_rad(v[3]) if v.size() > 3 else 0.0)
+		if arg == "--album":
+			_open_album_later()
 		if arg.begins_with("--screenshot="):
 			_screenshot_and_quit(arg.trim_prefix("--screenshot="))
 
@@ -34,6 +36,20 @@ func _teleport_later(pos: Vector3, yaw := 0.0) -> void:
 		if rig:
 			rig.global_position = pos + Vector3(0, 0.6, 0)
 			rig.set("_yaw", yaw)
+
+
+func _open_album_later() -> void:
+	## Кадр альбома: ++ --album открывает альбом со всеми карточками (план 13: 20 вкусняшек).
+	for i in 6:
+		await get_tree().process_frame
+	for f in FoodCatalog.all():
+		GameState.album[f.id] = GameState.album.get(f.id, 0) + 1
+	GameState.album_changed.emit(GameState.album)
+	var main := get_tree().get_first_node_in_group("main")
+	if main == null:
+		main = get_tree().current_scene
+	if main and main.has_method("toggle_album"):
+		main.call("toggle_album")
 
 
 func _screenshot_and_quit(path: String) -> void:

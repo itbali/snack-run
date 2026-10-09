@@ -34,7 +34,7 @@ func _make_card(f: FoodDef) -> Control:
 	card.add_child(strip)
 	var icon := TextureRect.new()
 	icon.name = "Icon"
-	icon.custom_minimum_size = Vector2(96, 96)
+	icon.custom_minimum_size = Vector2(64, 64)   # 20 карточек (план 13) — 5 колонок по 4 ряда в окне 720
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.texture = f.icon()
@@ -42,10 +42,12 @@ func _make_card(f: FoodDef) -> Control:
 	var name_label := Label.new()
 	name_label.name = "Name"
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.add_theme_font_size_override("font_size", 17)
 	card.add_child(name_label)
 	var count := Label.new()
 	count.name = "Count"
 	count.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	count.add_theme_font_size_override("font_size", 15)
 	card.add_child(count)
 	card.set_meta("food", f)
 	_cards.append(card)

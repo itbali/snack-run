@@ -26,7 +26,7 @@ func test_album_shows_cards_locked_and_unlocked() -> void:
 	assert_true(main.album_menu.is_open)
 	assert_true(get_tree().paused)
 	var cards: Array = main.album_menu.cards()
-	assert_eq(cards.size(), 14, "8 карточек двора и 6 парка")
+	assert_eq(cards.size(), 20, "8 карточек двора, 6 парка и 6 порта")
 	var pizza: Control = null
 	var donut: Control = null
 	for c in cards:
@@ -109,3 +109,18 @@ func test_ui_cancel_closes_shop_and_album() -> void:
 	Input.action_release("ui_cancel")
 	assert_false(main.album_menu.is_open, "и альбом")
 	assert_false(get_tree().paused)
+
+func test_album_with_twenty_cards_fits_the_window() -> void:
+	# План 13: 20 карточек (двор, парк, порт) — панель альбома целиком в окне 1280×720.
+	var m := (load("res://scenes/main.tscn") as PackedScene).instantiate()
+	add_child_autofree(m)
+	await wait_process_frames(3)
+	m.toggle_album()
+	await wait_process_frames(3)
+	var panel := m.album_menu.get_node("Panel") as Control
+	var view := Rect2(Vector2.ZERO, panel.get_viewport_rect().size)
+	var need := panel.get_combined_minimum_size()
+	# Окно игры 1280×720 (stretch canvas_items): в headless окно другое, поэтому меряем минимальный размер панели.
+	assert_lte(need.y, 700.0, "альбом по высоте влезает в 720: %s" % need)
+	assert_lte(need.x, 1260.0, "альбом по ширине влезает в 1280: %s" % need)
+	m.toggle_album()

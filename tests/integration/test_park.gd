@@ -66,9 +66,9 @@ func test_spawn_point_respects_food_list() -> void:
 	for i in 30:
 		assert_true(sp.pick_def().id in [&"popcorn", &"sandwich"])
 
-func test_catalog_has_fourteen_foods_with_models_and_icons() -> void:
+func test_catalog_foods_have_models_and_icons() -> void:
 	# Review Focus 3
-	assert_eq(FoodCatalog.all().size(), 14)
+	assert_eq(FoodCatalog.all().size(), 20, "двор, парк и порт")
 	for f in FoodCatalog.all():
 		assert_true(ResourceLoader.exists(f.model_path), "модель %s" % f.id)
 		assert_not_null(f.icon(), "иконка %s" % f.id)

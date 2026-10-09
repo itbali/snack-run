@@ -29,10 +29,10 @@ func test_pick_weighted_respects_allowed() -> void:
 func test_pick_weighted_empty_gives_common() -> void:
 	assert_eq(Rarity.pick_weighted([], _rng(1)), Rarity.Tier.COMMON)
 
-func test_catalog_has_fourteen_foods_in_every_tier() -> void:
-	# Двор — по две еды в редкости, парк (этап 2) добавил ещё шесть: 4/4/3/3.
-	assert_eq(FoodCatalog.all().size(), 14)
-	var expected := {0: 4, 1: 4, 2: 3, 3: 3}
+func test_catalog_has_twenty_foods_in_every_tier() -> void:
+	# Двор — по две еды в редкости, парк (этап 2) — ещё шесть, порт (этап 3) — ещё шесть: 6/6/4/4.
+	assert_eq(FoodCatalog.all().size(), 20)
+	var expected := {0: 6, 1: 6, 2: 4, 3: 4}
 	for t in 4:
 		assert_eq(FoodCatalog.by_tier(t).size(), expected[t], "еды в редкости %d" % t)
 	var donut := FoodCatalog.get_by_id(&"donut")
@@ -56,3 +56,15 @@ func test_night_weights_favor_rare_food() -> void:
 		if Rarity.pick_weighted(all, rng, Rarity.NIGHT_WEIGHTS) == Rarity.Tier.LEGENDARY:
 			legend_night += 1
 	assert_gt(legend_night, legend_day * 2, "ночью легендарная еда выпадает заметно чаще")
+
+func test_port_foods_follow_spec() -> void:
+	# Спек порта, раздел 5.
+	var expected := {&"shrimp": [0, "Креветка"], &"fries": [0, "Картошка фри"], &"squid": [1, "Кальмар"],
+		&"fish_sandwich": [1, "Рыбный сэндвич"], &"sushi": [2, "Суши"], &"golden_fish": [3, "Золотая рыбка"]}
+	for id in expected:
+		var f := FoodCatalog.get_by_id(id)
+		assert_not_null(f, "есть %s" % id)
+		if f:
+			assert_eq(f.tier, expected[id][0])
+			assert_eq(f.display_name, expected[id][1])
+			assert_true(ResourceLoader.exists(f.model_path), "модель %s" % id)
