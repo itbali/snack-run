@@ -1,0 +1,108 @@
+{
+  "size": [
+    120,
+    102
+  ],
+  "origin": [
+    -60,
+    125
+  ],
+  "cell": 1.0,
+  "base": -2.0,
+  "channels": [
+    "stone",
+    "sand",
+    "planks",
+    "grass"
+  ],
+  "default": "sand",
+  "features": [
+    {
+      "type": "flat",
+      "rect": [
+        -60,
+        195,
+        60,
+        227
+      ],
+      "height": -3.5
+    },
+    {
+      "type": "flat",
+      "rect": [
+        10,
+        148,
+        60,
+        195
+      ],
+      "height": -3.5
+    },
+    {
+      "type": "terrace",
+      "rect": [
+        15,
+        148,
+        35,
+        212
+      ],
+      "height": -1.0
+    },
+    {
+      "type": "terrace",
+      "rect": [
+        -60,
+        125,
+        60,
+        148
+      ],
+      "height": 0.0
+    },
+    {
+      "type": "hill",
+      "center": [
+        -45,
+        160
+      ],
+      "radius": 5,
+      "height": 0.8
+    },
+    {
+      "type": "hill",
+      "center": [
+        -20,
+        158
+      ],
+      "radius": 4,
+      "height": 0.6
+    },
+    {
+      "type": "hill",
+      "center": [
+        -52,
+        182
+      ],
+      "radius": 5,
+      "height": 0.7
+    }
+  ],
+  "paint": [
+    {
+      "rect": [
+        15,
+        148,
+        35,
+        212
+      ],
+      "type": "planks"
+    },
+    {
+      "rect": [
+        -60,
+        125,
+        60,
+        148.5
+      ],
+      "type": "stone"
+    }
+  ]
+}

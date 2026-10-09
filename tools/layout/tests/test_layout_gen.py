@@ -140,6 +140,22 @@ class Primitives(unittest.TestCase):
 		self.assertEqual(layout["water_zones"], [{"pos": [0.0, -2.3, 10.0], "size": [20, 2.0, 20]}])
 		self.assertEqual([m["pos"] for m in layout["shore"]], [[0, 0, -2], [5, 0, -2]])
 
+	def test_terrace_wall_ground_and_height(self):
+		# Порт: база рельефа −2, набережная +2 — стены от −2,3 высотой 3 дают парапет 0,7 над набережной.
+		_, props, _ = lg.terrace([0, 0, 8, 8], 2, sides="s", ground=-2.3, wall_h=3)
+		walls = [p for p in props if p["model"].startswith("retaining_wall")]
+		self.assertTrue(walls)
+		self.assertTrue(all(w["model"] == "retaining_wall3" and w["pos"][1] == -2.3 for w in walls))
+		feature, _, _ = lg.terrace([0, 0, 8, 8], 2, sides="s", ground=-2.3, wall_h=3, level=0.0)
+		self.assertEqual(feature["height"], 0.0, "плато на абсолютной высоте 0 при базе −2")
+
+	def test_defaults_from_other_cores(self):
+		# У порта нет ядра — флаги моделей (коллайдеры скамьи, бака, зонта) берутся из ядер двора и парка.
+		d = {"name": "t", "terrain": DESC["terrain"], "defaults": ["data/layout_src/park_core.json", "data/layout_src/yard_core.json"],
+			"zones": [{"name": "z", "ops": [{"type": "place", "props": [{"model": "bin", "pos": [0, 0, 0]}, {"model": "umbrella", "pos": [5, 0, 5]}]}]}]}
+		layout, _ = lg.generate(d)
+		self.assertTrue(all("colliders" in p for p in layout["props"]))
+
 	def test_kit_constants_match_world_builder(self):
 		src = (ROOT / "scripts/world/world_builder.gd").read_text()
 		for name, val in (("KIT_STEP_RISE", lg.KIT_RISE), ("KIT_STEP_TREAD", lg.KIT_TREAD), ("KIT_RAMP_DEG", lg.KIT_RAMP_DEG), ("KIT_WIDTH", lg.KIT_WIDTH)):

@@ -143,7 +143,7 @@ func _build_floater(f: Dictionary) -> void:
 		push_warning("нет модели " + model_path)
 		return
 	var body := Floater.new()
-	body.name = String(f["model"])
+	body.name = "%s%d" % [f["model"], _container("Floaters").get_child_count()]   # уникальное имя: иначе Godot даёт @Floater@N
 	body.amp = float(f.get("amp", body.amp))
 	body.roll_deg = float(f.get("roll", body.roll_deg))
 	body.period = float(f.get("period", body.period))

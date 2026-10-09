@@ -79,3 +79,11 @@ func test_people_routes_stay_on_dry_land() -> void:
 	for h in WorldBuilder.load_layout(LAYOUT)["hazards"]:
 		for p in h.get("path", []):
 			assert_gt(t.height_at(float(p[0]), float(p[1])), -0.3, "%s: точка %s на суше" % [h["type"], p])
+
+func test_port_gate_needs_satiety_50() -> void:
+	# План 13: ворота в порт в северном заборе парка при x −6, порог 50.
+	var gates := get_tree().get_nodes_in_group("gates").filter(func(g): return absf(g.global_position.x + 6) < 0.1)
+	assert_eq(gates.size(), 1)
+	if gates.size() == 1:
+		assert_eq(gates[0].satiety_required, 50)
+		assert_almost_eq(gates[0].global_position.z, 125.0, 0.01)

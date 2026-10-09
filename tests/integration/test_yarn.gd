@@ -39,9 +39,9 @@ func test_collected_yarn_does_not_return_after_relaunch() -> void:
 	await wait_physics_frames(5)
 	var before := get_tree().get_nodes_in_group("yarn").size()
 	var expected := 0
-	for path in ["res://data/layout/yard.json", "res://data/layout/park.json"]:
+	for path in ["res://data/layout/yard.json", "res://data/layout/park.json", "res://data/layout/port.json"]:
 		expected += (WorldBuilder.load_layout(path)["yarn"] as Array).size()
-	assert_eq(before, expected, "все клубочки двора и парка")
+	assert_eq(before, expected, "все клубочки двора, парка и порта")
 	var first = get_tree().get_nodes_in_group("yarn")[0]
 	var key: String = first.key
 	GameState.take_yarn(key)

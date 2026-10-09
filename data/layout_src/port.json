@@ -1,0 +1,1202 @@
+{
+ "name": "port",
+ "seed": 13,
+ "defaults": [
+  "data/layout_src/park_core.json",
+  "data/layout_src/yard_core.json"
+ ],
+ "note": "Порт (этап 3, спек порта и масштаба): набережная на террасе, причал ниже, пляж с дюнами, море и гавань, лодки и бочки.",
+ "terrain": {
+  "size": [
+   120,
+   102
+  ],
+  "origin": [
+   -60,
+   125
+  ],
+  "cell": 1.0,
+  "base": -2.0,
+  "channels": [
+   "stone",
+   "sand",
+   "planks",
+   "grass"
+  ],
+  "default": "sand",
+  "features": [],
+  "paint": []
+ },
+ "counts": {
+  "spawn_points": 35,
+  "yarn": 25,
+  "hideouts": 14
+ },
+ "zones": [
+  {
+   "name": "море и гавань",
+   "ops": [
+    {
+     "type": "flat",
+     "rect": [
+      -60,
+      195,
+      60,
+      227
+     ],
+     "height": -3.5
+    },
+    {
+     "type": "flat",
+     "rect": [
+      10,
+      148,
+      60,
+      195
+     ],
+     "height": -3.5
+    },
+    {
+     "type": "water",
+     "rect": [
+      -60,
+      195,
+      60,
+      227
+     ],
+     "level": -2.3,
+     "shore": [
+      [
+       -55,
+       0,
+       192
+      ],
+      [
+       -45,
+       0,
+       192
+      ],
+      [
+       -35,
+       0,
+       192
+      ],
+      [
+       -25,
+       0,
+       192
+      ],
+      [
+       -15,
+       0,
+       192
+      ],
+      [
+       -5,
+       0,
+       192
+      ],
+      [
+       5,
+       0,
+       192
+      ]
+     ]
+    },
+    {
+     "type": "water",
+     "rect": [
+      10,
+      148,
+      60,
+      195
+     ],
+     "level": -2.3,
+     "shore": [
+      [
+       25,
+       0,
+       155
+      ],
+      [
+       25,
+       0,
+       165
+      ],
+      [
+       25,
+       0,
+       175
+      ],
+      [
+       25,
+       0,
+       185
+      ],
+      [
+       25,
+       0,
+       195
+      ],
+      [
+       25,
+       0,
+       205
+      ],
+      [
+       40,
+       0,
+       145
+      ],
+      [
+       50,
+       0,
+       145
+      ],
+      [
+       57,
+       0,
+       145
+      ]
+     ]
+    },
+    {
+     "type": "place",
+     "floaters": [
+      {
+       "model": "boat",
+       "pos": [
+        37.5,
+        -2.1,
+        165
+       ],
+       "rot": 0,
+       "period": 3.4,
+       "phase": 0.0,
+       "colliders": [
+        {
+         "size": [
+          1.6,
+          0.75,
+          4.2
+         ],
+         "offset": [
+          0,
+          0.075,
+          0
+         ]
+        }
+       ]
+      },
+      {
+       "model": "boat",
+       "pos": [
+        37.5,
+        -2.1,
+        186
+       ],
+       "rot": 0,
+       "period": 3.8,
+       "phase": 1.7,
+       "colliders": [
+        {
+         "size": [
+          1.6,
+          0.75,
+          4.2
+         ],
+         "offset": [
+          0,
+          0.075,
+          0
+         ]
+        }
+       ]
+      },
+      {
+       "model": "boat",
+       "pos": [
+        12.5,
+        -2.1,
+        176
+       ],
+       "rot": 0,
+       "period": 3.1,
+       "phase": 3.1,
+       "colliders": [
+        {
+         "size": [
+          1.6,
+          0.75,
+          4.2
+         ],
+         "offset": [
+          0,
+          0.075,
+          0
+         ]
+        }
+       ]
+      },
+      {
+       "model": "barrel",
+       "pos": [
+        38.5,
+        -2.6999999999999997,
+        169.5
+       ],
+       "rot": 0,
+       "amp": 0.06,
+       "roll": 4.0,
+       "period": 2.6,
+       "phase": 0.0,
+       "colliders": [
+        {
+         "size": [
+          0.7,
+          0.7,
+          0.7
+         ],
+         "offset": [
+          0,
+          0.35,
+          0
+         ]
+        }
+       ]
+      },
+      {
+       "model": "barrel",
+       "pos": [
+        38.5,
+        -2.6999999999999997,
+        172.5
+       ],
+       "rot": 0,
+       "amp": 0.06,
+       "roll": 4.0,
+       "period": 2.8000000000000003,
+       "phase": 1.1,
+       "colliders": [
+        {
+         "size": [
+          0.7,
+          0.7,
+          0.7
+         ],
+         "offset": [
+          0,
+          0.35,
+          0
+         ]
+        }
+       ]
+      },
+      {
+       "model": "barrel",
+       "pos": [
+        38.5,
+        -2.6999999999999997,
+        175.5
+       ],
+       "rot": 0,
+       "amp": 0.06,
+       "roll": 4.0,
+       "period": 3.0,
+       "phase": 2.2,
+       "colliders": [
+        {
+         "size": [
+          0.7,
+          0.7,
+          0.7
+         ],
+         "offset": [
+          0,
+          0.35,
+          0
+         ]
+        }
+       ]
+      },
+      {
+       "model": "barrel",
+       "pos": [
+        38.5,
+        -2.6999999999999997,
+        178.5
+       ],
+       "rot": 0,
+       "amp": 0.06,
+       "roll": 4.0,
+       "period": 3.2,
+       "phase": 3.3000000000000003,
+       "colliders": [
+        {
+         "size": [
+          0.7,
+          0.7,
+          0.7
+         ],
+         "offset": [
+          0,
+          0.35,
+          0
+         ]
+        }
+       ]
+      },
+      {
+       "model": "barrel",
+       "pos": [
+        38.5,
+        -2.6999999999999997,
+        181.5
+       ],
+       "rot": 0,
+       "amp": 0.06,
+       "roll": 4.0,
+       "period": 3.4000000000000004,
+       "phase": 4.4,
+       "colliders": [
+        {
+         "size": [
+          0.7,
+          0.7,
+          0.7
+         ],
+         "offset": [
+          0,
+          0.35,
+          0
+         ]
+        }
+       ]
+      },
+      {
+       "model": "buoy",
+       "pos": [
+        -40,
+        -2.3,
+        215
+       ],
+       "rot": 0,
+       "amp": 0.08,
+       "period": 2.9,
+       "phase": -4.0
+      },
+      {
+       "model": "buoy",
+       "pos": [
+        -10,
+        -2.3,
+        215
+       ],
+       "rot": 0,
+       "amp": 0.08,
+       "period": 2.9,
+       "phase": -1.0
+      },
+      {
+       "model": "buoy",
+       "pos": [
+        20,
+        -2.3,
+        215
+       ],
+       "rot": 0,
+       "amp": 0.08,
+       "period": 2.9,
+       "phase": 2.0
+      },
+      {
+       "model": "buoy",
+       "pos": [
+        50,
+        -2.3,
+        215
+       ],
+       "rot": 0,
+       "amp": 0.08,
+       "period": 2.9,
+       "phase": 5.0
+      }
+     ],
+     "spawn_points": [
+      {
+       "pos": [
+        37.5,
+        -1.55,
+        164
+       ],
+       "allowed": [
+        1
+       ],
+       "foods": [
+        "squid"
+       ],
+       "snap": false
+      },
+      {
+       "pos": [
+        12.5,
+        -1.55,
+        177
+       ],
+       "allowed": [
+        1
+       ],
+       "foods": [
+        "squid",
+        "fish_sandwich"
+       ],
+       "snap": false
+      },
+      {
+       "pos": [
+        37.5,
+        -1.55,
+        187
+       ],
+       "allowed": [
+        2
+       ],
+       "foods": [
+        "sushi"
+       ],
+       "snap": false
+      }
+     ],
+     "yarn": [
+      {
+       "pos": [
+        37.5,
+        -1.55,
+        166.5
+       ],
+       "snap": false
+      },
+      {
+       "pos": [
+        12.5,
+        -1.55,
+        174.5
+       ],
+       "snap": false
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "причал",
+   "ops": [
+    {
+     "type": "terrace",
+     "rect": [
+      15,
+      148,
+      35,
+      212
+     ],
+     "height": 1,
+     "sides": "swe",
+     "ground": -2.3,
+     "wall_h": 2,
+     "gaps": [
+      [
+       "e",
+       165,
+       1.0
+      ],
+      [
+       "e",
+       186,
+       1.0
+      ],
+      [
+       "w",
+       176,
+       1.0
+      ]
+     ],
+     "level": -1.0
+    },
+    {
+     "type": "paint",
+     "rect": [
+      15,
+      148,
+      35,
+      212
+     ],
+     "surface": "planks"
+    },
+    {
+     "type": "place",
+     "props": [
+      {
+       "model": "terrace_stairs1",
+       "pos": [
+        25,
+        0,
+        149.5
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bollard",
+       "pos": [
+        16,
+        0,
+        160
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bollard",
+       "pos": [
+        16,
+        0,
+        180
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bollard",
+       "pos": [
+        16,
+        0,
+        200
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bollard",
+       "pos": [
+        34,
+        0,
+        160
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bollard",
+       "pos": [
+        34,
+        0,
+        180
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bollard",
+       "pos": [
+        34,
+        0,
+        200
+       ],
+       "rot": 0
+      }
+     ]
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "box",
+     "rect": [
+      16,
+      150,
+      34,
+      210
+     ],
+     "count": 4,
+     "rot": "random",
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      16,
+      150,
+      34,
+      210
+     ],
+     "count": 8,
+     "allowed": [
+      0,
+      1,
+      2
+     ],
+     "foods": [
+      "shrimp",
+      "fries",
+      "squid",
+      "fish_sandwich",
+      "sushi"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      16,
+      150,
+      34,
+      210
+     ],
+     "count": 6,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "box",
+     "rect": [
+      16,
+      150,
+      34,
+      210
+     ],
+     "count": 4,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "набережная",
+   "ops": [
+    {
+     "type": "terrace",
+     "rect": [
+      -60,
+      125,
+      60,
+      148
+     ],
+     "height": 2,
+     "sides": "s",
+     "ground": -2.3,
+     "wall_h": 3,
+     "gaps": [
+      [
+       "s",
+       25,
+       1.0
+      ]
+     ],
+     "access": [
+      [
+       "s",
+       -40,
+       "stairs"
+      ],
+      [
+       "s",
+       -15,
+       "stairs"
+      ],
+      [
+       "s",
+       2,
+       "ramp"
+      ]
+     ],
+     "level": 0.0
+    },
+    {
+     "type": "paint",
+     "rect": [
+      -60,
+      125,
+      60,
+      148.5
+     ],
+     "surface": "stone"
+    },
+    {
+     "type": "perimeter",
+     "rect": [
+      -60,
+      125,
+      60,
+      148
+     ],
+     "model": "fence",
+     "length": 2.0,
+     "sides": "we",
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         2.0,
+         1.8,
+         0.12
+        ],
+        "offset": [
+         0,
+         0.9,
+         0
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "type": "place",
+     "props": [
+      {
+       "model": "lamp",
+       "pos": [
+        -50,
+        0,
+        146
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        -30,
+        0,
+        146
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        -10,
+        0,
+        146
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        10,
+        0,
+        146
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        30,
+        0,
+        146
+       ],
+       "rot": 0
+      },
+      {
+       "model": "lamp",
+       "pos": [
+        50,
+        0,
+        146
+       ],
+       "rot": 0
+      },
+      {
+       "model": "kiosk",
+       "pos": [
+        -30,
+        0,
+        131
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bin",
+       "pos": [
+        -27,
+        0,
+        131
+       ],
+       "rot": 0
+      },
+      {
+       "model": "bin",
+       "pos": [
+        12,
+        0,
+        131
+       ],
+       "rot": 0
+      },
+      {
+       "model": "barrel",
+       "pos": [
+        44,
+        0,
+        132
+       ],
+       "rot": 0,
+       "colliders": [
+        {
+         "size": [
+          0.7,
+          0.7,
+          0.7
+         ],
+         "offset": [
+          0,
+          0.35,
+          0
+         ]
+        }
+       ]
+      },
+      {
+       "model": "barrel",
+       "pos": [
+        -48,
+        0,
+        140
+       ],
+       "rot": 0,
+       "colliders": [
+        {
+         "size": [
+          0.7,
+          0.7,
+          0.7
+         ],
+         "offset": [
+          0,
+          0.35,
+          0
+         ]
+        }
+       ]
+      }
+     ],
+     "hideouts": [
+      {
+       "kind": "barrel",
+       "pos": [
+        44,
+        0.2,
+        132.75
+       ],
+       "size": [
+        0.6,
+        0.4,
+        0.6
+       ]
+      },
+      {
+       "kind": "barrel",
+       "pos": [
+        -48,
+        0.2,
+        140.75
+       ],
+       "size": [
+        0.6,
+        0.4,
+        0.6
+       ]
+      }
+     ],
+     "spawn_points": [
+      {
+       "pos": [
+        -30,
+        0,
+        133.6
+       ],
+       "allowed": [
+        0
+       ],
+       "foods": [
+        "fries"
+       ]
+      }
+     ]
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bench",
+     "rect": [
+      -58,
+      127,
+      58,
+      145
+     ],
+     "count": 4,
+     "rot": 0,
+     "min_dist": 6.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      -58,
+      127,
+      58,
+      145
+     ],
+     "count": 11,
+     "allowed": [
+      0,
+      1
+     ],
+     "foods": [
+      "shrimp",
+      "fries",
+      "squid",
+      "fish_sandwich"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      -58,
+      127,
+      58,
+      145
+     ],
+     "count": 6,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "box",
+     "rect": [
+      -58,
+      127,
+      58,
+      145
+     ],
+     "count": 3,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "bench",
+     "rect": [
+      -58,
+      127,
+      58,
+      145
+     ],
+     "count": 2,
+     "min_dist": 3.0
+    }
+   ]
+  },
+  {
+   "name": "пляж",
+   "ops": [
+    {
+     "type": "hill",
+     "center": [
+      -45,
+      160
+     ],
+     "radius": 5,
+     "height": 0.8
+    },
+    {
+     "type": "hill",
+     "center": [
+      -20,
+      158
+     ],
+     "radius": 4,
+     "height": 0.6
+    },
+    {
+     "type": "hill",
+     "center": [
+      -52,
+      182
+     ],
+     "radius": 5,
+     "height": 0.7
+    },
+    {
+     "type": "perimeter",
+     "rect": [
+      -60,
+      148,
+      60,
+      195
+     ],
+     "model": "fence",
+     "length": 2.0,
+     "sides": "w",
+     "extra": {
+      "colliders": [
+       {
+        "size": [
+         2.0,
+         1.8,
+         0.12
+        ],
+        "offset": [
+         0,
+         0.9,
+         0
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "type": "place",
+     "props": [
+      {
+       "model": "boat_upturned",
+       "pos": [
+        -8,
+        0,
+        170
+       ],
+       "rot": 30,
+       "colliders": [
+        {
+         "size": [
+          1.6,
+          0.12,
+          4.2
+         ],
+         "offset": [
+          0,
+          0.6,
+          0
+         ]
+        },
+        {
+         "size": [
+          0.12,
+          0.6,
+          4.2
+         ],
+         "offset": [
+          -0.74,
+          0.3,
+          0
+         ]
+        },
+        {
+         "size": [
+          0.12,
+          0.6,
+          4.2
+         ],
+         "offset": [
+          0.74,
+          0.3,
+          0
+         ]
+        }
+       ]
+      }
+     ],
+     "hideouts": [
+      {
+       "kind": "boat",
+       "pos": [
+        -8,
+        0.2,
+        170
+       ],
+       "rot": 30,
+       "size": [
+        1.2,
+        0.4,
+        3.6
+       ]
+      }
+     ]
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "deckchair",
+     "rect": [
+      -58,
+      153,
+      8,
+      192
+     ],
+     "count": 6,
+     "rot": "random",
+     "min_dist": 4.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "umbrella",
+     "rect": [
+      -58,
+      153,
+      8,
+      192
+     ],
+     "count": 4,
+     "rot": "random",
+     "min_dist": 5.0
+    },
+    {
+     "type": "scatter",
+     "what": "spawn",
+     "rect": [
+      -58,
+      153,
+      8,
+      192
+     ],
+     "count": 12,
+     "allowed": [
+      0,
+      1
+     ],
+     "foods": [
+      "shrimp",
+      "fries",
+      "squid",
+      "fish_sandwich"
+     ],
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "yarn",
+     "rect": [
+      -58,
+      153,
+      8,
+      192
+     ],
+     "count": 11,
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "hideout",
+     "kind": "box",
+     "rect": [
+      -58,
+      153,
+      8,
+      192
+     ],
+     "count": 2,
+     "min_dist": 3.0
+    }
+   ]
+  }
+ ]
+}

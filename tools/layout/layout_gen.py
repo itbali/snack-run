@@ -106,17 +106,19 @@ def perimeter(rect, model="wall", length=6.0, sides="nswe", gaps=(), extra=None)
 	return out
 
 
-def terrace(rect, height, access=(), sides="nswe", gaps=()):
+def terrace(rect, height, access=(), sides="nswe", gaps=(), ground=0.0, wall_h=None, level=None):
 	"""Терраса: элемент рельефа, подпорные стены на ячейке обрыва (снаружи rect), лестницы и пандусы.
 	access — [(сторона, центр вдоль стороны, "stairs" | "ramp")]. Возвращает (feature, props, blocked)."""
 	h = int(height)
 	assert h in (1, 2, 3) and all(float(v).is_integer() for v in rect), "терраса: высота 1–3 м, углы в целых метрах"
 	x0, z0, x1, z1 = rect
-	feature = {"type": "terrace", "rect": list(rect), "height": float(h)}
+	# height — подъём над окружением (стены, лестницы); level — абсолютная высота плато в terrain_gen (по умолчанию = height).
+	feature = {"type": "terrace", "rect": list(rect), "height": float(h if level is None else level)}
 	gaps = [(s, c, KIT_WIDTH + 0.8) for s, c, _ in access] + [tuple(g) for g in gaps]
 	props = []
 	half = WALL_THICK / 2
-	for w in perimeter([x0 - half, z0 - half, x1 + half, z1 + half], f"retaining_wall{h}", 4.0, sides, gaps):
+	for w in perimeter([x0 - half, z0 - half, x1 + half, z1 + half], f"retaining_wall{int(wall_h or h)}", 4.0, sides, gaps):
+		w["pos"][1] = ground   # подножие стены — абсолютная высота (у порта база рельефа −2)
 		w["rot"] = 0 if w["rot"] in (0, 180) else 90   # подпорная стена симметрична
 		w["snap"] = False
 		props.append(w)
@@ -228,7 +230,7 @@ def model_defaults(props):
 	return d
 
 
-LISTS = ("props", "hideouts", "spawn_points", "yarn", "hazards", "decals", "gates", "water_zones", "shore")
+LISTS = ("props", "hideouts", "spawn_points", "yarn", "hazards", "decals", "gates", "water_zones", "shore", "floaters")
 
 
 def generate(desc):
@@ -242,7 +244,10 @@ def generate(desc):
 	terrain = json.loads(json.dumps(desc["terrain"]))
 	terrain.setdefault("features", [])
 	terrain.setdefault("paint", [])
-	defaults = model_defaults(core.get("props", []))
+	sample = list(core.get("props", []))
+	for path in desc.get("defaults", []):   # районы без ядра берут флаги моделей из ядер других районов
+		sample += json.loads((ROOT / path).read_text()).get("props", [])
+	defaults = model_defaults(sample)
 	gen = {k: [] for k in LISTS}
 	blocked = [f for p in out["props"] for f in footprints(p)]
 
@@ -264,7 +269,7 @@ def generate(desc):
 			add("props", perimeter(op["rect"], op.get("model", "wall"), op.get("length", 6.0), op.get("sides", "nswe"), [tuple(g) for g in op.get("gaps", [])], op.get("extra")))
 		elif t == "terrace":
 			feature, props, bl = terrace(op["rect"], op["height"], [tuple(a) for a in op.get("access", [])],
-				op.get("sides", "nswe"), [tuple(g) for g in op.get("gaps", [])])
+				op.get("sides", "nswe"), [tuple(g) for g in op.get("gaps", [])], op.get("ground", 0.0), op.get("wall_h"), op.get("level"))
 			terrain["features"].append(feature)
 			add("props", props)
 			blocked.extend(bl)
@@ -284,7 +289,7 @@ def generate(desc):
 			x0, z0, x1, z1 = op["rect"]
 			add("water_zones", [{"pos": [(x0 + x1) / 2, op["level"], (z0 + z1) / 2], "size": [x1 - x0, op.get("depth", 2.0), z1 - z0]}])
 			add("shore", [dict(m) if isinstance(m, dict) else {"pos": list(m)} for m in op.get("shore", [])])   # словарь — с флагами (snap)
-			blocked.append((x0, z0, x1, z1, 0.0))
+			# Прямоугольник воды не закрывается для россыпи: над ним бывает суша (причал); россыпи задаются по суше.
 		elif t == "hill":
 			terrain["features"].append({"type": "hill", "center": op["center"], "radius": op["radius"], "height": op["height"]})
 		elif t == "paint":
