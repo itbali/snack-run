@@ -16,11 +16,11 @@ INCLUDE = [
     "third_party/unimate_clips/annotation.json",
     "docs/superpowers/specs/*.md", "docs/superpowers/plans/*roadmap.md",
     "docs/superpowers/notes/*.md",
-    "export_presets.cfg", "tools/audio/*.py", "tools/release/*.sh", "assets/ui/*.tres", "assets/shaders/*.gdshader",
+    "export_presets.cfg", "tools/audio/*.py", "tools/release/*.sh", "tools/images/*.py", "tools/images/manifest.json", "assets/ui/*.tres", "assets/shaders/*.gdshader",
     "assets/sfx/README.md", "assets/fonts/OFL.txt",
 ]
 EXCLUDE_DIRS = {"addons", "build", ".godot", ".superpowers"}
-# Двоичные файлы (.ttf/.ogg/.wav/.glb) в приложение не входят: откуда их взять, описано в процедуре.
+# Двоичные файлы (.ttf/.ogg/.wav/.glb/.png) в приложение не входят: откуда их взять (или как сгенерировать), описано в процедуре.
 LANG = {".py": "python", ".gd": "gdscript", ".tscn": "", ".json": "json", ".md": "markdown",
         ".godot": "ini", "Makefile": "makefile", ".gitignore": "", ".gdignore": "",
         ".cfg": "ini", ".tres": "", ".gdshader": "glsl", ".txt": "", ".sh": "bash"}

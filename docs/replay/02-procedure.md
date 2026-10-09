@@ -605,6 +605,93 @@ Universal или Arm64…»). Проверка запуска: `unzip -q -o buil
 
 ---
 
+## План 5. Визуальная полировка (`docs/superpowers/plans/2026-10-09-snack-run-05-visual.md`)
+
+Ветка `plan-5-visual` от `main`. Спек 2.8 и решения владельца №15–19 (`01-decisions.md`). План с полным кодом — в приложении;
+ниже — что сделано на самом деле и где план поправлен (все такие места — `Ruling:` в журнале исполнителя).
+
+## Задача 1: картинки (OpenAI) и их подключение
+
+1. `tools/images/gen.py` (stdlib `urllib`, ключ только из `OPENAI_API_KEY`), `tools/images/manifest.json` (17 картинок:
+   8 иконок еды, сердечко, фон заставки, облака, 3 плаката, 3 декали), цель `make images` (генерирует только отсутствующие,
+   `FORCE=1` — все; один файл: `python3 tools/images/gen.py --force <путь>`). Модели: `gpt-image-2.5-flare` для иконок (11 с,
+   ≈500 токенов), `gpt-image-2.5-sunburst` для крупных. Генерация 17 файлов ≈ 4 мин.
+2. `FoodDef.icon_path/icon()`; слоты HUD — `TextureRect "Icon"` 48×48 + скрытый `Label "Name"` (тесты читают текст через
+   `find_child("Name", true, false)`); карточки альбома — `TextureRect "Icon"` 96×96, закрытые тёмные (`self_modulate`);
+   заставка — `TextureRect "Background"` с `title_bg.png`, под `VBox` соседняя плашка `Panel`, обе смещены вправо
+   (`anchor 0.68`), чтобы не закрывать кота на арте; логотип и слоган снова графитовые (на белой плашке белый текст не виден).
+3. Тесты: `tests/unit/test_images.gd` (манифест покрывает всю еду, файлы существуют), HUD, альбом, заставка.
+   Контрольная точка: 161 GUT. Коммиты «Картинки…», «Заставка: меню справа».
+
+## Задача 2: кот — сглаживание и пучки
+
+1. `tools/blender/cat.py`: `smooth_body(mesh)` — **сначала `bmesh.ops.remove_doubles` (1e-4)**, потом `SUBSURF` уровня 1 первым
+   в стеке модификаторов и smooth-шейдинг. Без сварки вершин импортированный glb-меш (разрезан по нормалям/UV) под
+   subdivision разъезжается в мозаику. Бюджет `gen/cat.py` 8000 (триангулированный меш ×6, не ×4).
+2. `tools/blender/cat_eyes.py`: `group_bbox(mesh, bone)` с откатом порога 0,5 → 0,25 → head/tail кости; `_attach(obj, arm, bone)`.
+   `tools/blender/cat_fluff.py`: щёчные кисточки (3 конуса на щёку, назад и вниз), грудка, кончик хвоста (`Bone.007`),
+   усы (6 цилиндров 0,8 мм), ошейник (тор у **конца** кости шеи `Bone.002` — её начало у плеч) с жетоном.
+   `cat.gd` снимает обводку с `eyes_*`, `whiskers`, `eyelids`.
+3. Тесты `test_cat_fluff.py` (5), в `test_cat_eyes.py` словарь наборов только по префиксу `eyes_`. `make assets ONLY=cat` → 6226 tri.
+   Кадры анфас/профиль служебным скриптом `-s` (к `cat.glb` добавить `HeadScaler`, `LegScaler`, `TailWiggle` вручную).
+
+## Задача 3: глаза в глазницах, моргание
+
+`palette.py` + `eye_green #6FA04A` (19 цветов); `_eyeball`: белок-эллипсоид (0,55 по оси взгляда) утоплен на 40 %, радужка,
+зрачок, блик; набор `blink` (горизонтальная ресница); `CatFace`: `blink_in` 3–5 с, `blink_left` 0,12 с, моргание только
+поверх `normal`. **Веки-козырьки убраны**: три варианта (над глазом, у лба, на краю яблока) читались как брови или бруски.
+Порог теста «не утоплен» — `hi.y − 0,010` (глаза выше носа). Контрольная точка: 162 GUT, 28 Blender. Кот 6730 tri.
+
+## Задача 4: лапы и хвост
+
+`scripts/player/leg_scaler.gd` (верхние кости лап ×0,8, корень вниз на 20 % высоты от среднего начала верхних костей до стопы —
+таз `Bone` выше суставов), `tail_wiggle.gd` (синус ±7°, 2,5 Гц, сдвиг фазы 0,7 по `Bone.004–007`, поворот вокруг локальной Z).
+Тесты сравнивают два экземпляра `cat.glb` на одном кадре `idle` через `skeleton_updated`/`get_bone_global_pose`.
+Контрольная точка: 164 GUT.
+
+## Задача 5: тун v2
+
+`assets/shaders/outline_fur.gdshader` (cull_front, unshaded, blend_mix, depth_draw_always; шум ширины по `floor(UV·40)`,
+`alpha`); `Toon.apply(root, width, character)` — rim 0,5/0,6 и `jitter 0,25` у персонажей, `make_outline(width, jitter)`;
+`Cat._apply_fade` ставит `alpha` обводке через `set_shader_parameter`. Контрольная точка: 165 GUT.
+
+## Задача 6: свет
+
+`scenes/world/lighting.tscn`: солнце −65°/30°, 1,2, `light_angular_distance 1,5`, `shadow_blur 1,5`, 4 каскада на 30 м;
+`Fill` (−65°/210°, `#9FC4E8`, 0,25, без теней); окружение: `ambient_light_source = 3` (SKY; 1 — DISABLED, 2 — COLOR),
+SSAO 0,3/1,5, SSR, glow 0,4/порог 1,2, насыщенность 1,1, tonemap linear; `ProceduralSkyMaterial` с `sky_cover = clouds.png`.
+`WorldBuilder._make_water` для пропсов с `"water": true` (лужи помечены в `yard.json` — файл многострочный, поле вставлено
+после строки `"model": "puddle",`). Контрольная точка: 170 GUT. Кадр: `build/shot_light.png`.
+
+## Задача 7: VFX
+
+`Effects`: `dust/hearts/sparkles/trail/zzz/leaves` + группы `burst/hearts/dust` для тестов. **Грабля:** одноразовая
+`CPUParticles3D`, созданная во время физического шага (удар, приземление), получает `finished` в том же кадре и с
+`finished → queue_free` исчезала, не родив частиц — теперь эмиссия включается после `add_child`, удаление по таймеру
+`lifetime + 0,3 с` (`_free_later`); это починило и всплески удара плана 4. Кот: `_after_move` (сквош при приземлении/прыжке,
+пыль при беге), `squash`, `flash` (белым только три материала скина, потом `_apply_skin`), `take_hit` зовёт `flash` и
+`camera_rig.shake`; `CameraRig.shake` смещает `SpringArm3D.position`. Еда ≥ редкая — `Sparkles`; оса — `Trail`;
+велосипедист — `Dust` только в пути; собака в IDLE — `zzz` раз в 1,2 с; `Lighting` — `Leaves`. В тесте приземления прыжок
+через `Input.action_press("jump")` (внешний `velocity.y` гасится шагом на полу), пыль ищется как новый узел группы `dust`.
+Контрольная точка: 179 GUT.
+
+## Задача 8: мир
+
+`gen/grass.py` (40 tri), `gen/ivy.py` (24 tri, квады в плоскости XZ Blender, `max_dim 2.5`); `WorldBuilder`: `"solid": false`
+— без коллайдеров и с двусторонними материалами; `"decals"` — `QuadMesh` с текстурой (`ALPHA_SCISSOR`, `CULL_DISABLED`),
+плашмя на y+0,01 (`rotation −90° X`) или вертикально (`wall: true`); `yard.json` + 7 кустов, 12 пучков травы, 3 плюща
+(верхняя полоса стены y 2,2), 8 декалей (люк, трещины ×2, листья ×2, плакаты ×3 под окнами на y 0,8, лицо на z −13,78).
+Куст у западного угла сдвинут (лежал на клубочке — ловит тест инвариантов). Тест рассыпанной еды принимает любую
+поверхность под точкой (на стул у кафе тоже можно) и фиксирует `rng.seed`. Контрольная точка: 182 GUT. Кадр: `build/shot_world.png`.
+
+## Задача 9: эта документация, `make replay`, дорожная карта, `CLAUDE.md`.
+
+## Ревью плана 5 и исправления
+
+(см. конец раздела после ревью)
+
+---
+
 ## Известные грабли (сводка, чтобы не искать по тексту)
 
 **Godot 4.7:** `class_name` виден после `make import`; GUT не падает на parse error (grep в Makefile);
@@ -624,6 +711,13 @@ Universal или Arm64…»). Проверка запуска: `unzip -q -o buil
 даёт событий `_unhandled_input` — меню опрашивать `is_action_just_pressed` из узла `ALWAYS`; `Main` не
 делать `ALWAYS` (дети унаследуют и не встанут на паузу); `JSON.parse_string` печатает ERROR движка;
 `Color` из `.tres` сравнивать через `to_html()`; камера-витрина — точка на будке, не мировое смещение.
+
+**План 5:** импортированный glb-меш перед subdivision сваривать (`remove_doubles`), иначе мозаика; subdivision на
+триангулированном меше ×6; `CPUParticles3D` из физического шага: эмиссию включать после `add_child`, удалять по таймеру,
+не по `finished`; `ambient_light_source`: 1 = DISABLED, 3 = SKY; внешний `velocity.y` у кота гасится шагом на полу — в тестах
+прыгать через `Input.action_press("jump")`; в тестах с нетипизированным `main` писать `var x: Тип = main.f()`; `yard.json`
+многострочный — правки скриптом по строкам, не регуляркой; служебный рендер `-s` к `cat.glb` добавляет модификаторы вручную
+(в glb их нет); картинки с «прозрачным» фоном у gpt-image имеют альфу до 253, не 255.
 
 **План 4:** одиночный прогон GUT — `-gselect=`; пары Area3D фиксируются по позициям в момент `add_child`
 (узлы в тестах ставить `position` **до** `add_child`, иначе кот в точке собаки ловит удар на первом кадре); в скрипте

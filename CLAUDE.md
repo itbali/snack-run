@@ -16,13 +16,13 @@
 
 1. `docs/superpowers/specs/2026-10-07-snack-run-design.md` — спек: визуальная библия + игровой цикл. **Спек — источник истины**, план лишь аргумент от него.
 2. `docs/superpowers/plans/2026-10-07-snack-run-roadmap.md` — дорожная карта из 4 планов и их статус.
-3. `docs/superpowers/plans/2026-10-07-snack-run-01-foundation.md` … `2026-10-08-snack-run-04-polish.md` — планы 1–4 (все выполнены). Образец формата для следующих.
+3. `docs/superpowers/plans/2026-10-07-snack-run-01-foundation.md` … `2026-10-09-snack-run-05-visual.md` — планы 1–5 (все выполнены). Образец формата для следующих.
 4. `docs/superpowers/notes/2026-10-07-unimate-attempt.md` — как заработал UniMate на Mac и все найденные грабли.
 5. `reference/*.png` — три концепт-арта (ключевой кадр, карта мира, артборд ассетов).
 
 ## Правила владельца проекта
 
-- Движок Godot 4.7.2, ассеты генерируются Python-скриптами в Blender 5.2.2 (не руками в GUI).
+- Движок Godot 4.7.2, 3D-ассеты генерируются Python-скриптами в Blender 5.2.2 (не руками в GUI). 2D-картинки (иконки, арты, декали) — только через `tools/images/gen.py` по манифесту (OpenAI `gpt-image-2.5`, ключ из `OPENAI_API_KEY`), решение владельца №18.
 - Анимации **не делать самому**: сначала готовые бесплатные паки (CC0/CC-BY), потом UniMate, и только если ничего нет — генерация скриптом. **Платные ассеты запрещены.**
 - Стиль: стилизованный лоуполи + тун-свет + обводка; цвета только из палитры спека 2.2 (`tools/blender/palette.py`).
 - Этапность: сначала вертикальный срез района «двор + кафе», остальное потом.
@@ -48,6 +48,7 @@ make assets ONLY=cat
 make shot SHOT=build/x.png   # скриншот главной сцены из CLI (ждёт 40 кадров)
 make run           # запустить игру (WASD, мышь/Q/R камера, Shift бег, Space прыжок, Ctrl прятаться, E есть/магазин, Tab альбом, Esc пауза)
 make sfx           # пересинтезировать meow.wav/bark.wav (tools/audio/gen_sfx.py)
+make images        # сгенерировать недостающие картинки по tools/images/manifest.json (нужен OPENAI_API_KEY); FORCE=1 — все
 make templates     # один раз: шаблоны экспорта 4.7.2 (1,28 ГБ) в ~/Library/Application Support/Godot/export_templates
 make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, ad-hoc подпись) по export_presets.cfg; нужна настройка import_etc2_astc
 ```
@@ -60,7 +61,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 
 - `scenes/main.tscn` + `scripts/main.gd` — собирает свет, двор, кота, камеру.
 - `scripts/player/cat_motion.gd` — чистая логика (static, без узлов) → тесты в `tests/unit/`.
-- `scripts/player/cat.gd` (CharacterBody3D: idle/walk/run/jump/hide/hit, `take_hit`, `try_hide`, `try_eat`, `teleport`, `set_fade`, `threaten/cheer`), `cat_face.gd` (выражения глаз по мешам `eyes_*`), `camera_rig.gd` (`crouch`, `shop_view`, мышь, прозрачность кота), `head_scaler.gd`.
+- `scripts/player/cat.gd` (CharacterBody3D: idle/walk/run/jump/hide/hit, `take_hit`, `try_hide`, `try_eat`, `teleport`, `set_fade`, `threaten/cheer`, `squash/flash`), `cat_face.gd` (выражения глаз по мешам `eyes_*`, моргание), `camera_rig.gd` (`crouch`, `shop_view`, мышь, прозрачность кота, `shake`), модификаторы скелета `head_scaler.gd`, `leg_scaler.gd`, `tail_wiggle.gd`.
 - `scripts/autoload/game_state.gd` — сердечки, зубы (3), сытость, альбом, цель сессии; сигналы `cat_hit`, `cat_fainted` и др. В тестах `GameState.reset()` в `before_each`.
 - `scripts/core/` (`Layers`, `Rarity`), `scripts/food/` (`FoodDef`, `FoodCatalog`, `FoodPickup`, `FoodSpawnPoint`), `data/food/*.tres`.
 - `scripts/hideouts/hideout.gd`, `scripts/world/world_builder.gd` (двор из `data/layout/yard.json`), `scripts/world/spill_spawner.gd`.
@@ -69,10 +70,11 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 - `scripts/core/shop_item.gd`, `shop_catalog.gd`, `cat_skin.gd`, `skin_catalog.gd`; данные `data/shop/*.tres`, `data/skins/*.tres`.
 - `scripts/autoload/save_game.gd` — JSON в `user://save.json`, пишет только по `save_now()` из `Main`; в тестах с `Main` путь переопределяется.
 - `scripts/world/gate.gd` (ворота по сытости), `scripts/world/yarn_shop.gd` (будка: безопасная зона, возрождение, витрина), `scripts/food/yarn_pickup.gd`.
-- `scripts/visual/toon.gd` — `Toon.apply(root, width_m)`; ширина в метрах, пересчитывается под масштаб узла. `scripts/visual/effects.gd` — `Effects.burst` (частицы).
+- `scripts/visual/toon.gd` — `Toon.apply(root, width_m, character)`; ширина в метрах, пересчитывается под масштаб узла; обводка — `assets/shaders/outline_fur.gdshader`, у персонажей rim и шум. `scripts/visual/effects.gd` — `Effects.burst/dust/hearts/sparkles/trail/zzz/leaves` (частицы; одноразовые удаляются по таймеру).
 - `scripts/autoload/sfx.gd` — звуки (`Sfx.play(&"eat")`, один вызов на событие), файлы и лицензии в `assets/sfx/README.md`; `assets/ui/theme.tres` (Nunito, плашки), `assets/shaders/vignette.gdshader`; `scripts/core/mouse.gd` (`Mouse.capture`, в headless no-op).
 - `scripts/autoload/input_setup.gd` (InputMap в коде), `dev_tools.gd` (`++ --screenshot=path`).
-- `tools/blender/`: `palette.py`, `lib.py` (rounded_box, world_extent, tri_count, check_asset), `export.py`, `build.py`, `cat.py` + `cat_eyes.py` (глаза), `dog.py` + `dog_sleep.py` (поза «спит»), `gen/*.py` (каждый: `SPEC` + `build()`); `tools/audio/gen_sfx.py`; `export_presets.cfg`.
+- `tools/blender/`: `palette.py`, `lib.py` (rounded_box, world_extent, tri_count, check_asset), `export.py`, `build.py`, `cat.py` (сварка + subdivision) + `cat_eyes.py` (глаза) + `cat_fluff.py` (пучки, усы, ошейник), `dog.py` + `dog_sleep.py` (поза «спит»), `gen/*.py` (каждый: `SPEC` + `build()`); `tools/audio/gen_sfx.py`; `tools/images/gen.py` + `manifest.json`; `export_presets.cfg`.
+- `scenes/world/lighting.tscn` — солнце, заполняющий свет, окружение (SSAO, SSR, glow, облака `sky_cover`), листья; `WorldBuilder` читает `solid`, `water`, `decals` из `yard.json`.
 - `third_party/quaternius_animal_pack_v2/` (CC0 кот и собака), `third_party/unimate_clips/` (канонический риг + клипы jump/hide/hit/run + README с воспроизведением).
 - `tests/unit`, `tests/integration` (GUT 9.7.1 в `addons/gut`, вендор), `tools/blender/tests/`.
 
@@ -112,10 +114,12 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 
 **План 4:** одиночный прогон GUT — `-gselect=`, не `-gtest=`; пары Area3D фиксируются по позициям в момент `add_child` (в тестах `position` ставить **до** `add_child`, иначе кот в точке собаки ловит удар на первом кадре); скрипт `-s` (SceneTree) без автозагрузок — `cat.tscn` там не компилируется, рендерить `cat.glb`; в `_init()` такого скрипта `global_position`/`look_at` не применяются — задавать `transform`; в Blender при записи клипа позу ставить при снятом action (иначе `view_layer.update()` возвращает уже записанные кадры); `GameState.reset()` рядом с `Main` тут же автосохраняется — файл стирать после сброса или выключать `autosave`; эмоции — меши на кости головы (материалы не из ролей скина, обводку с глаз снимать).
 
+**План 5:** импортированный glb-меш перед subdivision сваривать (`remove_doubles`), иначе мозаика; subdivision на триангулированном меше ×6; `CPUParticles3D`, созданные в физическом шаге, получают `finished` сразу — эмиссию включать после `add_child`, удалять по таймеру; `ambient_light_source`: 1 = DISABLED, 3 = SKY; внешний `velocity.y` у кота гасится шагом на полу (в тестах прыгать через `Input.action_press("jump")`); с нетипизированным `main` в тестах писать `var x: Тип = main.f()`; `yard.json` многострочный — правки скриптом по строкам; служебный рендер `-s` к `cat.glb` добавляет модификаторы скелета вручную; веки над утопленными глазами читаются как брови — не делать.
+
 **UniMate на Mac** (подробно в заметке): venv Python 3.10 через `uv`, requirements без `+cu124`, `sampling.device = cpu` в `config.json` чекпоинта (MPS не умеет float64), ручная `annotation.json` (авторазметка путает спину и хвост), шим `blender` → venv-python с pip-`bpy` для `run_animate_motion.sh`. Окружение жило в scratchpad и не сохранилось; чекпоинт 1,2 ГБ качается с HF заново.
 
 ## Статус и что дальше
 
-- Планы 1–4 выполнены и слиты в `main` (2026-10-08): фундамент, игровой цикл, хаб и прогрессия, полировка под ролик (тема UI, глаза и выражения, частицы, звук, камера мышью и прозрачность, виньетка, спящая собака, kill-plane, баланс, mac-билд). Оставшиеся отложенные мелочи — в конце дорожной карты (без галочки «план 4»).
-- Следующий шаг: по дорожной карте этапы 2+ (парк, сутки, порт) — отдельные спеки через brainstorming; либо живой плейтест владельца с правками по его замечаниям.
+- Планы 1–5 выполнены и слиты в `main` (2026-10-09): фундамент, игровой цикл, хаб и прогрессия, полировка под ролик, визуальная полировка (картинки OpenAI, гладкий кот с глазами в глазницах и пучками, короткие лапы, тун v2, яркий день, VFX, зелень и декали). Отложенные мелочи — в конце дорожной карты.
+- Следующий шаг: живой плейтест владельца с правками по его замечаниям, затем этапы 2+ (парк, сутки, порт) отдельными спеками через brainstorming.
 - Открытый вопрос владельцу: лицензия весов UniMate для сгенерированных движений (код MIT, для весов явной лицензии не найдено).

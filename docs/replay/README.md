@@ -12,6 +12,7 @@
 | Godot | 4.7.2 stable (обычная сборка, не .NET) | `/Applications/Godot.app/Contents/MacOS/Godot` |
 | Blender | 5.2.2 LTS (Python 3.13, numpy внутри) | `/Applications/Blender.app/Contents/MacOS/Blender` |
 | uv | любой свежий | `/opt/homebrew/bin/uv` (нужен только для UniMate) |
+| OpenAI API | ключ в `OPENAI_API_KEY` | только для перегенерации картинок (`make images`); модель `gpt-image-2.5` |
 | Homebrew, git, curl, python3 | системные | — |
 
 Машина: Apple Silicon (M4 Pro), macOS. CUDA нет, UniMate работает на CPU.
@@ -41,9 +42,10 @@
 ## Что считается успехом
 
 - `make test` зелёный с чистого состояния (`rm -rf .godot && make test`): после плана 1 — 8 Blender-тестов и 29 GUT;
-  после плана 4 — 20 Blender-тестов и 158+ GUT (точное число в конце раздела «План 4» в `02-procedure.md`).
+  после плана 4 — 20 Blender и 158 GUT; после плана 5 — 28 Blender и 180+ GUT (точные числа в разделах планов в `02-procedure.md`).
 - `make assets` собирает все модели из `tools/blender/gen/*.py`; у `cat.glb` 6 клипов и четыре набора глаз, у `dog.glb` клипы idle/walk/sleep.
-- `make shot` даёт кадр: рыжий кот с глазами и обводкой на дворе, белые плашки HUD (Nunito), виньетка по краям.
+- `make shot` даёт кадр: гладкий рыжий кот с зелёными глазами, усами и ошейником на солнечном дворе с кустами, плющом, плакатами и декалями; белые плашки HUD (Nunito), виньетка по краям.
+- `make images` при наличии `OPENAI_API_KEY` генерирует недостающие картинки по `tools/images/manifest.json` (иконки еды, фон заставки, облака, плакаты, декали); без ключа сгенерированные PNG уже лежат в репозитории.
 - `make run`: WASD двигает кота относительно камеры, мышь/Q/R крутят камеру, Shift бег, Space прыжок, Ctrl прятаться, E есть/магазин, Tab альбом, Esc пауза.
 - `make export` (после `make templates`) даёт `build/SnackRun.zip` с `SnackRun.app`.
 
