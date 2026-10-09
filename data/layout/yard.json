@@ -535,6 +535,7 @@
     },
     {
       "model": "puddle",
+      "water": true,
       "pos": [
         3,
         0,
@@ -544,6 +545,7 @@
     },
     {
       "model": "puddle",
+      "water": true,
       "pos": [
         -5,
         0,
@@ -1116,6 +1118,7 @@
     },
     {
       "model": "puddle",
+      "water": true,
       "pos": [
         -6,
         0,

@@ -150,3 +150,19 @@ func test_yarn_balls_in_layout_stand_on_something() -> void:
 		if not hit.is_empty():
 			assert_lt(pos.y - hit["position"].y, 0.3, "клубочек %s висит в воздухе" % pos)
 		assert_eq(_prop_at(world, pos + Vector3(0, 0.1, 0)), "", "клубочек %s внутри пропса" % pos)
+
+func test_water_props_get_mirror_material() -> void:
+	var b := WorldBuilder.new()
+	add_child_autofree(b)
+	b.build({"props": [{"model": "puddle", "pos": [0, 0, 0], "water": true}]})
+	assert_eq(b.water_built, 1)
+	var mi := b.find_child("Model", true, false).find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D
+	var m := mi.get_surface_override_material(0) as StandardMaterial3D
+	assert_lt(m.roughness, 0.1, "лужа зеркальная")
+	assert_almost_eq(m.metallic, 0.0, 0.01)
+
+func test_real_yard_puddles_are_water() -> void:
+	var data := WorldBuilder.load_layout("res://data/layout/yard.json")
+	for p in data["props"]:
+		if p["model"] == "puddle":
+			assert_true(bool(p.get("water", false)), "лужи в раскладке помечены water")

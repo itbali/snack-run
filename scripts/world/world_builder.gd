@@ -22,6 +22,7 @@ var hazards_built := 0
 var yarn_built := 0
 var gates_built := 0
 var shop_built := 0
+var water_built := 0
 
 
 func _ready() -> void:
@@ -97,7 +98,25 @@ func _build_prop(p: Dictionary) -> void:
 	body.global_position = _v3(p["pos"])
 	body.rotation_degrees.y = float(p.get("rot", 0))
 	Toon.apply(model, Toon.OUTLINE_FOOD if p.get("outline", false) else Toon.OUTLINE_NONE)
+	if bool(p.get("water", false)):
+		_make_water(model)
+		water_built += 1
 	props_built += 1
+
+
+func _make_water(model: Node3D) -> void:
+	## Лужа: зеркальный материал, отражает небо через SSR окружения (спек 2.8).
+	for mi in model.find_children("*", "MeshInstance3D", true, false):
+		var m3 := mi as MeshInstance3D
+		for i in m3.mesh.get_surface_count():
+			var m := m3.get_surface_override_material(i) as StandardMaterial3D
+			if m == null:
+				continue
+			m.diffuse_mode = BaseMaterial3D.DIFFUSE_LAMBERT
+			m.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
+			m.roughness = 0.05
+			m.metallic = 0.0
+			m.metallic_specular = 1.0
 
 
 func _model_aabb(model: Node3D) -> AABB:
