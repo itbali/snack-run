@@ -273,3 +273,40 @@ func test_gazebo_floor_and_posts_are_solid_but_inside_is_free() -> void:
 	q.position = Vector3(0.5, 0.6, 0.3)
 	q.collision_mask = Layers.WORLD
 	assert_eq(space.intersect_point(q).size(), 0, "внутри беседки свободно")
+
+func test_decor_is_multimesh_without_collision() -> void:
+	# План 16: тысячи украшений — один MultiMeshInstance3D на модель, без тел и коллизий, на рельефе.
+	var b = _builder()
+	var items := []
+	for i in 300:
+		items.append({"model": "decor_grass", "pos": [i % 20, 0, int(i / 20)], "rot": i * 7, "scale": 1.0})
+	items.append({"model": "decor_flowers", "pos": [3, 0, 3], "rot": 0, "scale": 1.2})
+	b.build({"decor": items})
+	var mms := b.find_children("*", "MultiMeshInstance3D", true, false)
+	assert_eq(mms.size(), 2, "по одному на модель")
+	var total := 0
+	for m in mms:
+		total += (m as MultiMeshInstance3D).multimesh.instance_count
+		assert_gt((m as MultiMeshInstance3D).visibility_range_end, 0.0, "гаснет вдали")
+	assert_eq(total, 301)
+	assert_eq(b.find_children("*", "StaticBody3D", true, false).size(), 0, "без коллизий")
+
+func test_decor_is_chunked_so_far_chunks_fade_independently() -> void:
+	# visibility_range меряется от позиции узла: украшения делятся на клетки 30×30 м, узел — в центре своей клетки.
+	var b = _builder()
+	b.build({"decor": [{"model": "decor_grass", "pos": [1, 0, 1]}, {"model": "decor_grass", "pos": [100, 0, 1]}]})
+	var mms := b.find_children("*", "MultiMeshInstance3D", true, false)
+	assert_eq(mms.size(), 2, "две клетки")
+	for m in mms:
+		var mm := (m as MultiMeshInstance3D).multimesh
+		var world_pos := (m as Node3D).global_transform * mm.get_instance_transform(0).origin
+		assert_lt((m as Node3D).global_position.distance_to(world_pos), 25.0, "узел рядом со своими украшениями")
+
+func test_decor_uses_toon_materials() -> void:
+	var b = _builder()
+	b.build({"decor": [{"model": "decor_flowers", "pos": [1, 0, 1]}]})
+	var mm := (b.find_children("*", "MultiMeshInstance3D", true, false)[0] as MultiMeshInstance3D).multimesh
+	var mat := mm.mesh.surface_get_material(0) as BaseMaterial3D
+	assert_not_null(mat)
+	if mat:
+		assert_eq(mat.diffuse_mode, BaseMaterial3D.DIFFUSE_TOON, "украшения в тун-свете, как весь мир")

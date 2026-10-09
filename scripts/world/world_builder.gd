@@ -139,6 +139,74 @@ func build(data: Dictionary) -> void:
 		_build_shore(m)
 	for f in data.get("floaters", []):
 		_build_floater(f)
+	_build_decor(data.get("decor", []))
+
+
+const DECOR_RANGE := 45.0
+
+
+const DECOR_CHUNK := 30.0
+
+
+func _build_decor(items: Array) -> void:
+	## Мелкие украшения (план 16): MultiMeshInstance3D на модель и клетку 30×30 м, без коллизий; высота — с рельефа.
+	## Узел стоит в центре клетки: visibility_range меряется от позиции узла, иначе весь район гас бы от центра мира.
+	var groups := {}
+	for it in items:
+		var p := _place(it)
+		var key := "%s|%d|%d" % [it["model"], int(floor(p.x / DECOR_CHUNK)), int(floor(p.z / DECOR_CHUNK))]
+		groups.get_or_add(key, []).append([it, p])
+	var meshes := {}
+	for key in groups:
+		var model_name: String = key.split("|")[0]
+		if not meshes.has(model_name):
+			meshes[model_name] = _decor_mesh(model_name)
+		var mesh: Mesh = meshes[model_name]
+		if mesh == null:
+			continue
+		var list: Array = groups[key]
+		var center := Vector3.ZERO
+		for e in list:
+			center += e[1]
+		center /= list.size()
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = mesh
+		mm.instance_count = list.size()
+		for i in list.size():
+			var it: Dictionary = list[i][0]
+			var k := float(it.get("scale", 1.0))
+			var basis := Basis(Vector3.UP, deg_to_rad(float(it.get("rot", 0)))).scaled(Vector3(k, k, k))
+			mm.set_instance_transform(i, Transform3D(basis, list[i][1] - center))
+		var node := MultiMeshInstance3D.new()
+		node.name = "Decor_%s_%d" % [model_name, _container("Decor").get_child_count()]
+		node.multimesh = mm
+		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		node.visibility_range_end = DECOR_RANGE
+		node.visibility_range_end_margin = 5.0
+		node.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+		_add_at(_container("Decor"), node, center, 0.0)
+
+
+func _decor_mesh(model_name: String) -> Mesh:
+	var path := "%s/%s.glb" % [MODELS_DIR, model_name]
+	if not ResourceLoader.exists(path):
+		push_warning("нет модели украшения " + path)
+		return null
+	var src := (load(path) as PackedScene).instantiate() as Node3D
+	add_child(src)   # Toon.apply работает с узлами в дереве
+	Toon.apply(src, Toon.OUTLINE_NONE)
+	var mi := src.find_children("*", "MeshInstance3D", true, false)
+	var mesh: Mesh = null
+	if not mi.is_empty():
+		var m3 := mi[0] as MeshInstance3D
+		mesh = m3.mesh.duplicate() as Mesh
+		for i in mesh.get_surface_count():
+			var mat := m3.get_surface_override_material(i)
+			if mat:
+				mesh.surface_set_material(i, mat)   # тун-материалы — в сам меш: у MultiMesh нет поверхностных override
+	src.queue_free()
+	return mesh
 
 
 func _build_floater(f: Dictionary) -> void:
