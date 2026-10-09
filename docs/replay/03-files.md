@@ -2536,10 +2536,13 @@ func _physics_process(delta: float) -> void:
 		above = d.y > ABOVE and dist < 0.5
 	if night_only and not night and state == &"burrow":
 		return   # ночной краб днём сидит в норке
+	var sees: bool = c != null and not bool(c.get("hidden")) and not bool(c.get("in_safe_zone"))
 	var watch := dist   # из норки краб сторожит округу норки, в погоне — меряет до кота
-	if state == &"burrow" and c:
-		watch = Vector2(c.global_position.x - home.x, c.global_position.z - home.z).length()
+	if state == &"burrow":
+		watch = Vector2(c.global_position.x - home.x, c.global_position.z - home.z).length() if sees else 99.0
 	var next := decide(state, watch, above, _chase_t, _hide_left, night)
+	if state == &"chase" and not sees:
+		next = &"hide"   # кот спрятался или ушёл в будку — краб уходит (ревью плана 14)
 	if next != state:
 		if next == &"chase":
 			_chase_t = 0.0
@@ -2555,7 +2558,8 @@ func _physics_process(delta: float) -> void:
 			velocity = Vector3.ZERO
 		&"chase":
 			_chase_t += delta
-			_run_to(c.global_position, delta)
+			if c:
+				_run_to(c.global_position, delta)
 			for b in hit_zone.get_overlapping_bodies():
 				_on_hit_body(b)
 		&"hide":
@@ -2573,8 +2577,10 @@ func _run_to(target: Vector3, delta: float) -> float:
 
 
 func _on_hit_body(body: Node3D) -> void:
-	if state == &"chase":
+	if state == &"chase" and body.is_in_group("cat"):
 		super(body)
+		state = &"hide"   # ущипнул — уходит: один краб — одно сердечко за погоню
+		_hide_left = HIDE_TIME
 ```
 
 ## `scripts/hazards/cyclist.gd`
@@ -3095,6 +3101,7 @@ const STRIKE := 0.9
 
 var mode: StringName = &"circle"   # circle | warn | dive | rise | sleep
 var cooldown_left := 0.0
+var perch_h := 0.0   # высота насеста над якорем (тумба, фонарь): ночью спит там (спек: на столбах)
 var anchor: Vector3
 var ground := 0.0
 var _anchored := false
@@ -3110,6 +3117,7 @@ var _from := Vector3.ZERO
 
 func configure(hz: Dictionary, _builder: Node3D) -> void:
 	_angle = float(hz.get("phase", 0.0))
+	perch_h = float(hz.get("perch_h", 0.0))
 
 
 func _ready() -> void:
@@ -3148,7 +3156,7 @@ func _physics_process(delta: float) -> void:
 		&"circle":
 			if night:
 				mode = &"sleep"
-				global_position = anchor
+				global_position = anchor + Vector3(0, perch_h, 0)
 				_shadow.visible = false
 				_play(&"idle")
 				return
@@ -3193,6 +3201,8 @@ func _strike(c: Node3D) -> void:
 	## Бросок в точку, где был кот: попал — удар и последняя еда унесена (остальное в зубах).
 	if c == null or not c.has_method("take_peck"):
 		return
+	if GameState.mouth.is_empty() or DayNight.is_night(get_tree()):
+		return   # за секунду предупреждения еда пропала или наступила ночь — красть нечего
 	var d := c.global_position - _target
 	if Vector2(d.x, d.z).length() <= STRIKE and absf(d.y) < 1.2:
 		c.call("take_peck", global_position)
@@ -9079,6 +9089,19 @@ func test_forklift_lane_is_clear() -> void:
 	var space := world.get_world_3d().direct_space_state
 	var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(25, -0.5, 152), Vector3(25, -0.5, 208.5), Layers.WORLD))
 	assert_true(hit.is_empty(), "полоса свободна: %s" % [hit.get("collider")])
+
+func test_gulls_have_posts_to_sleep_on() -> void:
+	# Ревью плана 14: ночью чайки спят на столбах — под якорем каждой чайки твёрдый столб высотой perch_h.
+	var space := world.get_world_3d().direct_space_state
+	for h in WorldBuilder.load_layout(LAYOUT)["hazards"]:
+		if h["type"] != "gull":
+			continue
+		var x := float(h["pos"][0])
+		var z := float(h["pos"][2])
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(x, 10, z), Vector3(x, -5, z), Layers.WORLD))
+		assert_false(hit.is_empty())
+		if not hit.is_empty():
+			assert_almost_eq((hit["position"] as Vector3).y - t.height_at(x, z), float(h.get("perch_h", 0.0)), 0.1, "насест чайки у %s" % [h["pos"]])
 ```
 
 ## `tests/integration/test_port_hazards.gd`
@@ -9287,9 +9310,10 @@ func test_crab_runs_out_and_pinches_cat_closer_than_3m() -> void:
 	_floor()
 	var c := _crab(Vector3(0, 0.05, 0))
 	_cat(Vector3(2.5, 0.05, 0))
+	await wait_physics_frames(10)
+	assert_true((c.get_node("Model") as Node3D).visible, "вылез из норки")
 	await wait_seconds(2.0)
 	assert_eq(GameState.hearts, 2, "щипок")
-	assert_true((c.get_node("Model") as Node3D).visible)
 
 func test_crab_hides_after_5s_chase_and_comes_back_after_6s() -> void:
 	_floor()
@@ -9322,6 +9346,61 @@ func test_night_crab_sits_in_burrow_by_day() -> void:
 	await wait_seconds(1.0)
 	assert_eq(c.get("state"), &"burrow")
 	assert_eq(GameState.hearts, 3)
+
+func test_crab_ignores_hidden_cat_near_burrow() -> void:
+	# Ревью плана 14: краб «видел» кота в укрытии у норки и ходил кругами, а при выходе щипал сразу.
+	_floor()
+	var c := _crab(Vector3(0, 0.05, 0))
+	var cat = _cat(Vector3(1.5, 0.05, 0))
+	cat.hidden = true
+	await wait_physics_frames(20)
+	assert_eq(c.get("state"), &"burrow", "спрятанного не видит")
+
+func test_crab_gives_up_when_cat_hides_mid_chase() -> void:
+	_floor()
+	var c := _crab(Vector3(0, 0.05, 0))
+	var cat = _cat(Vector3(2.5, 0.05, 0))
+	await wait_physics_frames(10)
+	assert_eq(c.get("state"), &"chase")
+	cat.hidden = true
+	await wait_physics_frames(2)
+	assert_eq(c.get("state"), &"hide", "кот спрятался — краб уходит в норку")
+
+func test_crab_hides_after_pinch() -> void:
+	# Один краб — одно сердечко за погоню.
+	_floor()
+	var c := _crab(Vector3(0, 0.05, 0))
+	_cat(Vector3(2.5, 0.05, 0))
+	await wait_seconds(2.0)
+	assert_eq(GameState.hearts, 2)
+	assert_eq(c.get("state"), &"hide")
+
+func test_gull_sleeps_on_its_post() -> void:
+	# Ревью плана 14: спек — ночью чайки спят на столбах (тумба, фонарь), а не на земле.
+	_floor()
+	var light = (load("res://scenes/world/lighting.tscn") as PackedScene).instantiate()
+	world.add_child(light)
+	light.get_node("DayNight").set_time(220.0)
+	light.get_node("DayNight").set("time_scale", 0.0)
+	var g := GullScene.instantiate() as Node3D
+	g.call("configure", {"perch_h": 0.55}, null)
+	g.position = Vector3(2, 0, 2)
+	world.add_child(g)
+	await wait_physics_frames(10)
+	assert_eq(g.mode, &"sleep")
+	assert_almost_eq(g.global_position.y, 0.55, 0.05, "на верхушке тумбы")
+
+func test_gull_does_not_strike_cat_who_lost_food() -> void:
+	_floor()
+	var g := _gull(Vector3(0, 0, 0))
+	var cat = _cat(Vector3(1, 0.05, 1))
+	await wait_physics_frames(5)
+	GameState.pick_up(FoodCatalog.get_by_id(&"shrimp"))
+	await wait_physics_frames(3)
+	assert_eq(g.mode, &"warn")
+	GameState.spill()   # за секунду предупреждения еда пропала (съел, отняли)
+	await wait_seconds(1.8)
+	assert_eq(GameState.hearts, 3, "красть нечего — не бьёт")
 ```
 
 ## `tests/integration/test_shop_menu.gd`
@@ -16509,6 +16588,8 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
   качающиеся лодки и бочки, ворота 50, шесть вкусняшек, альбом 20.
 - План 14. Опасности порта (`2026-10-09-snack-run-14-port-hazards.md`) — ВЫПОЛНЕН 2026-10-09: чайки (CC0-голубь), волны,
   погрузчик, крабы (CC0 methodical pixel).
+- Отложено из ревью плана 14: чайка пикирует к тонущему коту; краб гонится в море и падает с уступа; волна сдвигает кота без
+  проверки коллизий; погрузчик без твёрдого тела, разворот мгновенный.
 - Отложено из ревью плана 13: проёмы стен в описании «1.0» при фактических 4 м; лодки и бочки без тун-обводки.
 - Планы 13–15. Этап 3: порт 120×102 (район и вода, опасности, рыбалка) по спеку `2026-10-09-snack-run-stage3-port-design.md`.
 ```
@@ -18781,6 +18862,7 @@ if __name__ == "__main__":
     {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-60.0, 0, 193.0], "rot": 90},
     {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-59.95, 0, 194.0], "rot": 90},
     {"model": "boat_upturned", "pos": [-8, 0, 170], "rot": 30, "colliders": [{"size": [1.6, 0.12, 4.2], "offset": [0, 0.6, 0]}, {"size": [0.12, 0.6, 4.2], "offset": [-0.74, 0.3, 0]}, {"size": [0.12, 0.6, 4.2], "offset": [0.74, 0.3, 0]}]},
+    {"colliders": [{"size": [0.2, 2.6, 0.2], "offset": [0, 1.3, 0]}], "model": "lamp", "pos": [-30, 0, 172], "rot": 0},
     {"outline": true, "model": "box", "pos": [20.7, 0, 191.1], "rot": 255},
     {"outline": true, "model": "box", "pos": [28.3, 0, 201.0], "rot": 90},
     {"outline": true, "model": "box", "pos": [19.3, 0, 163.8], "rot": 345},
@@ -18893,8 +18975,8 @@ if __name__ == "__main__":
   ],
   "hazards": [
     {"type": "forklift", "pos": [25, 0, 153], "rot": 0, "path": [[25, 153], [25, 207]]},
-    {"type": "gull", "pos": [30, 0, 192], "phase": 0.0},
-    {"type": "gull", "pos": [-30, 0, 170], "phase": 2.0},
+    {"type": "gull", "pos": [34, 0, 200], "phase": 0.0, "perch_h": 0.55},
+    {"type": "gull", "pos": [-30, 0, 172], "phase": 2.0, "perch_h": 2.65},
     {"type": "wave", "pos": [-25, -2.0, 194.2], "snap": false, "width": 68, "inland": -1},
     {"type": "crab", "pos": [-50, 0, 175]},
     {"type": "crab", "pos": [-35, 0, 186]},
@@ -23956,11 +24038,12 @@ class Generate(unittest.TestCase):
       {
        "type": "gull",
        "pos": [
-        30,
+        34,
         0,
-        192
+        200
        ],
-       "phase": 0.0
+       "phase": 0.0,
+       "perch_h": 0.55
       }
      ]
     }
@@ -24540,9 +24623,10 @@ class Generate(unittest.TestCase):
        "pos": [
         -30,
         0,
-        170
+        172
        ],
-       "phase": 2.0
+       "phase": 2.0,
+       "perch_h": 2.65
       },
       {
        "type": "wave",
@@ -24604,6 +24688,17 @@ class Generate(unittest.TestCase):
         190
        ],
        "night_only": true
+      }
+     ],
+     "props": [
+      {
+       "model": "lamp",
+       "pos": [
+        -30,
+        0,
+        172
+       ],
+       "rot": 0
       }
      ]
     }
