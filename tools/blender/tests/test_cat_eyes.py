@@ -20,7 +20,7 @@ class TestCatEyes(unittest.TestCase):
         return [o.matrix_world @ v.co for v in o.data.vertices]
 
     def test_four_sets_skinned_to_head(self):
-        self.assertEqual(set(self.eyes), {"eyes_normal", "eyes_scared", "eyes_happy", "eyes_dizzy"})
+        self.assertEqual(set(self.eyes), {"eyes_normal", "eyes_scared", "eyes_happy", "eyes_dizzy", "eyes_blink"})
         for o in self.eyes.values():
             self.assertIs(o.parent, self.arm, o.name)
             self.assertEqual([m.type for m in o.modifiers], ["ARMATURE"], o.name)
@@ -50,6 +50,20 @@ class TestCatEyes(unittest.TestCase):
         ends = [p.z for p in pts if abs(p.x - cx) > 0.009]
         self.assertTrue(apex and ends)
         self.assertGreater(sum(apex) / len(apex), sum(ends) / len(ends), "довольные глаза «^», а не «v»")
+
+    def test_eyes_are_sunk_into_the_head(self):
+        lo, hi = cat_eyes.head_bbox(self.mesh)
+        ys = [p.y for p in self._world(self.eyes["eyes_normal"])]
+        self.assertLess(max(ys), hi.y + 0.004, "белок выступает из морды не больше чем на 4 мм")
+        self.assertGreater(max(ys), hi.y - 0.010, "но не утоплен целиком (глаза выше носа, где морда отступает)")
+
+    def test_normal_eyes_have_green_iris_and_no_lids(self):
+        mats = {m.name for m in self.eyes["eyes_normal"].data.materials}
+        self.assertTrue({"sr_eye_white", "sr_eye_green", "sr_ink"} <= mats, mats)
+        self.assertFalse(any(o.name == "eyelids" for o in self.objs), "веки убраны: при утопленных глазах читались как брови")
+
+    def test_blink_set_exists(self):
+        self.assertIn("eyes_blink", self.eyes)
 
     def test_budget(self):
         self.assertEqual(lib.check_asset(self.objs, max_tris=8000, max_dim=0.6), [])

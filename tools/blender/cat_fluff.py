@@ -24,10 +24,10 @@ def _cheeks(lo, hi):
 		edge = hi.x if side > 0 else lo.x
 		base = Vector((edge * 0.92, hi.y - 0.03, lo.z + 0.35 * (hi.z - lo.z)))
 		for i, tilt in enumerate((-0.35, 0.0, 0.35)):
-			c = lib.cone(f"cheek_{'r' if side > 0 else 'l'}{i}", radius=0.006, depth=0.016, segments=6, material=CREAM)
-			d = Vector((side, -0.9, -0.25 + tilt))   # назад и чуть вниз: пух на щеке, а не шип вперёд
+			c = lib.cone(f"cheek_{'r' if side > 0 else 'l'}{i}", radius=0.005, depth=0.014, segments=6, material=CREAM)
+			d = Vector((side * 0.8, -1.4, -0.3 + tilt))   # назад и чуть вниз: пух на щеке, а не шип вперёд
 			_oriented(c, d)
-			c.location = base + d.normalized() * 0.005 + Vector((0.0, 0.0, tilt * 0.012))
+			c.location = base + d.normalized() * 0.004 + Vector((0.0, -0.004, tilt * 0.012))
 			parts.append(c)
 	return parts
 

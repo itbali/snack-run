@@ -20,6 +20,7 @@ PALETTE = {
     "rarity_very_rare": "#C473D4",
     "rarity_legendary": "#FABE32",
     "eye_white": "#F4F1E8",   # белок глаз; не из спека, чтобы скины (sr_cream) не красили глаза
+    "eye_green": "#6FA04A",   # радужка (спек 2.8)
 }
 
 MATERIAL_PREFIX = "sr_"

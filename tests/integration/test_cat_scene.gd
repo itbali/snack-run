@@ -113,7 +113,7 @@ func test_eye_sets_exist_and_only_normal_is_visible() -> void:
 		names.append(String(mi.name))
 		assert_null((mi as MeshInstance3D).material_overlay, "у глаз нет обводки: 6 мм на 3-см глазу — рамка")
 	names.sort()
-	assert_eq(names, ["eyes_dizzy", "eyes_happy", "eyes_normal", "eyes_scared"])
+	assert_eq(names, ["eyes_blink", "eyes_dizzy", "eyes_happy", "eyes_normal", "eyes_scared"])
 	assert_eq(cat.face.expression, &"normal")
 	assert_true(cat.find_child("eyes_normal", true, false).visible)
 	assert_false(cat.find_child("eyes_scared", true, false).visible)
@@ -156,3 +156,19 @@ func test_black_skin_keeps_eye_colors() -> void:
 	assert_true(white, "белок остался светлым при чёрном скине")
 	assert_true(ink, "зрачок графитовый")
 	GameState.reset()
+
+func test_blink_only_over_normal_and_releases() -> void:
+	# Review Focus 4
+	GameState.reset()
+	var cat = _spawn()
+	await wait_physics_frames(2)
+	cat.face.blink_in = 0.0
+	await wait_physics_frames(2)
+	assert_eq(cat.face.expression, &"blink", "пора моргнуть")
+	assert_true(cat.find_child("eyes_blink", true, false).visible)
+	await wait_seconds(0.3)
+	assert_eq(cat.face.expression, &"normal", "глаза открылись через 0,12 с")
+	cat.threaten()
+	cat.face.blink_in = 0.0
+	await wait_physics_frames(2)
+	assert_eq(cat.face.expression, &"scared", "испуг не перебивается морганием")

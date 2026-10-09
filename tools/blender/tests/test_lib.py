@@ -7,8 +7,8 @@ import palette
 
 
 class TestPalette(unittest.TestCase):
-    def test_palette_has_18_colors(self):
-        self.assertEqual(len(palette.PALETTE), 18)   # 13 спека + 4 редкости + белок глаз (план 4)
+    def test_palette_has_19_colors(self):
+        self.assertEqual(len(palette.PALETTE), 19)   # 13 спека + 4 редкости + белок и радужка глаз (планы 4–5)
 
     def test_material_is_cached_and_colored(self):
         lib.clear_scene()

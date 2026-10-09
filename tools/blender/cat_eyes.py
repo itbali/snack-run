@@ -1,4 +1,4 @@
-"""Глаза кота: четыре набора мешей (обычные, испуг, довольный, оглушён) на кости головы.
+"""Глаза кота: пять наборов мешей (обычные, испуг, довольный, оглушён, моргание) в глазницах, на кости головы.
 В Godot одновременно виден один набор, переключает CatFace (спек 2.4). Координаты считаются
 от bbox вершин головы, поэтому глаза всегда на морде, как бы ни был отмасштабирован риг."""
 import math
@@ -9,7 +9,7 @@ from mathutils import Matrix, Vector
 
 import lib
 
-EYE_SETS = ("normal", "scared", "happy", "dizzy")
+EYE_SETS = ("normal", "scared", "happy", "dizzy", "blink")
 HEAD_GROUP = "head"
 SPHERE = {"segments": 8, "rings": 6}   # 80 треугольников на сферу
 
@@ -54,25 +54,38 @@ def _line(name, center, angle_deg, length, radius, material):
 	return c
 
 
+def _eyeball(p, c, white_r, iris_r, pupil_r, pop):
+	"""Глаз в глазнице: белок-эллипсоид утоплен в голову, радужка/зрачок/блик на его передней поверхности.
+	pop — насколько белок выдвинут вперёд (0 = центр на 40 % радиуса внутри головы)."""
+	fwd = Vector((0.0, 1.0, 0.0))
+	w = lib.sphere(p + "_w", white_r, material="eye_white", **SPHERE)
+	w.scale = (1.0, 0.55, 1.0)
+	w.location = c - fwd * (white_r * 0.4 - pop)
+	front = w.location + fwd * (white_r * 0.55)
+	iris = lib.sphere(p + "_i", iris_r, material="eye_green", **SPHERE)
+	iris.scale = (1.0, 0.35, 1.0)
+	iris.location = front - fwd * (iris_r * 0.35 * 0.6)
+	pupil = lib.sphere(p + "_k", pupil_r, material="ink", **SPHERE)
+	pupil.scale = (1.0, 0.3, 1.0)
+	pupil.location = iris.location + fwd * 0.0015
+	glint = lib.sphere(p + "_g", pupil_r * 0.45, material="eye_white", segments=6, rings=4)
+	glint.location = pupil.location + fwd * 0.0015 + Vector((-pupil_r * 0.4, 0.0, pupil_r * 0.45))
+	return [w, iris, pupil, glint]
+
+
 def _parts(kind, side, c):
 	p = f"eye_{kind}_{side}"
 	fwd = Vector((0.0, 1.0, 0.0))
 	if kind == "normal":
-		w = lib.sphere(p + "_w", 0.014, material="eye_white", **SPHERE)
-		w.location = c
-		k = lib.sphere(p + "_k", 0.0065, material="ink", **SPHERE)
-		k.location = c + fwd * 0.010 + Vector((0.0, 0.0, 0.001))
-		return [w, k]
+		return _eyeball(p, c, 0.014, 0.0085, 0.0045, 0.0)
 	if kind == "scared":
-		w = lib.sphere(p + "_w", 0.019, material="eye_white", **SPHERE)
-		w.location = c
-		k = lib.sphere(p + "_k", 0.004, material="ink", **SPHERE)
-		k.location = c + fwd * 0.016 + Vector((0.0, 0.0, 0.004))
-		return [w, k]
+		return _eyeball(p, c, 0.016, 0.006, 0.0025, 0.004)   # белок выпучен на 4 мм, зрачок точкой
 	if kind == "happy":   # «^»: левый штрих поднимается к центру, правый — от центра вниз
 		a = _line(p + "_a", c + Vector((-0.006, 0.006, -0.002)), -35, 0.016, 0.0025, "ink")
 		b = _line(p + "_b", c + Vector((0.006, 0.006, -0.002)), 35, 0.016, 0.0025, "ink")
 		return [a, b]
+	if kind == "blink":   # закрытый глаз: одна горизонтальная ресница
+		return [_line(p + "_a", c + fwd * 0.006, 0, 0.024, 0.0025, "ink")]
 	a = _line(p + "_a", c + fwd * 0.006, 45, 0.026, 0.0025, "ink")    # dizzy: «×»
 	b = _line(p + "_b", c + fwd * 0.006, -45, 0.026, 0.0025, "ink")
 	return [a, b]
@@ -130,4 +143,4 @@ def build_eyes(arm, mesh):
 		obj = _join(f"eyes_{kind}", parts)
 		_attach(obj, arm)
 		out.append(obj)
-	return out
+	return out   # веки-козырьки пробовали: при утопленных глазах читаются как брови, убраны (план 5)
