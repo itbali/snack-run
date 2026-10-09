@@ -23,7 +23,7 @@ func test_large_surfaces_get_triplanar_textures() -> void:
 	var main := (load(MAIN_SCENE) as PackedScene).instantiate()
 	add_child_autofree(main)
 	await wait_process_frames(2)
-	var expected := {"ground": ["asphalt", 4.0], "sidewalk": ["paving", 1.2], "wall": ["stucco", 4.5]}
+	var expected := {"wall": ["stucco", 4.5]}
 	for name in expected:
 		var found: Array = _meshes_named(main, name)
 		assert_gt(found.size(), 0, "есть меш %s" % name)
@@ -36,6 +36,20 @@ func test_large_surfaces_get_triplanar_textures() -> void:
 			assert_almost_eq(m.uv1_scale.x, 1.0 / expected[name][1], 0.001, "%s: тайл %.0f м" % [name, expected[name][1]])
 			assert_eq(m.albedo_color.to_html(false), "ffffff", "цвет несёт текстура")
 			assert_eq(m.diffuse_mode, BaseMaterial3D.DIFFUSE_TOON, "тун сохраняется")
+
+func test_yard_floor_is_terrain_with_asphalt_and_paving() -> void:
+	# План 10: прежние меши ground/sidewalk заменены рельефом с картой покрытий.
+	var main := (load(MAIN_SCENE) as PackedScene).instantiate()
+	add_child_autofree(main)
+	await wait_process_frames(2)
+	var t := main.find_child("YardTerrain", true, false) as Terrain
+	assert_not_null(t)
+	if t == null:
+		return
+	assert_eq(t.channels.slice(0, 2), ["asphalt", "paving"])
+	assert_eq((t.material.get_shader_parameter("tex_r") as Texture2D).resource_path, "res://assets/images/textures/asphalt.png")
+	assert_eq((t.material.get_shader_parameter("tex_g") as Texture2D).resource_path, "res://assets/images/textures/paving.png")
+	assert_eq(_meshes_named(main, "ground").size(), 0, "старого плоского пола нет")
 
 func test_windows_props_and_puddles_stay_flat() -> void:
 	# Review Focus 1–2

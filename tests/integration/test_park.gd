@@ -9,7 +9,11 @@ func before_each() -> void:
 func _park_with_floor() -> Node3D:
 	var world := Node3D.new()
 	add_child_autofree(world)
+	var t := Terrain.new()
+	t.data_path = "res://data/terrain/park.json"   # пол парка — рельеф (план 10)
+	world.add_child(t)
 	var b := WorldBuilder.new()
+	b.terrain = t
 	world.add_child(b)
 	b.build(WorldBuilder.load_layout(PARK))
 	return world
@@ -20,7 +24,7 @@ func _prop_at(world: Node3D, point: Vector3) -> String:
 	q.collision_mask = Layers.WORLD
 	for hit in world.get_world_3d().direct_space_state.intersect_point(q, 8):
 		var n: String = hit["collider"].name
-		if not n.begins_with("park_ground"):
+		if n != "Floor":
 			return n
 	return ""
 
@@ -29,7 +33,7 @@ func test_park_layout_has_the_spec_content() -> void:
 	var models := {}
 	for p in d["props"]:
 		models[p["model"]] = models.get(p["model"], 0) + 1
-	for m in ["park_ground", "fountain", "slide", "swings", "sandbox", "kiosk", "shed", "lamp", "bench", "fence", "tree", "flowerbed"]:
+	for m in ["fountain", "slide", "swings", "sandbox", "kiosk", "shed", "lamp", "bench", "fence", "tree", "flowerbed"]:
 		assert_gt(models.get(m, 0), 0, "в парке есть %s" % m)
 	assert_gte(models.get("lamp", 0), 8, "аллея фонарей")
 	assert_between(d["yarn"].size(), 10, 15, "10–15 клубочков")
@@ -114,19 +118,20 @@ func test_park_is_fenced_and_floored() -> void:
 		assert_false(down.is_empty(), "под %s есть пол" % p)
 
 func test_lawn_and_paths_are_textured_in_main() -> void:
+	# План 10: пол парка — рельеф; газон и гравий — каналы карты покрытий.
 	SaveGame.path = "user://test_save.json"
 	SaveGame.clear()
 	var main := (load("res://scenes/main.tscn") as PackedScene).instantiate()
 	add_child_autofree(main)
 	await wait_process_frames(2)
-	for pair in [["lawn", "grass"], ["path", "gravel"]]:
-		var mi := main.find_child(pair[0], true, false) as MeshInstance3D
-		assert_not_null(mi, "меш %s в главной сцене" % pair[0])
-		if mi:
-			var m := mi.get_surface_override_material(0) as StandardMaterial3D
-			assert_not_null(m.albedo_texture)
-			if m.albedo_texture:
-				assert_eq(m.albedo_texture.resource_path, "res://assets/images/textures/%s.png" % pair[1])
+	var t := main.find_child("ParkTerrain", true, false) as Terrain
+	assert_not_null(t)
+	if t:
+		assert_eq(t.channels[2], "grass")
+		assert_eq(t.channels[3], "gravel")
+		assert_eq((t.material.get_shader_parameter("tex_b") as Texture2D).resource_path, "res://assets/images/textures/grass.png")
+		assert_eq((t.material.get_shader_parameter("tex_a") as Texture2D).resource_path, "res://assets/images/textures/gravel.png")
+		assert_gt(t.height_at(0, 45) + 1.0, 1.0, "пол парка на месте")
 	SaveGame.clear()
 
 func test_perimeter_fence_is_too_high_to_jump_from_any_prop() -> void:

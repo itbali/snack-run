@@ -21,6 +21,8 @@ const GateScene := preload("res://scenes/world/gate.tscn")
 const YarnShopScene := preload("res://scenes/world/yarn_shop.tscn")
 
 @export var layout_path := ""
+@export var terrain_path: NodePath   # пусто — плоский мир, y раскладки абсолютные
+var terrain: Terrain
 var props_built := 0
 var hideouts_built := 0
 var spawns_built := 0
@@ -33,6 +35,10 @@ var decals_built := 0
 
 
 func _ready() -> void:
+	if terrain == null and not terrain_path.is_empty():
+		terrain = get_node_or_null(terrain_path) as Terrain
+	if terrain:
+		terrain.ensure_loaded()   # рельеф мог ещё не пройти _ready (порядок соседей)
 	if layout_path != "":
 		build(load_layout(layout_path))
 
@@ -42,6 +48,48 @@ static func load_layout(path: String) -> Dictionary:
 	var parsed = JSON.parse_string(text)
 	assert(parsed is Dictionary, "не удалось разобрать " + path)
 	return parsed
+
+
+## Модули террас (tools/blender/terrace_kit.py): подъём по −Z модели от начала координат.
+const KIT_STEP_RISE := 0.2
+const KIT_STEP_TREAD := 0.3
+const KIT_RAMP_DEG := 25.0
+const KIT_WIDTH := 1.6
+
+
+static func kit_colliders(model: String) -> Array:
+	## Наклонный коллайдер лестницы террасы или пандуса по имени модели (terrace_stairsN, rampN); иначе [].
+	var h := 0.0
+	var run := 0.0
+	if model.begins_with("terrace_stairs") and model.trim_prefix("terrace_stairs").is_valid_int():
+		h = float(model.trim_prefix("terrace_stairs"))
+		run = roundf(h / KIT_STEP_RISE) * KIT_STEP_TREAD
+	elif model.begins_with("ramp") and model.trim_prefix("ramp").is_valid_int():
+		h = float(model.trim_prefix("ramp"))
+		run = h / tan(deg_to_rad(KIT_RAMP_DEG))
+	else:
+		return []
+	var ang := rad_to_deg(atan2(h, run))
+	var length := sqrt(h * h + run * run)
+	# Тонкая плита по линии подъёма; верх плиты совпадает с носками ступеней / поверхностью пандуса.
+	var th := 0.1
+	var n := Vector3(0, cos(deg_to_rad(ang)), sin(deg_to_rad(ang)))
+	var center := Vector3(0, h / 2.0, -run / 2.0) - n * (th / 2.0)
+	return [{"size": [KIT_WIDTH, th, length], "offset": [center.x, center.y, center.z], "rot": [ang, 0, 0]}]
+
+
+func _add_at(parent: Node3D, node: Node3D, pos: Vector3, rot_y_deg: float) -> void:
+	## Ставит узел в мировую позицию ДО add_child: тела не появляются на кадр в начале координат.
+	node.transform = parent.global_transform.affine_inverse() * Transform3D(Basis(Vector3.UP, deg_to_rad(rot_y_deg)), pos)
+	parent.add_child(node)
+
+
+func _place(item: Dictionary) -> Vector3:
+	## Позиция из раскладки: на рельефе y — смещение над поверхностью; "snap": false — абсолютная высота.
+	var v := _v3(item["pos"])
+	if terrain and bool(item.get("snap", true)):
+		v.y += terrain.height_at(v.x, v.z)
+	return v
 
 
 static func _v3(arr: Array) -> Vector3:
@@ -90,7 +138,7 @@ func _build_prop(p: Dictionary) -> void:
 	model.name = "Model"
 	body.add_child(model)
 	var solid := bool(p.get("solid", true))
-	var colliders: Array = p.get("colliders", []) if solid else []
+	var colliders: Array = p.get("colliders", kit_colliders(String(p["model"]))) if solid else []
 	if colliders.is_empty() and solid:
 		var aabb := _model_aabb(model)
 		colliders = [{"size": [aabb.size.x, aabb.size.y, aabb.size.z],
@@ -103,10 +151,13 @@ func _build_prop(p: Dictionary) -> void:
 		box.size = _v3(c["size"])
 		shape.shape = box
 		shape.position = _v3(c.get("offset", [0, 0, 0]))
+		shape.rotation_degrees = _v3(c.get("rot", [0, 0, 0]))   # наклонные коллайдеры лестниц и пандусов
 		body.add_child(shape)
-	_container("Props").add_child(body)
-	body.global_position = _v3(p["pos"])
-	body.rotation_degrees.y = float(p.get("rot", 0))
+	# Позиция до add_child: иначе первый физический кадр тело стоит в начале координат и выталкивает
+	# кота, появившегося там, сквозь тонкую карту высот (план 10).
+	var props := _container("Props")
+	body.transform = props.global_transform.affine_inverse() * Transform3D(Basis(Vector3.UP, deg_to_rad(float(p.get("rot", 0)))), _place(p))
+	props.add_child(body)
 	Toon.apply(model, Toon.OUTLINE_FOOD if p.get("outline", false) else Toon.OUTLINE_NONE)
 	if p["model"] == "lamp":
 		body.add_child(_night_light())
@@ -184,7 +235,7 @@ func _build_decal(d: Dictionary) -> void:
 	mat.roughness = 0.9
 	mi.set_surface_override_material(0, mat)
 	_container("Decals").add_child(mi)
-	var pos := _v3(d["pos"])
+	var pos := _place(d)
 	var wall := bool(d.get("wall", false))
 	mi.global_position = pos + (Vector3.ZERO if wall else Vector3(0, 0.01, 0))
 	mi.rotation_degrees = Vector3(0.0, float(d.get("rot", 0)), 0.0) if wall else Vector3(-90.0, float(d.get("rot", 0)), 0.0)
@@ -216,9 +267,7 @@ func _build_hideout(h: Dictionary) -> void:
 	var node := HideoutScene.instantiate() as Hideout
 	node.kind = StringName(h.get("kind", "box"))
 	node.size = _v3(h.get("size", [0.6, 0.4, 0.5]))
-	_container("Hideouts").add_child(node)
-	node.global_position = _v3(h["pos"])
-	node.rotation_degrees.y = float(h.get("rot", 0))
+	_add_at(_container("Hideouts"), node, _place(h), float(h.get("rot", 0)))
 	hideouts_built += 1
 
 
@@ -229,8 +278,7 @@ func _build_spawn(s: Dictionary) -> void:
 		allowed.append(int(t))   # JSON даёт float, ключи словарей Rarity — int
 	node.allowed = allowed
 	node.foods = s.get("foods", [])
-	_container("Spawns").add_child(node)
-	node.global_position = _v3(s["pos"])
+	_add_at(_container("Spawns"), node, _place(s), 0.0)
 	spawns_built += 1
 
 
@@ -239,7 +287,10 @@ func _build_road(road: Dictionary) -> void:
 	path.name = "Road"
 	var curve := Curve3D.new()
 	for pt in road.get("points", []):
-		curve.add_point(_v3(pt))
+		var v := _v3(pt)
+		if terrain:
+			v.y += terrain.height_at(v.x, v.z)
+		curve.add_point(v)
 	path.curve = curve
 	add_child(path)
 
@@ -254,18 +305,15 @@ func _build_hazard(hz: Dictionary) -> void:
 	node.name = "%s_%d" % [type_name, hazards_built]
 	if node.has_method("configure"):
 		node.call("configure", hz, self)
-	_container("Hazards").add_child(node)
-	node.global_position = _v3(hz["pos"])
-	node.rotation_degrees.y = float(hz.get("rot", 0))
+	_add_at(_container("Hazards"), node, _place(hz), float(hz.get("rot", 0)))
 	hazards_built += 1
 
 
 func _build_yarn(y: Dictionary) -> void:
 	var node := YarnScene.instantiate() as YarnPickup
-	var pos := _v3(y["pos"])
-	node.key = "%.1f,%.1f,%.1f" % [pos.x, pos.y, pos.z]
-	_container("Yarn").add_child(node)
-	node.global_position = pos
+	var raw := _v3(y["pos"])   # ключ — по раскладке, а не по высоте рельефа: сохранения не ломаются при правке рельефа
+	node.key = "%.1f,%.1f,%.1f" % [raw.x, raw.y, raw.z]
+	_add_at(_container("Yarn"), node, _place(y), 0.0)
 	yarn_built += 1
 
 
@@ -275,16 +323,12 @@ func _build_gate(g: Dictionary) -> void:
 	node.satiety_required = int(g.get("satiety", GameState.SATIETY_GATE))
 	node.label = String(g.get("label", node.label))
 	node.size = _v3(g.get("size", [2.4, 2.6, 0.3]))
-	_container("Gates").add_child(node)
-	node.global_position = _v3(g["pos"])
-	node.rotation_degrees.y = float(g.get("rot", 0))
+	_add_at(_container("Gates"), node, _place(g), float(g.get("rot", 0)))
 	gates_built += 1
 
 
 func _build_shop(s: Dictionary) -> void:
 	var node := YarnShopScene.instantiate() as YarnShop
 	node.name = "YarnShop"
-	add_child(node)
-	node.global_position = _v3(s["pos"])
-	node.rotation_degrees.y = float(s.get("rot", 0))
+	_add_at(self, node, _place(s), float(s.get("rot", 0)))
 	shop_built += 1

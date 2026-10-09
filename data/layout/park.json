@@ -1,29 +1,6 @@
 {
   "props": [
     {
-      "model": "park_ground",
-      "pos": [
-        0,
-        0,
-        45
-      ],
-      "rot": 0,
-      "colliders": [
-        {
-          "size": [
-            30,
-            0.2,
-            32
-          ],
-          "offset": [
-            0,
-            -0.1,
-            0
-          ]
-        }
-      ]
-    },
-    {
       "model": "fence",
       "pos": [
         -14,
