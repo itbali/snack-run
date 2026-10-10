@@ -204,6 +204,8 @@ func _decor_mesh(model_name: String) -> Mesh:
 		for i in mesh.get_surface_count():
 			var mat := m3.get_surface_override_material(i)
 			if mat:
+				if mat is BaseMaterial3D:
+					(mat as BaseMaterial3D).cull_mode = BaseMaterial3D.CULL_DISABLED   # плоские травинки и листья видны с обеих сторон
 				mesh.surface_set_material(i, mat)   # тун-материалы — в сам меш: у MultiMesh нет поверхностных override
 	src.queue_free()
 	return mesh

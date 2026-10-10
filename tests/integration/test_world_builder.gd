@@ -310,3 +310,11 @@ func test_decor_uses_toon_materials() -> void:
 	assert_not_null(mat)
 	if mat:
 		assert_eq(mat.diffuse_mode, BaseMaterial3D.DIFFUSE_TOON, "украшения в тун-свете, как весь мир")
+
+func test_decor_grass_is_two_sided() -> void:
+	# План 18: травинки — плоские полосы; с обратной стороны их не должно быть «не видно».
+	var b = _builder()
+	b.build({"decor": [{"model": "decor_grass", "pos": [1, 0, 1]}]})
+	var mm := (b.find_children("*", "MultiMeshInstance3D", true, false)[0] as MultiMeshInstance3D).multimesh
+	for i in mm.mesh.get_surface_count():
+		assert_eq((mm.mesh.surface_get_material(i) as BaseMaterial3D).cull_mode, BaseMaterial3D.CULL_DISABLED)

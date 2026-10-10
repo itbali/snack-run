@@ -323,22 +323,52 @@
      "type": "place",
      "props": [
       {
-       "model": "car",
+       "model": "car_blue",
        "pos": [
         -30,
         0,
         8.5
        ],
-       "rot": 90
+       "rot": 90,
+       "colliders": [
+        {
+         "size": [
+          1.7,
+          1.2,
+          3.6
+         ],
+         "offset": [
+          0,
+          0.9,
+          0
+         ]
+        }
+       ],
+       "outline": true
       },
       {
-       "model": "car",
+       "model": "car_yellow",
        "pos": [
         -48,
         0,
         8.5
        ],
-       "rot": 90
+       "rot": 90,
+       "colliders": [
+        {
+         "size": [
+          1.7,
+          1.2,
+          3.6
+         ],
+         "offset": [
+          0,
+          0.9,
+          0
+         ]
+        }
+       ],
+       "outline": true
       },
       {
        "model": "car",
@@ -347,25 +377,70 @@
         0,
         8.5
        ],
-       "rot": 90
+       "rot": 90,
+       "colliders": [
+        {
+         "size": [
+          1.7,
+          1.2,
+          3.6
+         ],
+         "offset": [
+          0,
+          0.9,
+          0
+         ]
+        }
+       ],
+       "outline": true
       },
       {
-       "model": "car",
+       "model": "car_blue",
        "pos": [
         56,
         0,
         15.5
        ],
-       "rot": 90
+       "rot": 90,
+       "colliders": [
+        {
+         "size": [
+          1.7,
+          1.2,
+          3.6
+         ],
+         "offset": [
+          0,
+          0.9,
+          0
+         ]
+        }
+       ],
+       "outline": true
       },
       {
-       "model": "car",
+       "model": "car_yellow",
        "pos": [
         -66,
         0,
         15.5
        ],
-       "rot": 90
+       "rot": 90,
+       "colliders": [
+        {
+         "size": [
+          1.7,
+          1.2,
+          3.6
+         ],
+         "offset": [
+          0,
+          0.9,
+          0
+         ]
+        }
+       ],
+       "outline": true
       },
       {
        "model": "bin",
@@ -1966,7 +2041,7 @@
       11,
       9
      ],
-     "count": 40,
+     "count": 14,
      "min_dist": 0.35
     },
     {
@@ -1990,7 +2065,7 @@
       82,
       22
      ],
-     "count": 80,
+     "count": 28,
      "min_dist": 1.0
     },
     {
@@ -2026,7 +2101,7 @@
       -22,
       -6
      ],
-     "count": 60,
+     "count": 20,
      "min_dist": 0.8
     },
     {
@@ -2386,6 +2461,78 @@
        }
       ]
      }
+    },
+    {
+     "type": "decor",
+     "model": "decor_litter2",
+     "rect": [
+      -11,
+      -13,
+      11,
+      9
+     ],
+     "count": 13,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_litter3",
+     "rect": [
+      -11,
+      -13,
+      11,
+      9
+     ],
+     "count": 13,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_litter2",
+     "rect": [
+      -82,
+      4,
+      82,
+      22
+     ],
+     "count": 26,
+     "min_dist": 1.0
+    },
+    {
+     "type": "decor",
+     "model": "decor_litter3",
+     "rect": [
+      -82,
+      4,
+      82,
+      22
+     ],
+     "count": 26,
+     "min_dist": 1.0
+    },
+    {
+     "type": "decor",
+     "model": "decor_litter2",
+     "rect": [
+      -62,
+      -44,
+      -22,
+      -6
+     ],
+     "count": 20,
+     "min_dist": 0.8
+    },
+    {
+     "type": "decor",
+     "model": "decor_litter3",
+     "rect": [
+      -62,
+      -44,
+      -22,
+      -6
+     ],
+     "count": 20,
+     "min_dist": 0.8
     }
    ]
   }

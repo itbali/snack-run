@@ -55,3 +55,23 @@ class TestDecor(unittest.TestCase):
 			objs = _build(name)
 			self.assertEqual(len(objs), 1, name)
 			self.assertEqual(objs[0].type, "MESH")
+
+
+class TestPolish18(unittest.TestCase):
+	def test_grass_blades_spread_outward(self):
+		# План 18: травинки расходятся наружу (кончики дальше от центра, чем основания), не «костёр».
+		objs = _build("decor_grass")
+		mesh = objs[0].data
+		zs = [v.co.z for v in mesh.vertices]
+		top = max(zs)
+		low = [math.hypot(v.co.x, v.co.y) for v in mesh.vertices if v.co.z < top * 0.15]
+		high = [math.hypot(v.co.x, v.co.y) for v in mesh.vertices if v.co.z > top * 0.6]
+		self.assertGreater(sum(high) / len(high), sum(low) / len(low) + 0.04)
+		self.assertLess(min(v.co.z for v in mesh.vertices), 0.01)
+
+	def test_car_has_glass_cabin_and_wheels(self):
+		objs = _build("car_blue")
+		names = [o.name for o in objs]
+		self.assertEqual(sum(1 for n in names if n.startswith("car_wheel")), 4)
+		cab = next(o for o in objs if o.name == "car_cabin")
+		self.assertIn("sr_sky", [m.name for m in cab.data.materials], "стёкла — грани кабины")

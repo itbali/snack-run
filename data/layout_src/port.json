@@ -1582,7 +1582,19 @@
       58,
       145
      ],
-     "count": 60,
+     "count": 30,
+     "min_dist": 1.0
+    },
+    {
+     "type": "decor",
+     "model": "decor_litter2",
+     "rect": [
+      -58,
+      127,
+      58,
+      145
+     ],
+     "count": 30,
      "min_dist": 1.0
     }
    ]

@@ -1170,6 +1170,18 @@
      "count": 6,
      "rot": "random",
      "min_dist": 3.0
+    },
+    {
+     "type": "decor",
+     "model": "decor_litter2",
+     "rect": [
+      -14,
+      30,
+      14,
+      60
+     ],
+     "count": 25,
+     "min_dist": 1.5
     }
    ]
   }
