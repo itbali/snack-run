@@ -5,7 +5,7 @@
 Отступы в GDScript и Makefile — табы; в Python проекта — тоже табы, кроме
 `palette.py` и тестов Blender (пробелы). Копировать как есть.
 
-Файлов: 346
+Файлов: 348
 
 ## `CLAUDE.md`
 
@@ -85,7 +85,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 - `scripts/autoload/save_game.gd` — JSON в `user://save.json`, пишет только по `save_now()` из `Main`; в тестах с `Main` путь переопределяется.
 - `scripts/world/gate.gd` (ворота по сытости), `scripts/world/yarn_shop.gd` (будка: безопасная зона, возрождение, витрина), `scripts/food/yarn_pickup.gd`.
 - `scripts/visual/toon.gd` — `Toon.apply(root, width_m, character)`; ширина в метрах, пересчитывается под масштаб узла; обводка — `assets/shaders/outline_fur.gdshader`, у персонажей rim и шум. `scripts/visual/effects.gd` — `Effects.burst/dust/hearts/sparkles/trail/zzz/leaves` (частицы; одноразовые удаляются по таймеру).
-- `scripts/autoload/sfx.gd` — звуки (`Sfx.play(&"eat")`, один вызов на событие), файлы и лицензии в `assets/sfx/README.md`; `assets/ui/theme.tres` (Nunito, плашки), `assets/shaders/vignette.gdshader`; `scripts/core/mouse.gd` (`Mouse.capture`, в headless no-op).
+- `scripts/autoload/sfx.gd` — звуки (`Sfx.play(&"eat")`, один вызов на событие; звуки мира — `Sfx.play_at(name, pos)`, тишина дальше 26 м); `scripts/autoload/music.gd` — музыка дня/ночи (CC0, `assets/music/README.md`), громкость `GameSettings.music`, файлы и лицензии в `assets/sfx/README.md`; `assets/ui/theme.tres` (Nunito, плашки), `assets/shaders/vignette.gdshader`; `scripts/core/mouse.gd` (`Mouse.capture`, в headless no-op).
 - `scripts/autoload/input_setup.gd` (InputMap в коде) + `scripts/core/key_bindings.gd` (переназначение, `user://settings.cfg`); `scripts/ui/controls_menu.gd` («Управление и помощь»), `scripts/ui/tutorial.gd` (обучение); `dev_tools.gd` (`++ --screenshot=path`, `--at`, `--phase`, `--album`, `--controls`; отладочный запуск не пишет сохранение).
 - `tools/blender/`: `palette.py`, `lib.py` (rounded_box, world_extent, tri_count, check_asset), `export.py`, `build.py`, `cat.py` (сварка + subdivision) + `cat_eyes.py` (глаза) + `cat_fluff.py` (пучки, усы, ошейник), `dog.py` + `dog_sleep.py` (поза «спит»), `gen/*.py` (каждый: `SPEC` + `build()`); `tools/audio/gen_sfx.py`; `tools/images/gen.py` + `manifest.json`; `export_presets.cfg`.
 - `scripts/world/terrain.gd` (`Terrain`: меш тайлами, `HeightMapShape3D` «Floor», шейдер `terrain.gdshader` со сплатом, `height_at`); `WorldBuilder.terrain_path` — раскладка привязывается к высоте (`"snap": false` — абсолютно); набор террас `tools/blender/terrace_kit.py`; демо `scenes/dev/terrain_demo.tscn`.
@@ -253,6 +253,7 @@ DevTools="*res://scripts/autoload/dev_tools.gd"
 GameState="*res://scripts/autoload/game_state.gd"
 SaveGame="*res://scripts/autoload/save_game.gd"
 Sfx="*res://scripts/autoload/sfx.gd"
+Music="*res://scripts/autoload/music.gd"
 
 [display]
 
@@ -1911,6 +1912,112 @@ static func register() -> void:
 			InputMap.action_add_event(action, m)
 ```
 
+## `scripts/autoload/music.gd`
+
+```gdscript
+extends Node
+## Музыка (план 21): CC0-петли (assets/music/README.md) — днём по очереди дневные, ночью ночная; смена плавным кроссфейдом.
+## Громкость — GameSettings.music (0…1, «Музыка» в настройках). На паузе играет.
+
+const DAY := ["res://assets/music/day_happy_clappy.ogg", "res://assets/music/day_head_in_the_sand.ogg"]
+const NIGHT := ["res://assets/music/night_feel_good_island.ogg"]
+const FADE := 2.0
+const BASE_DB := -10.0
+
+var volume := 0.7
+var _a: AudioStreamPlayer
+var _b: AudioStreamPlayer
+var _track := ""
+var _day_i := 0
+var _fade := 0.0
+var active := false   # Main включает: на заставке тихо
+
+
+func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	_a = AudioStreamPlayer.new()
+	_b = AudioStreamPlayer.new()
+	add_child(_a)
+	add_child(_b)
+	_a.finished.connect(_next_day)
+	_b.finished.connect(_next_day)
+
+
+func playing() -> bool:
+	return active and (_a.playing or _b.playing)
+
+
+func current_track() -> String:
+	return _track
+
+
+func set_volume(v: float) -> void:
+	volume = clampf(v, 0.0, 1.0)
+	_apply_volume()
+
+
+func start() -> void:
+	active = true
+	volume = GameSettings.music
+	_track = ""
+
+
+func stop() -> void:
+	active = false
+	_a.stop()
+	_b.stop()
+	_track = ""
+
+
+func _want() -> String:
+	if DayNight.is_night(get_tree()):
+		return NIGHT[0]
+	return DAY[_day_i % DAY.size()]
+
+
+func _next_day() -> void:
+	if not DayNight.is_night(get_tree()):
+		_day_i += 1   # дневные петли по очереди, чтобы не приедалась одна
+	_switch(_want())
+
+
+func _switch(path: String) -> void:
+	if path == _track or not ResourceLoader.exists(path):
+		return
+	_track = path
+	var s := load(path) as AudioStream
+	if s is AudioStreamOggVorbis:
+		(s as AudioStreamOggVorbis).loop = false   # по окончании — следующая дневная петля
+	var tmp := _a
+	_a = _b
+	_b = tmp   # _a — новая, _b — затухает
+	_a.stream = s
+	_a.volume_db = -60.0
+	_a.play()
+	_fade = 0.0
+
+
+func _apply_volume() -> void:
+	var k := clampf(_fade / FADE, 0.0, 1.0)
+	var top := BASE_DB + linear_to_db(maxf(volume, 0.0001))
+	if _a:
+		_a.volume_db = lerpf(-60.0, top, k) if volume > 0.0 else -80.0
+	if _b:
+		_b.volume_db = lerpf(top, -60.0, k) if volume > 0.0 else -80.0
+		if k >= 1.0 and _b.playing:
+			_b.stop()
+
+
+func _process(delta: float) -> void:
+	if not active:
+		return
+	var want := _want()
+	if want != _track and (DayNight.is_night(get_tree()) or _track in NIGHT or _track == ""):
+		_switch(want)   # день ↔ ночь — сразу кроссфейдом; днём смена петли — по её окончании
+	_fade += delta
+	_apply_volume()
+```
+
 ## `scripts/autoload/save_game.gd`
 
 ```gdscript
@@ -2024,6 +2131,24 @@ func play(name: StringName, pitch_jitter := 0.06) -> AudioStreamPlayer:
 	last_played = name
 	counts[name] = counts.get(name, 0) + 1
 	return p
+
+
+const HEAR_RANGE := 26.0   # дальше звук опасности не слышен (план 21: дождеватели парка булькали на всю карту)
+const FULL_RANGE := 6.0
+
+
+func play_at(name: StringName, pos: Vector3, pitch_jitter := 0.06) -> AudioStreamPlayer:
+	## Звук из точки мира: слышен только рядом с котом, тише с расстоянием.
+	var cat := get_tree().get_first_node_in_group("cat") as Node3D if is_inside_tree() else null
+	var listener := cat.global_position if cat else pos
+	var d := listener.distance_to(pos)
+	if d > HEAR_RANGE:
+		return null
+	var p := play(name, pitch_jitter)
+	if p:
+		var k := clampf((d - FULL_RANGE) / (HEAR_RANGE - FULL_RANGE), 0.0, 1.0)
+		p.volume_db += linear_to_db(lerpf(1.0, 0.05, k))
+	return p
 ```
 
 ## `scripts/core/cat_skin.gd`
@@ -2080,11 +2205,13 @@ const BLUR_AMOUNT := 0.06
 static var path := "user://settings.cfg"
 static var blur := true
 static var particles := true
+static var music := 0.7
 
 
 static func reset() -> void:
 	blur = true
 	particles = true
+	music = 0.7
 
 
 static func save() -> void:
@@ -2092,6 +2219,7 @@ static func save() -> void:
 	cfg.load(path)   # клавиши лежат в том же файле — не затирать
 	cfg.set_value("video", "blur", blur)
 	cfg.set_value("video", "particles", particles)
+	cfg.set_value("audio", "music", music)
 	cfg.save(path)
 
 
@@ -2103,6 +2231,8 @@ static func load_saved() -> void:
 	var p = cfg.get_value("video", "particles", true)
 	blur = b if b is bool else true
 	particles = p if p is bool else true
+	var m = cfg.get_value("audio", "music", 0.7)
+	music = clampf(float(m), 0.0, 1.0) if (m is float or m is int) else 0.7
 
 
 static func apply_camera(cam: Camera3D) -> void:
@@ -2121,6 +2251,14 @@ static func set_blur(on: bool, tree: SceneTree) -> void:
 	save()
 	for c in tree.get_nodes_in_group("game_camera"):
 		apply_camera(c as Camera3D)
+
+
+static func set_music(v: float, tree: SceneTree) -> void:
+	music = clampf(v, 0.0, 1.0)
+	save()
+	var m := tree.root.get_node_or_null("Music")
+	if m:
+		m.call("set_volume", music)
 
 
 static func set_particles(on: bool, tree: SceneTree) -> void:
@@ -2843,8 +2981,8 @@ extends Node3D
 signal bell
 
 @export var speed := 6.0
-@export var interval_min := 12.0
-@export var interval_max := 20.0
+@export var interval_min := 6.0    # план 21: вдвое чаще
+@export var interval_max := 10.0
 @export var bell_lead := 2.0
 var path: Path3D
 var riding := false
@@ -2941,14 +3079,23 @@ extends HazardBase
 ## Собака: спит, замечает кота в конусе, 1 с настораживается, гонится 1,2× скорости кота,
 ## теряет след в укрытии (2 с) или устаёт (8 с), возвращается домой (спек 3.2).
 
-const VISION_HALF_ANGLE := 45.0
-const VISION_RANGE := 6.0
+const VISION_HALF_ANGLE := 50.0
+const VISION_RANGE := 7.0
 const HOME_RADIUS := 0.4
+## План 21 (владелец: «враги амёбные»): днём бродит у дома, чует кота с едой, лает коротко, гонится рывками.
+const WANDER := 3.5
+const SMELL := 4.5
+const LUNGE := 0.8          # рывок, с
+const PANT := 0.45          # передышка между рывками — шанс увернуться
+const LUNGE_SPEED := 5.6    # быстрее бегущего кота (4,0)
 const RETURN_TIMEOUT := 8.0   # дольше идёт домой — значит упёрлась (стена террасы): переносится домой (ревью плана 11)
 
 var brain := ChaseBrain.new()
 var _last_state: int = ChaseBrain.State.IDLE
 var _zzz_t := 0.0
+var _wander_to := Vector3.INF
+var _wander_wait := 0.0
+var _lunge_t := 0.0
 var _return_t := 0.0
 
 @onready var _model: Node3D = $Model
@@ -2957,6 +3104,8 @@ var _return_t := 0.0
 
 func _ready() -> void:
 	super()
+	brain.alert_time = 0.6
+	brain.chase_max = 6.0
 	Toon.apply(_model, Toon.OUTLINE_CHARACTER, true)
 	for clip in ["idle", "walk", "sleep", "alert"]:
 		if _anim and _anim.has_animation(clip):
@@ -2975,6 +3124,8 @@ func sees_cat() -> bool:
 	if DayNight.is_night(get_tree()):
 		return false   # ночью собака двора спит и не просыпается от кота (этап 2)
 	var forward := -global_transform.basis.z
+	if not GameState.mouth.is_empty() and global_position.distance_to(c.global_position) < SMELL * GameState.stealth_mult:
+		return true   # чует еду в зубах — и за спиной
 	return Perception.in_cone(global_position, forward, c.global_position, VISION_HALF_ANGLE * GameState.stealth_mult, VISION_RANGE)
 
 
@@ -2988,7 +3139,12 @@ func _physics_process(delta: float) -> void:
 	var cat_safe: bool = c != null and bool(c.get("in_safe_zone"))
 	var s := brain.update(delta, sees_cat(), cat_hidden, at_home, cat_safe)
 	if s == ChaseBrain.State.ALERT and _last_state != ChaseBrain.State.ALERT:
-		Sfx.play(&"bark")   # один лай на настороженность
+		Sfx.play_at(&"bark", global_position)   # один лай на настороженность
+	if s == ChaseBrain.State.CHASE and _last_state != ChaseBrain.State.CHASE:
+		_lunge_t = 0.0
+	if s == ChaseBrain.State.IDLE and _last_state != ChaseBrain.State.IDLE:
+		_wander_to = Vector3.INF   # вернулась — сперва постоит дома, глядя в свою сторону
+		_wander_wait = randf_range(1.5, 2.5)
 	_last_state = s
 	if s != ChaseBrain.State.RETURN:
 		_return_t = 0.0
@@ -2996,16 +3152,10 @@ func _physics_process(delta: float) -> void:
 		c.call("threaten")   # испуг, пока собака насторожилась или гонится и она ближе 6 м
 	match s:
 		ChaseBrain.State.IDLE:
-			rotation.y = lerp_angle(rotation.y, home_yaw, 6.0 * delta)   # снова сторожит в исходную сторону
-			velocity.x = 0.0
-			velocity.z = 0.0
-			_apply_gravity(delta)
-			move_and_slide()
-			play_clip(&"sleep")
-			_zzz_t += delta
-			if _zzz_t >= 1.2:
-				_zzz_t = 0.0
-				Effects.zzz(get_parent(), global_position + Vector3(0, 0.45, 0))
+			if DayNight.is_night(get_tree()):
+				_sleep(delta)
+			else:
+				_wander(delta)
 		ChaseBrain.State.ALERT:
 			_zzz_t = 0.0
 			if c:
@@ -3017,9 +3167,17 @@ func _physics_process(delta: float) -> void:
 			move_and_slide()
 			play_clip(&"alert")
 		ChaseBrain.State.CHASE:
-			if c:
-				move_towards_point(c.global_position, run_speed, delta)
-			play_clip(&"run")
+			_lunge_t += delta
+			var cycle := fmod(_lunge_t, LUNGE + PANT)
+			if c and cycle < LUNGE:
+				move_towards_point(c.global_position, LUNGE_SPEED, delta)
+				play_clip(&"run")
+			else:
+				velocity.x = 0.0   # передышка: язык набок, можно увернуться
+				velocity.z = 0.0
+				_apply_gravity(delta)
+				move_and_slide()
+				play_clip(&"alert")
 		ChaseBrain.State.RETURN:
 			_return_t += delta
 			if _return_t >= RETURN_TIMEOUT:
@@ -3029,6 +3187,45 @@ func _physics_process(delta: float) -> void:
 			else:
 				move_towards_point(home, walk_speed, delta)
 			play_clip(&"walk")
+
+
+func _sleep(delta: float) -> void:
+	if global_position.distance_to(home) > HOME_RADIUS:
+		move_towards_point(home, walk_speed, delta)
+		play_clip(&"walk")
+		return
+	rotation.y = lerp_angle(rotation.y, home_yaw, 6.0 * delta)
+	velocity.x = 0.0
+	velocity.z = 0.0
+	_apply_gravity(delta)
+	move_and_slide()
+	play_clip(&"sleep")
+	_zzz_t += delta
+	if _zzz_t >= 1.2:
+		_zzz_t = 0.0
+		Effects.zzz(get_parent(), global_position + Vector3(0, 0.45, 0))
+
+
+func _wander(delta: float) -> void:
+	## День: бродит в WANDER от дома, останавливается понюхать.
+	_zzz_t = 0.0
+	if _wander_to == Vector3.INF or _wander_wait > 0.0:
+		_wander_wait -= delta
+		if global_position.distance_to(home) <= HOME_RADIUS + 0.2:
+			rotation.y = lerp_angle(rotation.y, home_yaw, 6.0 * delta)
+		velocity.x = 0.0
+		velocity.z = 0.0
+		_apply_gravity(delta)
+		move_and_slide()
+		play_clip(&"idle")
+		if _wander_wait <= 0.0:
+			var a := randf() * TAU
+			_wander_to = home + Vector3(cos(a), 0, sin(a)) * randf_range(1.0, WANDER)
+		return
+	if move_towards_point(_wander_to, walk_speed * 0.8, delta) < 0.3:
+		_wander_to = Vector3.INF
+		_wander_wait = randf_range(1.0, 2.5)
+	play_clip(&"walk")
 
 
 func play_clip(name: StringName) -> void:
@@ -3137,7 +3334,7 @@ func _physics_process(delta: float) -> void:
 	_t = 0.0
 	match phase:
 		&"bite":
-			Sfx.play(&"splash")
+			Sfx.play_at(&"splash", global_position)
 		&"pull":
 			_play(&"work")
 		&"look":
@@ -3262,7 +3459,7 @@ func _physics_process(delta: float) -> void:
 		state = next
 		_t = 0.0
 		if state == &"horn":
-			Sfx.play(&"horn")
+			Sfx.play_at(&"horn", global_position)
 
 
 func _on_body(body: Node3D) -> void:
@@ -3318,7 +3515,7 @@ func start_watering() -> void:
 	mode = &"warn"
 	mode_left = WARN_TIME
 	velocity = Vector3.ZERO
-	Sfx.play(&"hiss", 0.1)
+	Sfx.play_at(&"hiss", global_position, 0.1)
 
 
 func _on_hit_body(_body: Node3D) -> void:
@@ -3546,7 +3743,7 @@ func _physics_process(delta: float) -> void:
 				_shadow.global_position = _target + Vector3(0, 0.03, 0)
 				_shadow.scale = Vector3.ONE * 0.2
 				_shadow.visible = true
-				Sfx.play(&"gull")
+				Sfx.play_at(&"gull", global_position)
 		&"warn":
 			_shadow.scale = Vector3.ONE * lerpf(0.2, 1.0, clampf(_t / WARN, 0.0, 1.0))   # тень растёт
 			if _t >= WARN:
@@ -3840,6 +4037,8 @@ const STEAL_DIST := 1.5
 const SCATTER_DIST := 2.5
 const COOLDOWN := 10.0
 const WALK := 0.35
+const CREEP_DIST := 6.0
+const CREEP_SPEED := 0.9
 
 var mode: StringName = &"idle"      # idle | scattered | sleep
 var cooldown_left := 0.0
@@ -3919,6 +4118,12 @@ func _physics_process(delta: float) -> void:
 			_scatter()
 	if mode == &"scattered" and cooldown_left <= 0.0:
 		mode = &"idle"
+	if cat and mode == &"idle" and not GameState.mouth.is_empty() and cooldown_left <= 0.0 and cat.get("state") != &"run" \
+			and not bool(cat.get("hidden")):
+		var to := cat.global_position - global_position
+		to.y = 0.0
+		if to.length() < CREEP_DIST and to.length() > 1.0:
+			global_position += to.normalized() * CREEP_SPEED * delta   # стая подбирается к коту с едой (план 21)
 	_move_birds(delta)
 
 
@@ -3926,7 +4131,7 @@ func _steal() -> void:
 	if GameState.steal_last() == null:
 		return
 	cooldown_left = COOLDOWN
-	Sfx.play(&"coo", 0.15)
+	Sfx.play_at(&"coo", global_position, 0.15)
 	var ps := pigeons()
 	if not ps.is_empty():
 		_fly[_rng.randi_range(0, ps.size() - 1)] = COOLDOWN
@@ -3935,7 +4140,7 @@ func _steal() -> void:
 func _scatter() -> void:
 	mode = &"scattered"
 	cooldown_left = COOLDOWN
-	Sfx.play(&"coo", 0.2)
+	Sfx.play_at(&"coo", global_position, 0.2)
 	for i in _fly.size():
 		_fly[i] = COOLDOWN
 
@@ -4037,7 +4242,7 @@ func _physics_process(delta: float) -> void:
 		_spray.emitting = phase == &"on"
 		_bubbles.emitting = phase == &"warn"
 		if phase == &"warn":
-			Sfx.play(&"sprinkle", 0.1)
+			Sfx.play_at(&"sprinkle", global_position, 0.1)
 	if phase == &"on":
 		for body in _zone.get_overlapping_bodies():
 			if body.is_in_group("cat") and body.has_method("wet") and not bool(body.get("hidden")):
@@ -4057,6 +4262,16 @@ extends Node3D
 var anchor: Vector3
 var ground := 0.0   # высота рельефа под якорем: оса летает на height над землёй (план 11)
 var _anchored := false
+## План 21: кот ближе NOTICE — зависает и трясётся (WARN), затем пикирует по прямой (DIVE), возвращается, отдыхает.
+const NOTICE := 4.0
+const WARN := 0.6
+const DIVE_SPEED := 7.0
+const DIVE_MAX := 1.0
+const REST := 3.0
+var mode: StringName = &"orbit"   # orbit | warn | dive | back
+var cooldown_left := 0.0
+var _mode_t := 0.0
+var _dive_to := Vector3.ZERO
 var _angle := 0.0
 var _t := 0.0
 
@@ -4087,8 +4302,43 @@ func _physics_process(delta: float) -> void:
 		ground = Terrain.surface_height(get_tree(), anchor.x, anchor.z, 0.0)
 		_anchored = true
 	_t += delta
-	_angle += angular_speed * delta
-	_place()
+	cooldown_left = maxf(cooldown_left - delta, 0.0)
+	_mode_t += delta
+	var c := get_tree().get_first_node_in_group("cat") as Node3D
+	match mode:
+		&"orbit":
+			_angle += angular_speed * delta
+			_place()
+			if c and cooldown_left <= 0.0 and not bool(c.get("hidden")) and not bool(c.get("in_safe_zone")) \
+					and Vector2(c.global_position.x - anchor.x, c.global_position.z - anchor.z).length() < NOTICE:
+				mode = &"warn"
+				_mode_t = 0.0
+		&"warn":
+			_model.position = Vector3(randf_range(-0.03, 0.03), randf_range(-0.03, 0.03), 0)   # трясётся — предупреждение
+			if c:
+				var to := c.global_position - global_position
+				rotation.y = atan2(-to.x, -to.z)
+				_dive_to = c.global_position + Vector3(0, 0.15, 0)
+			if _mode_t >= WARN:
+				_model.position = Vector3.ZERO
+				mode = &"dive"
+				_mode_t = 0.0
+		&"dive":
+			var step := DIVE_SPEED * delta
+			var to := _dive_to - global_position
+			if to.length() <= step or _mode_t >= DIVE_MAX:
+				mode = &"back"
+				_mode_t = 0.0
+				cooldown_left = REST
+			else:
+				global_position += to.normalized() * step
+				for b in _hit.get_overlapping_bodies():
+					_on_body(b)
+		&"back":
+			var home_p := Vector3(anchor.x + cos(_angle) * radius, ground + height, anchor.z + sin(_angle) * radius)
+			global_position = global_position.move_toward(home_p, 3.0 * delta)
+			if global_position.distance_to(home_p) < 0.05:
+				mode = &"orbit"
 	if _wing_l and _wing_r:
 		var flap := sin(_t * 60.0) * 0.6
 		_wing_l.rotation.y = 0.25 + flap
@@ -4204,7 +4454,7 @@ func _physics_process(delta: float) -> void:
 	_foam.emitting = foaming or front > 0.0
 	_foam.position = Vector3(0, 0.05, inland * front)
 	if foaming and not _foam_sounded:
-		Sfx.play(&"wave")
+		Sfx.play_at(&"wave", global_position)
 		_foam_sounded = true
 	if u < RUN:
 		_check_cat(front)
@@ -4570,8 +4820,7 @@ func _ready() -> void:
 	for c in get_tree().get_nodes_in_group("hazards"):
 		if c.has_signal("bell"):
 			c.bell.connect(func() -> void:
-				hud.flash_bell()
-				Sfx.play(&"bell"))
+				Sfx.play_at(&"bell", (c as Node3D).global_position))   # без плашки (план 21): звонок слышно рядом
 	shop_menu.closed.connect(close_shop)
 	album_menu.closed.connect(func() -> void: _set_paused(false))
 	pause_menu.resumed.connect(func() -> void: _set_paused(false))
@@ -4580,6 +4829,7 @@ func _ready() -> void:
 	controls_menu.name = "ControlsMenu"
 	add_child(controls_menu)
 	pause_menu.controls_requested.connect(controls_menu.open)
+	Music.start()   # план 21
 	var life := YardLife.new()   # план 20: ветер, бабочки, птицы, дымок, фон звуков
 	life.name = "YardLife"
 	add_child(life)
@@ -4599,6 +4849,10 @@ func _ready() -> void:
 		sig.connect(_on_progress_changed.unbind(1))
 	GameState.tutorial_finished.connect(_on_progress_changed)
 	Mouse.capture(true)
+
+
+func _exit_tree() -> void:
+	Music.stop()
 
 
 func _physics_process(_delta: float) -> void:
@@ -5761,6 +6015,22 @@ func _ready() -> void:
 		var setter: Callable = spec[3]
 		cb.toggled.connect(func(on: bool) -> void: setter.call(on, get_tree()))
 		opts.add_child(cb)
+	var mrow := HBoxContainer.new()   # план 21: громкость музыки
+	mrow.add_theme_constant_override("separation", 12)
+	box.add_child(mrow)
+	var ml := Label.new()
+	ml.text = "Музыка"
+	ml.add_theme_font_size_override("font_size", 16)
+	mrow.add_child(ml)
+	var slider := HSlider.new()
+	slider.name = "Music"
+	slider.min_value = 0.0
+	slider.max_value = 1.0
+	slider.step = 0.05
+	slider.value = GameSettings.music
+	slider.custom_minimum_size = Vector2(260, 0)
+	slider.value_changed.connect(func(v: float) -> void: GameSettings.set_music(v, get_tree()))
+	mrow.add_child(slider)
 	var bar := HBoxContainer.new()
 	bar.add_theme_constant_override("separation", 12)
 	box.add_child(bar)
@@ -9003,6 +9273,12 @@ func test_cyclist_dust_only_while_riding() -> void:
 	await wait_seconds(0.6)
 	assert_true(c.riding)
 	assert_true(dust.emitting, "в пути пылит")
+
+func test_cyclist_rides_often() -> void:
+	# План 21: выезжает вдвое чаще.
+	var c := Cyclist.new()
+	assert_lte(c.interval_max, 10.0)
+	c.free()
 ```
 
 ## `tests/integration/test_day_night.gd`
@@ -9220,11 +9496,19 @@ func before_each() -> void:
 	dog.position = Vector3(0, 0.05, 0)   # смотрит по -Z
 	world.add_child(dog)
 
+func _night() -> void:
+	## План 21: днём собака бродит, спит только ночью.
+	var light = (load("res://scenes/world/lighting.tscn") as PackedScene).instantiate()
+	add_child_autofree(light)
+	var dn = light.get_node("DayNight")
+	dn.set_time(220.0)
+	dn.time_scale = 0.0
+
 func test_dog_sees_cat_in_front_and_chases() -> void:
 	cat.global_position = Vector3(0, 0.05, -4)
 	await wait_physics_frames(3)
 	assert_true(dog.sees_cat())
-	await wait_seconds(1.3)
+	await wait_seconds(0.7)   # план 21: лает 0,6 с, окно ниже — внутри первого рывка
 	assert_eq(dog.brain.state, ChaseBrain.State.CHASE)
 	var d0: float = dog.global_position.distance_to(cat.global_position)
 	await wait_seconds(0.5)
@@ -9263,7 +9547,7 @@ func test_dog_faces_home_direction_again_after_chase() -> void:
 	cat.global_position = Vector3(0, 0.05, -12)
 	dog.walk_speed = 8.0
 	await wait_seconds(4.5)
-	assert_eq(dog.brain.state, ChaseBrain.State.IDLE, "вернулась и спит")
+	assert_eq(dog.brain.state, ChaseBrain.State.IDLE, "вернулась домой")
 	cat.hidden = false
 	cat.global_position = Vector3(0, 0.05, -4)
 	await wait_seconds(0.8)
@@ -9288,6 +9572,7 @@ func test_safe_zone_cancels_chase() -> void:
 	assert_eq(dog.brain.state, ChaseBrain.State.RETURN, "в безопасной зоне собака разворачивается сразу")
 
 func test_idle_dog_plays_sleep_clip() -> void:
+	_night()
 	await wait_physics_frames(3)
 	var ap := dog.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	assert_true(ap.has_animation("sleep"), "в dog.glb есть клип sleep")
@@ -9314,6 +9599,7 @@ func test_dog_contact_plays_hit_once_and_barks_on_alert() -> void:
 	assert_eq(Sfx.counts.get(&"bark", 0), 1, "лай при входе в ALERT, один раз за настороженность")
 
 func test_sleeping_dog_emits_zzz() -> void:
+	_night()
 	await wait_seconds(1.5)
 	assert_eq(dog.brain.state, ChaseBrain.State.IDLE)
 	var zs := 0
@@ -9324,6 +9610,7 @@ func test_sleeping_dog_emits_zzz() -> void:
 
 func test_dog_returns_home_onto_terrace_even_through_wall() -> void:
 	# Ревью плана 11: собака с террасы шла домой по прямой, упиралась в подпорную стену и стояла так до конца игры.
+	_night()   # ночью собака дома спит — днём ушла бы бродить
 	var t := Terrain.new()
 	t.data_path = "res://data/terrain/demo.json"   # терраса 2 м: x −18…−6, z −18…−8, обрыв x −6…−5
 	world.add_child(t)
@@ -9340,6 +9627,41 @@ func test_dog_returns_home_onto_terrace_even_through_wall() -> void:
 	await wait_seconds(10.0)
 	assert_lt(d.global_position.distance_to(Vector3(-12, 2.05, -13)), 1.0, "собака вернулась домой на террасу")
 	assert_ne(d.brain.state, ChaseBrain.State.RETURN, "возврат закончился")
+
+# --- План 21: собака живее (владелец: «враги амёбные, интересны только крабы») ---
+
+func test_dog_wanders_by_day() -> void:
+	cat.global_position = Vector3(0, 0.05, 15)   # далеко и за спиной
+	await wait_physics_frames(3)
+	var p0: Vector3 = dog.global_position
+	var moved := 0.0
+	for i in 8:
+		await wait_seconds(0.5)
+		moved = maxf(moved, dog.global_position.distance_to(p0))
+	assert_gt(moved, 0.5, "днём бродит у дома, а не спит")
+	assert_lt(dog.global_position.distance_to(dog.home), Dog.WANDER + 0.5)
+
+func test_dog_smells_cat_with_food_behind() -> void:
+	cat.global_position = Vector3(0, 0.05, 3.5)   # за спиной, ближе нюха
+	await wait_physics_frames(3)
+	assert_false(dog.sees_cat(), "без еды за спиной не замечает")
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	await wait_physics_frames(2)
+	assert_true(dog.sees_cat(), "с едой — чует")
+
+func test_dog_chases_in_lunges() -> void:
+	cat.global_position = Vector3(0, 0.05, -6)
+	await wait_seconds(0.8)
+	assert_eq(dog.brain.state, ChaseBrain.State.CHASE, "лает недолго — 0,6 с")
+	var speeds := []
+	var p: Vector3 = dog.global_position
+	for i in 30:
+		await wait_physics_frames(3)
+		speeds.append(dog.global_position.distance_to(p) / (3.0 / 60.0))
+		p = dog.global_position
+		cat.global_position = dog.global_position + Vector3(0, 0, -5)   # кот держит дистанцию
+	assert_gt(speeds.max(), 5.0, "рывок быстрее бегущего кота")
+	assert_lt(speeds.min(), 0.6, "между рывками — передышка (можно увернуться)")
 ```
 
 ## `tests/integration/test_dog_asset.gd`
@@ -11231,6 +11553,15 @@ func test_flock_steals_again_after_cooldown() -> void:
 	flock.cooldown_left = 0.0   # перерыв 10 с истёк
 	await wait_physics_frames(4)
 	assert_eq(GameState.mouth.size(), 0, "после перерыва стая снова крадёт")
+
+func test_flock_creeps_toward_cat_with_food() -> void:
+	# План 21: голуби сами подбираются к коту с едой.
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	cat.global_position = flock.global_position + Vector3(4, 0.05, 0)
+	var d0 := Vector2(cat.global_position.x - flock.global_position.x, cat.global_position.z - flock.global_position.z).length()
+	await wait_seconds(1.5)
+	var d1 := Vector2(cat.global_position.x - flock.global_position.x, cat.global_position.z - flock.global_position.z).length()
+	assert_lt(d1, d0 - 0.5, "стая ближе")
 ```
 
 ## `tests/integration/test_port.gd`
@@ -11817,6 +12148,68 @@ func test_owned_skins_can_be_reselected() -> void:
 	assert_eq(GameState.yarn, 0, "повторный выбор бесплатен")
 	assert_true(black_btn.text.ends_with("— надет"))
 	main.close_shop()
+```
+
+## `tests/integration/test_sound_music.gd`
+
+```gdscript
+extends GutTest
+## План 21: звуки опасностей слышны только рядом (булькали дождеватели парка на всю карту); музыка день/ночь с громкостью.
+
+const MainScene := preload("res://scenes/main.tscn")
+var main
+
+func before_each() -> void:
+	GameState.reset()
+	GameState.tutorial_done = true
+	SaveGame.path = "user://test_save.json"
+	SaveGame.clear()
+	GameSettings.path = "user://test_settings.cfg"
+	KeyBindings.path = "user://test_settings.cfg"
+	GameSettings.reset()
+	main = MainScene.instantiate()
+	add_child_autofree(main)
+	await wait_physics_frames(3)
+
+func after_each() -> void:
+	SaveGame.clear()
+	GameSettings.reset()
+
+func test_far_hazard_sound_is_silent_near_one_is_heard() -> void:
+	var cat = main.find_child("Cat", true, false)
+	Sfx.reset_counters()
+	assert_null(Sfx.play_at(&"sprinkle", cat.global_position + Vector3(60, 0, 0)), "дождеватель в парке не слышен во дворе")
+	assert_ne(Sfx.last_played, &"sprinkle")
+	var near := Sfx.play_at(&"sprinkle", cat.global_position + Vector3(5, 0, 0))
+	assert_not_null(near)
+	var mid := Sfx.play_at(&"sprinkle", cat.global_position + Vector3(18, 0, 0))
+	assert_lt(mid.volume_db, near.volume_db, "дальше — тише")
+
+func test_hazards_use_positional_sounds() -> void:
+	for f in ["sprinkler", "wave", "gull", "pigeon_flock", "forklift", "fisher", "gardener", "dog"]:
+		var code := FileAccess.get_file_as_string("res://scripts/hazards/%s.gd" % f)
+		assert_false(code.contains("Sfx.play(&"), "%s: звук только через play_at" % f)
+
+func test_no_cyclist_banner() -> void:
+	var hud = main.hud
+	for c in get_tree().get_nodes_in_group("hazards"):
+		if c.has_signal("bell"):
+			c.emit_signal("bell")
+	await wait_process_frames(2)
+	assert_false(hud.get_node("BellPanel").visible, "уведомления о велосипедисте нет")
+
+func test_music_day_and_night_with_volume_setting() -> void:
+	assert_true(Music.playing(), "музыка играет")
+	assert_true(Music.current_track().contains("day_"))
+	get_tree().get_first_node_in_group("day_night").set("time_scale", 0.0)
+	get_tree().get_first_node_in_group("day_night").set_time(220.0)
+	await wait_seconds(0.3)
+	assert_true(Music.current_track().contains("night_"), "ночью — ночная петля")
+	GameSettings.set_music(0.0, get_tree())
+	assert_almost_eq(Music.volume, 0.0, 0.001)
+	GameSettings.load_saved()
+	assert_almost_eq(GameSettings.music, 0.0, 0.001, "громкость сохранена")
+	GameSettings.set_music(0.7, get_tree())
 ```
 
 ## `tests/integration/test_sprinkler.gd`
@@ -12467,6 +12860,43 @@ func test_wasp_flies_above_terrace() -> void:
 	world.add_child(w)
 	await wait_physics_frames(4)
 	assert_almost_eq(w.global_position.y, 2.5, 0.15, "оса над террасой на высоте 0,5 над землёй")
+
+# --- План 21: оса пикирует ---
+
+func test_wasp_warns_then_dives_at_cat() -> void:
+	var floor_body := StaticBody3D.new()
+	floor_body.collision_layer = Layers.WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(20, 0.2, 20)
+	shape.shape = box
+	shape.position.y = -0.1
+	floor_body.add_child(shape)
+	world.add_child(floor_body)
+	var w = WaspScene.instantiate()
+	w.radius = 1.5
+	w.position = Vector3(0, 0.5, 0)
+	world.add_child(w)
+	var cat = CatScene.instantiate()
+	cat.position = Vector3(3, 0.05, 0)
+	world.add_child(cat)
+	await wait_physics_frames(5)
+	assert_eq(w.mode, &"warn", "зависла и трясётся — предупреждение")
+	await wait_seconds(1.6)
+	assert_eq(GameState.hearts, 2, "пикирование попало")
+	assert_gt(w.cooldown_left, 0.0, "после — отдых")
+
+func test_wasp_ignores_hidden_cat() -> void:
+	var w = WaspScene.instantiate()
+	w.radius = 1.5
+	w.position = Vector3(0, 0.5, 0)
+	world.add_child(w)
+	var cat = CatScene.instantiate()
+	cat.position = Vector3(3, 0.05, 0)
+	world.add_child(cat)
+	cat.hidden = true
+	await wait_physics_frames(10)
+	assert_eq(w.mode, &"orbit")
 ```
 
 ## `tests/integration/test_water.gd`
@@ -20065,6 +20495,9 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
 - План 20. Эффекты укрытий и живой двор (`2026-10-10-snack-run-20-life.md`) — ВЫПОЛНЕН 2026-10-10.
 - Отложено из ревью плана 20: резкая смена дня и ночи (бабочки, прохожие, фон без кроссфейда); птицы и бабочки только во дворе;
   прохожие без коллизии; бельё колышется вокруг центра вещи.
+- План 21. Звук, музыка и враги поинтереснее (`2026-10-10-snack-run-21-fun.md`) — ВЫПОЛНЕН 2026-10-10: позиционные звуки
+  опасностей, без плашки велосипедиста, CC0-музыка дня и ночи с громкостью, собака бродит и гонится рывками, оса пикирует,
+  голуби подкрадываются, велосипедист чаще.
 ```
 
 ## `docs/superpowers/notes/2026-10-07-unimate-attempt.md`
