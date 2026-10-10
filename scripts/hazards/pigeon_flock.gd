@@ -97,7 +97,7 @@ func _steal() -> void:
 	if GameState.steal_last() == null:
 		return
 	cooldown_left = COOLDOWN
-	Sfx.play(&"coo", 0.15)
+	Sfx.play_at(&"coo", global_position, 0.15)
 	var ps := pigeons()
 	if not ps.is_empty():
 		_fly[_rng.randi_range(0, ps.size() - 1)] = COOLDOWN
@@ -106,7 +106,7 @@ func _steal() -> void:
 func _scatter() -> void:
 	mode = &"scattered"
 	cooldown_left = COOLDOWN
-	Sfx.play(&"coo", 0.2)
+	Sfx.play_at(&"coo", global_position, 0.2)
 	for i in _fly.size():
 		_fly[i] = COOLDOWN
 

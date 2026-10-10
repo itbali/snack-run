@@ -91,7 +91,7 @@ func _physics_process(delta: float) -> void:
 				_shadow.global_position = _target + Vector3(0, 0.03, 0)
 				_shadow.scale = Vector3.ONE * 0.2
 				_shadow.visible = true
-				Sfx.play(&"gull")
+				Sfx.play_at(&"gull", global_position)
 		&"warn":
 			_shadow.scale = Vector3.ONE * lerpf(0.2, 1.0, clampf(_t / WARN, 0.0, 1.0))   # тень растёт
 			if _t >= WARN:

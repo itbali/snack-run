@@ -83,7 +83,7 @@ func _physics_process(delta: float) -> void:
 	_t = 0.0
 	match phase:
 		&"bite":
-			Sfx.play(&"splash")
+			Sfx.play_at(&"splash", global_position)
 		&"pull":
 			_play(&"work")
 		&"look":

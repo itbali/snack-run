@@ -84,7 +84,7 @@ func _physics_process(delta: float) -> void:
 		state = next
 		_t = 0.0
 		if state == &"horn":
-			Sfx.play(&"horn")
+			Sfx.play_at(&"horn", global_position)
 
 
 func _on_body(body: Node3D) -> void:

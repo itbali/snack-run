@@ -90,7 +90,7 @@ func _physics_process(delta: float) -> void:
 	_foam.emitting = foaming or front > 0.0
 	_foam.position = Vector3(0, 0.05, inland * front)
 	if foaming and not _foam_sounded:
-		Sfx.play(&"wave")
+		Sfx.play_at(&"wave", global_position)
 		_foam_sounded = true
 	if u < RUN:
 		_check_cat(front)

@@ -43,7 +43,7 @@ func start_watering() -> void:
 	mode = &"warn"
 	mode_left = WARN_TIME
 	velocity = Vector3.ZERO
-	Sfx.play(&"hiss", 0.1)
+	Sfx.play_at(&"hiss", global_position, 0.1)
 
 
 func _on_hit_body(_body: Node3D) -> void:

@@ -82,6 +82,22 @@ func _ready() -> void:
 		var setter: Callable = spec[3]
 		cb.toggled.connect(func(on: bool) -> void: setter.call(on, get_tree()))
 		opts.add_child(cb)
+	var mrow := HBoxContainer.new()   # план 21: громкость музыки
+	mrow.add_theme_constant_override("separation", 12)
+	box.add_child(mrow)
+	var ml := Label.new()
+	ml.text = "Музыка"
+	ml.add_theme_font_size_override("font_size", 16)
+	mrow.add_child(ml)
+	var slider := HSlider.new()
+	slider.name = "Music"
+	slider.min_value = 0.0
+	slider.max_value = 1.0
+	slider.step = 0.05
+	slider.value = GameSettings.music
+	slider.custom_minimum_size = Vector2(260, 0)
+	slider.value_changed.connect(func(v: float) -> void: GameSettings.set_music(v, get_tree()))
+	mrow.add_child(slider)
 	var bar := HBoxContainer.new()
 	bar.add_theme_constant_override("separation", 12)
 	box.add_child(bar)

@@ -9,11 +9,13 @@ const BLUR_AMOUNT := 0.06
 static var path := "user://settings.cfg"
 static var blur := true
 static var particles := true
+static var music := 0.7
 
 
 static func reset() -> void:
 	blur = true
 	particles = true
+	music = 0.7
 
 
 static func save() -> void:
@@ -21,6 +23,7 @@ static func save() -> void:
 	cfg.load(path)   # клавиши лежат в том же файле — не затирать
 	cfg.set_value("video", "blur", blur)
 	cfg.set_value("video", "particles", particles)
+	cfg.set_value("audio", "music", music)
 	cfg.save(path)
 
 
@@ -32,6 +35,8 @@ static func load_saved() -> void:
 	var p = cfg.get_value("video", "particles", true)
 	blur = b if b is bool else true
 	particles = p if p is bool else true
+	var m = cfg.get_value("audio", "music", 0.7)
+	music = clampf(float(m), 0.0, 1.0) if (m is float or m is int) else 0.7
 
 
 static func apply_camera(cam: Camera3D) -> void:
@@ -50,6 +55,14 @@ static func set_blur(on: bool, tree: SceneTree) -> void:
 	save()
 	for c in tree.get_nodes_in_group("game_camera"):
 		apply_camera(c as Camera3D)
+
+
+static func set_music(v: float, tree: SceneTree) -> void:
+	music = clampf(v, 0.0, 1.0)
+	save()
+	var m := tree.root.get_node_or_null("Music")
+	if m:
+		m.call("set_volume", music)
 
 
 static func set_particles(on: bool, tree: SceneTree) -> void:

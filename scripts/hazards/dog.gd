@@ -50,7 +50,7 @@ func _physics_process(delta: float) -> void:
 	var cat_safe: bool = c != null and bool(c.get("in_safe_zone"))
 	var s := brain.update(delta, sees_cat(), cat_hidden, at_home, cat_safe)
 	if s == ChaseBrain.State.ALERT and _last_state != ChaseBrain.State.ALERT:
-		Sfx.play(&"bark")   # один лай на настороженность
+		Sfx.play_at(&"bark", global_position)   # один лай на настороженность
 	_last_state = s
 	if s != ChaseBrain.State.RETURN:
 		_return_t = 0.0

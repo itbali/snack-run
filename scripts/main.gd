@@ -52,8 +52,7 @@ func _ready() -> void:
 	for c in get_tree().get_nodes_in_group("hazards"):
 		if c.has_signal("bell"):
 			c.bell.connect(func() -> void:
-				hud.flash_bell()
-				Sfx.play(&"bell"))
+				Sfx.play_at(&"bell", (c as Node3D).global_position))   # без плашки (план 21): звонок слышно рядом
 	shop_menu.closed.connect(close_shop)
 	album_menu.closed.connect(func() -> void: _set_paused(false))
 	pause_menu.resumed.connect(func() -> void: _set_paused(false))
@@ -62,6 +61,7 @@ func _ready() -> void:
 	controls_menu.name = "ControlsMenu"
 	add_child(controls_menu)
 	pause_menu.controls_requested.connect(controls_menu.open)
+	Music.start()   # план 21
 	var life := YardLife.new()   # план 20: ветер, бабочки, птицы, дымок, фон звуков
 	life.name = "YardLife"
 	add_child(life)
@@ -81,6 +81,10 @@ func _ready() -> void:
 		sig.connect(_on_progress_changed.unbind(1))
 	GameState.tutorial_finished.connect(_on_progress_changed)
 	Mouse.capture(true)
+
+
+func _exit_tree() -> void:
+	Music.stop()
 
 
 func _physics_process(_delta: float) -> void:
