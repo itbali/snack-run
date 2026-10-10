@@ -2084,6 +2084,8 @@ static func _set_keys(action: String, codes: Array) -> void:
 
 static func rebind(action: String, code: int) -> String:
 	## Новая клавиша действия; если она была у другого действия — тому достаётся прежняя клавиша. Возвращает это действие.
+	if code == 0:
+		return ""   # клавиша без физического кода — невидимая привязка
 	var old := keys_of(action)
 	var swapped := ""
 	for row in REBINDABLE:
@@ -2094,8 +2096,19 @@ static func rebind(action: String, code: int) -> String:
 				rest = [old[0]]
 			_set_keys(other, rest)
 			swapped = other
-	_set_keys(action, [code])
+	var keys := [code]
+	var defaults: Array = InputSetup.ACTIONS.get(action, [])
+	if defaults.size() > 1 and defaults[1] != code and not _used_elsewhere(action, defaults[1]):
+		keys.append(defaults[1])   # стрелки движения остаются второй клавишей
+	_set_keys(action, keys)
 	return swapped
+
+
+static func _used_elsewhere(action: String, code: int) -> bool:
+	for row in REBINDABLE:
+		if row[0] != action and code in keys_of(row[0]):
+			return true
+	return false
 
 
 static func reset() -> void:
@@ -2116,7 +2129,7 @@ static func load_saved() -> void:
 		return
 	for row in REBINDABLE:
 		var codes = cfg.get_value("keys", row[0], null)
-		if codes is Array and not (codes as Array).is_empty():
+		if codes is Array and not (codes as Array).is_empty() and (codes as Array).all(func(c): return c is int and c > 0):
 			_set_keys(row[0], codes)
 ```
 
@@ -4370,6 +4383,14 @@ func on_back_pressed() -> void:
 		toggle_pause()
 
 
+func on_cancel_pressed() -> void:
+	## B геймпада (ui_cancel): «Управление» — отмена/закрытие, магазин и альбом — закрыть.
+	if controls_menu and controls_menu.is_open:
+		controls_menu.back()
+	elif shop_menu.is_open or album_menu.is_open:
+		on_back_pressed()
+
+
 func on_album_pressed() -> void:
 	if not shop_menu.is_open and not pause_menu.is_open:
 		toggle_album()
@@ -4397,6 +4418,8 @@ func toggle_pause() -> void:
 
 
 func reset_progress() -> void:
+	if tutorial:
+		tutorial.restart()
 	autosave = false   # reset() шлёт сигналы прогресса, автосохранение тут же записало бы нули
 	GameState.reset()
 	SaveGame.clear()
@@ -5215,6 +5238,7 @@ var capturing := ""
 var _captured_frame := -1
 var _buttons := {}
 var _help: Label
+var _return_focus: Control
 
 
 func _ready() -> void:
@@ -5227,6 +5251,12 @@ func _ready() -> void:
 	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	panel.theme = load("res://assets/ui/theme.tres")
+	var sb := StyleBoxFlat.new()   # непрозрачная: сквозь неё не читается меню паузы (ревью плана 17)
+	sb.bg_color = Color("#F4F1E8")
+	sb.set_corner_radius_all(18)
+	sb.shadow_color = Color(0, 0, 0, 0.25)
+	sb.shadow_size = 8
+	panel.add_theme_stylebox_override("panel", sb)
 	add_child(panel)
 	var margin := MarginContainer.new()
 	for side in ["left", "right", "top", "bottom"]:
@@ -5292,6 +5322,7 @@ func key_button(action: String) -> Button:
 
 
 func open() -> void:
+	_return_focus = get_viewport().gui_get_focus_owner()
 	is_open = true
 	visible = true
 	capturing = ""
@@ -5305,6 +5336,8 @@ func close() -> void:
 	is_open = false
 	visible = false
 	capturing = ""
+	if is_instance_valid(_return_focus) and _return_focus.is_visible_in_tree():
+		_return_focus.grab_focus()   # геймпад: фокус обратно на кнопку, с которой открыли
 	closed.emit()
 
 
@@ -5345,7 +5378,7 @@ func _input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed or event.echo:
 		return
 	if capturing == "":
-		if standalone and is_open and (event as InputEventKey).physical_keycode == KEY_ESCAPE:
+		if standalone and is_open and event.is_action("pause"):
 			close()
 			get_viewport().set_input_as_handled()
 		return
@@ -5553,8 +5586,8 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if Input.is_action_just_pressed("pause"):
 		_main.call("on_back_pressed")
-	elif Input.is_action_just_pressed("ui_cancel") and _menu_open():
-		_main.call("on_back_pressed")   # B на геймпаде закрывает магазин и альбом (Esc ловит ветка выше)
+	elif Input.is_action_just_pressed("ui_cancel"):
+		_main.call("on_cancel_pressed")   # B на геймпаде: «Управление», магазин, альбом (Esc ловит ветка выше)
 	elif Input.is_action_just_pressed("album"):
 		_main.call("on_album_pressed")
 	elif Input.is_action_just_pressed("eat"):
@@ -5774,6 +5807,7 @@ extends CanvasLayer
 const STEPS := [&"move", &"run", &"jump", &"food", &"hide", &"eat", &"shop"]
 
 var step := 0
+var _started := false   # старт отсчёта «ходи» — на первом физическом кадре (после переноса кота)
 var _cat: Node3D
 var _main: Node
 var _start := Vector3.ZERO
@@ -5805,9 +5839,20 @@ func _ready() -> void:
 	_label.add_theme_font_size_override("font_size", 20)
 	margin.add_child(_label)
 	GameState.food_eaten.connect(func(_items: Array) -> void: _ate = true)
+	process_mode = Node.PROCESS_MODE_ALWAYS   # видимость — и на паузе; шаги — только в игре (_physics_process)
 	visible = not GameState.tutorial_done
-	if _cat:
-		_start = _cat.global_position
+
+
+func restart() -> void:
+	## «Сбросить прогресс» в паузе: обучение снова с первого шага (ревью плана 17).
+	step = 0
+	_ate = false
+	_started = false
+
+
+func _process(_delta: float) -> void:
+	var controls_open: bool = _main != null and _main.get("controls_menu") != null and bool(_main.get("controls_menu").is_open)
+	visible = not GameState.tutorial_done and not controls_open
 
 
 func step_id() -> StringName:
@@ -5839,7 +5884,7 @@ func _hint() -> String:
 		&"eat":
 			return "Съешь в укрытии: %s" % k.call("eat")
 		&"shop":
-			return "Клубочки — деньги: в будке пряжи нажми %s" % k.call("eat")
+			return "Клубочки — деньги: в будке пряжи (откуда ты начал) нажми %s" % k.call("eat")
 	return ""
 
 
@@ -5863,18 +5908,21 @@ func _done() -> bool:
 
 
 func _physics_process(_delta: float) -> void:
-	if GameState.tutorial_done:
-		visible = false
+	if GameState.tutorial_done or _cat == null or get_tree().paused:
 		return
-	if _cat == null:
-		return
+	if not _started:
+		_start = _cat.global_position
+		_started = true
 	if _done():
 		step += 1
 		_ate = false
 		if step >= STEPS.size():
 			skip()
 			return
-	_label.text = "Обучение %d/%d · %s" % [step + 1, STEPS.size(), _hint()]
+	var extra := ""
+	if step_id() == &"eat" and GameState.mouth.is_empty():
+		extra = " (сначала подбери еду)"   # еду выбили между шагами — подсказка объясняет
+	_label.text = "Обучение %d/%d · %s%s · пропустить — в паузе" % [step + 1, STEPS.size(), _hint(), extra]
 ```
 
 ## `scripts/visual/effects.gd`
@@ -7790,6 +7838,28 @@ func test_controls_menu_is_drawn_above_pause_and_tutorial() -> void:
 	# Кадр плана 17: меню паузы рисовалось поверх «Управления».
 	for other in [main.pause_menu, main.album_menu, main.shop_menu, main.tutorial]:
 		assert_gt(main.controls_menu.layer, (other as CanvasLayer).layer, "выше %s" % other.name)
+
+func test_gamepad_back_cancels_capture_and_closes() -> void:
+	main.toggle_pause()
+	var menu = main.controls_menu
+	(main.pause_menu.find_child("Controls", true, false) as Button).grab_focus()   # геймпад: A на «Управлении»
+	menu.open()
+	menu.start_capture("jump")
+	main.on_cancel_pressed()
+	assert_eq(menu.capturing, "", "B отменяет ожидание")
+	assert_true(menu.is_open)
+	await wait_process_frames(1)
+	main.on_cancel_pressed()
+	assert_false(menu.is_open, "второе B закрывает экран")
+	assert_true(main.pause_menu.is_open, "пауза остаётся")
+	assert_true(main.pause_menu.find_child("Controls", true, false).has_focus(), "фокус вернулся на кнопку")
+	main.toggle_pause()
+
+func test_panel_is_opaque() -> void:
+	var sb := (main.controls_menu.get_node("Panel") as PanelContainer).get_theme_stylebox("panel") as StyleBoxFlat
+	assert_not_null(sb)
+	if sb:
+		assert_almost_eq(sb.bg_color.a, 1.0, 0.01, "сквозь панель не просвечивает пауза")
 ```
 
 ## `tests/integration/test_cyclist.gd`
@@ -8820,6 +8890,8 @@ const HudScene := preload("res://scenes/ui/hud.tscn")
 var hud
 
 func before_each() -> void:
+	KeyBindings.path = "user://test_settings.cfg"   # не читать настройки владельца
+	KeyBindings.reset()
 	GameState.reset()
 	hud = HudScene.instantiate()
 	add_child_autofree(hud)
@@ -9128,6 +9200,8 @@ var main
 var cat
 
 func before_each() -> void:
+	KeyBindings.path = "user://test_settings.cfg"   # не читать настройки владельца
+	KeyBindings.reset()
 	GameState.reset()
 	SaveGame.path = "user://test_save.json"
 	SaveGame.clear()
@@ -10749,6 +10823,8 @@ var main
 var cat
 
 func before_each() -> void:
+	KeyBindings.path = "user://test_settings.cfg"   # не читать настройки владельца
+	KeyBindings.reset()
 	GameState.reset()
 	SaveGame.path = "user://test_save.json"
 	SaveGame.clear()
@@ -10836,6 +10912,24 @@ func test_old_save_with_progress_skips_tutorial() -> void:
 	d["album"] = {}
 	GameState.from_dict(d)
 	assert_false(GameState.tutorial_done, "пустое старое сохранение — с обучением")
+
+func test_reset_progress_restarts_tutorial() -> void:
+	# Ревью плана 17: «Сбросить прогресс» не перезапускал обучение (видимость и шаг ставились только в _ready).
+	_tut().skip()
+	main.reset_progress()
+	await wait_physics_frames(3)
+	assert_true(_tut().visible, "после сброса — снова обучение")
+	assert_eq(_tut().step_id(), &"move")
+
+func test_hint_hidden_while_controls_open() -> void:
+	main.toggle_pause()
+	main.controls_menu.open()
+	await wait_physics_frames(2)
+	assert_false(_tut().visible, "подсказка не лезет под экран управления")
+	main.controls_menu.close()
+	main.toggle_pause()
+	await wait_physics_frames(2)
+	assert_true(_tut().visible)
 ```
 
 ## `tests/integration/test_wasp.gd`
@@ -12236,6 +12330,15 @@ func test_bindings_persist_and_reset() -> void:
 	assert_eq(KeyBindings.keys_of("run"), [KEY_Z], "из файла настроек")
 	KeyBindings.reset()
 	assert_eq(KeyBindings.keys_of("move_left"), [KEY_A, KEY_LEFT], "сброс — как было")
+
+func test_moving_keeps_arrow_as_second_key() -> void:
+	# Ревью плана 17: «Вперёд» → I молча убирал стрелку ↑.
+	KeyBindings.rebind("move_forward", KEY_I)
+	assert_eq(KeyBindings.keys_of("move_forward"), [KEY_I, KEY_UP])
+
+func test_zero_keycode_is_ignored() -> void:
+	KeyBindings.rebind("jump", 0)
+	assert_eq(KeyBindings.keys_of("jump"), [KEY_SPACE])
 ```
 
 ## `tests/unit/test_perception.gd`
