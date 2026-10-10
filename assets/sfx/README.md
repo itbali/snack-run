@@ -16,6 +16,8 @@
 | wave.wav | шум наката | синтез `make sfx` | проект |
 | horn.wav | гудок погрузчика | синтез `make sfx` | проект |
 | rustle.wav | шорох укрытия | синтез `make sfx` | проект |
+| birds.wav | фон дня (птицы) | синтез `make sfx` | проект |
+| crickets.wav | фон ночи (сверчки) | синтез `make sfx` | проект |
 
 Паки: https://kenney.nl/assets/interface-sounds, https://kenney.nl/assets/impact-sounds.
 Правило: один `Sfx.play()` на игровое событие (сигнал), никогда из `_process`.

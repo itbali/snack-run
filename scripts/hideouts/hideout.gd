@@ -141,6 +141,11 @@ func find_cover() -> Node3D:
 
 func react(kind_of: StringName) -> void:
 	## Эффекты укрытия (план 20): hide/exit — пыль (из куста — листья) и пружинистое вздрагивание пропа; eat — крошки и сердечки.
+	## Отложенно: выход из зоны приходит и из сигналов дерева (выгрузка сцены), где добавлять узлы нельзя.
+	_react_now.call_deferred(kind_of)
+
+
+func _react_now(kind_of: StringName) -> void:
 	if not is_inside_tree() or is_queued_for_deletion():
 		return   # укрытие уходит со сценой (выгрузка района, конец теста)
 	var parent := get_tree().current_scene if get_tree().current_scene else get_parent()

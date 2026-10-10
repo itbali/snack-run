@@ -62,6 +62,10 @@ func _ready() -> void:
 	controls_menu.name = "ControlsMenu"
 	add_child(controls_menu)
 	pause_menu.controls_requested.connect(controls_menu.open)
+	var life := YardLife.new()   # план 20: ветер, бабочки, птицы, дымок, фон звуков
+	life.name = "YardLife"
+	add_child(life)
+	life.setup($DistrictYard)
 	var fx := AmbientFx.new()
 	fx.name = "AmbientFx"
 	fx.target = _cat

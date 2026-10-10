@@ -146,6 +146,44 @@ def rustle(duration=0.35):
 	return out
 
 
+def birds(duration=8.0):
+	"""Фон дня (план 20): редкие трели разных птиц на тихом шуме листвы; начало и конец сходятся — петля."""
+	rnd = random.Random(41)
+	n = int(RATE * duration)
+	out = [0.0] * n
+	prev = 0.0
+	for i in range(n):
+		prev = prev * 0.97 + rnd.uniform(-1, 1) * 0.03
+		out[i] = prev * 0.25
+	t0 = 0.3
+	while t0 < duration - 0.8:
+		f0 = rnd.uniform(2600, 4200)
+		notes = rnd.randint(2, 5)
+		for k in range(notes):
+			start = int((t0 + k * 0.11) * RATE)
+			length = int(0.07 * RATE)
+			phase = 0.0
+			for j in range(length):
+				u = j / length
+				phase += 2 * math.pi * (f0 * (1.0 + 0.25 * math.sin(u * math.pi))) / RATE
+				if start + j < n:
+					out[start + j] += 0.18 * math.sin(math.pi * u) * math.sin(phase)
+		t0 += rnd.uniform(0.6, 1.6)
+	return out
+
+
+def crickets(duration=6.0):
+	"""Фон ночи (план 20): стрекот сверчков — пачки импульсов 4,5 кГц, два «голоса»; петля."""
+	n = int(RATE * duration)
+	out = []
+	for i in range(n):
+		t = i / RATE
+		a = (1 if (t * 3.1) % 1.0 < 0.35 else 0) * (0.5 + 0.5 * math.sin(2 * math.pi * 30 * t))
+		b = (1 if (t * 2.3 + 0.4) % 1.0 < 0.3 else 0) * (0.5 + 0.5 * math.sin(2 * math.pi * 27 * t))
+		out.append(0.12 * a * math.sin(2 * math.pi * 4500 * t) + 0.09 * b * math.sin(2 * math.pi * 3900 * t))
+	return out
+
+
 def sprinkle(count=6, gap=0.11):
 	"""Бульканье дождевателя: короткие «бульки» — тон 300→700 Гц по 60 мс."""
 	out = []
@@ -186,5 +224,7 @@ if __name__ == "__main__":
 	write("wave.wav", wave_sound())
 	write("horn.wav", horn())
 	write("rustle.wav", rustle())
+	write("birds.wav", birds())
+	write("crickets.wav", crickets())
 	write("coo.wav", coo())
-	print("ОК assets/sfx/meow.wav, bark.wav, hiss.wav, sprinkle.wav, coo.wav, splash.wav, gull.wav, wave.wav, horn.wav, rustle.wav")
+	print("ОК assets/sfx/meow.wav, bark.wav, hiss.wav, sprinkle.wav, coo.wav, splash.wav, gull.wav, wave.wav, horn.wav, rustle.wav, birds.wav, crickets.wav")

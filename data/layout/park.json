@@ -3768,5 +3768,7 @@
     {"model": "decor_litter2", "pos": [-9.29, 0, 34.96], "rot": 20, "scale": 1.18},
     {"model": "decor_litter2", "pos": [-1.79, 0, 56.31], "rot": 340, "scale": 1.24},
     {"model": "decor_litter2", "pos": [6.2, 0, 30.56], "rot": 80, "scale": 0.82}
+  ],
+  "pedestrians": [
   ]
 }

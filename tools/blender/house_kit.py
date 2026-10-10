@@ -6,6 +6,7 @@ import bmesh
 import lib
 
 WIDTH = 6.0
+CHIMNEY = (1.6, 3.3, 1.1)   # смещение трубы от фасада (x, глубина, над карнизом) — то же в yard_life.gd
 FLOOR = 3.1
 
 
@@ -51,6 +52,9 @@ def house(floors=2, wall_mat="sand", roof="pitched", depth=6.0, door=False):
 		r = gable("house_roof", WIDTH + 0.4, depth + 0.4, 1.6, "brick")
 		r.location = (0, -0.4, h)
 		parts.append(r)
+		ch = lib.rounded_box("house_chimney", (0.45, 0.45, 1.3), bevel=0.02, segments=1, material="brick")
+		ch.location = (CHIMNEY[0], CHIMNEY[1] if depth > 2.5 else depth / 2.0, h + CHIMNEY[2])   # дымок — YardLife (план 20)
+		parts.append(ch)
 	else:
 		cap = lib.rounded_box("house_cap", (WIDTH + 0.1, depth + 0.1, 0.25), bevel=0.02, segments=1, material="cream")
 		cap.location = (0, depth / 2.0 - 0.2, h + 0.12)

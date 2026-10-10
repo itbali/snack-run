@@ -2535,6 +2535,479 @@
      "min_dist": 0.8
     }
    ]
+  },
+  {
+   "name": "жизнь двора",
+   "ops": [
+    {
+     "type": "place",
+     "props": [
+      {
+       "model": "laundry",
+       "pos": [
+        10,
+        0,
+        -104
+       ],
+       "rot": 0,
+       "colliders": [
+        {
+         "size": [
+          0.12,
+          2.1,
+          0.12
+         ],
+         "offset": [
+          -1.9,
+          1.05,
+          0
+         ]
+        },
+        {
+         "size": [
+          0.12,
+          2.1,
+          0.12
+         ],
+         "offset": [
+          1.9,
+          1.05,
+          0
+         ]
+        }
+       ]
+      },
+      {
+       "model": "laundry",
+       "pos": [
+        -28,
+        0,
+        -104
+       ],
+       "rot": 0,
+       "colliders": [
+        {
+         "size": [
+          0.12,
+          2.1,
+          0.12
+         ],
+         "offset": [
+          -1.9,
+          1.05,
+          0
+         ]
+        },
+        {
+         "size": [
+          0.12,
+          2.1,
+          0.12
+         ],
+         "offset": [
+          1.9,
+          1.05,
+          0
+         ]
+        }
+       ]
+      },
+      {
+       "model": "laundry",
+       "pos": [
+        -75,
+        0,
+        -70
+       ],
+       "rot": 90,
+       "colliders": [
+        {
+         "size": [
+          0.12,
+          2.1,
+          0.12
+         ],
+         "offset": [
+          -1.9,
+          1.05,
+          0
+         ]
+        },
+        {
+         "size": [
+          0.12,
+          2.1,
+          0.12
+         ],
+         "offset": [
+          1.9,
+          1.05,
+          0
+         ]
+        }
+       ]
+      },
+      {
+       "model": "laundry",
+       "pos": [
+        70,
+        0,
+        -90
+       ],
+       "rot": 90,
+       "colliders": [
+        {
+         "size": [
+          0.12,
+          2.1,
+          0.12
+         ],
+         "offset": [
+          -1.9,
+          1.05,
+          0
+         ]
+        },
+        {
+         "size": [
+          0.12,
+          2.1,
+          0.12
+         ],
+         "offset": [
+          1.9,
+          1.05,
+          0
+         ]
+        }
+       ]
+      },
+      {
+       "model": "laundry",
+       "pos": [
+        -45,
+        0,
+        -14
+       ],
+       "rot": 0,
+       "colliders": [
+        {
+         "size": [
+          0.12,
+          2.1,
+          0.12
+         ],
+         "offset": [
+          -1.9,
+          1.05,
+          0
+         ]
+        },
+        {
+         "size": [
+          0.12,
+          2.1,
+          0.12
+         ],
+         "offset": [
+          1.9,
+          1.05,
+          0
+         ]
+        }
+       ]
+      },
+      {
+       "model": "car_blue",
+       "pos": [
+        -32,
+        0,
+        -86
+       ],
+       "rot": 90,
+       "colliders": [
+        {
+         "size": [
+          1.7,
+          1.2,
+          3.6
+         ],
+         "offset": [
+          0,
+          0.9,
+          0
+         ]
+        }
+       ],
+       "outline": true
+      },
+      {
+       "model": "car_yellow",
+       "pos": [
+        32,
+        0,
+        -86
+       ],
+       "rot": 90,
+       "colliders": [
+        {
+         "size": [
+          1.7,
+          1.2,
+          3.6
+         ],
+         "offset": [
+          0,
+          0.9,
+          0
+         ]
+        }
+       ],
+       "outline": true
+      },
+      {
+       "model": "car",
+       "pos": [
+        32,
+        0,
+        -100
+       ],
+       "rot": 90,
+       "colliders": [
+        {
+         "size": [
+          1.7,
+          1.2,
+          3.6
+         ],
+         "offset": [
+          0,
+          0.9,
+          0
+         ]
+        }
+       ],
+       "outline": true
+      }
+     ],
+     "pedestrians": [
+      {
+       "model": "neighbor_a",
+       "path": [
+        [
+         -78,
+         14
+        ],
+        [
+         -30,
+         14
+        ],
+        [
+         -12,
+         13.6
+        ],
+        [
+         12,
+         13.6
+        ],
+        [
+         78,
+         14
+        ]
+       ]
+      },
+      {
+       "model": "neighbor_b",
+       "path": [
+        [
+         60,
+         14.4
+        ],
+        [
+         20,
+         14.4
+        ],
+        [
+         -40,
+         14.4
+        ]
+       ]
+      },
+      {
+       "model": "neighbor_b",
+       "path": [
+        [
+         -30,
+         -95
+        ],
+        [
+         0,
+         -95
+        ],
+        [
+         30,
+         -95
+        ]
+       ]
+      },
+      {
+       "model": "neighbor_a",
+       "path": [
+        [
+         0,
+         -66
+        ],
+        [
+         0,
+         -45
+        ],
+        [
+         0,
+         -22
+        ]
+       ]
+      },
+      {
+       "model": "neighbor_a",
+       "path": [
+        [
+         -60,
+         -20
+        ],
+        [
+         -24,
+         -20
+        ]
+       ]
+      },
+      {
+       "model": "neighbor_a",
+       "path": [
+        [
+         -30,
+         -82
+        ],
+        [
+         30,
+         -82
+        ]
+       ]
+      },
+      {
+       "model": "neighbor_b",
+       "path": [
+        [
+         20,
+         -100
+        ],
+        [
+         20,
+         -80
+        ],
+        [
+         -10,
+         -80
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree",
+     "rect": [
+      -36,
+      -106,
+      36,
+      -76
+     ],
+     "count": 8,
+     "rot": "random",
+     "min_dist": 5.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bush_flowers",
+     "rect": [
+      -36,
+      -106,
+      36,
+      -76
+     ],
+     "count": 6,
+     "rot": "random",
+     "min_dist": 3.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "flowerbed",
+     "rect": [
+      -36,
+      -106,
+      36,
+      -76
+     ],
+     "count": 4,
+     "rot": 0,
+     "min_dist": 4.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bench",
+     "rect": [
+      -36,
+      -106,
+      36,
+      -76
+     ],
+     "count": 4,
+     "rot": 0,
+     "min_dist": 5.0
+    },
+    {
+     "type": "decor",
+     "model": "decor_flowers",
+     "rect": [
+      -36,
+      -106,
+      36,
+      -76
+     ],
+     "count": 120
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "bench",
+     "rect": [
+      -20,
+      -70,
+      20,
+      -18
+     ],
+     "count": 3,
+     "rot": "random",
+     "min_dist": 6.0
+    },
+    {
+     "type": "scatter",
+     "what": "prop",
+     "model": "tree",
+     "rect": [
+      -62,
+      -44,
+      -22,
+      -6
+     ],
+     "count": 3,
+     "rot": "random",
+     "min_dist": 6.0
+    }
+   ]
   }
  ]
 }

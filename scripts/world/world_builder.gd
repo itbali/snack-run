@@ -140,6 +140,11 @@ func build(data: Dictionary) -> void:
 	for f in data.get("floaters", []):
 		_build_floater(f)
 	_build_decor(data.get("decor", []))
+	for ped in data.get("pedestrians", []):
+		var node := Pedestrian.new()
+		node.name = "Pedestrian%d" % _container("Pedestrians").get_child_count()
+		node.setup("%s/%s.glb" % [MODELS_DIR, ped["model"]], ped["path"])
+		_container("Pedestrians").add_child(node)
 
 
 const DECOR_RANGE := 45.0

@@ -21,6 +21,8 @@ ROLES = {
 	"gardener": {"height": 1.7, "skin": "cream", "hair": "brick", "pants": "olive", "shirt": "leaf"},
 	"kid": {"height": 1.1, "skin": "cream", "hair": "cat_orange", "pants": "sky", "shirt": "rarity_legendary"},
 	"guard": {"height": 1.7, "skin": "cream", "hair": "ink", "pants": "ink", "shirt": "sea_deep"},
+	"neighbor_a": {"height": 1.68, "skin": "cream", "hair": "ink", "pants": "ink", "shirt": "coral"},       # прохожие двора (план 20)
+	"neighbor_b": {"height": 1.6, "skin": "cream", "hair": "brick", "pants": "sand", "shirt": "lilac"},
 	"fisher": {"height": 1.7, "skin": "cream", "hair": "sand", "pants": "sky", "shirt": "cat_orange"},   # панама и жилет (план 15)
 }
 

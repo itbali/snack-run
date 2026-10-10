@@ -1185,5 +1185,7 @@
     {"model": "decor_litter2", "pos": [24.96, 0, 142.55], "rot": 120, "scale": 1.15},
     {"model": "decor_litter2", "pos": [-49.44, 0, 144.18], "rot": 230, "scale": 0.82},
     {"model": "decor_litter2", "pos": [-26.23, 0, 144.14], "rot": 160, "scale": 1.25}
+  ],
+  "pedestrians": [
   ]
 }
