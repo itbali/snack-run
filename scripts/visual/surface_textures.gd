@@ -1,7 +1,7 @@
 class_name SurfaceTextures
 extends RefCounted
 ## Текстуры крупных поверхностей (спек 2.9, «гибрид»): асфальт, плитка тротуара, штукатурка стен.
-## Трипланарная проекция по мировым координатам — UV у мешей из Blender-скриптов нет, а плитка должна
+## План 18: и пропсы (скамейки, коробки, гаражи, крыши, настилы). Трипланарная проекция по мировым координатам — UV у мешей из Blender-скриптов нет, а плитка должна
 ## идти непрерывно через стыки модулей стены. Пропсы, еда и персонажи остаются плоскоцветными.
 
 const DIR := "res://assets/images/textures/"
@@ -13,6 +13,11 @@ const TABLE := {
 	"lawn": ["grass.png", 2.0],
 	"path": ["gravel.png", 0.8],
 	"retaining_wall": ["stone.png", 3.0],
+	# план 18: пропсы — дерево, картон, профнастил, черепица, доски
+	"bench": ["wood.png", 1.0], "bench_back": ["wood.png", 1.0], "cafe_table": ["wood.png", 0.8], "shed": ["wood.png", 1.5],
+	"box": ["cardboard.png", 0.6], "garage": ["metal.png", 1.6], "house_roof": ["roof_tiles.png", 1.6],
+	"boat_deck": ["planks.png", 1.5], "pontoon": ["planks.png", 1.2], "pontoon_plank1": ["planks.png", 1.2],
+	"pontoon_plank2": ["planks.png", 1.2], "pontoon_plank3": ["planks.png", 1.2],
 }
 
 

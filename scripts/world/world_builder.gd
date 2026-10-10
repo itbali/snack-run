@@ -242,7 +242,8 @@ func _build_floater(f: Dictionary) -> void:
 		shape.position = _v3(c.get("offset", [0, 0, 0]))
 		body.add_child(shape)
 	_add_at(_container("Floaters"), body, _v3(f["pos"]), float(f.get("rot", 0)))
-	Toon.apply(model, Toon.OUTLINE_NONE)
+	Toon.apply(model, Toon.OUTLINE_FOOD if f.get("outline", true) else Toon.OUTLINE_NONE)   # обводка у лодок и бочек (хвост плана 13)
+	SurfaceTextures.apply(model)
 
 
 func _build_water(w: Dictionary) -> void:
@@ -293,6 +294,7 @@ func _build_prop(p: Dictionary) -> void:
 	body.transform = props.global_transform.affine_inverse() * Transform3D(Basis(Vector3.UP, deg_to_rad(float(p.get("rot", 0)))), _place(p))
 	props.add_child(body)
 	Toon.apply(model, Toon.OUTLINE_FOOD if p.get("outline", false) else Toon.OUTLINE_NONE)
+	SurfaceTextures.apply(model)   # дерево, картон, металл, черепица (план 18)
 	if String(p["model"]) in SMALL_PROPS:
 		for mi in model.find_children("*", "MeshInstance3D", true, false):
 			(mi as MeshInstance3D).visibility_range_end = SMALL_RANGE

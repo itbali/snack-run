@@ -249,6 +249,30 @@
       "note": "иконка golden_fish",
       "background": "transparent",
       "prompt": "Game icon of a shiny golden cartoon fish (#FABE32) with sparkles and a cute eye, centered, transparent background"
+    },
+    {
+      "file": "assets/images/textures/wood.png",
+      "note": "бесшовное дерево скамеек и столов",
+      "prompt": "Seamless tileable texture of stylized cartoon painted wood boards seen straight on, warm sand (#D3AB87) and cream (#FCD3A1) grain with soft brick-brown (#BD4045) knots, a few thin graphite (#394151) seams, flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly on all four sides, no text",
+      "model": "gpt-image-2.5-sunburst"
+    },
+    {
+      "file": "assets/images/textures/cardboard.png",
+      "note": "бесшовный картон коробок",
+      "prompt": "Seamless tileable texture of stylized cartoon corrugated cardboard, sand (#D3AB87) with lighter cream (#FCD3A1) flutes and a faint packing tape strip, flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly on all four sides, no text",
+      "model": "gpt-image-2.5-sunburst"
+    },
+    {
+      "file": "assets/images/textures/metal.png",
+      "note": "бесшовный профнастил гаражей",
+      "prompt": "Seamless tileable texture of stylized cartoon corrugated metal sheet with vertical ribs, olive (#A9B087) paint with lighter highlights and a few small rust spots in brick (#BD4045), flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly on all four sides, no text",
+      "model": "gpt-image-2.5-sunburst"
+    },
+    {
+      "file": "assets/images/textures/roof_tiles.png",
+      "note": "бесшовная черепица крыш",
+      "prompt": "Seamless tileable texture of stylized cartoon clay roof tiles in overlapping rows, brick red (#BD4045) with coral (#F57485) highlights and thin graphite (#394151) gaps, flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly on all four sides, no text",
+      "model": "gpt-image-2.5-sunburst"
     }
   ]
 }

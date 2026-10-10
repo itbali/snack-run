@@ -56,7 +56,7 @@ func test_windows_props_and_puddles_stay_flat() -> void:
 	var main := (load(MAIN_SCENE) as PackedScene).instantiate()
 	add_child_autofree(main)
 	await wait_process_frames(2)
-	for name in ["wall_frame0", "wall_glass0", "bin", "puddle", "box"]:
+	for name in ["wall_frame0", "wall_glass0", "bin", "puddle"]:   # коробка с планом 18 — картон
 		for mi in _meshes_named(main, name):
 			for i in (mi as MeshInstance3D).mesh.get_surface_count():
 				var m := (mi as MeshInstance3D).get_surface_override_material(i) as StandardMaterial3D
@@ -74,3 +74,24 @@ func test_missing_texture_file_is_not_an_error() -> void:
 	Toon.apply(root, Toon.OUTLINE_NONE)
 	assert_eq(SurfaceTextures.apply(root), 0, "незнакомые меши не трогаются")
 	assert_eq(SurfaceTextures.texture_or_null("res://assets/images/textures/none.png"), null)
+
+func test_props_get_material_textures() -> void:
+	# План 18: дерево у скамеек и столов, картон у коробок, профнастил у гаражей, черепица на крышах, доски у лодок и понтонов.
+	var expected := {"bench": "wood", "cafe_table": "wood", "box": "cardboard", "garage": "metal", "house_roof": "roof_tiles",
+		"shed": "wood", "boat_deck": "planks", "pontoon": "planks"}
+	var b := WorldBuilder.new()
+	add_child_autofree(b)
+	b.build({"props": [{"model": "bench", "pos": [0, 0, 0]}, {"model": "cafe_table", "pos": [3, 0, 0]}, {"model": "box", "pos": [6, 0, 0]},
+		{"model": "garage", "pos": [10, 0, 0]}, {"model": "house_a", "pos": [20, 0, 0]}, {"model": "shed", "pos": [30, 0, 0]},
+		{"model": "pontoon", "pos": [34, 0, 0]}], "floaters": [{"model": "boat", "pos": [40, 0, 0]}]})
+	for name in expected:
+		var found: Array = _meshes_named(b, name)
+		assert_gt(found.size(), 0, "есть меш %s" % name)
+		for mi in found:
+			var m := _mat(mi)
+			assert_not_null(m.albedo_texture if m else null, "%s с текстурой" % name)
+			if m and m.albedo_texture:
+				assert_eq(m.albedo_texture.resource_path, "res://assets/images/textures/%s.png" % expected[name])
+	for flat in ["car", "car_cabin"]:
+		for mi in _meshes_named(b, flat):
+			assert_null(_mat(mi).albedo_texture, "%s остаётся гладким" % flat)
