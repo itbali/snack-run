@@ -38,3 +38,12 @@ func test_bindings_persist_and_reset() -> void:
 	assert_eq(KeyBindings.keys_of("run"), [KEY_Z], "из файла настроек")
 	KeyBindings.reset()
 	assert_eq(KeyBindings.keys_of("move_left"), [KEY_A, KEY_LEFT], "сброс — как было")
+
+func test_moving_keeps_arrow_as_second_key() -> void:
+	# Ревью плана 17: «Вперёд» → I молча убирал стрелку ↑.
+	KeyBindings.rebind("move_forward", KEY_I)
+	assert_eq(KeyBindings.keys_of("move_forward"), [KEY_I, KEY_UP])
+
+func test_zero_keycode_is_ignored() -> void:
+	KeyBindings.rebind("jump", 0)
+	assert_eq(KeyBindings.keys_of("jump"), [KEY_SPACE])

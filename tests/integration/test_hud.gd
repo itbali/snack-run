@@ -5,6 +5,8 @@ const HudScene := preload("res://scenes/ui/hud.tscn")
 var hud
 
 func before_each() -> void:
+	KeyBindings.path = "user://test_settings.cfg"   # не читать настройки владельца
+	KeyBindings.reset()
 	GameState.reset()
 	hud = HudScene.instantiate()
 	add_child_autofree(hud)

@@ -191,6 +191,14 @@ func on_back_pressed() -> void:
 		toggle_pause()
 
 
+func on_cancel_pressed() -> void:
+	## B геймпада (ui_cancel): «Управление» — отмена/закрытие, магазин и альбом — закрыть.
+	if controls_menu and controls_menu.is_open:
+		controls_menu.back()
+	elif shop_menu.is_open or album_menu.is_open:
+		on_back_pressed()
+
+
 func on_album_pressed() -> void:
 	if not shop_menu.is_open and not pause_menu.is_open:
 		toggle_album()
@@ -218,6 +226,8 @@ func toggle_pause() -> void:
 
 
 func reset_progress() -> void:
+	if tutorial:
+		tutorial.restart()
 	autosave = false   # reset() шлёт сигналы прогресса, автосохранение тут же записало бы нули
 	GameState.reset()
 	SaveGame.clear()

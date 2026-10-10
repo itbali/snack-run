@@ -6,6 +6,7 @@ extends CanvasLayer
 const STEPS := [&"move", &"run", &"jump", &"food", &"hide", &"eat", &"shop"]
 
 var step := 0
+var _started := false   # старт отсчёта «ходи» — на первом физическом кадре (после переноса кота)
 var _cat: Node3D
 var _main: Node
 var _start := Vector3.ZERO
@@ -37,9 +38,20 @@ func _ready() -> void:
 	_label.add_theme_font_size_override("font_size", 20)
 	margin.add_child(_label)
 	GameState.food_eaten.connect(func(_items: Array) -> void: _ate = true)
+	process_mode = Node.PROCESS_MODE_ALWAYS   # видимость — и на паузе; шаги — только в игре (_physics_process)
 	visible = not GameState.tutorial_done
-	if _cat:
-		_start = _cat.global_position
+
+
+func restart() -> void:
+	## «Сбросить прогресс» в паузе: обучение снова с первого шага (ревью плана 17).
+	step = 0
+	_ate = false
+	_started = false
+
+
+func _process(_delta: float) -> void:
+	var controls_open: bool = _main != null and _main.get("controls_menu") != null and bool(_main.get("controls_menu").is_open)
+	visible = not GameState.tutorial_done and not controls_open
 
 
 func step_id() -> StringName:
@@ -71,7 +83,7 @@ func _hint() -> String:
 		&"eat":
 			return "Съешь в укрытии: %s" % k.call("eat")
 		&"shop":
-			return "Клубочки — деньги: в будке пряжи нажми %s" % k.call("eat")
+			return "Клубочки — деньги: в будке пряжи (откуда ты начал) нажми %s" % k.call("eat")
 	return ""
 
 
@@ -95,15 +107,18 @@ func _done() -> bool:
 
 
 func _physics_process(_delta: float) -> void:
-	if GameState.tutorial_done:
-		visible = false
+	if GameState.tutorial_done or _cat == null or get_tree().paused:
 		return
-	if _cat == null:
-		return
+	if not _started:
+		_start = _cat.global_position
+		_started = true
 	if _done():
 		step += 1
 		_ate = false
 		if step >= STEPS.size():
 			skip()
 			return
-	_label.text = "Обучение %d/%d · %s" % [step + 1, STEPS.size(), _hint()]
+	var extra := ""
+	if step_id() == &"eat" and GameState.mouth.is_empty():
+		extra = " (сначала подбери еду)"   # еду выбили между шагами — подсказка объясняет
+	_label.text = "Обучение %d/%d · %s%s · пропустить — в паузе" % [step + 1, STEPS.size(), _hint(), extra]

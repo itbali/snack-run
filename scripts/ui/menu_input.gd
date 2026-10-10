@@ -12,8 +12,8 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if Input.is_action_just_pressed("pause"):
 		_main.call("on_back_pressed")
-	elif Input.is_action_just_pressed("ui_cancel") and _menu_open():
-		_main.call("on_back_pressed")   # B на геймпаде закрывает магазин и альбом (Esc ловит ветка выше)
+	elif Input.is_action_just_pressed("ui_cancel"):
+		_main.call("on_cancel_pressed")   # B на геймпаде: «Управление», магазин, альбом (Esc ловит ветка выше)
 	elif Input.is_action_just_pressed("album"):
 		_main.call("on_album_pressed")
 	elif Input.is_action_just_pressed("eat"):

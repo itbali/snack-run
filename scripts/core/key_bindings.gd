@@ -43,6 +43,8 @@ static func _set_keys(action: String, codes: Array) -> void:
 
 static func rebind(action: String, code: int) -> String:
 	## Новая клавиша действия; если она была у другого действия — тому достаётся прежняя клавиша. Возвращает это действие.
+	if code == 0:
+		return ""   # клавиша без физического кода — невидимая привязка
 	var old := keys_of(action)
 	var swapped := ""
 	for row in REBINDABLE:
@@ -53,8 +55,19 @@ static func rebind(action: String, code: int) -> String:
 				rest = [old[0]]
 			_set_keys(other, rest)
 			swapped = other
-	_set_keys(action, [code])
+	var keys := [code]
+	var defaults: Array = InputSetup.ACTIONS.get(action, [])
+	if defaults.size() > 1 and defaults[1] != code and not _used_elsewhere(action, defaults[1]):
+		keys.append(defaults[1])   # стрелки движения остаются второй клавишей
+	_set_keys(action, keys)
 	return swapped
+
+
+static func _used_elsewhere(action: String, code: int) -> bool:
+	for row in REBINDABLE:
+		if row[0] != action and code in keys_of(row[0]):
+			return true
+	return false
 
 
 static func reset() -> void:
@@ -75,5 +88,5 @@ static func load_saved() -> void:
 		return
 	for row in REBINDABLE:
 		var codes = cfg.get_value("keys", row[0], null)
-		if codes is Array and not (codes as Array).is_empty():
+		if codes is Array and not (codes as Array).is_empty() and (codes as Array).all(func(c): return c is int and c > 0):
 			_set_keys(row[0], codes)

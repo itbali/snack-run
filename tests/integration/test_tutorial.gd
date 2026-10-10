@@ -6,6 +6,8 @@ var main
 var cat
 
 func before_each() -> void:
+	KeyBindings.path = "user://test_settings.cfg"   # не читать настройки владельца
+	KeyBindings.reset()
 	GameState.reset()
 	SaveGame.path = "user://test_save.json"
 	SaveGame.clear()
@@ -93,3 +95,21 @@ func test_old_save_with_progress_skips_tutorial() -> void:
 	d["album"] = {}
 	GameState.from_dict(d)
 	assert_false(GameState.tutorial_done, "пустое старое сохранение — с обучением")
+
+func test_reset_progress_restarts_tutorial() -> void:
+	# Ревью плана 17: «Сбросить прогресс» не перезапускал обучение (видимость и шаг ставились только в _ready).
+	_tut().skip()
+	main.reset_progress()
+	await wait_physics_frames(3)
+	assert_true(_tut().visible, "после сброса — снова обучение")
+	assert_eq(_tut().step_id(), &"move")
+
+func test_hint_hidden_while_controls_open() -> void:
+	main.toggle_pause()
+	main.controls_menu.open()
+	await wait_physics_frames(2)
+	assert_false(_tut().visible, "подсказка не лезет под экран управления")
+	main.controls_menu.close()
+	main.toggle_pause()
+	await wait_physics_frames(2)
+	assert_true(_tut().visible)

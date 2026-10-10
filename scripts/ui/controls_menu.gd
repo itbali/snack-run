@@ -16,6 +16,7 @@ var capturing := ""
 var _captured_frame := -1
 var _buttons := {}
 var _help: Label
+var _return_focus: Control
 
 
 func _ready() -> void:
@@ -28,6 +29,12 @@ func _ready() -> void:
 	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	panel.theme = load("res://assets/ui/theme.tres")
+	var sb := StyleBoxFlat.new()   # непрозрачная: сквозь неё не читается меню паузы (ревью плана 17)
+	sb.bg_color = Color("#F4F1E8")
+	sb.set_corner_radius_all(18)
+	sb.shadow_color = Color(0, 0, 0, 0.25)
+	sb.shadow_size = 8
+	panel.add_theme_stylebox_override("panel", sb)
 	add_child(panel)
 	var margin := MarginContainer.new()
 	for side in ["left", "right", "top", "bottom"]:
@@ -93,6 +100,7 @@ func key_button(action: String) -> Button:
 
 
 func open() -> void:
+	_return_focus = get_viewport().gui_get_focus_owner()
 	is_open = true
 	visible = true
 	capturing = ""
@@ -106,6 +114,8 @@ func close() -> void:
 	is_open = false
 	visible = false
 	capturing = ""
+	if is_instance_valid(_return_focus) and _return_focus.is_visible_in_tree():
+		_return_focus.grab_focus()   # геймпад: фокус обратно на кнопку, с которой открыли
 	closed.emit()
 
 
@@ -146,7 +156,7 @@ func _input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed or event.echo:
 		return
 	if capturing == "":
-		if standalone and is_open and (event as InputEventKey).physical_keycode == KEY_ESCAPE:
+		if standalone and is_open and event.is_action("pause"):
 			close()
 			get_viewport().set_input_as_handled()
 		return

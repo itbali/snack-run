@@ -7,6 +7,8 @@ var main
 var cat
 
 func before_each() -> void:
+	KeyBindings.path = "user://test_settings.cfg"   # не читать настройки владельца
+	KeyBindings.reset()
 	GameState.reset()
 	SaveGame.path = "user://test_save.json"
 	SaveGame.clear()
