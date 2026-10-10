@@ -81,7 +81,14 @@ func test_satiety_target_moves_from_cafe_to_park() -> void:
 	assert_almost_eq((hud.get_node("%Satiety") as ProgressBar).max_value, 25.0, 0.01)
 	GameState.satiety = 25
 	GameState.satiety_changed.emit(25)
-	assert_eq(hud.satiety_label_text(), "Парк открыт")
+	assert_eq(hud.satiety_label_text(), "До порта 25/50", "план 17: после парка цель — ворота в порт")
+	GameState.satiety = 50
+	GameState.satiety_changed.emit(50)
+	assert_eq(hud.satiety_label_text(), "Порт открыт")
 	GameState.satiety = 4
 	GameState.satiety_changed.emit(4)
 	assert_eq(hud.satiety_label_text(), "Сытость 4/10")
+
+func test_port_gate_matches_game_state_constant() -> void:
+	var gates: Array = WorldBuilder.load_layout("res://data/layout/park.json")["gates"]
+	assert_true(gates.any(func(g): return int(g["satiety"]) == GameState.PORT_GATE), "ворота в порт — GameState.PORT_GATE")

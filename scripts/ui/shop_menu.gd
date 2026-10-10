@@ -34,6 +34,7 @@ func _ready() -> void:
 
 
 func open() -> void:
+	_close.text = "Закрыть (%s)" % KeyBindings.key_name("pause")   # текущая клавиша (план 17)
 	is_open = true
 	visible = true
 	refresh()

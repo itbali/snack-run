@@ -55,6 +55,7 @@ func _make_card(f: FoodDef) -> Control:
 
 
 func open() -> void:
+	_close.text = "Закрыть (%s)" % KeyBindings.key_name("album")   # текущая клавиша (план 17)
 	is_open = true
 	visible = true
 	refresh()

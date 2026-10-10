@@ -35,6 +35,7 @@ const PAD_AXES := {
 
 func _ready() -> void:
 	register()
+	KeyBindings.load_saved()   # переназначенные клавиши (план 17)
 
 
 static func register() -> void:

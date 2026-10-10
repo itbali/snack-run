@@ -1,7 +1,7 @@
 extends Node
 ## Инструменты разработчика. Запуск: godot --path . ++ --screenshot=build/shot.png
 
-const DEV_ARGS := ["--screenshot=", "--at=", "--phase=", "--album"]
+const DEV_ARGS := ["--screenshot=", "--at=", "--phase=", "--album", "--controls"]
 
 
 static func is_dev_run(args: PackedStringArray) -> bool:
@@ -25,6 +25,8 @@ func _ready() -> void:
 				_teleport_later(Vector3(v[0], v[1], v[2]), deg_to_rad(v[3]) if v.size() > 3 else 0.0)
 		if arg == "--album":
 			_open_album_later()
+		if arg == "--controls":
+			_open_controls_later()
 		if arg.begins_with("--screenshot="):
 			_screenshot_and_quit(arg.trim_prefix("--screenshot="))
 
@@ -50,6 +52,16 @@ func _teleport_later(pos: Vector3, yaw := 0.0) -> void:
 		if rig:
 			rig.global_position = pos + Vector3(0, 0.6, 0)
 			rig.set("_yaw", yaw)
+
+
+func _open_controls_later() -> void:
+	## Кадр экрана «Управление и помощь» (план 17).
+	for i in 6:
+		await get_tree().process_frame
+	var main := get_tree().current_scene
+	if main and main.get("controls_menu"):
+		main.call("toggle_pause")
+		main.get("controls_menu").call("open")
 
 
 func _open_album_later() -> void:

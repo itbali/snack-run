@@ -14,6 +14,16 @@ func _ready() -> void:
 	_continue.pressed.connect(continue_game)
 	_play.pressed.connect(new_game)
 	_quit.pressed.connect(func() -> void: get_tree().quit())
+	var menu := ControlsMenu.new()   # план 17: клавиши видно и можно поменять до начала игры
+	menu.name = "ControlsMenu"
+	menu.standalone = true
+	add_child(menu)
+	var controls := Button.new()
+	controls.name = "Controls"
+	controls.text = "Управление"
+	controls.pressed.connect(menu.open)
+	_quit.add_sibling(controls)
+	_quit.get_parent().move_child(controls, _quit.get_index())
 	(_continue if _continue.visible else _play).grab_focus()
 
 

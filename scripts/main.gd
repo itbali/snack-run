@@ -17,6 +17,8 @@ var _fade: ColorRect
 @onready var shop_menu: ShopMenu = $ShopMenu
 @onready var album_menu: AlbumMenu = $AlbumMenu
 @onready var pause_menu: PauseMenu = $PauseMenu
+var controls_menu: ControlsMenu
+var tutorial: Tutorial
 
 
 func _ready() -> void:
@@ -56,10 +58,20 @@ func _ready() -> void:
 	album_menu.closed.connect(func() -> void: _set_paused(false))
 	pause_menu.resumed.connect(func() -> void: _set_paused(false))
 	pause_menu.reset_requested.connect(reset_progress)
+	controls_menu = ControlsMenu.new()
+	controls_menu.name = "ControlsMenu"
+	add_child(controls_menu)
+	pause_menu.controls_requested.connect(controls_menu.open)
+	tutorial = Tutorial.new()
+	tutorial.name = "Tutorial"
+	tutorial.setup(self, _cat)
+	add_child(tutorial)
+	pause_menu.skip_tutorial_requested.connect(tutorial.skip)
 	for g in get_tree().get_nodes_in_group("gates"):
 		g.opened.connect(func() -> void: hud.flash_bell(g.label, 3.0))
 	for sig in [GameState.album_changed, GameState.satiety_changed, GameState.yarn_changed, GameState.upgrade_bought, GameState.skin_changed]:
 		sig.connect(_on_progress_changed.unbind(1))
+	GameState.tutorial_finished.connect(_on_progress_changed)
 	Mouse.capture(true)
 
 
@@ -169,7 +181,9 @@ func close_shop() -> void:
 
 
 func on_back_pressed() -> void:
-	if shop_menu.is_open:
+	if controls_menu and controls_menu.is_open:
+		controls_menu.back()   # Esc: отмена ожидания клавиши или закрытие «Управления» (пауза остаётся)
+	elif shop_menu.is_open:
 		close_shop()
 	elif album_menu.is_open:
 		toggle_album()

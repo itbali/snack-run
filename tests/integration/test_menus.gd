@@ -130,3 +130,17 @@ func test_dev_album_fill_does_not_touch_the_save() -> void:
 	DevTools.fill_album(main)
 	assert_false(main.autosave, "кадр альбома не пишет сохранение")
 	main.autosave = true
+
+func test_title_has_controls_screen() -> void:
+	# План 17: «Управление» на заставке — до начала игры видно и меняются клавиши.
+	var title := (load("res://scenes/ui/title.tscn") as PackedScene).instantiate()
+	title.set("switch_scenes", false)
+	add_child_autofree(title)
+	await wait_process_frames(2)
+	var btn := title.find_child("Controls", true, false) as Button
+	assert_not_null(btn)
+	btn.pressed.emit()
+	var menu := title.find_child("ControlsMenu", true, false) as ControlsMenu
+	assert_not_null(menu)
+	assert_true(menu.is_open)
+	menu.close()

@@ -149,16 +149,19 @@ func satiety_label_text() -> String:
 
 
 func _on_satiety(value: int) -> void:
-	# Ближайшая цель сытости: кафе (10), потом парк (25).
+	# Ближайшая цель сытости: кафе (10), потом парк (25), потом порт (50).
 	if value < GameState.SATIETY_GATE:
 		_satiety.max_value = GameState.SATIETY_GATE
 		_satiety_label.text = "Сытость %d/%d" % [value, GameState.SATIETY_GATE]
 	elif value < GameState.PARK_GATE:
 		_satiety.max_value = GameState.PARK_GATE
 		_satiety_label.text = "До парка %d/%d" % [value, GameState.PARK_GATE]
+	elif value < GameState.PORT_GATE:
+		_satiety.max_value = GameState.PORT_GATE
+		_satiety_label.text = "До порта %d/%d" % [value, GameState.PORT_GATE]
 	else:
-		_satiety.max_value = GameState.PARK_GATE
-		_satiety_label.text = "Парк открыт"
+		_satiety.max_value = GameState.PORT_GATE
+		_satiety_label.text = "Порт открыт"
 	_satiety.value = value
 
 

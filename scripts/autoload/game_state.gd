@@ -15,6 +15,7 @@ signal yarn_changed(count: int)
 signal upgrade_bought(id: StringName)
 signal skin_changed(id: StringName)
 signal food_stolen(food: FoodDef)
+signal tutorial_finished()
 signal cat_petted(spilled: Array)
 
 const MAX_HEARTS := 3
@@ -23,6 +24,7 @@ const GOAL_FIRST := 3
 const GOAL_STEP := 2
 const SATIETY_GATE := 10   # сытость, открывающая арку в кафе (план 3)
 const PARK_GATE := 25      # сытость, открывающая ворота в парк (этап 2)
+const PORT_GATE := 50      # сытость, открывающая ворота в порт (этап 3)
 const YARN_PER_CARD := 3
 const SPEED_BONUS := 1.15
 const STEALTH_BONUS := 0.7
@@ -42,6 +44,7 @@ var upgrades := {}       # id товара -> true
 var skin: StringName = DEFAULT_SKIN
 var speed_mult := 1.0
 var stealth_mult := 1.0
+var tutorial_done := false   # обучение пройдено или пропущено (план 17)
 
 
 func reset() -> void:
@@ -57,6 +60,7 @@ func reset() -> void:
 	yarn_taken = {}
 	upgrades = {}
 	skin = DEFAULT_SKIN
+	tutorial_done = false
 	_apply_upgrades()
 	hearts_changed.emit(hearts, max_hearts)
 	mouth_changed.emit(mouth)
@@ -152,6 +156,13 @@ func peck() -> bool:
 		cat_fainted.emit()
 		return true
 	return false
+
+
+func finish_tutorial() -> void:
+	if tutorial_done:
+		return
+	tutorial_done = true
+	tutorial_finished.emit()
 
 
 func revive() -> void:
@@ -275,6 +286,7 @@ func to_dict() -> Dictionary:
 		"skin": String(skin),
 		"goal_target": goal_target,
 		"goal_done": goal_done,
+		"tutorial_done": tutorial_done,
 	}
 
 
@@ -304,6 +316,10 @@ func from_dict(d: Dictionary) -> void:
 		goal_target = maxi(int(d["goal_target"]), GOAL_FIRST)
 	if d.get("goal_done") is float or d.get("goal_done") is int:
 		goal_done = maxi(int(d["goal_done"]), 0)
+	if d.get("tutorial_done") is bool:
+		tutorial_done = d["tutorial_done"]
+	else:
+		tutorial_done = satiety > 0 or not album.is_empty()   # старое сохранение: с прогрессом обучение не нужно
 	hearts_changed.emit(hearts, max_hearts)
 	mouth_changed.emit(mouth)
 	satiety_changed.emit(satiety)
