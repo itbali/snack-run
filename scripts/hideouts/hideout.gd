@@ -12,7 +12,7 @@ const EYE_GAP := 0.085
 @export var size := Vector3(0.6, 0.4, 0.5)
 var cat_inside := false
 var _eyes: Node3D
-var _ring: MeshInstance3D
+var _ring: Node3D
 var _t := 0.0
 var _next_blink := 2.5
 var _squint_left := 0.0
@@ -26,7 +26,7 @@ func _ready() -> void:
 	collision_mask = Layers.CAT
 	monitorable = false
 	var box := BoxShape3D.new()
-	box.size = size + Vector3(MARGIN * 2.0, MARGIN, MARGIN * 2.0)
+	box.size = size + Vector3(MARGIN * 2.0, 0.0, MARGIN * 2.0)   # шире только по земле: на крышке и сиденье не прячутся
 	_shape.shape = box
 	body_entered.connect(_on_enter)
 	body_exited.connect(_on_exit)
@@ -34,29 +34,37 @@ func _ready() -> void:
 	_eyes = _make_eyes()
 
 
-func _make_ring() -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
-	mi.name = "Ring"
-	var torus := TorusMesh.new()
-	var r := maxf(size.x, size.z) * 0.5 + 0.25
-	torus.inner_radius = r
-	torus.outer_radius = r + 0.06
-	torus.rings = 24
-	torus.ring_segments = 6
-	mi.mesh = torus
+func outline_size() -> Vector2:
+	## Рамка подсветки — ровно по зоне укрытия (ревью плана 19: круг обещал больше, чем зона).
+	return Vector2(size.x + MARGIN * 2.0, size.z + MARGIN * 2.0)
+
+
+func _make_ring() -> Node3D:
+	var root := Node3D.new()
+	root.name = "Ring"
 	var m := StandardMaterial3D.new()
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.albedo_color = Color(0.98, 0.75, 0.2, 0.75)
+	m.albedo_color = Color(0.98, 0.75, 0.2, 0.8)
 	m.emission_enabled = true
 	m.emission = Color("#FABE32")
 	m.emission_energy_multiplier = 1.5
-	mi.material_override = m
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	mi.position.y = -size.y * 0.5 + 0.03
-	mi.visible = false
-	add_child(mi)
-	return mi
+	var o := outline_size()
+	var w := 0.06
+	for spec in [[Vector3(o.x, 0.02, w), Vector3(0, 0, -o.y / 2)], [Vector3(o.x, 0.02, w), Vector3(0, 0, o.y / 2)],
+			[Vector3(w, 0.02, o.y), Vector3(-o.x / 2, 0, 0)], [Vector3(w, 0.02, o.y), Vector3(o.x / 2, 0, 0)]]:
+		var mi := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = spec[0]
+		mi.mesh = bm
+		mi.position = spec[1]
+		mi.material_override = m
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(mi)
+	root.position.y = -size.y * 0.5 + 0.03
+	root.visible = false
+	add_child(root)
+	return root
 
 
 func _make_eyes() -> Node3D:
@@ -85,6 +93,7 @@ func _make_eyes() -> Node3D:
 		e.mesh = s
 		e.material_override = white
 		e.position = Vector3(side * EYE_GAP, 0, 0)
+		e.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(e)
 		var ir := MeshInstance3D.new()
 		var irs := SphereMesh.new()
@@ -93,6 +102,7 @@ func _make_eyes() -> Node3D:
 		ir.mesh = irs
 		ir.material_override = iris
 		ir.position = Vector3(side * EYE_GAP, 0, -0.042)
+		ir.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(ir)
 		var p := MeshInstance3D.new()
 		var ps := SphereMesh.new()
@@ -102,6 +112,7 @@ func _make_eyes() -> Node3D:
 		p.material_override = pupil
 		p.scale = Vector3(0.5, 1.2, 0.5)   # вертикальный кошачий зрачок
 		p.position = Vector3(side * EYE_GAP, 0, -0.062)
+		p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(p)
 	add_child(root)
 	return root
@@ -129,22 +140,19 @@ func _place_eyes() -> void:
 	to.y = 0.0
 	if to.length() > 0.01:
 		to = to.normalized()
-		var want := center + to * minf(size.x, size.z) * 0.45
-		# Коробка или сиденье между укрытием и камерой — глаза выглядывают перед ним (кадр плана 19).
+		# Глаза выглядывают сбоку на уровне земли: горизонтальный луч снаружи (со стороны камеры) к укрытию —
+		# перед первой гранью (коробка, ножка скамейки, борт машины); нет препятствия — у края укрытия (ревью плана 19).
+		var outside := center + to * (maxf(size.x, size.z) + 1.0)
 		var space := get_world_3d().direct_space_state
-		# Луч от камеры к глазам и чуть ниже них (нижний край зрачка): если по пути коробка или сиденье —
-		# глаза выглядывают с ближней к камере грани (кадр плана 19).
-		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(cam.global_position, center - Vector3(0, 0.06, 0), Layers.WORLD))
-		if not hit.is_empty():
-			var p: Vector3 = hit["position"]
-			var n: Vector3 = hit["normal"]
-			if n.y > 0.7:
-				want = p + Vector3(0, 0.05, 0)   # попали в верх коробки/сиденья — глаза выглядывают поверх
-			else:
-				var back := cam.global_position - p
-				back.y = 0.0
-				want = Vector3(p.x, center.y, p.z) + back.normalized() * 0.1
-		center = want
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(outside, center, Layers.WORLD))
+		if not hit.is_empty() and (hit["position"] as Vector3).distance_to(center) > 0.05:
+			center = Vector3(hit["position"].x, center.y, hit["position"].z) + to * 0.1
+		else:
+			# препятствия на уровне глаз нет (под машиной, куст) — глаза на границе зоны со стороны камеры
+			var local := global_transform.basis.inverse() * to
+			var half := outline_size() * 0.5
+			var k := minf(half.x / maxf(absf(local.x), 0.001), half.y / maxf(absf(local.z), 0.001))
+			center += to * (k + 0.05)
 	_eyes.global_position = center
 	var look := cam.global_position   # смотрят прямо в камеру — и по высоте
 	if look.distance_to(center) > 0.01:

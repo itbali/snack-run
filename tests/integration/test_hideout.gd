@@ -110,7 +110,7 @@ func test_ring_glows_only_with_food_in_mouth() -> void:
 	var h = _hideout_at(Vector3(3, 0.2, 0))
 	await wait_process_frames(3)
 	var ring := h.get_node("Ring") as Node3D
-	assert_false(ring.visible, "без еды кольца нет")
+	assert_false(ring.visible, "без еды рамки нет")
 	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
 	await wait_process_frames(3)
 	assert_true(ring.visible, "с едой укрытие подсвечено")
@@ -173,3 +173,60 @@ func test_eyes_peek_over_low_box_seen_from_above() -> void:
 	assert_eq(world.get_world_3d().direct_space_state.intersect_point(q).size(), 0, "глаза не внутри коробки: %s" % [eyes.global_position])
 	var hit := world.get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(cam.global_position, eyes.global_position, Layers.WORLD))
 	assert_true(hit.is_empty(), "камера видит глаза")
+
+# --- Ревью плана 19 ---
+
+func _car_with_hideout() -> Node:
+	var b := WorldBuilder.new()
+	world.add_child(b)
+	b.build({"props": [{"model": "car", "pos": [4, 0, 0], "rot": 0, "colliders": [{"size": [1.7, 1.2, 3.6], "offset": [0, 0.9, 0]}]}],
+		"hideouts": [{"kind": "car", "pos": [4, 0.15, 0], "size": [1.4, 0.3, 3.2]}]})
+	return b.find_children("*", "Hideout", true, false)[0]
+
+func test_eyes_visible_from_rig_when_hiding_under_car() -> void:
+	var h = _car_with_hideout()
+	cat.global_position = Vector3(4, 0.05, 1.2)
+	rig.global_position = cat.global_position + Vector3(0, 0.6, 0)
+	await wait_physics_frames(5)
+	assert_true(cat.try_hide())
+	await wait_physics_frames(40)
+	var cam := rig.get_node("SpringArm3D/Camera3D") as Camera3D
+	var eyes := h.get_node("Eyes") as Node3D
+	var space := world.get_world_3d().direct_space_state
+	var q := PhysicsPointQueryParameters3D.new()
+	q.position = cam.global_position
+	q.collision_mask = Layers.WORLD
+	assert_eq(space.intersect_point(q).size(), 0, "камера не внутри машины: %s" % [cam.global_position])
+	assert_true(cam.is_position_in_frustum(eyes.global_position), "глаза в кадре")
+	var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(cam.global_position, eyes.global_position, Layers.WORLD))
+	assert_true(hit.is_empty(), "камера видит глаза под машиной")
+
+func test_cannot_hide_standing_on_box_top() -> void:
+	_hideout_at(Vector3(0, 0.2, 0))
+	cat.global_position = Vector3(0, 0.62, 0)   # верх коробки ~0,3–0,5 над землёй
+	var top := StaticBody3D.new()
+	top.collision_layer = Layers.WORLD
+	var cs := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(1, 0.1, 1)
+	cs.shape = box
+	top.add_child(cs)
+	top.position = Vector3(0, 0.5, 0)
+	world.add_child(top)
+	await wait_physics_frames(5)
+	assert_false(cat.try_hide(), "на крышке не прячутся")
+
+func test_outline_matches_zone() -> void:
+	var h = _hideout_at(Vector3(0, 0.2, 0))
+	h.rotation_degrees.y = 90
+	await wait_process_frames(2)
+	var zone := (h.get_node("Collision") as CollisionShape3D).shape as BoxShape3D
+	var outline: Vector2 = h.call("outline_size")
+	assert_almost_eq(outline.x, zone.size.x, 0.01)
+	assert_almost_eq(outline.y, zone.size.z, 0.01)
+	assert_true((h.get_node("Ring") as Node3D).rotation == Vector3.ZERO, "рамка поворачивается вместе с укрытием (локально)")
+
+func test_eyes_cast_no_shadow() -> void:
+	var h = _hideout_at(Vector3(0, 0.2, 0))
+	for mi in h.get_node("Eyes").get_children():
+		assert_eq((mi as GeometryInstance3D).cast_shadow, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)

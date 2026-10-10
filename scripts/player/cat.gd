@@ -215,6 +215,7 @@ func try_hide() -> bool:
 	state = &"hide"
 	if camera_rig:
 		camera_rig.crouch = true
+		camera_rig.hide_focus = current_hideout.get_node_or_null("Eyes")
 	_model.visible = false   # кот исчез, в укрытии — только глаза (план 19)
 	_hidden_in = current_hideout
 	if _hidden_in.has_method("show_eyes"):
@@ -228,6 +229,8 @@ func unhide() -> void:
 		return
 	hidden = false
 	_model.visible = true
+	if camera_rig:
+		camera_rig.hide_focus = null
 	if is_instance_valid(_hidden_in) and _hidden_in.has_method("show_eyes"):
 		_hidden_in.call("show_eyes", false)
 	_hidden_in = null

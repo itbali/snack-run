@@ -61,7 +61,7 @@ func _make_prompt() -> void:
 func _update_prompt() -> void:
 	var cat := get_tree().get_first_node_in_group("cat")
 	var text := ""
-	if cat:
+	if cat and bool(cat.get("input_enabled")):   # магазин открыт — подсказка не нужна
 		text = prompt_for(cat.get("current_hideout") != null, bool(cat.get("hidden")), GameState.mouth.size(), bool(cat.get("in_safe_zone")))
 	_prompt_panel.visible = text != ""
 	_prompt.text = text

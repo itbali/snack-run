@@ -12,7 +12,8 @@ const PITCH_DEG := -14.0
 const PITCH_MIN := -55.0   # сверху вниз — дальше камера «ныряет» за голову
 const PITCH_MAX := 8.0     # чуть снизу вверх — ниже пружина упирается в землю
 const PITCH_SPEED := 60.0  # град/с с клавиш и стика
-const CROUCH_PITCH_MAX := -4.0   # в укрытии опора низкая: камера не ложится на траву
+const CROUCH_PITCH_MAX := -4.0
+const HIDE_PITCH := -12.0   # в укрытии опора низкая: камера не ложится на траву
 const SHOP_OFFSET := Vector3(1.4, 0.6, 1.4)   # витрина: камера спереди-сбоку кота
 const CROUCH_HEIGHT := 0.3
 const MOUSE_SENS := 0.004   # рад на пиксель
@@ -20,6 +21,7 @@ const FADE_FULL := 0.3      # при такой длине пружины кот
 
 @export var target: Node3D
 var crouch := false
+var hide_focus: Node3D   # кот спрятался — камера смотрит на его глаза в укрытии (ревью плана 19)
 var shop_view := false
 var shop_view_point := Vector3.ZERO   # если use_shop_point, камера едет сюда, иначе target + SHOP_OFFSET
 var use_shop_point := false
@@ -65,6 +67,8 @@ func _physics_process(delta: float) -> void:
 	_arm.spring_length = DISTANCE
 	rotation = Vector3(0, _yaw, 0)
 	var goal := target.global_position + Vector3(0, CROUCH_HEIGHT if crouch else HEIGHT, 0)
+	if is_instance_valid(hide_focus) and hide_focus.is_visible_in_tree():
+		goal = hide_focus.global_position + Vector3(0, 0.3, 0)   # глаза снаружи укрытия: камера не залезает в машину
 	global_position = global_position.lerp(goal, 1.0 - exp(-SMOOTH * delta))
 	apply_arm_length(_arm.get_hit_length())
 
@@ -90,6 +94,8 @@ func arm_pitch() -> float:
 	## Наклон рычага: в витрине — прежний ракурс (наклон игрока сохраняется до выхода), в укрытии — не ниже CROUCH_PITCH_MAX.
 	if shop_view:
 		return PITCH_DEG
+	if is_instance_valid(hide_focus):
+		return minf(pitch, HIDE_PITCH)   # на глаза — чуть сверху
 	return minf(pitch, CROUCH_PITCH_MAX) if crouch else pitch
 
 

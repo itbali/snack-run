@@ -83,7 +83,12 @@ func _update_arrow(delta: float) -> void:
 	_arrow.visible = target != null
 	if target:
 		_t += delta
-		_arrow.global_position = target.global_position + Vector3(0, 1.0 + 0.12 * sin(_t * 4.0), 0)
+		var top := target.global_position.y + 0.6
+		var hit := get_viewport().world_3d.direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(
+			target.global_position + Vector3(0, 4, 0), target.global_position, Layers.WORLD))
+		if not hit.is_empty():
+			top = (hit["position"] as Vector3).y + 0.6   # над машиной и скамейкой, а не внутри
+		_arrow.global_position = Vector3(target.global_position.x, top + 0.12 * sin(_t * 4.0), target.global_position.z)
 
 
 func restart() -> void:
