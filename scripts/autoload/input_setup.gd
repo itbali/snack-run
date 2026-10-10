@@ -40,6 +40,7 @@ const PAD_AXES := {
 func _ready() -> void:
 	register()
 	KeyBindings.load_saved()   # переназначенные клавиши (план 17)
+	GameSettings.load_saved()   # размытие и частицы (план 18)
 
 
 static func register() -> void:

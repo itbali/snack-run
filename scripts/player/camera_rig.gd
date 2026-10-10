@@ -31,6 +31,9 @@ var _shake_time := 0.2
 
 
 func _ready() -> void:
+	var cam := _arm.get_node("Camera3D") as Camera3D
+	cam.add_to_group("game_camera")
+	GameSettings.apply_camera(cam)   # размытие вдали (план 18, настройка)
 	_arm.spring_length = DISTANCE
 	_arm.rotation_degrees.x = PITCH_DEG
 

@@ -62,6 +62,10 @@ func _ready() -> void:
 	controls_menu.name = "ControlsMenu"
 	add_child(controls_menu)
 	pause_menu.controls_requested.connect(controls_menu.open)
+	var fx := AmbientFx.new()
+	fx.name = "AmbientFx"
+	fx.target = _cat
+	add_child(fx)
 	tutorial = Tutorial.new()
 	tutorial.name = "Tutorial"
 	tutorial.setup(self, _cat)

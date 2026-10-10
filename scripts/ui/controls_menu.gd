@@ -44,7 +44,7 @@ func _ready() -> void:
 	box.add_theme_constant_override("separation", 8)
 	margin.add_child(box)
 	var title := Label.new()
-	title.text = "Управление и помощь"
+	title.text = "Управление, помощь и настройки"
 	title.add_theme_font_size_override("font_size", 26)
 	box.add_child(title)
 	_help = Label.new()
@@ -71,6 +71,17 @@ func _ready() -> void:
 		b.pressed.connect(start_capture.bind(action))
 		grid.add_child(b)
 		_buttons[action] = b
+	var opts := HBoxContainer.new()   # план 18: настройки картинки
+	opts.add_theme_constant_override("separation", 24)
+	box.add_child(opts)
+	for spec in [["Blur", "Размытие вдали", GameSettings.blur, GameSettings.set_blur], ["Particles", "Пылинки и светлячки", GameSettings.particles, GameSettings.set_particles]]:
+		var cb := CheckButton.new()
+		cb.name = spec[0]
+		cb.text = spec[1]
+		cb.button_pressed = spec[2]
+		var setter: Callable = spec[3]
+		cb.toggled.connect(func(on: bool) -> void: setter.call(on, get_tree()))
+		opts.add_child(cb)
 	var bar := HBoxContainer.new()
 	bar.add_theme_constant_override("separation", 12)
 	box.add_child(bar)
