@@ -4256,7 +4256,7 @@ const EYE_GAP := 0.085
 @export var size := Vector3(0.6, 0.4, 0.5)
 var cat_inside := false
 var _eyes: Node3D
-var _ring: MeshInstance3D
+var _ring: Node3D
 var _t := 0.0
 var _next_blink := 2.5
 var _squint_left := 0.0
@@ -4270,7 +4270,7 @@ func _ready() -> void:
 	collision_mask = Layers.CAT
 	monitorable = false
 	var box := BoxShape3D.new()
-	box.size = size + Vector3(MARGIN * 2.0, MARGIN, MARGIN * 2.0)
+	box.size = size + Vector3(MARGIN * 2.0, 0.0, MARGIN * 2.0)   # шире только по земле: на крышке и сиденье не прячутся
 	_shape.shape = box
 	body_entered.connect(_on_enter)
 	body_exited.connect(_on_exit)
@@ -4278,29 +4278,37 @@ func _ready() -> void:
 	_eyes = _make_eyes()
 
 
-func _make_ring() -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
-	mi.name = "Ring"
-	var torus := TorusMesh.new()
-	var r := maxf(size.x, size.z) * 0.5 + 0.25
-	torus.inner_radius = r
-	torus.outer_radius = r + 0.06
-	torus.rings = 24
-	torus.ring_segments = 6
-	mi.mesh = torus
+func outline_size() -> Vector2:
+	## Рамка подсветки — ровно по зоне укрытия (ревью плана 19: круг обещал больше, чем зона).
+	return Vector2(size.x + MARGIN * 2.0, size.z + MARGIN * 2.0)
+
+
+func _make_ring() -> Node3D:
+	var root := Node3D.new()
+	root.name = "Ring"
 	var m := StandardMaterial3D.new()
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.albedo_color = Color(0.98, 0.75, 0.2, 0.75)
+	m.albedo_color = Color(0.98, 0.75, 0.2, 0.8)
 	m.emission_enabled = true
 	m.emission = Color("#FABE32")
 	m.emission_energy_multiplier = 1.5
-	mi.material_override = m
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	mi.position.y = -size.y * 0.5 + 0.03
-	mi.visible = false
-	add_child(mi)
-	return mi
+	var o := outline_size()
+	var w := 0.06
+	for spec in [[Vector3(o.x, 0.02, w), Vector3(0, 0, -o.y / 2)], [Vector3(o.x, 0.02, w), Vector3(0, 0, o.y / 2)],
+			[Vector3(w, 0.02, o.y), Vector3(-o.x / 2, 0, 0)], [Vector3(w, 0.02, o.y), Vector3(o.x / 2, 0, 0)]]:
+		var mi := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = spec[0]
+		mi.mesh = bm
+		mi.position = spec[1]
+		mi.material_override = m
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(mi)
+	root.position.y = -size.y * 0.5 + 0.03
+	root.visible = false
+	add_child(root)
+	return root
 
 
 func _make_eyes() -> Node3D:
@@ -4329,6 +4337,7 @@ func _make_eyes() -> Node3D:
 		e.mesh = s
 		e.material_override = white
 		e.position = Vector3(side * EYE_GAP, 0, 0)
+		e.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(e)
 		var ir := MeshInstance3D.new()
 		var irs := SphereMesh.new()
@@ -4337,6 +4346,7 @@ func _make_eyes() -> Node3D:
 		ir.mesh = irs
 		ir.material_override = iris
 		ir.position = Vector3(side * EYE_GAP, 0, -0.042)
+		ir.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(ir)
 		var p := MeshInstance3D.new()
 		var ps := SphereMesh.new()
@@ -4346,6 +4356,7 @@ func _make_eyes() -> Node3D:
 		p.material_override = pupil
 		p.scale = Vector3(0.5, 1.2, 0.5)   # вертикальный кошачий зрачок
 		p.position = Vector3(side * EYE_GAP, 0, -0.062)
+		p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(p)
 	add_child(root)
 	return root
@@ -4373,22 +4384,19 @@ func _place_eyes() -> void:
 	to.y = 0.0
 	if to.length() > 0.01:
 		to = to.normalized()
-		var want := center + to * minf(size.x, size.z) * 0.45
-		# Коробка или сиденье между укрытием и камерой — глаза выглядывают перед ним (кадр плана 19).
+		# Глаза выглядывают сбоку на уровне земли: горизонтальный луч снаружи (со стороны камеры) к укрытию —
+		# перед первой гранью (коробка, ножка скамейки, борт машины); нет препятствия — у края укрытия (ревью плана 19).
+		var outside := center + to * (maxf(size.x, size.z) + 1.0)
 		var space := get_world_3d().direct_space_state
-		# Луч от камеры к глазам и чуть ниже них (нижний край зрачка): если по пути коробка или сиденье —
-		# глаза выглядывают с ближней к камере грани (кадр плана 19).
-		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(cam.global_position, center - Vector3(0, 0.06, 0), Layers.WORLD))
-		if not hit.is_empty():
-			var p: Vector3 = hit["position"]
-			var n: Vector3 = hit["normal"]
-			if n.y > 0.7:
-				want = p + Vector3(0, 0.05, 0)   # попали в верх коробки/сиденья — глаза выглядывают поверх
-			else:
-				var back := cam.global_position - p
-				back.y = 0.0
-				want = Vector3(p.x, center.y, p.z) + back.normalized() * 0.1
-		center = want
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(outside, center, Layers.WORLD))
+		if not hit.is_empty() and (hit["position"] as Vector3).distance_to(center) > 0.05:
+			center = Vector3(hit["position"].x, center.y, hit["position"].z) + to * 0.1
+		else:
+			# препятствия на уровне глаз нет (под машиной, куст) — глаза на границе зоны со стороны камеры
+			var local := global_transform.basis.inverse() * to
+			var half := outline_size() * 0.5
+			var k := minf(half.x / maxf(absf(local.x), 0.001), half.y / maxf(absf(local.z), 0.001))
+			center += to * (k + 0.05)
 	_eyes.global_position = center
 	var look := cam.global_position   # смотрят прямо в камеру — и по высоте
 	if look.distance_to(center) > 0.01:
@@ -4700,7 +4708,8 @@ const PITCH_DEG := -14.0
 const PITCH_MIN := -55.0   # сверху вниз — дальше камера «ныряет» за голову
 const PITCH_MAX := 8.0     # чуть снизу вверх — ниже пружина упирается в землю
 const PITCH_SPEED := 60.0  # град/с с клавиш и стика
-const CROUCH_PITCH_MAX := -4.0   # в укрытии опора низкая: камера не ложится на траву
+const CROUCH_PITCH_MAX := -4.0
+const HIDE_PITCH := -12.0   # в укрытии опора низкая: камера не ложится на траву
 const SHOP_OFFSET := Vector3(1.4, 0.6, 1.4)   # витрина: камера спереди-сбоку кота
 const CROUCH_HEIGHT := 0.3
 const MOUSE_SENS := 0.004   # рад на пиксель
@@ -4708,6 +4717,7 @@ const FADE_FULL := 0.3      # при такой длине пружины кот
 
 @export var target: Node3D
 var crouch := false
+var hide_focus: Node3D   # кот спрятался — камера смотрит на его глаза в укрытии (ревью плана 19)
 var shop_view := false
 var shop_view_point := Vector3.ZERO   # если use_shop_point, камера едет сюда, иначе target + SHOP_OFFSET
 var use_shop_point := false
@@ -4753,6 +4763,8 @@ func _physics_process(delta: float) -> void:
 	_arm.spring_length = DISTANCE
 	rotation = Vector3(0, _yaw, 0)
 	var goal := target.global_position + Vector3(0, CROUCH_HEIGHT if crouch else HEIGHT, 0)
+	if is_instance_valid(hide_focus) and hide_focus.is_visible_in_tree():
+		goal = hide_focus.global_position + Vector3(0, 0.3, 0)   # глаза снаружи укрытия: камера не залезает в машину
 	global_position = global_position.lerp(goal, 1.0 - exp(-SMOOTH * delta))
 	apply_arm_length(_arm.get_hit_length())
 
@@ -4778,6 +4790,8 @@ func arm_pitch() -> float:
 	## Наклон рычага: в витрине — прежний ракурс (наклон игрока сохраняется до выхода), в укрытии — не ниже CROUCH_PITCH_MAX.
 	if shop_view:
 		return PITCH_DEG
+	if is_instance_valid(hide_focus):
+		return minf(pitch, HIDE_PITCH)   # на глаза — чуть сверху
 	return minf(pitch, CROUCH_PITCH_MAX) if crouch else pitch
 
 
@@ -5029,6 +5043,7 @@ func try_hide() -> bool:
 	state = &"hide"
 	if camera_rig:
 		camera_rig.crouch = true
+		camera_rig.hide_focus = current_hideout.get_node_or_null("Eyes")
 	_model.visible = false   # кот исчез, в укрытии — только глаза (план 19)
 	_hidden_in = current_hideout
 	if _hidden_in.has_method("show_eyes"):
@@ -5042,6 +5057,8 @@ func unhide() -> void:
 		return
 	hidden = false
 	_model.visible = true
+	if camera_rig:
+		camera_rig.hide_focus = null
 	if is_instance_valid(_hidden_in) and _hidden_in.has_method("show_eyes"):
 		_hidden_in.call("show_eyes", false)
 	_hidden_in = null
@@ -5832,7 +5849,7 @@ func _make_prompt() -> void:
 func _update_prompt() -> void:
 	var cat := get_tree().get_first_node_in_group("cat")
 	var text := ""
-	if cat:
+	if cat and bool(cat.get("input_enabled")):   # магазин открыт — подсказка не нужна
 		text = prompt_for(cat.get("current_hideout") != null, bool(cat.get("hidden")), GameState.mouth.size(), bool(cat.get("in_safe_zone")))
 	_prompt_panel.visible = text != ""
 	_prompt.text = text
@@ -6306,7 +6323,12 @@ func _update_arrow(delta: float) -> void:
 	_arrow.visible = target != null
 	if target:
 		_t += delta
-		_arrow.global_position = target.global_position + Vector3(0, 1.0 + 0.12 * sin(_t * 4.0), 0)
+		var top := target.global_position.y + 0.6
+		var hit := get_viewport().world_3d.direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(
+			target.global_position + Vector3(0, 4, 0), target.global_position, Layers.WORLD))
+		if not hit.is_empty():
+			top = (hit["position"] as Vector3).y + 0.6   # над машиной и скамейкой, а не внутри
+		_arrow.global_position = Vector3(target.global_position.x, top + 0.12 * sin(_t * 4.0), target.global_position.z)
 
 
 func restart() -> void:
@@ -9570,7 +9592,7 @@ func test_ring_glows_only_with_food_in_mouth() -> void:
 	var h = _hideout_at(Vector3(3, 0.2, 0))
 	await wait_process_frames(3)
 	var ring := h.get_node("Ring") as Node3D
-	assert_false(ring.visible, "без еды кольца нет")
+	assert_false(ring.visible, "без еды рамки нет")
 	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
 	await wait_process_frames(3)
 	assert_true(ring.visible, "с едой укрытие подсвечено")
@@ -9633,6 +9655,63 @@ func test_eyes_peek_over_low_box_seen_from_above() -> void:
 	assert_eq(world.get_world_3d().direct_space_state.intersect_point(q).size(), 0, "глаза не внутри коробки: %s" % [eyes.global_position])
 	var hit := world.get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(cam.global_position, eyes.global_position, Layers.WORLD))
 	assert_true(hit.is_empty(), "камера видит глаза")
+
+# --- Ревью плана 19 ---
+
+func _car_with_hideout() -> Node:
+	var b := WorldBuilder.new()
+	world.add_child(b)
+	b.build({"props": [{"model": "car", "pos": [4, 0, 0], "rot": 0, "colliders": [{"size": [1.7, 1.2, 3.6], "offset": [0, 0.9, 0]}]}],
+		"hideouts": [{"kind": "car", "pos": [4, 0.15, 0], "size": [1.4, 0.3, 3.2]}]})
+	return b.find_children("*", "Hideout", true, false)[0]
+
+func test_eyes_visible_from_rig_when_hiding_under_car() -> void:
+	var h = _car_with_hideout()
+	cat.global_position = Vector3(4, 0.05, 1.2)
+	rig.global_position = cat.global_position + Vector3(0, 0.6, 0)
+	await wait_physics_frames(5)
+	assert_true(cat.try_hide())
+	await wait_physics_frames(40)
+	var cam := rig.get_node("SpringArm3D/Camera3D") as Camera3D
+	var eyes := h.get_node("Eyes") as Node3D
+	var space := world.get_world_3d().direct_space_state
+	var q := PhysicsPointQueryParameters3D.new()
+	q.position = cam.global_position
+	q.collision_mask = Layers.WORLD
+	assert_eq(space.intersect_point(q).size(), 0, "камера не внутри машины: %s" % [cam.global_position])
+	assert_true(cam.is_position_in_frustum(eyes.global_position), "глаза в кадре")
+	var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(cam.global_position, eyes.global_position, Layers.WORLD))
+	assert_true(hit.is_empty(), "камера видит глаза под машиной")
+
+func test_cannot_hide_standing_on_box_top() -> void:
+	_hideout_at(Vector3(0, 0.2, 0))
+	cat.global_position = Vector3(0, 0.62, 0)   # верх коробки ~0,3–0,5 над землёй
+	var top := StaticBody3D.new()
+	top.collision_layer = Layers.WORLD
+	var cs := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(1, 0.1, 1)
+	cs.shape = box
+	top.add_child(cs)
+	top.position = Vector3(0, 0.5, 0)
+	world.add_child(top)
+	await wait_physics_frames(5)
+	assert_false(cat.try_hide(), "на крышке не прячутся")
+
+func test_outline_matches_zone() -> void:
+	var h = _hideout_at(Vector3(0, 0.2, 0))
+	h.rotation_degrees.y = 90
+	await wait_process_frames(2)
+	var zone := (h.get_node("Collision") as CollisionShape3D).shape as BoxShape3D
+	var outline: Vector2 = h.call("outline_size")
+	assert_almost_eq(outline.x, zone.size.x, 0.01)
+	assert_almost_eq(outline.y, zone.size.z, 0.01)
+	assert_true((h.get_node("Ring") as Node3D).rotation == Vector3.ZERO, "рамка поворачивается вместе с укрытием (локально)")
+
+func test_eyes_cast_no_shadow() -> void:
+	var h = _hideout_at(Vector3(0, 0.2, 0))
+	for mi in h.get_node("Eyes").get_children():
+		assert_eq((mi as GeometryInstance3D).cast_shadow, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
 ```
 
 ## `tests/integration/test_hit.gd`
