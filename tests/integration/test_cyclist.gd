@@ -84,3 +84,9 @@ func test_cyclist_dust_only_while_riding() -> void:
 	await wait_seconds(0.6)
 	assert_true(c.riding)
 	assert_true(dust.emitting, "в пути пылит")
+
+func test_cyclist_rides_often() -> void:
+	# План 21: выезжает вдвое чаще.
+	var c := Cyclist.new()
+	assert_lte(c.interval_max, 10.0)
+	c.free()

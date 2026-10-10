@@ -115,3 +115,40 @@ func test_wasp_flies_above_terrace() -> void:
 	world.add_child(w)
 	await wait_physics_frames(4)
 	assert_almost_eq(w.global_position.y, 2.5, 0.15, "оса над террасой на высоте 0,5 над землёй")
+
+# --- План 21: оса пикирует ---
+
+func test_wasp_warns_then_dives_at_cat() -> void:
+	var floor_body := StaticBody3D.new()
+	floor_body.collision_layer = Layers.WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(20, 0.2, 20)
+	shape.shape = box
+	shape.position.y = -0.1
+	floor_body.add_child(shape)
+	world.add_child(floor_body)
+	var w = WaspScene.instantiate()
+	w.radius = 1.5
+	w.position = Vector3(0, 0.5, 0)
+	world.add_child(w)
+	var cat = CatScene.instantiate()
+	cat.position = Vector3(3, 0.05, 0)
+	world.add_child(cat)
+	await wait_physics_frames(5)
+	assert_eq(w.mode, &"warn", "зависла и трясётся — предупреждение")
+	await wait_seconds(1.6)
+	assert_eq(GameState.hearts, 2, "пикирование попало")
+	assert_gt(w.cooldown_left, 0.0, "после — отдых")
+
+func test_wasp_ignores_hidden_cat() -> void:
+	var w = WaspScene.instantiate()
+	w.radius = 1.5
+	w.position = Vector3(0, 0.5, 0)
+	world.add_child(w)
+	var cat = CatScene.instantiate()
+	cat.position = Vector3(3, 0.05, 0)
+	world.add_child(cat)
+	cat.hidden = true
+	await wait_physics_frames(10)
+	assert_eq(w.mode, &"orbit")

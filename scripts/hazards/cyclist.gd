@@ -5,8 +5,8 @@ extends Node3D
 signal bell
 
 @export var speed := 6.0
-@export var interval_min := 12.0
-@export var interval_max := 20.0
+@export var interval_min := 6.0    # план 21: вдвое чаще
+@export var interval_max := 10.0
 @export var bell_lead := 2.0
 var path: Path3D
 var riding := false

@@ -79,3 +79,12 @@ func test_flock_steals_again_after_cooldown() -> void:
 	flock.cooldown_left = 0.0   # перерыв 10 с истёк
 	await wait_physics_frames(4)
 	assert_eq(GameState.mouth.size(), 0, "после перерыва стая снова крадёт")
+
+func test_flock_creeps_toward_cat_with_food() -> void:
+	# План 21: голуби сами подбираются к коту с едой.
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	cat.global_position = flock.global_position + Vector3(4, 0.05, 0)
+	var d0 := Vector2(cat.global_position.x - flock.global_position.x, cat.global_position.z - flock.global_position.z).length()
+	await wait_seconds(1.5)
+	var d1 := Vector2(cat.global_position.x - flock.global_position.x, cat.global_position.z - flock.global_position.z).length()
+	assert_lt(d1, d0 - 0.5, "стая ближе")

@@ -11,6 +11,8 @@ const STEAL_DIST := 1.5
 const SCATTER_DIST := 2.5
 const COOLDOWN := 10.0
 const WALK := 0.35
+const CREEP_DIST := 6.0
+const CREEP_SPEED := 0.9
 
 var mode: StringName = &"idle"      # idle | scattered | sleep
 var cooldown_left := 0.0
@@ -90,6 +92,12 @@ func _physics_process(delta: float) -> void:
 			_scatter()
 	if mode == &"scattered" and cooldown_left <= 0.0:
 		mode = &"idle"
+	if cat and mode == &"idle" and not GameState.mouth.is_empty() and cooldown_left <= 0.0 and cat.get("state") != &"run" \
+			and not bool(cat.get("hidden")):
+		var to := cat.global_position - global_position
+		to.y = 0.0
+		if to.length() < CREEP_DIST and to.length() > 1.0:
+			global_position += to.normalized() * CREEP_SPEED * delta   # стая подбирается к коту с едой (план 21)
 	_move_birds(delta)
 
 

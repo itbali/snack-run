@@ -29,11 +29,19 @@ func before_each() -> void:
 	dog.position = Vector3(0, 0.05, 0)   # смотрит по -Z
 	world.add_child(dog)
 
+func _night() -> void:
+	## План 21: днём собака бродит, спит только ночью.
+	var light = (load("res://scenes/world/lighting.tscn") as PackedScene).instantiate()
+	add_child_autofree(light)
+	var dn = light.get_node("DayNight")
+	dn.set_time(220.0)
+	dn.time_scale = 0.0
+
 func test_dog_sees_cat_in_front_and_chases() -> void:
 	cat.global_position = Vector3(0, 0.05, -4)
 	await wait_physics_frames(3)
 	assert_true(dog.sees_cat())
-	await wait_seconds(1.3)
+	await wait_seconds(0.7)   # план 21: лает 0,6 с, окно ниже — внутри первого рывка
 	assert_eq(dog.brain.state, ChaseBrain.State.CHASE)
 	var d0: float = dog.global_position.distance_to(cat.global_position)
 	await wait_seconds(0.5)
@@ -72,7 +80,7 @@ func test_dog_faces_home_direction_again_after_chase() -> void:
 	cat.global_position = Vector3(0, 0.05, -12)
 	dog.walk_speed = 8.0
 	await wait_seconds(4.5)
-	assert_eq(dog.brain.state, ChaseBrain.State.IDLE, "вернулась и спит")
+	assert_eq(dog.brain.state, ChaseBrain.State.IDLE, "вернулась домой")
 	cat.hidden = false
 	cat.global_position = Vector3(0, 0.05, -4)
 	await wait_seconds(0.8)
@@ -97,6 +105,7 @@ func test_safe_zone_cancels_chase() -> void:
 	assert_eq(dog.brain.state, ChaseBrain.State.RETURN, "в безопасной зоне собака разворачивается сразу")
 
 func test_idle_dog_plays_sleep_clip() -> void:
+	_night()
 	await wait_physics_frames(3)
 	var ap := dog.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	assert_true(ap.has_animation("sleep"), "в dog.glb есть клип sleep")
@@ -123,6 +132,7 @@ func test_dog_contact_plays_hit_once_and_barks_on_alert() -> void:
 	assert_eq(Sfx.counts.get(&"bark", 0), 1, "лай при входе в ALERT, один раз за настороженность")
 
 func test_sleeping_dog_emits_zzz() -> void:
+	_night()
 	await wait_seconds(1.5)
 	assert_eq(dog.brain.state, ChaseBrain.State.IDLE)
 	var zs := 0
@@ -133,6 +143,7 @@ func test_sleeping_dog_emits_zzz() -> void:
 
 func test_dog_returns_home_onto_terrace_even_through_wall() -> void:
 	# Ревью плана 11: собака с террасы шла домой по прямой, упиралась в подпорную стену и стояла так до конца игры.
+	_night()   # ночью собака дома спит — днём ушла бы бродить
 	var t := Terrain.new()
 	t.data_path = "res://data/terrain/demo.json"   # терраса 2 м: x −18…−6, z −18…−8, обрыв x −6…−5
 	world.add_child(t)
@@ -149,3 +160,38 @@ func test_dog_returns_home_onto_terrace_even_through_wall() -> void:
 	await wait_seconds(10.0)
 	assert_lt(d.global_position.distance_to(Vector3(-12, 2.05, -13)), 1.0, "собака вернулась домой на террасу")
 	assert_ne(d.brain.state, ChaseBrain.State.RETURN, "возврат закончился")
+
+# --- План 21: собака живее (владелец: «враги амёбные, интересны только крабы») ---
+
+func test_dog_wanders_by_day() -> void:
+	cat.global_position = Vector3(0, 0.05, 15)   # далеко и за спиной
+	await wait_physics_frames(3)
+	var p0: Vector3 = dog.global_position
+	var moved := 0.0
+	for i in 8:
+		await wait_seconds(0.5)
+		moved = maxf(moved, dog.global_position.distance_to(p0))
+	assert_gt(moved, 0.5, "днём бродит у дома, а не спит")
+	assert_lt(dog.global_position.distance_to(dog.home), Dog.WANDER + 0.5)
+
+func test_dog_smells_cat_with_food_behind() -> void:
+	cat.global_position = Vector3(0, 0.05, 3.5)   # за спиной, ближе нюха
+	await wait_physics_frames(3)
+	assert_false(dog.sees_cat(), "без еды за спиной не замечает")
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	await wait_physics_frames(2)
+	assert_true(dog.sees_cat(), "с едой — чует")
+
+func test_dog_chases_in_lunges() -> void:
+	cat.global_position = Vector3(0, 0.05, -6)
+	await wait_seconds(0.8)
+	assert_eq(dog.brain.state, ChaseBrain.State.CHASE, "лает недолго — 0,6 с")
+	var speeds := []
+	var p: Vector3 = dog.global_position
+	for i in 30:
+		await wait_physics_frames(3)
+		speeds.append(dog.global_position.distance_to(p) / (3.0 / 60.0))
+		p = dog.global_position
+		cat.global_position = dog.global_position + Vector3(0, 0, -5)   # кот держит дистанцию
+	assert_gt(speeds.max(), 5.0, "рывок быстрее бегущего кота")
+	assert_lt(speeds.min(), 0.6, "между рывками — передышка (можно увернуться)")
