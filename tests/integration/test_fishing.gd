@@ -109,3 +109,12 @@ func test_fish_leaves_with_fisher_at_night_and_he_returns_in_morning() -> void:
 	dn.set_time(10.0)
 	await wait_physics_frames(5)
 	assert_true(f.visible, "утром рыбак вернулся")
+
+func test_rod_stays_toward_water_when_fisher_turns() -> void:
+	# Хвост плана 15: удочка поворачивалась вместе с рыбаком к ведру.
+	var f := _fisher([0.2, 0.2])
+	var rod := f.find_child("Rod", true, false) as Node3D
+	var b0 := rod.global_transform.basis
+	await wait_seconds(3.5)
+	assert_eq(f.get("phase"), &"look")
+	assert_true(rod.global_transform.basis.is_equal_approx(b0), "удочка осталась над водой")

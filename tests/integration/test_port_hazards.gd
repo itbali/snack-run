@@ -292,3 +292,19 @@ func test_gull_does_not_strike_cat_who_lost_food() -> void:
 	GameState.spill()   # за секунду предупреждения еда пропала (съел, отняли)
 	await wait_seconds(1.8)
 	assert_eq(GameState.hearts, 3, "красть нечего — не бьёт")
+
+func test_gull_ignores_drowning_cat() -> void:
+	# Хвост плана 14: чайка пикировала к тонущему коту.
+	assert_false(Gull.decide(3.0, true, false, false, 0.0, false, true), "кот тонет — не пикирует")
+
+func test_forklift_turns_smoothly_at_route_end() -> void:
+	_floor()
+	var f := _forklift([[0, -2], [0, 2]])
+	await wait_seconds(3.6)   # доехал до конца, ждёт
+	var r0: float = f.rotation.y
+	for i in 300:   # ждём старта обратно
+		if f.get("state") == &"drive":
+			break
+		await wait_physics_frames(1)
+	await wait_physics_frames(2)
+	assert_lt(absf(wrapf(f.rotation.y - r0, -PI, PI)), 1.0, "в первые кадры разворот только начался")

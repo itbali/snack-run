@@ -77,7 +77,7 @@ func _physics_process(delta: float) -> void:
 			var d := to.normalized()
 			global_position += d * step
 			global_position.y = target.y
-			rotation.y = atan2(d.x, d.z)   # вилы (+Z модели) — по ходу
+			rotation.y = lerp_angle(rotation.y, atan2(d.x, d.z), 1.0 - exp(-4.0 * delta))   # вилы — по ходу, разворот плавный
 		return
 	var next := next_state(state, _t, _wait, night)
 	if next != state:

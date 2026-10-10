@@ -222,6 +222,16 @@ class Primitives(unittest.TestCase):
 			else:
 				self.assertFalse(-2 < x < 2, f"бордюр {c['pos']} поперёк перекрёстка")
 
+	def test_scatter_keeps_doorways_free(self):
+		# Хвост плана 16: деревья вставали прямо у дверей домов.
+		d = {"name": "t", "terrain": DESC["terrain"], "zones": [{"name": "z", "ops": [
+			{"type": "place", "props": [{"model": "house_a", "pos": [0, 0, 0], "rot": 0}]},
+			{"type": "scatter", "what": "prop", "model": "box", "rect": [-4, 0.5, 4, 4], "count": 30, "min_dist": 0.7}]}]}
+		layout, _ = lg.generate(d)
+		for p in layout["props"]:
+			if p["model"] == "box":
+				self.assertFalse(abs(p["pos"][0]) < 1.0 and p["pos"][2] < 2.4, f"ящик {p['pos']} у двери")
+
 	def test_kit_constants_match_world_builder(self):
 		src = (ROOT / "scripts/world/world_builder.gd").read_text()
 		for name, val in (("KIT_STEP_RISE", lg.KIT_RISE), ("KIT_STEP_TREAD", lg.KIT_TREAD), ("KIT_RAMP_DEG", lg.KIT_RAMP_DEG), ("KIT_WIDTH", lg.KIT_WIDTH)):

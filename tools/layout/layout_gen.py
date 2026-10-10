@@ -31,6 +31,9 @@ FOOTPRINTS = {
 }
 
 
+DOOR_HOUSES = ("house_a", "house_c", "house_shallow")   # дома с дверью по центру фасада
+
+
 def kit_run(kind, h):
 	return round(h / KIT_RISE) * KIT_TREAD if kind == "stairs" else h / math.tan(math.radians(KIT_RAMP_DEG))
 
@@ -282,6 +285,11 @@ def generate(desc):
 			if kind == "props":
 				it = {**defaults.get(it["model"], {}), **it}
 				blocked.extend(footprints(it))
+				if it["model"] in DOOR_HOUSES:   # проход у двери — без россыпи (хвост плана 16)
+					x, _, z = it["pos"]
+					ax, az = _local((x, z), float(it.get("rot", 0)), -0.9, 0.2)
+					bx, bz = _local((x, z), float(it.get("rot", 0)), 0.9, 2.4)
+					blocked.append((min(ax, bx), min(az, bz), max(ax, bx), max(az, bz), 0.0))
 			out[kind].append(it)
 			gen[kind].append(it)
 

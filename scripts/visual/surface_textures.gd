@@ -7,11 +7,7 @@ extends RefCounted
 const DIR := "res://assets/images/textures/"
 ## имя меша -> [файл текстуры, размер тайла в метрах]
 const TABLE := {
-	"ground": ["asphalt.png", 4.0],
-	"sidewalk": ["paving.png", 1.2],
-	"wall": ["stucco.png", 4.5],
-	"lawn": ["grass.png", 2.0],
-	"path": ["gravel.png", 0.8],
+	"wall": ["stucco.png", 4.5],   # пол районов — рельеф (план 10): ground/sidewalk/lawn/path убраны (план 18)
 	"retaining_wall": ["stone.png", 3.0],
 	# план 18: пропсы — дерево, картон, профнастил, черепица, доски
 	"bench": ["wood.png", 1.0], "bench_back": ["wood.png", 1.0], "cafe_table": ["wood.png", 0.8], "shed": ["wood.png", 1.5],

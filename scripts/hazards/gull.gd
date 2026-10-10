@@ -7,8 +7,8 @@ const DIVE_DIST := 6.0
 const COOLDOWN := 8.0
 
 
-static func decide(dist_h: float, has_food: bool, hidden: bool, safe: bool, cooldown: float, night: bool) -> bool:
-	return not night and not hidden and not safe and has_food and cooldown <= 0.0 and dist_h < DIVE_DIST
+static func decide(dist_h: float, has_food: bool, hidden: bool, safe: bool, cooldown: float, night: bool, drowning := false) -> bool:
+	return not night and not hidden and not safe and not drowning and has_food and cooldown <= 0.0 and dist_h < DIVE_DIST
 
 const HEIGHT := 4.0
 const RADIUS := 3.5
@@ -84,7 +84,7 @@ func _physics_process(delta: float) -> void:
 			_face(p - global_position)
 			global_position = p
 			if c and decide(Vector2(c.global_position.x - p.x, c.global_position.z - p.z).length(), not GameState.mouth.is_empty(),
-					bool(c.get("hidden")), bool(c.get("in_safe_zone")), cooldown_left, night):
+					bool(c.get("hidden")), bool(c.get("in_safe_zone")), cooldown_left, night, float(c.get("drowning_left")) > 0.0):
 				mode = &"warn"
 				_t = 0.0
 				_target = c.global_position
