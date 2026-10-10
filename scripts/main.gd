@@ -52,7 +52,7 @@ func _ready() -> void:
 	for c in get_tree().get_nodes_in_group("hazards"):
 		if c.has_signal("bell"):
 			c.bell.connect(func() -> void:
-				Sfx.play_at(&"bell", (c as Node3D).global_position))   # без плашки (план 21): звонок слышно рядом
+				Sfx.play_at(&"bell", c.bell_point(_cat.global_position)))   # без плашки (план 21): звонок слышно рядом
 	shop_menu.closed.connect(close_shop)
 	album_menu.closed.connect(func() -> void: _set_paused(false))
 	pause_menu.resumed.connect(func() -> void: _set_paused(false))

@@ -1,7 +1,7 @@
 class_name Dog
 extends HazardBase
-## Собака: спит, замечает кота в конусе, 1 с настораживается, гонится 1,2× скорости кота,
-## теряет след в укрытии (2 с) или устаёт (8 с), возвращается домой (спек 3.2).
+## Собака: днём бродит у дома, ночью спит; замечает кота в конусе (или чует с едой), 0,6 с лает, гонится рывками
+## с передышками, теряет след в укрытии (2 с) или устаёт (6 с), возвращается домой (спек 3.2, план 21).
 
 const VISION_HALF_ANGLE := 50.0
 const VISION_RANGE := 7.0
@@ -12,6 +12,7 @@ const SMELL := 4.5
 const LUNGE := 0.8          # рывок, с
 const PANT := 0.45          # передышка между рывками — шанс увернуться
 const LUNGE_SPEED := 5.6    # быстрее бегущего кота (4,0)
+const WANDER_TIMEOUT := 4.0 # цель прогулки недостижима (куст, угол дома) — бросить
 const RETURN_TIMEOUT := 8.0   # дольше идёт домой — значит упёрлась (стена террасы): переносится домой (ревью плана 11)
 
 var brain := ChaseBrain.new()
@@ -20,6 +21,7 @@ var _zzz_t := 0.0
 var _wander_to := Vector3.INF
 var _wander_wait := 0.0
 var _lunge_t := 0.0
+var _wander_t := 0.0
 var _return_t := 0.0
 
 @onready var _model: Node3D = $Model
@@ -143,13 +145,34 @@ func _wander(delta: float) -> void:
 		move_and_slide()
 		play_clip(&"idle")
 		if _wander_wait <= 0.0:
-			var a := randf() * TAU
-			_wander_to = home + Vector3(cos(a), 0, sin(a)) * randf_range(1.0, WANDER)
+			_wander_to = home   # нет свободной точки — идёт домой
+			for i in 6:
+				var a := randf() * TAU
+				var p := home + Vector3(cos(a), 0, sin(a)) * randf_range(1.0, WANDER)
+				if wander_target_free(p):
+					_wander_to = p
+					break
+			_wander_t = 0.0
 		return
-	if move_towards_point(_wander_to, walk_speed * 0.8, delta) < 0.3:
+	_wander_t += delta
+	if move_towards_point(_wander_to, walk_speed * 0.8, delta) < 0.3 or _wander_t >= WANDER_TIMEOUT:
 		_wander_to = Vector3.INF
 		_wander_wait = randf_range(1.0, 2.5)
 	play_clip(&"walk")
+
+
+func wander_target_free(p: Vector3) -> bool:
+	## Точка прогулки не внутри пропса (куст, урна, угол дома): проба на высоте спины собаки.
+	if not is_inside_tree():
+		return true
+	var q := PhysicsShapeQueryParameters3D.new()
+	var s := SphereShape3D.new()
+	s.radius = 0.35
+	q.shape = s
+	q.transform = Transform3D(Basis(), Vector3(p.x, global_position.y + 0.45, p.z))
+	q.collision_mask = Layers.WORLD
+	q.exclude = [get_rid()]
+	return get_world_3d().direct_space_state.intersect_shape(q, 1).is_empty()
 
 
 func play_clip(name: StringName) -> void:

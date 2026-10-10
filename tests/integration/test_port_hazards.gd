@@ -308,3 +308,12 @@ func test_forklift_turns_smoothly_at_route_end() -> void:
 		await wait_physics_frames(1)
 	await wait_physics_frames(2)
 	assert_lt(absf(wrapf(f.rotation.y - r0, -PI, PI)), 1.0, "в первые кадры разворот только начался")
+
+func test_wave_sound_from_nearest_point_of_shore() -> void:
+	# Ревью плана 21 (I3): волна 68 м звучала из центра — на краю пляжа предупреждения не было.
+	var w := _wave()
+	w.global_position = Vector3(0, 0, 0)
+	var p: Vector3 = w.call("sound_point", Vector3(30, 0, -2))
+	assert_almost_eq(p.x, 10.0, 0.05, "край полосы, а не центр")
+	var q: Vector3 = w.call("sound_point", Vector3(4, 0, -2))
+	assert_almost_eq(q.x, 4.0, 0.05)

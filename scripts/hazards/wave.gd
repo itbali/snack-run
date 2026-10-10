@@ -90,7 +90,8 @@ func _physics_process(delta: float) -> void:
 	_foam.emitting = foaming or front > 0.0
 	_foam.position = Vector3(0, 0.05, inland * front)
 	if foaming and not _foam_sounded:
-		Sfx.play_at(&"wave", global_position)
+		var c := get_tree().get_first_node_in_group("cat") as Node3D
+		Sfx.play_at(&"wave", sound_point(c.global_position) if c else global_position)
 		_foam_sounded = true
 	if u < RUN:
 		_check_cat(front)
@@ -98,6 +99,12 @@ func _physics_process(delta: float) -> void:
 		_hit_this_roll = false
 		if not foaming:
 			_foam_sounded = false
+
+
+func sound_point(cat_pos: Vector3) -> Vector3:
+	## Шум наката — с ближайшей к коту точки линии воды (полоса до 68 м; ревью плана 21).
+	var local := global_transform.affine_inverse() * cat_pos
+	return global_transform * Vector3(clampf(local.x, -width / 2.0, width / 2.0), 0.0, 0.0)
 
 
 func _update_strip(front: float) -> void:

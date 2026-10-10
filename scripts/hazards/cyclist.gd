@@ -60,6 +60,13 @@ func _ring() -> void:
 	get_tree().create_timer(bell_lead, false).timeout.connect(_depart)
 
 
+func bell_point(cat_pos: Vector3) -> Vector3:
+	## Звонок слышен с ближайшей к коту точки дороги: велосипед после поездки стоит в её конце (ревью плана 21).
+	if path == null or path.curve == null:
+		return global_position
+	return path.global_transform * path.curve.get_closest_point(path.global_transform.affine_inverse() * cat_pos)
+
+
 func _depart() -> void:
 	if not is_inside_tree() or path == null:
 		return

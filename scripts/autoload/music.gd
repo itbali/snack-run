@@ -6,6 +6,7 @@ const DAY := ["res://assets/music/day_happy_clappy.ogg", "res://assets/music/day
 const NIGHT := ["res://assets/music/night_feel_good_island.ogg"]
 const FADE := 2.0
 const BASE_DB := -10.0
+const ROTATE := 75.0   # днём смена петли кроссфейдом по таймеру, а не по окончании (без «провала» громкости)
 
 var volume := 0.7
 var _a: AudioStreamPlayer
@@ -13,6 +14,7 @@ var _b: AudioStreamPlayer
 var _track := ""
 var _day_i := 0
 var _fade := 0.0
+var _play_t := 0.0
 var active := false   # Main включает: на заставке тихо
 
 
@@ -22,8 +24,6 @@ func _ready() -> void:
 	_b = AudioStreamPlayer.new()
 	add_child(_a)
 	add_child(_b)
-	_a.finished.connect(_next_day)
-	_b.finished.connect(_next_day)
 
 
 func playing() -> bool:
@@ -70,7 +70,7 @@ func _switch(path: String) -> void:
 	_track = path
 	var s := load(path) as AudioStream
 	if s is AudioStreamOggVorbis:
-		(s as AudioStreamOggVorbis).loop = false   # по окончании — следующая дневная петля
+		(s as AudioStreamOggVorbis).loop = true   # петли бесшовные; ночная звучит всю ночь (ревью плана 21)
 	var tmp := _a
 	_a = _b
 	_b = tmp   # _a — новая, _b — затухает
@@ -78,6 +78,7 @@ func _switch(path: String) -> void:
 	_a.volume_db = -60.0
 	_a.play()
 	_fade = 0.0
+	_play_t = 0.0
 
 
 func _apply_volume() -> void:
@@ -96,6 +97,9 @@ func _process(delta: float) -> void:
 		return
 	var want := _want()
 	if want != _track and (DayNight.is_night(get_tree()) or _track in NIGHT or _track == ""):
-		_switch(want)   # день ↔ ночь — сразу кроссфейдом; днём смена петли — по её окончании
+		_switch(want)   # день ↔ ночь — сразу кроссфейдом
+	_play_t += delta
+	if _play_t >= ROTATE and not DayNight.is_night(get_tree()):
+		_next_day()   # днём — следующая петля кроссфейдом
 	_fade += delta
 	_apply_volume()

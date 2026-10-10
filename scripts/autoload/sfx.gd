@@ -68,17 +68,18 @@ func play(name: StringName, pitch_jitter := 0.06) -> AudioStreamPlayer:
 
 const HEAR_RANGE := 26.0   # дальше звук опасности не слышен (план 21: дождеватели парка булькали на всю карту)
 const FULL_RANGE := 6.0
+const NEAR_RANGE := 11.0   # шумные «фоновые» опасности (дождеватели): слышно, только подойдя
 
 
-func play_at(name: StringName, pos: Vector3, pitch_jitter := 0.06) -> AudioStreamPlayer:
+func play_at(name: StringName, pos: Vector3, pitch_jitter := 0.06, hear := HEAR_RANGE) -> AudioStreamPlayer:
 	## Звук из точки мира: слышен только рядом с котом, тише с расстоянием.
 	var cat := get_tree().get_first_node_in_group("cat") as Node3D if is_inside_tree() else null
 	var listener := cat.global_position if cat else pos
 	var d := listener.distance_to(pos)
-	if d > HEAR_RANGE:
+	if d > hear:
 		return null
 	var p := play(name, pitch_jitter)
 	if p:
-		var k := clampf((d - FULL_RANGE) / (HEAR_RANGE - FULL_RANGE), 0.0, 1.0)
+		var k := clampf((d - FULL_RANGE) / maxf(hear - FULL_RANGE, 0.1), 0.0, 1.0)
 		p.volume_db += linear_to_db(lerpf(1.0, 0.05, k))
 	return p

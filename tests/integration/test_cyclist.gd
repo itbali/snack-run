@@ -90,3 +90,12 @@ func test_cyclist_rides_often() -> void:
 	var c := Cyclist.new()
 	assert_lte(c.interval_max, 10.0)
 	c.free()
+
+func test_bell_rings_from_road_point_nearest_cat() -> void:
+	# Ревью плана 21 (C1): после поездки велосипед стоит в конце дороги, звонок оттуда не слышен у начала.
+	var c = _cyclist(100.0, 0.2)
+	var p: Vector3 = c.bell_point(Vector3(-5, 0, 3))
+	assert_almost_eq(p.x, -5.0, 0.05, "звонок с ближайшей к коту точки дороги")
+	assert_almost_eq(p.z, 0.0, 0.05)
+	var code := FileAccess.get_file_as_string("res://scripts/main.gd")
+	assert_true(code.contains("bell_point("), "Main звонит из bell_point")

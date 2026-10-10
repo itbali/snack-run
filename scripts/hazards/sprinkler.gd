@@ -68,7 +68,7 @@ func _physics_process(delta: float) -> void:
 		_spray.emitting = phase == &"on"
 		_bubbles.emitting = phase == &"warn"
 		if phase == &"warn":
-			Sfx.play_at(&"sprinkle", global_position, 0.1)
+			Sfx.play_at(&"sprinkle", global_position, 0.1, Sfx.NEAR_RANGE)
 	if phase == &"on":
 		for body in _zone.get_overlapping_bodies():
 			if body.is_in_group("cat") and body.has_method("wet") and not bool(body.get("hidden")):

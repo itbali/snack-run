@@ -88,3 +88,17 @@ func test_flock_creeps_toward_cat_with_food() -> void:
 	await wait_seconds(1.5)
 	var d1 := Vector2(cat.global_position.x - flock.global_position.x, cat.global_position.z - flock.global_position.z).length()
 	assert_lt(d1, d0 - 0.5, "стая ближе")
+
+func test_creeping_flock_stays_on_leash_and_walks_home() -> void:
+	# Ревью плана 21 (I5): стая уходила за котом навсегда.
+	await wait_physics_frames(2)
+	var home: Vector3 = flock.global_position
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	for i in 12:
+		cat.global_position = flock.global_position + Vector3(4, 0.05, 0)
+		await wait_seconds(0.5)
+	assert_lte(Vector2(flock.global_position.x - home.x, flock.global_position.z - home.z).length(), PigeonFlock.LEASH + 0.1, "не дальше поводка")
+	GameState.mouth.clear()
+	cat.global_position = home + Vector3(-9, 0.05, 0)
+	await wait_seconds(4.0)
+	assert_lt(flock.global_position.distance_to(home), PigeonFlock.LEASH - 1.0, "без еды стая возвращается домой")

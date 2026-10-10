@@ -195,3 +195,22 @@ func test_dog_chases_in_lunges() -> void:
 		cat.global_position = dog.global_position + Vector3(0, 0, -5)   # кот держит дистанцию
 	assert_gt(speeds.max(), 5.0, "рывок быстрее бегущего кота")
 	assert_lt(speeds.min(), 0.6, "между рывками — передышка (можно увернуться)")
+
+func test_dog_gives_up_unreachable_wander_target() -> void:
+	# Ревью плана 21 (I4): цель прогулки в кусте — собака упиралась в него до конца игры.
+	var wall := StaticBody3D.new()
+	wall.collision_layer = Layers.WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(1.4, 1.4, 1.4)
+	shape.shape = box
+	wall.position = Vector3(2.5, 0.7, 0)
+	wall.add_child(shape)
+	world.add_child(wall)
+	await wait_physics_frames(3)
+	assert_false(dog.wander_target_free(Vector3(2.5, 0, 0)), "внутри куста цель занята")
+	assert_true(dog.wander_target_free(Vector3(-2.5, 0, 0)))
+	dog.set("_wander_wait", 0.0)
+	dog.set("_wander_to", Vector3(2.5, 0, 0))
+	await wait_seconds(Dog.WANDER_TIMEOUT + 0.5)
+	assert_ne(dog.get("_wander_to"), Vector3(2.5, 0, 0), "бросила недостижимую цель")

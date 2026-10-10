@@ -13,6 +13,9 @@ const COOLDOWN := 10.0
 const WALK := 0.35
 const CREEP_DIST := 6.0
 const CREEP_SPEED := 0.9
+const LEASH := 3.5          # дальше от дома стая не уходит, без еды возвращается (ревью плана 21)
+const HOME_SPEED := 0.6
+var home := Vector3.INF
 
 var mode: StringName = &"idle"      # idle | scattered | sleep
 var cooldown_left := 0.0
@@ -92,12 +95,26 @@ func _physics_process(delta: float) -> void:
 			_scatter()
 	if mode == &"scattered" and cooldown_left <= 0.0:
 		mode = &"idle"
+	if home == Vector3.INF:
+		home = global_position
+	var crept := false
 	if cat and mode == &"idle" and not GameState.mouth.is_empty() and cooldown_left <= 0.0 and cat.get("state") != &"run" \
-			and not bool(cat.get("hidden")):
+			and not bool(cat.get("hidden")) and not bool(cat.get("in_safe_zone")):
 		var to := cat.global_position - global_position
 		to.y = 0.0
 		if to.length() < CREEP_DIST and to.length() > 1.0:
-			global_position += to.normalized() * CREEP_SPEED * delta   # стая подбирается к коту с едой (план 21)
+			var next := global_position + to.normalized() * CREEP_SPEED * delta   # стая подбирается к коту с едой (план 21)
+			var off := Vector2(next.x - home.x, next.z - home.z)
+			if off.length() > LEASH:
+				off = off.normalized() * LEASH
+			global_position = Vector3(home.x + off.x, global_position.y, home.z + off.y)
+			crept = true
+	if not crept:
+		var back := Vector3(home.x - global_position.x, 0, home.z - global_position.z)
+		if back.length() > 0.05:
+			global_position += back.normalized() * minf(HOME_SPEED * delta, back.length())
+	if global_position.distance_to(home) > 0.01:
+		global_position.y = Terrain.surface_height(get_tree(), global_position.x, global_position.z, home.y)
 	_move_birds(delta)
 
 
