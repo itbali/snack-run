@@ -25,7 +25,7 @@ terrain:
 	python3 tools/terrain/terrain_gen.py
 
 test-godot: import
-	mkdir -p build
+	mkdir -p build && touch build/.gdignore
 	set -o pipefail; $(GODOT) --headless --path . -s addons/gut/gut_cmdln.gd -gconfig=res://.gutconfig.json 2>&1 | tee build/gut.log
 	@! grep -q "SCRIPT ERROR" build/gut.log || (echo "Ошибки скриптов в тестах, см. build/gut.log"; exit 1)
 	@! (grep -E "^ERROR:" build/gut.log | grep -v 'Parameter "material" is null' | grep -q .) || (echo "Ошибки движка в тестах (кроме известного шума dummy-рендерера), см. build/gut.log"; exit 1)
@@ -37,7 +37,7 @@ assets:
 	$(BLENDER) -b --python-exit-code 1 --python tools/blender/build.py -- $(ONLY)
 
 shot: import
-	mkdir -p build
+	mkdir -p build && touch build/.gdignore
 	$(GODOT) --path . --resolution 1280x720 res://scenes/main.tscn ++ $(if $(PHASE),--phase=$(PHASE),) $(if $(AT),--at=$(AT),) --screenshot=$(SHOT)
 
 run: import
@@ -59,6 +59,6 @@ templates:
 	ls -la "$(TEMPLATES_DIR)"
 
 export: import
-	mkdir -p build
+	mkdir -p build && touch build/.gdignore
 	$(GODOT) --headless --path . --export-release "macOS" build/SnackRun.zip
 	ls -la build/SnackRun.zip && unzip -l build/SnackRun.zip | head -5
