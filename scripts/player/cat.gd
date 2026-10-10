@@ -83,6 +83,7 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	face.update(delta, stunned_left > 0.0)
+	_update_head_look()   # до ранних выходов (укрытие, удар, вода)
 	if wet_left > 0.0:
 		wet_left = maxf(wet_left - delta, 0.0)
 		if _drips:
@@ -141,16 +142,19 @@ func _update_head_look() -> void:
 	## Наклон камеры вверх — кот поднимает голову; в стоянии и шагом голова поворачивается к взгляду камеры.
 	if head_look == null or camera_rig == null:
 		return
+	if hidden or drowning_left > 0.0 or stunned_left > 0.0 or petted_left > 0.0 or not (state in [&"idle", &"walk", &"run", &"jump"]):
+		head_look.target_pitch = 0.0   # укрытие, удар, «гладят», вода — свой клип, голова прямо (ревью плана 18)
+		head_look.target_yaw = 0.0
+		return
 	var p: float = camera_rig.get("pitch")
 	head_look.target_pitch = deg_to_rad(p - CameraRig.PITCH_DEG) * 0.8
 	var look := -camera_rig.global_transform.basis.z
-	var face := -_model.global_transform.basis.z
-	var diff := wrapf(atan2(-look.x, -look.z) - atan2(-face.x, -face.z), -PI, PI)
+	var facing := -_model.global_transform.basis.z
+	var diff := wrapf(atan2(-look.x, -look.z) - atan2(-facing.x, -facing.z), -PI, PI)
 	head_look.target_yaw = diff if state in [&"idle", &"walk"] and absf(diff) < PI * 0.6 else 0.0
 
 
 func _after_move(delta: float) -> void:
-	_update_head_look()
 	## Приземление: сплющить и пыль; прыжок: вытянуться; бег: пыль каждые 0,25 с.
 	var on_floor := is_on_floor()
 	if on_floor and not was_on_floor:

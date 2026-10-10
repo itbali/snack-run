@@ -63,3 +63,13 @@ func test_ambient_particles_by_phase_and_setting() -> void:
 func test_water_has_sparkles() -> void:
 	var shader := load("res://assets/shaders/water.gdshader") as Shader
 	assert_true(shader.code.contains("sparkle"), "блики на воде")
+
+func test_rebinding_keeps_video_settings() -> void:
+	# Ревью плана 18: KeyBindings.save переписывал файл целиком — секция [video] пропадала.
+	GameSettings.set_blur(false, get_tree())
+	KeyBindings.rebind("jump", KEY_J)
+	KeyBindings.save()
+	GameSettings.reset()
+	GameSettings.load_saved()
+	assert_false(GameSettings.blur, "размытие осталось выключенным")
+	KeyBindings.reset()

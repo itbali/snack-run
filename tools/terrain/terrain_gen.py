@@ -27,6 +27,7 @@ class Grid:
 		self.nx = int(round(self.w / self.cell)) + 1
 		self.nz = int(round(self.d / self.cell)) + 1
 		self.h = [[float(desc.get("base", 0.0))] * self.nx for _ in range(self.nz)]
+		self.lifted = set()   # вершины, уже поднятые lift (перекрёсток дорожек — один раз)
 		self.channels = desc.get("channels", ["asphalt", "paving", "grass", "gravel"])
 		default = self.channels.index(desc.get("default", self.channels[0]))
 		self.splat = [[[255 if c == default else 0 for c in range(4)] for _ in range(self.nx)] for _ in range(self.nz)]
@@ -60,8 +61,9 @@ def apply_feature(g, f):
 			if _in_rect(x, z, f["rect"]):
 				g.h[j][i] = f["height"]
 		elif t == "lift":
-			if _in_rect(x, z, f["rect"]):
-				g.h[j][i] += f["by"]   # дорожка чуть выше газона (план 18)
+			if _in_rect(x, z, f["rect"]) and (i, j) not in g.lifted:
+				g.h[j][i] += f["by"]   # дорожка чуть выше газона (план 18); перекрёсток — один раз
+				g.lifted.add((i, j))
 		else:
 			raise ValueError(f"неизвестный рельеф: {t}")
 

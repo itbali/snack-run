@@ -78,7 +78,7 @@ func test_missing_texture_file_is_not_an_error() -> void:
 func test_props_get_material_textures() -> void:
 	# План 18: дерево у скамеек и столов, картон у коробок, профнастил у гаражей, черепица на крышах, доски у лодок и понтонов.
 	var expected := {"bench": "wood", "cafe_table": "wood", "box": "cardboard", "garage": "metal", "house_roof": "roof_tiles",
-		"shed": "wood", "boat_deck": "planks", "pontoon": "planks"}
+		"shed": "wood", "pontoon": "planks"}   # палуба лодки качается — трипланар скользил бы (ревью плана 18)
 	var b := WorldBuilder.new()
 	add_child_autofree(b)
 	b.build({"props": [{"model": "bench", "pos": [0, 0, 0]}, {"model": "cafe_table", "pos": [3, 0, 0]}, {"model": "box", "pos": [6, 0, 0]},

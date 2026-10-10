@@ -3,6 +3,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools" / "layout"))
+sys.path.insert(0, str(ROOT / "tools" / "terrain"))
 import layout_gen as lg
 
 
@@ -231,6 +232,29 @@ class Primitives(unittest.TestCase):
 		for p in layout["props"]:
 			if p["model"] == "box":
 				self.assertFalse(abs(p["pos"][0]) < 1.0 and p["pos"][2] < 2.4, f"ящик {p['pos']} у двери")
+
+	def test_paths_are_clear_of_scatter_and_props(self):
+		# Ревью плана 18: трава, качели и куст-укрытие стояли на дорожках парка.
+		layout, terrain = lg.generate(json.loads((ROOT / "data/layout_src/park.json").read_text()))
+		rects = [f["rect"] for f in terrain["features"] if f["type"] == "lift"]
+		def on_path(x, z):
+			return any(r[0] < x < r[2] and r[1] < z < r[3] for r in rects)
+		for it in layout["decor"]:
+			self.assertFalse(on_path(it["pos"][0], it["pos"][2]), f"украшение {it['model']} {it['pos']} на дорожке")
+		for p in layout["props"]:
+			if p["model"] in ("curb", "fountain"):
+				continue
+			for f in lg.footprints(p) or ([(p["pos"][0], p["pos"][2], p["pos"][0], p["pos"][2], 0)] if p.get("solid", True) is False else []):
+				cx, cz = (f[0] + f[2]) / 2, (f[1] + f[3]) / 2
+				self.assertFalse(on_path(cx, cz), f"{p['model']} {p['pos']} на дорожке")
+		for h in layout["hideouts"]:
+			self.assertFalse(on_path(h["pos"][0], h["pos"][2]), f"укрытие {h['pos']} на дорожке")
+
+	def test_lift_does_not_stack_on_crossings(self):
+		import terrain_gen as tg
+		g = tg.build({"size": [20, 20], "origin": [-10, -10], "cell": 1.0, "base": 0.0, "paint": [],
+			"features": [{"type": "lift", "rect": [-1, -10, 1, 10], "by": 0.06}, {"type": "lift", "rect": [-10, -1, 10, 1], "by": 0.06}]})
+		self.assertAlmostEqual(tg.height_at(g, 0, 0), 0.06, 3, "на перекрёстке не 12 см")
 
 	def test_kit_constants_match_world_builder(self):
 		src = (ROOT / "scripts/world/world_builder.gd").read_text()

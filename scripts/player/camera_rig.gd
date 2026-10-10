@@ -12,6 +12,7 @@ const PITCH_DEG := -14.0
 const PITCH_MIN := -55.0   # сверху вниз — дальше камера «ныряет» за голову
 const PITCH_MAX := 8.0     # чуть снизу вверх — ниже пружина упирается в землю
 const PITCH_SPEED := 60.0  # град/с с клавиш и стика
+const CROUCH_PITCH_MAX := -4.0   # в укрытии опора низкая: камера не ложится на траву
 const SHOP_OFFSET := Vector3(1.4, 0.6, 1.4)   # витрина: камера спереди-сбоку кота
 const CROUCH_HEIGHT := 0.3
 const MOUSE_SENS := 0.004   # рад на пиксель
@@ -44,8 +45,9 @@ func _physics_process(delta: float) -> void:
 	var axis := Input.get_axis("cam_left", "cam_right")
 	_yaw -= axis * YAW_SPEED * delta
 	rotation.y = _yaw
-	pitch = clamp_pitch(pitch + Input.get_axis("cam_down", "cam_up") * PITCH_SPEED * delta)
-	_arm.rotation_degrees.x = pitch
+	if not shop_view:
+		pitch = clamp_pitch(pitch + Input.get_axis("cam_down", "cam_up") * PITCH_SPEED * delta)
+	_arm.rotation_degrees.x = arm_pitch()
 	if shake_left > 0.0:
 		shake_left = maxf(shake_left - delta, 0.0)
 		var k := _shake_amp * (shake_left / _shake_time)
@@ -84,14 +86,23 @@ func turn_by_pixels(dx: float) -> void:
 	_yaw -= dx * MOUSE_SENS
 
 
+func arm_pitch() -> float:
+	## Наклон рычага: в витрине — прежний ракурс (наклон игрока сохраняется до выхода), в укрытии — не ниже CROUCH_PITCH_MAX.
+	if shop_view:
+		return PITCH_DEG
+	return minf(pitch, CROUCH_PITCH_MAX) if crouch else pitch
+
+
 static func clamp_pitch(p: float) -> float:
 	return clampf(p, PITCH_MIN, PITCH_MAX)
 
 
 func tilt_by_pixels(dy: float) -> void:
 	## Мышь вверх (dy < 0) — взгляд выше.
+	if shop_view:
+		return
 	pitch = clamp_pitch(pitch - rad_to_deg(dy * MOUSE_SENS))
-	_arm.rotation_degrees.x = pitch
+	_arm.rotation_degrees.x = arm_pitch()
 
 
 func apply_arm_length(length: float) -> void:

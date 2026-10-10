@@ -343,6 +343,7 @@ def generate(desc):
 					if b > a:
 						gaps.append((side, (a + b) / 2, b - a + 0.4))
 			add("props", perimeter(op["rect"], "curb", 2.0, sides, gaps, extra={"solid": False}))
+			blocked.append((x0, z0, x1, z1, 0.0))   # на дорожке — ни россыпи, ни украшений (ревью плана 18)
 		elif t == "block":
 			blocked.append(tuple(op["rect"]) + (0.0,))   # полоса без россыпи (маршрут погрузчика)
 		elif t == "flat":

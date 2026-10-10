@@ -38,10 +38,11 @@ func _make(n: String, color: Color, size: float, amount: int, life: float, glow:
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.albedo_color = color
+	m.vertex_color_use_as_albedo = true   # color_ramp — плавное появление и угасание
 	if glow:
 		m.emission_enabled = true
 		m.emission = color
-		m.emission_energy_multiplier = 3.0   # ярче порога glow — светлячки светятся
+		m.emission_energy_multiplier = 6.0   # ярче порога glow — светлячки светятся
 	mesh.material = m
 	p.mesh = mesh
 	var fade := Gradient.new()

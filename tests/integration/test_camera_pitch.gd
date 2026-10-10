@@ -81,3 +81,32 @@ func test_head_yaw_turns_toward_camera_look() -> void:
 	assert_true(_head_dir.has(0.0) and _head_dir.has(0.4))
 	if _head_dir.has(0.0) and _head_dir.has(0.4):
 		assert_gt(wrapf(_head_dir[0.4] - _head_dir[0.0], -PI, PI), 0.1, "голова повернулась в сторону взгляда")
+
+func test_shop_view_ignores_pitch() -> void:
+	# Ревью плана 18: наклон вниз перед будкой уводил кадр витрины ниже кота.
+	rig.pitch = CameraRig.PITCH_MIN
+	rig.shop_view = true
+	Input.action_press("cam_down")
+	await wait_physics_frames(10)
+	Input.action_release("cam_down")
+	assert_almost_eq((rig.get_node("SpringArm3D") as SpringArm3D).rotation_degrees.x, CameraRig.PITCH_DEG, 0.01, "витрина — прежний ракурс")
+	assert_eq(rig.pitch, CameraRig.PITCH_MIN, "в витрине клавиши наклон не меняют")
+	rig.shop_view = false
+
+func test_head_resets_when_hiding() -> void:
+	# Ревью плана 18: в укрытии, при ударе и в воде голова оставалась повёрнутой.
+	rig.pitch = CameraRig.PITCH_MIN
+	await wait_physics_frames(30)
+	assert_lt(cat.head_look.target_pitch, -0.1)
+	cat.hidden = true
+	cat.state = &"hide"
+	await wait_physics_frames(5)
+	assert_almost_eq(cat.head_look.target_pitch, 0.0, 0.001, "в укрытии голова прямо")
+	assert_almost_eq(cat.head_look.target_yaw, 0.0, 0.001)
+
+func test_crouching_camera_does_not_lie_on_ground() -> void:
+	rig.crouch = true
+	rig.pitch = CameraRig.PITCH_MAX
+	await wait_physics_frames(3)
+	assert_lte((rig.get_node("SpringArm3D") as SpringArm3D).rotation_degrees.x, CameraRig.CROUCH_PITCH_MAX + 0.01, "в укрытии камера не ложится на траву")
+	rig.crouch = false

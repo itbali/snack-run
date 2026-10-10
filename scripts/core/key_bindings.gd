@@ -78,6 +78,7 @@ static func reset() -> void:
 
 static func save() -> void:
 	var cfg := ConfigFile.new()
+	cfg.load(path)   # в том же файле настройки картинки (план 18) — не затирать
 	for row in REBINDABLE:
 		cfg.set_value("keys", row[0], keys_of(row[0]))
 	cfg.save(path)
