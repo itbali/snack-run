@@ -5,7 +5,7 @@
 Отступы в GDScript и Makefile — табы; в Python проекта — тоже табы, кроме
 `palette.py` и тестов Blender (пробелы). Копировать как есть.
 
-Файлов: 331
+Файлов: 340
 
 ## `CLAUDE.md`
 
@@ -60,7 +60,7 @@ make test-blender  # только Blender
 make assets        # пересобрать все glb из tools/blender/gen/*.py в assets/models/
 make assets ONLY=cat
 make shot SHOT=build/x.png   # скриншот главной сцены из CLI (ждёт 40 кадров)
-make run           # запустить игру (WASD, мышь/Q/R камера, Shift бег, Space прыжок, Ctrl прятаться, E есть/магазин, Tab альбом, Esc пауза)
+make run           # запустить игру (WASD, мышь/Q/R/T/G камера, Shift бег, Space прыжок, Ctrl прятаться, E есть/магазин, Tab альбом, Esc пауза)
 make sfx           # пересинтезировать meow.wav/bark.wav (tools/audio/gen_sfx.py)
 make images        # сгенерировать недостающие картинки по tools/images/manifest.json (нужен OPENAI_API_KEY); FORCE=1 — все
 make templates     # один раз: шаблоны экспорта 4.7.2 (1,28 ГБ) в ~/Library/Application Support/Godot/export_templates
@@ -154,9 +154,11 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 
 **План 16:** одиночных стен не ставить — дома `house_*` (корпус за фасадом); мелочь — `decor` (MultiMesh клетками 30 м, тун в меше); `visibility_range` меряется от позиции узла.
 
+**План 18:** камера `pitch` + `HeadLook` (голова за взглядом); настройки картинки — `GameSettings` в `user://settings.cfg`; текстуры пропсов — `SurfaceTextures` по имени меша в `WorldBuilder`; дорожки — `path` (подъём + бордюры с проёмами).
+
 ## Статус и что дальше
 
-- Планы 10 «Рельеф», 11 «Двор ×3», 12 «Парк ×3, вода», 13 «Порт», 14 «Опасности порта» и 15 «Рыбалка», 16 «Наполнение и логика мира» и 17 «Обучение и помощь» выполнены 2026-10-09/10 — этап 3 закрыт (спек `2026-10-09-snack-run-scale-terrain-design.md`). Дальше — по дорожной карте (отложенные мелочи, этап 4: случайные события, дворовые коты) или плейтест владельца; владелец: делать подряд, не ждать его оценки.
+- Планы 10 «Рельеф», 11 «Двор ×3», 12 «Парк ×3, вода», 13 «Порт», 14 «Опасности порта» и 15 «Рыбалка», 16 «Наполнение и логика мира», 17 «Обучение и помощь» и 18 «Хвосты и полировка» выполнены 2026-10-09/10 — этап 3 закрыт (спек `2026-10-09-snack-run-scale-terrain-design.md`). Дальше — по дорожной карте (отложенные мелочи, этап 4: случайные события, дворовые коты) или плейтест владельца; владелец: делать подряд, не ждать его оценки.
 - Планы 1–9 выполнены и слиты в `main`: фундамент, игровой цикл, хаб и прогрессия, полировка, визуальная полировка, текстуры крупных поверхностей, этап 2 (сутки, парк, опасности парка). Отложенные мелочи — в дорожной карте.
 - Отложено по просьбе владельца: текстуры пропсов («потом вернёмся к текстурам»).
 - Открытый вопрос владельцу: лицензия весов UniMate для сгенерированных движений (код MIT, для весов явной лицензии не найдено).
@@ -192,7 +194,7 @@ terrain:
 	python3 tools/terrain/terrain_gen.py
 
 test-godot: import
-	mkdir -p build
+	mkdir -p build && touch build/.gdignore
 	set -o pipefail; $(GODOT) --headless --path . -s addons/gut/gut_cmdln.gd -gconfig=res://.gutconfig.json 2>&1 | tee build/gut.log
 	@! grep -q "SCRIPT ERROR" build/gut.log || (echo "Ошибки скриптов в тестах, см. build/gut.log"; exit 1)
 	@! (grep -E "^ERROR:" build/gut.log | grep -v 'Parameter "material" is null' | grep -q .) || (echo "Ошибки движка в тестах (кроме известного шума dummy-рендерера), см. build/gut.log"; exit 1)
@@ -204,7 +206,7 @@ assets:
 	$(BLENDER) -b --python-exit-code 1 --python tools/blender/build.py -- $(ONLY)
 
 shot: import
-	mkdir -p build
+	mkdir -p build && touch build/.gdignore
 	$(GODOT) --path . --resolution 1280x720 res://scenes/main.tscn ++ $(if $(PHASE),--phase=$(PHASE),) $(if $(AT),--at=$(AT),) --screenshot=$(SHOT)
 
 run: import
@@ -226,7 +228,7 @@ templates:
 	ls -la "$(TEMPLATES_DIR)"
 
 export: import
-	mkdir -p build
+	mkdir -p build && touch build/.gdignore
 	$(GODOT) --headless --path . --export-release "macOS" build/SnackRun.zip
 	ls -la build/SnackRun.zip && unzip -l build/SnackRun.zip | head -5
 ```
@@ -495,7 +497,7 @@ script = ExtResource("1")
 
 [node name="Model" parent="." instance=ExtResource("2")]
 
-[node name="Rod" parent="Model" instance=ExtResource("3")]
+[node name="Rod" parent="." instance=ExtResource("3")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.25, 0, -0.15)
 
 [node name="Bucket" parent="." instance=ExtResource("4")]
@@ -1836,6 +1838,8 @@ const ACTIONS := {
 	"eat": [KEY_E],
 	"cam_left": [KEY_Q],
 	"cam_right": [KEY_R],
+	"cam_up": [KEY_T],
+	"cam_down": [KEY_G],
 	"album": [KEY_TAB],
 	"pause": [KEY_ESCAPE],
 }
@@ -1854,12 +1858,15 @@ const PAD_AXES := {
 	"run": [JOY_AXIS_TRIGGER_RIGHT, 1.0],
 	"cam_left": [JOY_AXIS_RIGHT_X, -1.0],
 	"cam_right": [JOY_AXIS_RIGHT_X, 1.0],
+	"cam_up": [JOY_AXIS_RIGHT_Y, -1.0],
+	"cam_down": [JOY_AXIS_RIGHT_Y, 1.0],
 }
 
 
 func _ready() -> void:
 	register()
 	KeyBindings.load_saved()   # переназначенные клавиши (план 17)
+	GameSettings.load_saved()   # размытие и частицы (план 18)
 
 
 static func register() -> void:
@@ -2036,6 +2043,70 @@ static func apply(model: Node, skin: CatSkin) -> int:
 	return count
 ```
 
+## `scripts/core/game_settings.gd`
+
+```gdscript
+class_name GameSettings
+extends RefCounted
+## Настройки картинки (план 18): размытие вдали и атмосферные частицы. Хранятся рядом с клавишами в user://settings.cfg.
+
+const BLUR_DISTANCE := 22.0
+const BLUR_TRANSITION := 18.0
+const BLUR_AMOUNT := 0.06
+
+static var path := "user://settings.cfg"
+static var blur := true
+static var particles := true
+
+
+static func reset() -> void:
+	blur = true
+	particles = true
+
+
+static func save() -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(path)   # клавиши лежат в том же файле — не затирать
+	cfg.set_value("video", "blur", blur)
+	cfg.set_value("video", "particles", particles)
+	cfg.save(path)
+
+
+static func load_saved() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(path) != OK:
+		return
+	var b = cfg.get_value("video", "blur", true)
+	var p = cfg.get_value("video", "particles", true)
+	blur = b if b is bool else true
+	particles = p if p is bool else true
+
+
+static func apply_camera(cam: Camera3D) -> void:
+	var a := cam.attributes as CameraAttributesPractical
+	if a == null:
+		a = CameraAttributesPractical.new()
+		cam.attributes = a
+	a.dof_blur_far_enabled = blur
+	a.dof_blur_far_distance = BLUR_DISTANCE
+	a.dof_blur_far_transition = BLUR_TRANSITION
+	a.dof_blur_amount = BLUR_AMOUNT
+
+
+static func set_blur(on: bool, tree: SceneTree) -> void:
+	blur = on
+	save()
+	for c in tree.get_nodes_in_group("game_camera"):
+		apply_camera(c as Camera3D)
+
+
+static func set_particles(on: bool, tree: SceneTree) -> void:
+	particles = on
+	save()
+	for n in tree.get_nodes_in_group("ambient_fx"):
+		n.call("refresh")
+```
+
 ## `scripts/core/key_bindings.gd`
 
 ```gdscript
@@ -2047,7 +2118,8 @@ extends RefCounted
 const REBINDABLE := [
 	["move_forward", "Вперёд"], ["move_back", "Назад"], ["move_left", "Влево"], ["move_right", "Вправо"],
 	["run", "Бежать"], ["jump", "Прыжок"], ["hide", "Спрятаться / выйти"], ["eat", "Съесть, магазин"],
-	["cam_left", "Камера влево"], ["cam_right", "Камера вправо"], ["album", "Альбом"], ["pause", "Пауза"],
+	["cam_left", "Камера влево"], ["cam_right", "Камера вправо"],
+	["cam_up", "Камера вверх"], ["cam_down", "Камера вниз"], ["album", "Альбом"], ["pause", "Пауза"],
 ]
 const NAMES := {KEY_SPACE: "Пробел", KEY_SHIFT: "Shift", KEY_CTRL: "Ctrl", KEY_TAB: "Tab", KEY_ESCAPE: "Esc",
 	KEY_LEFT: "←", KEY_RIGHT: "→", KEY_UP: "↑", KEY_DOWN: "↓", KEY_ENTER: "Enter", KEY_ALT: "Alt"}
@@ -3159,7 +3231,7 @@ func _physics_process(delta: float) -> void:
 			var d := to.normalized()
 			global_position += d * step
 			global_position.y = target.y
-			rotation.y = atan2(d.x, d.z)   # вилы (+Z модели) — по ходу
+			rotation.y = lerp_angle(rotation.y, atan2(d.x, d.z), 1.0 - exp(-4.0 * delta))   # вилы — по ходу, разворот плавный
 		return
 	var next := next_state(state, _t, _wait, night)
 	if next != state:
@@ -3366,8 +3438,8 @@ const DIVE_DIST := 6.0
 const COOLDOWN := 8.0
 
 
-static func decide(dist_h: float, has_food: bool, hidden: bool, safe: bool, cooldown: float, night: bool) -> bool:
-	return not night and not hidden and not safe and has_food and cooldown <= 0.0 and dist_h < DIVE_DIST
+static func decide(dist_h: float, has_food: bool, hidden: bool, safe: bool, cooldown: float, night: bool, drowning := false) -> bool:
+	return not night and not hidden and not safe and not drowning and has_food and cooldown <= 0.0 and dist_h < DIVE_DIST
 
 const HEIGHT := 4.0
 const RADIUS := 3.5
@@ -3443,7 +3515,7 @@ func _physics_process(delta: float) -> void:
 			_face(p - global_position)
 			global_position = p
 			if c and decide(Vector2(c.global_position.x - p.x, c.global_position.z - p.z).length(), not GameState.mouth.is_empty(),
-					bool(c.get("hidden")), bool(c.get("in_safe_zone")), cooldown_left, night):
+					bool(c.get("hidden")), bool(c.get("in_safe_zone")), cooldown_left, night, float(c.get("drowning_left")) > 0.0):
 				mode = &"warn"
 				_t = 0.0
 				_target = c.global_position
@@ -4254,6 +4326,10 @@ func _ready() -> void:
 	controls_menu.name = "ControlsMenu"
 	add_child(controls_menu)
 	pause_menu.controls_requested.connect(controls_menu.open)
+	var fx := AmbientFx.new()
+	fx.name = "AmbientFx"
+	fx.target = _cat
+	add_child(fx)
 	tutorial = Tutorial.new()
 	tutorial.name = "Tutorial"
 	tutorial.setup(self, _cat)
@@ -4444,6 +4520,9 @@ const SMOOTH := 8.0
 const HIDE_BELOW := 0.9
 const YAW_SPEED := 2.2
 const PITCH_DEG := -14.0
+const PITCH_MIN := -55.0   # сверху вниз — дальше камера «ныряет» за голову
+const PITCH_MAX := 8.0     # чуть снизу вверх — ниже пружина упирается в землю
+const PITCH_SPEED := 60.0  # град/с с клавиш и стика
 const SHOP_OFFSET := Vector3(1.4, 0.6, 1.4)   # витрина: камера спереди-сбоку кота
 const CROUCH_HEIGHT := 0.3
 const MOUSE_SENS := 0.004   # рад на пиксель
@@ -4455,6 +4534,7 @@ var shop_view := false
 var shop_view_point := Vector3.ZERO   # если use_shop_point, камера едет сюда, иначе target + SHOP_OFFSET
 var use_shop_point := false
 var _yaw := 0.0
+var pitch := PITCH_DEG   # наклон камеры (план 18): мышь, клавиши cam_up/cam_down, правый стик
 var shake_left := 0.0
 var _shake_amp := 0.05
 var _shake_time := 0.2
@@ -4462,6 +4542,9 @@ var _shake_time := 0.2
 
 
 func _ready() -> void:
+	var cam := _arm.get_node("Camera3D") as Camera3D
+	cam.add_to_group("game_camera")
+	GameSettings.apply_camera(cam)   # размытие вдали (план 18, настройка)
 	_arm.spring_length = DISTANCE
 	_arm.rotation_degrees.x = PITCH_DEG
 
@@ -4472,6 +4555,8 @@ func _physics_process(delta: float) -> void:
 	var axis := Input.get_axis("cam_left", "cam_right")
 	_yaw -= axis * YAW_SPEED * delta
 	rotation.y = _yaw
+	pitch = clamp_pitch(pitch + Input.get_axis("cam_down", "cam_up") * PITCH_SPEED * delta)
+	_arm.rotation_degrees.x = pitch
 	if shake_left > 0.0:
 		shake_left = maxf(shake_left - delta, 0.0)
 		var k := _shake_amp * (shake_left / _shake_time)
@@ -4496,6 +4581,7 @@ func _physics_process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		turn_by_pixels((event as InputEventMouseMotion).relative.x)
+		tilt_by_pixels((event as InputEventMouseMotion).relative.y)
 
 
 func shake(amplitude := 0.05, seconds := 0.2) -> void:
@@ -4507,6 +4593,16 @@ func shake(amplitude := 0.05, seconds := 0.2) -> void:
 
 func turn_by_pixels(dx: float) -> void:
 	_yaw -= dx * MOUSE_SENS
+
+
+static func clamp_pitch(p: float) -> float:
+	return clampf(p, PITCH_MIN, PITCH_MAX)
+
+
+func tilt_by_pixels(dy: float) -> void:
+	## Мышь вверх (dy < 0) — взгляд выше.
+	pitch = clamp_pitch(pitch - rad_to_deg(dy * MOUSE_SENS))
+	_arm.rotation_degrees.x = pitch
 
 
 func apply_arm_length(length: float) -> void:
@@ -4555,6 +4651,7 @@ var in_safe_zone := false   # внутри будки пряжи: удары н�
 var input_enabled := true   # false, пока открыт экран магазина
 var stunned_left := 0.0
 var invulnerable_left := 0.0
+var head_look: HeadLook   # голова за взглядом камеры (план 18)
 var drowning_left := 0.0   # кот тонет: потом возврат на берег (вода, план 12)
 var _shore := Vector3.ZERO
 var face := CatFace.new()   # выражения глаз, переключает меши eyes_* модели
@@ -4602,6 +4699,9 @@ func _ready() -> void:
 		var tw := TailWiggle.new()
 		tw.name = "TailWiggle"
 		skel.add_child(tw)
+		head_look = HeadLook.new()
+		head_look.name = "HeadLook"
+		skel.add_child(head_look)
 	if camera_rig:
 		(camera_rig.get_node("SpringArm3D") as SpringArm3D).add_excluded_object(get_rid())
 	play_clip(&"idle")
@@ -4663,7 +4763,20 @@ func _physics_process(delta: float) -> void:
 	_after_move(delta)
 
 
+func _update_head_look() -> void:
+	## Наклон камеры вверх — кот поднимает голову; в стоянии и шагом голова поворачивается к взгляду камеры.
+	if head_look == null or camera_rig == null:
+		return
+	var p: float = camera_rig.get("pitch")
+	head_look.target_pitch = deg_to_rad(p - CameraRig.PITCH_DEG) * 0.8
+	var look := -camera_rig.global_transform.basis.z
+	var face := -_model.global_transform.basis.z
+	var diff := wrapf(atan2(-look.x, -look.z) - atan2(-face.x, -face.z), -PI, PI)
+	head_look.target_yaw = diff if state in [&"idle", &"walk"] and absf(diff) < PI * 0.6 else 0.0
+
+
 func _after_move(delta: float) -> void:
+	_update_head_look()
 	## Приземление: сплющить и пыль; прыжок: вытянуться; бег: пыль каждые 0,25 с.
 	var on_floor := is_on_floor()
 	if on_floor and not was_on_floor:
@@ -5012,6 +5125,54 @@ static func pick_state(velocity: Vector3, on_floor: bool, running: bool, speed_m
 	return &"walk"
 ```
 
+## `scripts/player/head_look.gd`
+
+```gdscript
+class_name HeadLook
+extends SkeletonModifier3D
+## Голова кота смотрит туда же, куда камера (план 18): наклон (pitch) и поворот (yaw) кости головы поверх клипа,
+## плавно и в пределах шеи. Цели задаёт Cat по наклону камеры и её направлению.
+
+const MAX_PITCH := 0.45   # рад ≈ 26°
+const MAX_YAW := 0.6      # рад ≈ 34°
+
+@export var bone_name: StringName = &"head"
+var target_pitch := 0.0
+var target_yaw := 0.0
+var pitch := 0.0
+var yaw := 0.0
+var smooth := 6.0   # 0 — мгновенно (тесты)
+
+
+func _process(delta: float) -> void:
+	target_pitch = clampf(target_pitch, -MAX_PITCH, MAX_PITCH)
+	target_yaw = clampf(target_yaw, -MAX_YAW, MAX_YAW)
+	if smooth <= 0.0:
+		pitch = target_pitch
+		yaw = target_yaw
+	else:
+		var k := 1.0 - exp(-smooth * delta)
+		pitch = lerpf(pitch, target_pitch, k)
+		yaw = lerpf(yaw, target_yaw, k)
+
+
+func _process_modification() -> void:
+	var skel := get_skeleton()
+	if skel == null:
+		return
+	var i := skel.find_bone(bone_name)
+	if i < 0:
+		return
+	# Ось Y скелета кота идёт вдоль тела, верх — +Z скелета (грабли плана 5): наклон — вокруг локальной X кости,
+	# поворот — вокруг верха скелета, переведённого в пространство кости.
+	var rest := skel.get_bone_pose_rotation(i)
+	var parent := skel.get_bone_parent(i)
+	var parent_basis := skel.get_bone_global_pose(parent).basis if parent >= 0 else Basis.IDENTITY
+	var up_local := (parent_basis * Basis(rest)).inverse() * Vector3(0, 0, 1)
+	var q := rest * Quaternion(Vector3.RIGHT, pitch) * Quaternion(up_local.normalized(), -yaw)
+	skel.set_bone_pose_rotation(i, q)
+```
+
 ## `scripts/player/head_scaler.gd`
 
 ```gdscript
@@ -5266,7 +5427,7 @@ func _ready() -> void:
 	box.add_theme_constant_override("separation", 8)
 	margin.add_child(box)
 	var title := Label.new()
-	title.text = "Управление и помощь"
+	title.text = "Управление, помощь и настройки"
 	title.add_theme_font_size_override("font_size", 26)
 	box.add_child(title)
 	_help = Label.new()
@@ -5293,6 +5454,17 @@ func _ready() -> void:
 		b.pressed.connect(start_capture.bind(action))
 		grid.add_child(b)
 		_buttons[action] = b
+	var opts := HBoxContainer.new()   # план 18: настройки картинки
+	opts.add_theme_constant_override("separation", 24)
+	box.add_child(opts)
+	for spec in [["Blur", "Размытие вдали", GameSettings.blur, GameSettings.set_blur], ["Particles", "Пылинки и светлячки", GameSettings.particles, GameSettings.set_particles]]:
+		var cb := CheckButton.new()
+		cb.name = spec[0]
+		cb.text = spec[1]
+		cb.button_pressed = spec[2]
+		var setter: Callable = spec[3]
+		cb.toggled.connect(func(on: bool) -> void: setter.call(on, get_tree()))
+		opts.add_child(cb)
 	var bar := HBoxContainer.new()
 	bar.add_theme_constant_override("separation", 12)
 	box.add_child(bar)
@@ -5925,6 +6097,83 @@ func _physics_process(_delta: float) -> void:
 	_label.text = "Обучение %d/%d · %s%s · пропустить — в паузе" % [step + 1, STEPS.size(), _hint(), extra]
 ```
 
+## `scripts/visual/ambient_fx.gd`
+
+```gdscript
+class_name AmbientFx
+extends Node3D
+## Атмосфера вокруг кота (план 18): днём — пылинки в солнце, ночью — светлячки (светятся, ловит glow). Следует за целью.
+
+var target: Node3D
+var _night := false
+
+@onready var _motes := _make("Motes", Color(1, 0.98, 0.9, 0.7), 0.025, 40, 6.0, false)
+@onready var _flies := _make("Fireflies", Color("#FABE32"), 0.05, 24, 4.0, true)
+
+
+func _ready() -> void:
+	add_to_group("ambient_fx")
+	refresh()
+
+
+func _make(n: String, color: Color, size: float, amount: int, life: float, glow: bool) -> CPUParticles3D:
+	var p := CPUParticles3D.new()
+	p.name = n
+	p.amount = amount
+	p.lifetime = life
+	p.preprocess = life
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	p.emission_box_extents = Vector3(6, 1.5, 6)
+	p.position.y = 1.3
+	p.gravity = Vector3(0, 0.02, 0)
+	p.direction = Vector3(1, 0.3, 0)
+	p.spread = 180.0
+	p.initial_velocity_min = 0.05
+	p.initial_velocity_max = 0.25
+	p.local_coords = false
+	var mesh := SphereMesh.new()
+	mesh.radius = size
+	mesh.height = size * 2.0
+	mesh.radial_segments = 6
+	mesh.rings = 3
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.albedo_color = color
+	if glow:
+		m.emission_enabled = true
+		m.emission = color
+		m.emission_energy_multiplier = 3.0   # ярче порога glow — светлячки светятся
+	mesh.material = m
+	p.mesh = mesh
+	var fade := Gradient.new()
+	fade.set_color(0, Color(1, 1, 1, 0))
+	fade.add_point(0.2, Color(1, 1, 1, 1))
+	fade.add_point(0.8, Color(1, 1, 1, 1))
+	fade.set_color(fade.get_point_count() - 1, Color(1, 1, 1, 0))
+	p.color_ramp = fade
+	add_child(p)
+	return p
+
+
+func refresh() -> void:
+	if _motes == null:
+		return
+	_night = DayNight.is_night(get_tree())
+	var day_on := GameSettings.particles and not _night
+	var night_on := GameSettings.particles and _night
+	if _motes.emitting != day_on:
+		_motes.emitting = day_on
+	if _flies.emitting != night_on:
+		_flies.emitting = night_on
+
+
+func _process(_delta: float) -> void:
+	if target:
+		global_position = target.global_position
+	refresh()   # дёшево: emitting меняется только при смене фазы или настройки
+```
+
 ## `scripts/visual/effects.gd`
 
 ```gdscript
@@ -6154,18 +6403,19 @@ static func leaves(parent: Node, extents := Vector3(15, 1.5, 15)) -> CPUParticle
 class_name SurfaceTextures
 extends RefCounted
 ## Текстуры крупных поверхностей (спек 2.9, «гибрид»): асфальт, плитка тротуара, штукатурка стен.
-## Трипланарная проекция по мировым координатам — UV у мешей из Blender-скриптов нет, а плитка должна
+## План 18: и пропсы (скамейки, коробки, гаражи, крыши, настилы). Трипланарная проекция по мировым координатам — UV у мешей из Blender-скриптов нет, а плитка должна
 ## идти непрерывно через стыки модулей стены. Пропсы, еда и персонажи остаются плоскоцветными.
 
 const DIR := "res://assets/images/textures/"
 ## имя меша -> [файл текстуры, размер тайла в метрах]
 const TABLE := {
-	"ground": ["asphalt.png", 4.0],
-	"sidewalk": ["paving.png", 1.2],
-	"wall": ["stucco.png", 4.5],
-	"lawn": ["grass.png", 2.0],
-	"path": ["gravel.png", 0.8],
+	"wall": ["stucco.png", 4.5],   # пол районов — рельеф (план 10): ground/sidewalk/lawn/path убраны (план 18)
 	"retaining_wall": ["stone.png", 3.0],
+	# план 18: пропсы — дерево, картон, профнастил, черепица, доски
+	"bench": ["wood.png", 1.0], "bench_back": ["wood.png", 1.0], "cafe_table": ["wood.png", 0.8], "shed": ["wood.png", 1.5],
+	"box": ["cardboard.png", 0.6], "garage": ["metal.png", 1.6], "house_roof": ["roof_tiles.png", 1.6],
+	"boat_deck": ["planks.png", 1.5], "pontoon": ["planks.png", 1.2], "pontoon_plank1": ["planks.png", 1.2],
+	"pontoon_plank2": ["planks.png", 1.2], "pontoon_plank3": ["planks.png", 1.2],
 }
 
 
@@ -7076,6 +7326,8 @@ func _decor_mesh(model_name: String) -> Mesh:
 		for i in mesh.get_surface_count():
 			var mat := m3.get_surface_override_material(i)
 			if mat:
+				if mat is BaseMaterial3D:
+					(mat as BaseMaterial3D).cull_mode = BaseMaterial3D.CULL_DISABLED   # плоские травинки и листья видны с обеих сторон
 				mesh.surface_set_material(i, mat)   # тун-материалы — в сам меш: у MultiMesh нет поверхностных override
 	src.queue_free()
 	return mesh
@@ -7112,7 +7364,8 @@ func _build_floater(f: Dictionary) -> void:
 		shape.position = _v3(c.get("offset", [0, 0, 0]))
 		body.add_child(shape)
 	_add_at(_container("Floaters"), body, _v3(f["pos"]), float(f.get("rot", 0)))
-	Toon.apply(model, Toon.OUTLINE_NONE)
+	Toon.apply(model, Toon.OUTLINE_FOOD if f.get("outline", true) else Toon.OUTLINE_NONE)   # обводка у лодок и бочек (хвост плана 13)
+	SurfaceTextures.apply(model)
 
 
 func _build_water(w: Dictionary) -> void:
@@ -7163,6 +7416,7 @@ func _build_prop(p: Dictionary) -> void:
 	body.transform = props.global_transform.affine_inverse() * Transform3D(Basis(Vector3.UP, deg_to_rad(float(p.get("rot", 0)))), _place(p))
 	props.add_child(body)
 	Toon.apply(model, Toon.OUTLINE_FOOD if p.get("outline", false) else Toon.OUTLINE_NONE)
+	SurfaceTextures.apply(model)   # дерево, картон, металл, черепица (план 18)
 	if String(p["model"]) in SMALL_PROPS:
 		for mi in model.find_children("*", "MeshInstance3D", true, false):
 			(mi as MeshInstance3D).visibility_range_end = SMALL_RANGE
@@ -7412,6 +7666,94 @@ func _on_exit(body: Node3D) -> void:
 		cat_inside = false
 		body.set("in_safe_zone", false)
 		cat_exited.emit()
+```
+
+## `tests/integration/test_camera_pitch.gd`
+
+```gdscript
+extends GutTest
+## План 18: камера вверх-вниз (мышь, клавиши, правый стик) с ограничениями; голова кота следует за взглядом.
+
+const CatScene := preload("res://scenes/player/cat.tscn")
+const RigScene := preload("res://scenes/player/camera_rig.tscn")
+
+var cat
+var rig
+
+func before_each() -> void:
+	cat = CatScene.instantiate()
+	add_child_autofree(cat)
+	rig = RigScene.instantiate()
+	rig.target = cat
+	add_child_autofree(rig)
+	cat.camera_rig = rig
+	await wait_physics_frames(2)
+
+func test_pitch_is_clamped() -> void:
+	assert_eq(CameraRig.clamp_pitch(-90.0), CameraRig.PITCH_MIN, "не выше, чем сверху вниз")
+	assert_eq(CameraRig.clamp_pitch(60.0), CameraRig.PITCH_MAX, "не ниже, чем снизу вверх")
+	assert_lt(CameraRig.PITCH_MIN, CameraRig.PITCH_DEG)
+	assert_gt(CameraRig.PITCH_MAX, CameraRig.PITCH_DEG)
+
+func test_mouse_and_keys_tilt_camera() -> void:
+	var p0: float = rig.pitch
+	rig.tilt_by_pixels(-100.0)   # мышь вверх — смотреть выше
+	assert_gt(rig.pitch, p0)
+	rig.tilt_by_pixels(10000.0)
+	assert_eq(rig.pitch, CameraRig.PITCH_MIN, "мышь не перекручивает")
+	Input.action_press("cam_up")
+	await wait_physics_frames(20)
+	Input.action_release("cam_up")
+	assert_gt(rig.pitch, CameraRig.PITCH_MIN, "клавиша поднимает взгляд")
+	assert_almost_eq((rig.get_node("SpringArm3D") as SpringArm3D).rotation_degrees.x, rig.pitch, 0.01)
+
+func test_cat_head_follows_camera_pitch() -> void:
+	rig.pitch = CameraRig.PITCH_MAX
+	await wait_physics_frames(30)
+	assert_gt(cat.head_look.pitch, 0.1, "камера смотрит вверх — кот поднимает голову")
+	rig.pitch = CameraRig.PITCH_MIN
+	await wait_physics_frames(30)
+	assert_lt(cat.head_look.pitch, -0.1, "камера смотрит вниз — кот опускает голову")
+
+var _head_up := {}
+
+func test_head_look_actually_turns_head_bone() -> void:
+	var skel := cat.find_child("Skeleton3D", true, false) as Skeleton3D
+	var idx := skel.find_bone("head")
+	var hl = cat.head_look
+	skel.skeleton_updated.connect(func() -> void:
+		var b := skel.global_transform.basis * skel.get_bone_global_pose(idx).basis
+		_head_up[hl.pitch] = b.y.normalized().y)
+	hl.smooth = 0.0
+	hl.target_pitch = 0.0
+	hl.pitch = 0.0
+	await wait_process_frames(3)
+	hl.target_pitch = 0.4
+	hl.pitch = 0.4
+	await wait_process_frames(3)
+	assert_true(_head_up.has(0.0) and _head_up.has(0.4))
+	if _head_up.has(0.0) and _head_up.has(0.4):
+		assert_gt(_head_up[0.4], _head_up[0.0] + 0.05, "голова смотрит выше")
+
+var _head_dir := {}
+
+func test_head_yaw_turns_toward_camera_look() -> void:
+	# Камера смотрит левее морды — голова поворачивается туда же (угол в мире растёт вместе с yaw).
+	var skel := cat.find_child("Skeleton3D", true, false) as Skeleton3D
+	var idx := skel.find_bone("head")
+	var hl = cat.head_look
+	skel.skeleton_updated.connect(func() -> void:
+		var b := skel.global_transform.basis * skel.get_bone_global_pose(idx).basis
+		var d := b.y
+		_head_dir[hl.yaw] = atan2(-d.x, -d.z))
+	hl.smooth = 0.0
+	hl.target_yaw = 0.0
+	await wait_process_frames(3)
+	hl.target_yaw = 0.4
+	await wait_process_frames(3)
+	assert_true(_head_dir.has(0.0) and _head_dir.has(0.4))
+	if _head_dir.has(0.0) and _head_dir.has(0.4):
+		assert_gt(wrapf(_head_dir[0.4] - _head_dir[0.0], -PI, PI), 0.1, "голова повернулась в сторону взгляда")
 ```
 
 ## `tests/integration/test_cat_asset.gd`
@@ -8480,6 +8822,15 @@ func test_fish_leaves_with_fisher_at_night_and_he_returns_in_morning() -> void:
 	dn.set_time(10.0)
 	await wait_physics_frames(5)
 	assert_true(f.visible, "утром рыбак вернулся")
+
+func test_rod_stays_toward_water_when_fisher_turns() -> void:
+	# Хвост плана 15: удочка поворачивалась вместе с рыбаком к ведру.
+	var f := _fisher([0.2, 0.2])
+	var rod := f.find_child("Rod", true, false) as Node3D
+	var b0 := rod.global_transform.basis
+	await wait_seconds(3.5)
+	assert_eq(f.get("phase"), &"look")
+	assert_true(rod.global_transform.basis.is_equal_approx(b0), "удочка осталась над водой")
 ```
 
 ## `tests/integration/test_floater.gd`
@@ -8639,6 +8990,76 @@ func test_rare_food_sparkles_common_does_not() -> void:
 	if rare.find_child("Sparkles", false, false):
 		assert_eq((rare.find_child("Sparkles", false, false) as CPUParticles3D).color, Rarity.COLORS[Rarity.Tier.RARE])
 	assert_null(plain.find_child("Sparkles", false, false), "обычная — нет")
+```
+
+## `tests/integration/test_fx_settings.gd`
+
+```gdscript
+extends GutTest
+## План 18: размытие вдали (DoF) с настройкой, блики на воде, пылинки днём и светлячки ночью.
+
+const MainScene := preload("res://scenes/main.tscn")
+var main
+
+func before_each() -> void:
+	GameState.reset()
+	SaveGame.path = "user://test_save.json"
+	SaveGame.clear()
+	KeyBindings.path = "user://test_settings.cfg"
+	GameSettings.path = "user://test_settings.cfg"
+	GameSettings.reset()
+	main = MainScene.instantiate()
+	add_child_autofree(main)
+	await wait_physics_frames(3)
+
+func after_each() -> void:
+	GameSettings.reset()
+	GameSettings.path = "user://settings.cfg"
+	KeyBindings.path = "user://settings.cfg"
+	SaveGame.clear()
+
+func _camera() -> Camera3D:
+	return main.find_child("Camera3D", true, false) as Camera3D
+
+func test_far_blur_on_by_default_and_toggle_persists() -> void:
+	var attrs := _camera().attributes as CameraAttributesPractical
+	assert_not_null(attrs)
+	assert_true(attrs.dof_blur_far_enabled, "по умолчанию даль размыта")
+	assert_gt(attrs.dof_blur_far_distance, 15.0, "кот и ближний план — резкие")
+	main.toggle_pause()
+	main.controls_menu.open()
+	var cb := main.controls_menu.find_child("Blur", true, false) as CheckButton
+	assert_not_null(cb, "переключатель в «Управлении и настройках»")
+	cb.button_pressed = false
+	assert_false(attrs.dof_blur_far_enabled)
+	assert_true(GameSettings.particles, "переключатель размытия не трогает частицы")
+	GameSettings.load_saved()
+	assert_false(GameSettings.blur, "сохранилось")
+	main.controls_menu.close()
+	main.toggle_pause()
+
+func test_main_has_ambient_fx() -> void:
+	assert_not_null(main.find_child("AmbientFx", true, false))
+
+func test_ambient_particles_by_phase_and_setting() -> void:
+	var dn = get_tree().get_first_node_in_group("day_night")   # фаза суток — та, что видит игра (узел Main)
+	dn.set("time_scale", 0.0)
+	dn.set_time(10.0)
+	var fx := AmbientFx.new()
+	add_child_autofree(fx)
+	await wait_process_frames(3)
+	assert_true((fx.get_node("Motes") as CPUParticles3D).emitting, "днём пылинки")
+	assert_false((fx.get_node("Fireflies") as CPUParticles3D).emitting)
+	dn.set_time(220.0)
+	await wait_process_frames(3)
+	assert_true((fx.get_node("Fireflies") as CPUParticles3D).emitting, "ночью светлячки")
+	GameSettings.set_particles(false, get_tree())
+	await wait_process_frames(2)
+	assert_false((fx.get_node("Fireflies") as CPUParticles3D).emitting, "частицы выключаются настройкой")
+
+func test_water_has_sparkles() -> void:
+	var shader := load("res://assets/shaders/water.gdshader") as Shader
+	assert_true(shader.code.contains("sparkle"), "блики на воде")
 ```
 
 ## `tests/integration/test_gate.gd`
@@ -10349,6 +10770,22 @@ func test_gull_does_not_strike_cat_who_lost_food() -> void:
 	GameState.spill()   # за секунду предупреждения еда пропала (съел, отняли)
 	await wait_seconds(1.8)
 	assert_eq(GameState.hearts, 3, "красть нечего — не бьёт")
+
+func test_gull_ignores_drowning_cat() -> void:
+	# Хвост плана 14: чайка пикировала к тонущему коту.
+	assert_false(Gull.decide(3.0, true, false, false, 0.0, false, true), "кот тонет — не пикирует")
+
+func test_forklift_turns_smoothly_at_route_end() -> void:
+	_floor()
+	var f := _forklift([[0, -2], [0, 2]])
+	await wait_seconds(3.6)   # доехал до конца, ждёт
+	var r0: float = f.rotation.y
+	for i in 300:   # ждём старта обратно
+		if f.get("state") == &"drive":
+			break
+		await wait_physics_frames(1)
+	await wait_physics_frames(2)
+	assert_lt(absf(wrapf(f.rotation.y - r0, -PI, PI)), 1.0, "в первые кадры разворот только начался")
 ```
 
 ## `tests/integration/test_shop_menu.gd`
@@ -10567,7 +11004,7 @@ func test_windows_props_and_puddles_stay_flat() -> void:
 	var main := (load(MAIN_SCENE) as PackedScene).instantiate()
 	add_child_autofree(main)
 	await wait_process_frames(2)
-	for name in ["wall_frame0", "wall_glass0", "bin", "puddle", "box"]:
+	for name in ["wall_frame0", "wall_glass0", "bin", "puddle"]:   # коробка с планом 18 — картон
 		for mi in _meshes_named(main, name):
 			for i in (mi as MeshInstance3D).mesh.get_surface_count():
 				var m := (mi as MeshInstance3D).get_surface_override_material(i) as StandardMaterial3D
@@ -10585,6 +11022,27 @@ func test_missing_texture_file_is_not_an_error() -> void:
 	Toon.apply(root, Toon.OUTLINE_NONE)
 	assert_eq(SurfaceTextures.apply(root), 0, "незнакомые меши не трогаются")
 	assert_eq(SurfaceTextures.texture_or_null("res://assets/images/textures/none.png"), null)
+
+func test_props_get_material_textures() -> void:
+	# План 18: дерево у скамеек и столов, картон у коробок, профнастил у гаражей, черепица на крышах, доски у лодок и понтонов.
+	var expected := {"bench": "wood", "cafe_table": "wood", "box": "cardboard", "garage": "metal", "house_roof": "roof_tiles",
+		"shed": "wood", "boat_deck": "planks", "pontoon": "planks"}
+	var b := WorldBuilder.new()
+	add_child_autofree(b)
+	b.build({"props": [{"model": "bench", "pos": [0, 0, 0]}, {"model": "cafe_table", "pos": [3, 0, 0]}, {"model": "box", "pos": [6, 0, 0]},
+		{"model": "garage", "pos": [10, 0, 0]}, {"model": "house_a", "pos": [20, 0, 0]}, {"model": "shed", "pos": [30, 0, 0]},
+		{"model": "pontoon", "pos": [34, 0, 0]}], "floaters": [{"model": "boat", "pos": [40, 0, 0]}]})
+	for name in expected:
+		var found: Array = _meshes_named(b, name)
+		assert_gt(found.size(), 0, "есть меш %s" % name)
+		for mi in found:
+			var m := _mat(mi)
+			assert_not_null(m.albedo_texture if m else null, "%s с текстурой" % name)
+			if m and m.albedo_texture:
+				assert_eq(m.albedo_texture.resource_path, "res://assets/images/textures/%s.png" % expected[name])
+	for flat in ["car", "car_cabin"]:
+		for mi in _meshes_named(b, flat):
+			assert_null(_mat(mi).albedo_texture, "%s остаётся гладким" % flat)
 ```
 
 ## `tests/integration/test_terrain.gd`
@@ -11496,6 +11954,14 @@ func test_decor_uses_toon_materials() -> void:
 	assert_not_null(mat)
 	if mat:
 		assert_eq(mat.diffuse_mode, BaseMaterial3D.DIFFUSE_TOON, "украшения в тун-свете, как весь мир")
+
+func test_decor_grass_is_two_sided() -> void:
+	# План 18: травинки — плоские полосы; с обратной стороны их не должно быть «не видно».
+	var b = _builder()
+	b.build({"decor": [{"model": "decor_grass", "pos": [1, 0, 1]}]})
+	var mm := (b.find_children("*", "MultiMeshInstance3D", true, false)[0] as MultiMeshInstance3D).multimesh
+	for i in mm.mesh.get_surface_count():
+		assert_eq((mm.mesh.surface_get_material(i) as BaseMaterial3D).cull_mode, BaseMaterial3D.CULL_DISABLED)
 ```
 
 ## `tests/integration/test_world_logic.gd`
@@ -12942,6 +13408,85 @@ if __name__ == "__main__":
 	main()
 ```
 
+## `tools/blender/car_kit.py`
+
+```python
+"""Машина (план 18): кузов с капотом и багажником, сужающаяся кабина со стёклами и стойками, колёса с дисками, фары,
+фонари, бамперы, зеркала. Габарит 1,7×3,6×1,4 м, клиренс 0,3 м (под машиной укрытие), перёд — +Y Blender."""
+import math
+
+import bmesh
+import bpy
+
+import lib
+
+
+def cabin(name, w0, l0, w1, l1, h, color):
+	"""Кабина-трапеция: низ w0×l0, верх w1×l1 (сдвинут назад), высота h. Крыша — цвет кузова, остальные грани — стекло."""
+	import palette
+	bm = bmesh.new()
+	lo = [(-w0 / 2, -l0 / 2, 0), (w0 / 2, -l0 / 2, 0), (w0 / 2, l0 / 2, 0), (-w0 / 2, l0 / 2, 0)]
+	hi = [(-w1 / 2, -l1 / 2 - 0.1, h), (w1 / 2, -l1 / 2 - 0.1, h), (w1 / 2, l1 / 2 - 0.1, h), (-w1 / 2, l1 / 2 - 0.1, h)]
+	v = [bm.verts.new(c) for c in lo + hi]
+	faces = [((0, 3, 2, 1), 0), ((4, 5, 6, 7), 0), ((0, 1, 5, 4), 1), ((1, 2, 6, 5), 1), ((2, 3, 7, 6), 1), ((3, 0, 4, 7), 1)]
+	for idx, mat in faces:
+		f = bm.faces.new([v[i] for i in idx])
+		f.material_index = mat
+	bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+	mesh = bpy.data.meshes.new(name)
+	bm.to_mesh(mesh)
+	bm.free()
+	mesh.materials.append(palette.get_material(color))
+	mesh.materials.append(palette.get_material("sky"))
+	obj = bpy.data.objects.new(name, mesh)
+	bpy.context.scene.collection.objects.link(obj)
+	# стойки по рёбрам кабины — цвет кузова
+	posts = [obj]
+	for i in range(4):
+		a, b = lo[i], hi[i]
+		mid = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, h / 2)
+		d = (b[0] - a[0], b[1] - a[1], b[2] - a[2])
+		length = (d[0] ** 2 + d[1] ** 2 + d[2] ** 2) ** 0.5
+		post = lib.rounded_box(f"{name}_post{i}", (0.07, 0.07, length), bevel=0.0, segments=1, material=color)
+		post.rotation_euler = (math.atan2(-d[1], d[2]), math.atan2(d[0], (d[1] ** 2 + d[2] ** 2) ** 0.5), 0)
+		post.location = mid
+		posts.append(post)
+	return posts
+
+
+def car(color):
+	body = lib.rounded_box("car", (1.7, 3.6, 0.5), bevel=0.12, segments=3, material=color)
+	body.location.z = 0.58
+	parts = [body]
+	for o in cabin("car_cabin", 1.55, 1.9, 1.3, 1.2, 0.5, color):
+		o.location = (o.location[0], o.location[1] - 0.15, o.location[2] + 0.82)
+		parts.append(o)
+	for i, (x, y) in enumerate(((-0.82, 1.15), (0.82, 1.15), (-0.82, -1.15), (0.82, -1.15))):
+		tire = lib.cylinder(f"car_wheel{i}", radius=0.32, depth=0.24, segments=14, material="ink")
+		tire.rotation_euler = (0, math.pi / 2, 0)
+		tire.location = (x, y, 0.32)
+		hub = lib.cylinder(f"car_hub{i}", radius=0.15, depth=0.26, segments=10, material="cream")
+		hub.rotation_euler = (0, math.pi / 2, 0)
+		hub.location = (x, y, 0.32)
+		parts += [tire, hub]
+	for i, x in enumerate((-0.55, 0.55)):
+		hl = lib.sphere(f"car_light{i}", 0.12, material="cream", segments=8, rings=6)
+		hl.scale = (1.0, 0.4, 0.7)
+		hl.location = (x, 1.79, 0.65)
+		tl = lib.rounded_box(f"car_tail{i}", (0.3, 0.05, 0.12), bevel=0.02, segments=1, material="coral")
+		tl.location = (x, -1.81, 0.68)
+		parts += [hl, tl]
+	for i, y in enumerate((1.83, -1.83)):
+		b = lib.rounded_box(f"car_bumper{i}", (1.74, 0.12, 0.16), bevel=0.05, segments=2, material="asphalt")
+		b.location = (0, y, 0.42)
+		parts.append(b)
+	for i, x in enumerate((-0.84, 0.84)):
+		m = lib.rounded_box(f"car_mirror{i}", (0.14, 0.08, 0.1), bevel=0.02, segments=1, material=color)
+		m.location = (x, 0.55, 0.98)
+		parts.append(m)
+	return lib.group(parts)
+```
+
 ## `tools/blender/cat.py`
 
 ```python
@@ -13692,7 +14237,10 @@ def export_glb(path: str, objects, animations: bool = False) -> None:
 
 ```python
 """Листва (план 16): пышный куст из комковатых шапок — общий для bush и bush_flowers."""
+import bpy
+
 import lib
+import palette
 
 BUSH_LUMPS = ((0.0, 0.0, 0.42, 0.4), (0.38, 0.12, 0.32, 0.3), (-0.34, -0.16, 0.3, 0.3), (0.1, -0.38, 0.3, 0.28),
 	(-0.12, 0.36, 0.33, 0.28), (0.18, 0.05, 0.68, 0.24))
@@ -13705,6 +14253,47 @@ def bush(name):
 		c.location = (x, y, z)
 		parts.append(c)
 	return parts
+
+
+def grass_blades(name, count=11, seed=7, height=0.28):
+	"""Пучок травы (план 18): плоские изогнутые травинки, растут из кольца и расходятся наружу — не конусы к центру.
+	Двусторонние (материал без отсечения граней), два оттенка."""
+	import math
+	import random
+	import bmesh
+	rnd = random.Random(seed)
+	bm = bmesh.new()
+	mats = []
+	for i in range(count):
+		a = i * 2 * math.pi / count + rnd.uniform(-0.25, 0.25)
+		h = height * rnd.uniform(0.65, 1.15)
+		lean = rnd.uniform(0.35, 0.75)       # насколько наклонена наружу
+		r0 = rnd.uniform(0.0, 0.05)
+		w = rnd.uniform(0.022, 0.032)
+		dx, dy = math.cos(a), math.sin(a)
+		px, py = -dy, dx                      # поперёк травинки
+		ring = []
+		segs = 3
+		for k in range(segs + 1):
+			t = k / segs
+			out = r0 + lean * h * t * t       # изгиб: чем выше, тем сильнее наружу
+			z = h * t
+			half = w * (1.0 - t * 0.85)
+			cx, cy = dx * out, dy * out
+			ring.append((bm.verts.new((cx - px * half, cy - py * half, z)), bm.verts.new((cx + px * half, cy + py * half, z))))
+		for k in range(segs):
+			f = bm.faces.new((ring[k][0], ring[k][1], ring[k + 1][1], ring[k + 1][0]))
+			f.material_index = i % 2
+	mesh = bpy.data.meshes.new(name)
+	bm.to_mesh(mesh)
+	bm.free()
+	for key in ("leaf", "olive"):
+		m = palette.get_material(key)
+		m.use_backface_culling = False
+		mesh.materials.append(m)
+	obj = bpy.data.objects.new(name, mesh)
+	bpy.context.scene.collection.objects.link(obj)
+	return obj
 ```
 
 ## `tools/blender/gen/__init__.py`
@@ -14030,26 +14619,40 @@ def build():
 ## `tools/blender/gen/car.py`
 
 ```python
-"""Припаркованная машина 3,6×1,7×1,4 м, клиренс 0,3 м (под ней укрытие)."""
-import lib
+"""Машина (план 18): car_kit.car, цвет brick."""
+import car_kit
 
-SPEC = {"max_tris": 1500, "max_dim": 3.7}
+SPEC = {"max_tris": 1500, "max_dim": 3.8}
 
 
 def build():
-	body = lib.rounded_box("car", (1.7, 3.6, 0.5), bevel=0.08, segments=3, material="brick")
-	body.location.z = 0.55
-	cabin = lib.rounded_box("car_cabin", (1.5, 1.9, 0.55), bevel=0.12, segments=3, material="brick")
-	cabin.location = (0, -0.2, 1.07)
-	glass = lib.rounded_box("car_glass", (1.52, 1.5, 0.35), bevel=0.05, material="sky")
-	glass.location = (0, -0.2, 1.1)
-	parts = [body, cabin, glass]
-	for i, (x, y) in enumerate(((-0.8, 1.1), (0.8, 1.1), (-0.8, -1.1), (0.8, -1.1))):
-		wheel = lib.cylinder(f"car_wheel{i}", radius=0.32, depth=0.22, material="ink", segments=14)
-		wheel.rotation_euler = (0, 1.5708, 0)
-		wheel.location = (x, y, 0.32)
-		parts.append(wheel)
-	return lib.group(parts)
+	return car_kit.car("brick")
+```
+
+## `tools/blender/gen/car_blue.py`
+
+```python
+"""Машина (план 18): car_kit.car, цвет sea_deep."""
+import car_kit
+
+SPEC = {"max_tris": 1500, "max_dim": 3.8}
+
+
+def build():
+	return car_kit.car("sea_deep")
+```
+
+## `tools/blender/gen/car_yellow.py`
+
+```python
+"""Машина (план 18): car_kit.car, цвет rarity_legendary."""
+import car_kit
+
+SPEC = {"max_tris": 1500, "max_dim": 3.8}
+
+
+def build():
+	return car_kit.car("rarity_legendary")
 ```
 
 ## `tools/blender/gen/cat.py`
@@ -14098,6 +14701,21 @@ SPEC = {"max_tris": 1500, "max_dim": 0.45, "animations": True}
 
 def build():
 	return crab.build()
+```
+
+## `tools/blender/gen/curb.py`
+
+```python
+"""Бордюр дорожки (план 18): светлый камень 2,0×0,12×0,1 м. Без коллизии (solid: false)."""
+import lib
+
+SPEC = {"max_tris": 200, "max_dim": 2.05}
+
+
+def build():
+	c = lib.rounded_box("curb", (2.0, 0.12, 0.1), bevel=0.02, segments=1, material="cream")
+	c.location.z = 0.05
+	return lib.group([c])
 ```
 
 ## `tools/blender/gen/cyclist.py`
@@ -14192,23 +14810,14 @@ def build():
 ## `tools/blender/gen/decor_grass.py`
 
 ```python
-"""Густой пучок травы (украшение, план 16): восемь наклонённых травинок двух оттенков; один меш."""
-import math
+"""Пучок травы (украшение, план 18): плоские изогнутые травинки, расходятся наружу; один меш (foliage.grass_blades)."""
+import foliage
 
-import lib
-
-SPEC = {"max_tris": 200, "max_dim": 0.35}
+SPEC = {"max_tris": 200, "max_dim": 0.6}
 
 
 def build():
-	parts = []
-	for i in range(8):
-		a = i * 2 * math.pi / 8
-		c = lib.cone(f"g{i}", radius=0.018, depth=0.18 + 0.06 * (i % 3), segments=4, material="leaf" if i % 2 else "olive", smooth=False)
-		c.location = (math.cos(a) * 0.05, math.sin(a) * 0.05, 0.1)
-		c.rotation_euler = (math.sin(a) * 0.4, -math.cos(a) * 0.4, 0.0)
-		parts.append(c)
-	return [lib.join("decor_grass", parts)]
+	return [foliage.grass_blades("decor_grass")]
 ```
 
 ## `tools/blender/gen/decor_leaves.py`
@@ -14236,19 +14845,73 @@ def build():
 ## `tools/blender/gen/decor_litter.py`
 
 ```python
-"""Мусор двора (украшение, план 16): смятая бумажка и банка на боку; один меш."""
+"""Мусор (украшение, план 18): смятая бумажка и банка с полосой на боку; один меш."""
 import lib
 
-SPEC = {"max_tris": 200, "max_dim": 0.3}
+SPEC = {"max_tris": 300, "max_dim": 0.3}
 
 
 def build():
-	paper = lib.lumpy("p", 0.04, material="cream", seed=71, segments=6, rings=4)
-	paper.location.z = 0.035
-	can = lib.cylinder("c", radius=0.03, depth=0.11, segments=8, material="sky", smooth=False)
-	can.rotation_euler.x = 1.5708
-	can.location = (0.12, 0.03, 0.03)
-	return [lib.join("decor_litter", [paper, can])]
+	paper = lib.lumpy("p", 0.045, material="cream", seed=71, segments=7, rings=5)
+	paper.location.z = 0.04
+	can = lib.cylinder("c", radius=0.032, depth=0.11, segments=10, material="sky", smooth=False)
+	can.rotation_euler = (1.5708, 0, 0.6)
+	can.location = (0.13, 0.04, 0.032)
+	band = lib.cylinder("b", radius=0.034, depth=0.04, segments=10, material="brick", smooth=False)
+	band.rotation_euler = (1.5708, 0, 0.6)
+	band.location = (0.13, 0.04, 0.032)
+	return [lib.join("decor_litter", [paper, can, band])]
+```
+
+## `tools/blender/gen/decor_litter2.py`
+
+```python
+"""Мусор (украшение, план 18): пакет от чипсов и пластиковая бутылка с крышкой; один меш."""
+import lib
+
+SPEC = {"max_tris": 300, "max_dim": 0.45}
+
+
+def build():
+	bag = lib.rounded_box("bag", (0.14, 0.2, 0.03), bevel=0.012, segments=2, material="coral")
+	bag.rotation_euler.z = 0.4
+	bag.location.z = 0.016
+	stripe = lib.rounded_box("st", (0.145, 0.05, 0.032), bevel=0.01, segments=1, material="rarity_legendary")
+	stripe.rotation_euler.z = 0.4
+	stripe.location.z = 0.017
+	bottle = lib.cylinder("bt", radius=0.035, depth=0.2, segments=10, material="sea_light", smooth=False)
+	bottle.rotation_euler = (1.5708, 0, -0.9)
+	bottle.location = (-0.15, 0.08, 0.035)
+	cap = lib.cylinder("cp", radius=0.02, depth=0.03, segments=8, material="leaf", smooth=False)
+	cap.rotation_euler = (1.5708, 0, -0.9)
+	cap.location = (-0.23, 0.15, 0.035)
+	return [lib.join("decor_litter2", [bag, stripe, bottle, cap])]
+```
+
+## `tools/blender/gen/decor_litter3.py`
+
+```python
+"""Мусор (украшение, план 18): газета с колонками текста и смятый стаканчик; один меш."""
+import lib
+
+SPEC = {"max_tris": 300, "max_dim": 0.45}
+
+
+def build():
+	paper = lib.rounded_box("np", (0.22, 0.3, 0.008), bevel=0.0, segments=1, material="cream")
+	paper.location.z = 0.005
+	paper.rotation_euler.z = 0.3
+	parts = [paper]
+	for i in range(3):
+		l = lib.rounded_box(f"ln{i}", (0.012, 0.2, 0.002), bevel=0.0, segments=1, material="ink")
+		l.rotation_euler.z = 0.3
+		l.location = (-0.06 + i * 0.06 - 0.02 * i, 0.01 * i, 0.01)
+		parts.append(l)
+	cup = lib.cone("cup", radius=0.04, depth=0.09, segments=9, material="coral", smooth=False)
+	cup.rotation_euler = (1.4, 0, 1.2)
+	cup.location = (0.16, -0.08, 0.04)
+	parts.append(cup)
+	return [lib.join("decor_litter3", parts)]
 ```
 
 ## `tools/blender/gen/decor_reeds.py`
@@ -14957,40 +15620,14 @@ def build():
 ## `tools/blender/gen/grass.py`
 
 ```python
-"""Пучок травы: пять узких конусов, чуть наклонённых в стороны. Без коллизии (solid: false в раскладке)."""
-import math
+"""Пучок травы (пропс, план 18): те же травинки, что у украшения, чуть выше. Без коллизии (solid: false в раскладке)."""
+import foliage
 
-import lib
-
-SPEC = {"max_tris": 120, "max_dim": 0.3}
+SPEC = {"max_tris": 200, "max_dim": 0.7}
 
 
 def build():
-	parts = []
-	for i in range(5):
-		a = i * 2 * math.pi / 5
-		c = lib.cone("grass" if i == 0 else f"grass_{i}", radius=0.02, depth=0.22, segments=5, material="leaf" if i % 2 else "olive")
-		c.location = (math.cos(a) * 0.04, math.sin(a) * 0.04, 0.11)
-		c.rotation_euler = (math.sin(a) * 0.35, -math.cos(a) * 0.35, 0.0)
-		parts.append(c)
-	return lib.group(parts)
-```
-
-## `tools/blender/gen/ground.py`
-
-```python
-"""Земля двора 60×60 м: асфальт с песочной площадкой тротуара."""
-import lib
-
-SPEC = {"max_tris": 200, "max_dim": 60.0}
-
-
-def build():
-	asphalt = lib.rounded_box("ground", (60, 60, 0.1), bevel=0.0, material="asphalt")
-	asphalt.location.z = -0.05
-	walk = lib.rounded_box("sidewalk", (30, 30, 0.12), bevel=0.03, segments=2, material="sand")
-	walk.location = (-10, 10, -0.055)   # верх на +5 мм: без z-fighting с асфальтом, кот стоит на коллизии пола y=0
-	return [asphalt, walk]
+	return [foliage.grass_blades("grass", count=13, seed=3, height=0.34)]
 ```
 
 ## `tools/blender/gen/guard.py`
@@ -15174,35 +15811,6 @@ def build():
 	head = lib.rounded_box("lamp_head", (0.3, 0.3, 0.2), bevel=0.04, material="rarity_legendary")
 	head.location.z = 2.5
 	return lib.group([post, base, head])
-```
-
-## `tools/blender/gen/park_ground.py`
-
-```python
-"""Пол парка 30×32 м: газон (меш lawn) и гравийные дорожки (меш path). Текстуры — SurfaceTextures по именам.
-Центр модели — центр парка; в раскладке ставится в (0, 0, 45). +Y Blender = −Z Godot (к кафе)."""
-import lib
-
-SPEC = {"max_tris": 400, "max_dim": 32.5}
-
-
-def build():
-	lawn = lib.rounded_box("lawn", (30, 32, 0.1), bevel=0.0, material="leaf")
-	lawn.location.z = -0.044   # верх на +6 мм: над асфальтом двора там, где они перекрываются
-	# Дорожки: крест через фонтан и отвод к воротам (x 12, южный край). Верх на +12 мм.
-	pieces = []
-	for name, size, loc in (
-		("p_ns", (2.2, 32, 0.1), (0, 0)),
-		("p_ew", (30, 2.2, 0.1), (0, 0)),
-		("p_gate", (2.2, 9, 0.1), (12, 11.5)),      # от ворот (Godot z 30) на север до z 39
-		("p_gate2", (12, 2.2, 0.1), (6, 7)),       # к центральной дорожке (Godot z 38)
-		("p_play", (8, 2.2, 0.1), (-8, 3)),        # к площадке (Godot z 42)
-	):
-		b = lib.rounded_box(name, size, bevel=0.0, material="sand")
-		b.location = (loc[0], loc[1], -0.038)
-		pieces.append(b)
-	path = lib.join("path", pieces)
-	return [lawn, path]
 ```
 
 ## `tools/blender/gen/pigeon.py`
@@ -16910,6 +17518,26 @@ class TestDecor(unittest.TestCase):
 			objs = _build(name)
 			self.assertEqual(len(objs), 1, name)
 			self.assertEqual(objs[0].type, "MESH")
+
+
+class TestPolish18(unittest.TestCase):
+	def test_grass_blades_spread_outward(self):
+		# План 18: травинки расходятся наружу (кончики дальше от центра, чем основания), не «костёр».
+		objs = _build("decor_grass")
+		mesh = objs[0].data
+		zs = [v.co.z for v in mesh.vertices]
+		top = max(zs)
+		low = [math.hypot(v.co.x, v.co.y) for v in mesh.vertices if v.co.z < top * 0.15]
+		high = [math.hypot(v.co.x, v.co.y) for v in mesh.vertices if v.co.z > top * 0.6]
+		self.assertGreater(sum(high) / len(high), sum(low) / len(low) + 0.04)
+		self.assertLess(min(v.co.z for v in mesh.vertices), 0.01)
+
+	def test_car_has_glass_cabin_and_wheels(self):
+		objs = _build("car_blue")
+		names = [o.name for o in objs]
+		self.assertEqual(sum(1 for n in names if n.startswith("car_wheel")), 4)
+		cab = next(o for o in objs if o.name == "car_cabin")
+		self.assertIn("sr_sky", [m.name for m in cab.data.materials], "стёкла — грани кабины")
 ```
 
 ## `tools/replay/build_files_md.py`
@@ -18315,6 +18943,9 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
 - Отложено из ревью плана 16: деревья у дверей верхнего двора; плющ над окном дома без двери.
 - План 17 — ВЫПОЛНЕН 2026-10-10 (`2026-10-10-snack-run-17-tutorial.md`). Обучение и помощь: короткое обучение в начале (подсказки по шагам: ходить, бежать, прыгать, прятаться, есть,
   магазин), экран помощи и настройки с просмотром и переназначением клавиш управления (сохраняются).
+- План 18. Хвосты и полировка (`2026-10-10-snack-run-18-polish.md`) — ВЫПОЛНЕН 2026-10-10: камера вверх-вниз и голова кота за
+  взглядом, трава из травинок, машины и мусор, размытие вдали и частицы с настройками, блики на воде, текстуры пропсов,
+  дорожки с бордюрами, хвосты ревью планов 4, 10, 13–16.
 ```
 
 ## `docs/superpowers/notes/2026-10-07-unimate-attempt.md`
@@ -18934,6 +19565,30 @@ if __name__ == "__main__":
       "note": "иконка golden_fish",
       "background": "transparent",
       "prompt": "Game icon of a shiny golden cartoon fish (#FABE32) with sparkles and a cute eye, centered, transparent background"
+    },
+    {
+      "file": "assets/images/textures/wood.png",
+      "note": "бесшовное дерево скамеек и столов",
+      "prompt": "Seamless tileable texture of stylized cartoon painted wood boards seen straight on, warm sand (#D3AB87) and cream (#FCD3A1) grain with soft brick-brown (#BD4045) knots, a few thin graphite (#394151) seams, flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly on all four sides, no text",
+      "model": "gpt-image-2.5-sunburst"
+    },
+    {
+      "file": "assets/images/textures/cardboard.png",
+      "note": "бесшовный картон коробок",
+      "prompt": "Seamless tileable texture of stylized cartoon corrugated cardboard, sand (#D3AB87) with lighter cream (#FCD3A1) flutes and a faint packing tape strip, flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly on all four sides, no text",
+      "model": "gpt-image-2.5-sunburst"
+    },
+    {
+      "file": "assets/images/textures/metal.png",
+      "note": "бесшовный профнастил гаражей",
+      "prompt": "Seamless tileable texture of stylized cartoon corrugated metal sheet with vertical ribs, olive (#A9B087) paint with lighter highlights and a few small rust spots in brick (#BD4045), flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly on all four sides, no text",
+      "model": "gpt-image-2.5-sunburst"
+    },
+    {
+      "file": "assets/images/textures/roof_tiles.png",
+      "note": "бесшовная черепица крыш",
+      "prompt": "Seamless tileable texture of stylized cartoon clay roof tiles in overlapping rows, brick red (#BD4045) with coral (#F57485) highlights and thin graphite (#394151) gaps, flat even lighting, no shadows, no perspective, hand-painted game texture, edges wrap seamlessly on all four sides, no text",
+      "model": "gpt-image-2.5-sunburst"
     }
   ]
 }
@@ -19137,6 +19792,7 @@ render_mode diffuse_toon, specular_toon, cull_disabled;
 uniform vec4 tint : source_color = vec4(0.184, 0.612, 0.812, 1.0);
 uniform vec4 deep : source_color = vec4(0.114, 0.498, 0.769, 1.0);
 uniform float ripple = 0.08;
+uniform float sparkle = 0.9;   // блики солнца на ряби (план 18)
 
 varying vec3 wpos;
 
@@ -19151,6 +19807,11 @@ void fragment() {
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
 	float f = 0.5 + 0.25 * (a + b) * 0.25;
 	ALBEDO = mix(deep.rgb, tint.rgb, clamp(f, 0.0, 1.0));
+	// блики: редкие яркие точки на гребнях ряби, мерцают со временем (ловит glow окружения)
+	float s1 = sin(wpos.x * 7.3 + TIME * 2.1) * sin(wpos.z * 6.1 - TIME * 1.7);
+	float s2 = sin((wpos.x + wpos.z) * 4.7 + TIME * 3.3);
+	float g = smoothstep(0.86, 0.98, s1 * 0.5 + 0.5) * smoothstep(0.2, 1.0, s2);
+	EMISSION = vec3(1.0, 0.98, 0.9) * g * sparkle * 2.5;
 	ROUGHNESS = 0.05;
 	METALLIC = 0.0;
 	SPECULAR = 0.6;
@@ -19291,7 +19952,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
   channels — имена 4 покрытий (R, G, B, A), default — покрытие по умолчанию,
   features — по порядку: hill {center, radius, height}, basin {center, radius, depth},
              terrace {rect [x0, z0, x1, z1], height} (плато с отвесным краем, max с текущей высотой),
-             flat {rect, height} (ровно заданная высота).
+             flat {rect, height} (ровно заданная высота), lift {rect, by} (подъём участка — дорожки, план 18).
   paint — по порядку: {rect | circle [x, z, r], type, soft? метры размытия края}.
 Выход data/terrain/<район>.json: size, origin, cell, nx, nz, heights (nz строк по nx, см), splat (base64 RGBA, nx*nz*4).
 Запуск: make terrain  (все файлы из data/terrain_src)."""
@@ -19344,6 +20005,9 @@ def apply_feature(g, f):
 		elif t == "flat":
 			if _in_rect(x, z, f["rect"]):
 				g.h[j][i] = f["height"]
+		elif t == "lift":
+			if _in_rect(x, z, f["rect"]):
+				g.h[j][i] += f["by"]   # дорожка чуть выше газона (план 18)
 		else:
 			raise ValueError(f"неизвестный рельеф: {t}")
 
@@ -19491,6 +20155,14 @@ class TestTerrainGen(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLift(unittest.TestCase):
+    def test_lift_raises_path_over_lawn(self):
+        # План 18: дорожки чуть выше газона.
+        g = tg.build(desc(features=[{"type": "lift", "rect": [-2, -10, 2, 10], "by": 0.06}]))
+        self.assertAlmostEqual(tg.height_at(g, 0, 0), 0.06, places=3)
+        self.assertAlmostEqual(tg.height_at(g, 6, 0), 0.0, places=3)
 ```
 
 ## `data/terrain_src/demo.json`
@@ -19619,6 +20291,66 @@ if __name__ == "__main__":
   ],
   "default": "grass",
   "features": [
+    {
+      "type": "lift",
+      "rect": [
+        -1.1,
+        29,
+        1.1,
+        61
+      ],
+      "by": 0.06
+    },
+    {
+      "type": "lift",
+      "rect": [
+        -15,
+        43.9,
+        15,
+        46.1
+      ],
+      "by": 0.06
+    },
+    {
+      "type": "lift",
+      "rect": [
+        10.9,
+        29,
+        13.1,
+        38
+      ],
+      "by": 0.06
+    },
+    {
+      "type": "lift",
+      "rect": [
+        0,
+        36.9,
+        12,
+        39.1
+      ],
+      "by": 0.06
+    },
+    {
+      "type": "lift",
+      "rect": [
+        -12,
+        40.9,
+        -4,
+        43.1
+      ],
+      "by": 0.06
+    },
+    {
+      "type": "lift",
+      "rect": [
+        -1.5,
+        61,
+        1.5,
+        90
+      ],
+      "by": 0.06
+    },
     {
       "type": "hill",
       "center": [
@@ -20054,6 +20786,102 @@ if __name__ == "__main__":
     {"model": "grass", "pos": [3, 0, 49.5], "rot": 79, "solid": false},
     {"model": "grass", "pos": [8, 0, 53], "rot": 259, "solid": false},
     {"model": "grass", "pos": [-11, 0, 41], "rot": 306, "solid": false},
+    {"model": "curb", "pos": [-1.1, 0, 32.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.1, 0, 34.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.1, 0, 36.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.1, 0, 38.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.1, 0, 40.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.1, 0, 42.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.1, 0, 48.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.1, 0, 50.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.1, 0, 52.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.1, 0, 54.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.1, 0, 56.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.1, 0, 58.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.1, 0, 60.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [1.1, 0, 32.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [1.1, 0, 34.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [1.1, 0, 42.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [1.1, 0, 48.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [1.1, 0, 50.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [1.1, 0, 52.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [1.1, 0, 54.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [1.1, 0, 56.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [1.1, 0, 58.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [1.1, 0, 60.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [-14.0, 0, 43.9], "rot": 0, "solid": false},
+    {"model": "curb", "pos": [-12.0, 0, 43.9], "rot": 0, "solid": false},
+    {"model": "curb", "pos": [-6.0, 0, 43.9], "rot": 0, "solid": false},
+    {"model": "curb", "pos": [-4.0, 0, 43.9], "rot": 0, "solid": false},
+    {"model": "curb", "pos": [4.0, 0, 43.9], "rot": 0, "solid": false},
+    {"model": "curb", "pos": [6.0, 0, 43.9], "rot": 0, "solid": false},
+    {"model": "curb", "pos": [8.0, 0, 43.9], "rot": 0, "solid": false},
+    {"model": "curb", "pos": [10.0, 0, 43.9], "rot": 0, "solid": false},
+    {"model": "curb", "pos": [12.0, 0, 43.9], "rot": 0, "solid": false},
+    {"model": "curb", "pos": [14.0, 0, 43.9], "rot": 0, "solid": false},
+    {"model": "curb", "pos": [-14.0, 0, 46.1], "rot": 180, "solid": false},
+    {"model": "curb", "pos": [-12.0, 0, 46.1], "rot": 180, "solid": false},
+    {"model": "curb", "pos": [-6.0, 0, 46.1], "rot": 180, "solid": false},
+    {"model": "curb", "pos": [-4.0, 0, 46.1], "rot": 180, "solid": false},
+    {"model": "curb", "pos": [4.0, 0, 46.1], "rot": 180, "solid": false},
+    {"model": "curb", "pos": [6.0, 0, 46.1], "rot": 180, "solid": false},
+    {"model": "curb", "pos": [8.0, 0, 46.1], "rot": 180, "solid": false},
+    {"model": "curb", "pos": [10.0, 0, 46.1], "rot": 180, "solid": false},
+    {"model": "curb", "pos": [12.0, 0, 46.1], "rot": 180, "solid": false},
+    {"model": "curb", "pos": [14.0, 0, 46.1], "rot": 180, "solid": false},
+    {"model": "curb", "pos": [10.9, 0, 32.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [10.9, 0, 34.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [13.1, 0, 32.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [13.1, 0, 34.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [13.1, 0, 36.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [13.05, 0, 37.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [3.0, 0, 36.9], "rot": 0, "solid": false},
+    {"model": "curb", "pos": [5.0, 0, 36.9], "rot": 0, "solid": false},
+    {"model": "curb", "pos": [7.0, 0, 36.9], "rot": 0, "solid": false},
+    {"model": "curb", "pos": [9.0, 0, 36.9], "rot": 0, "solid": false},
+    {"model": "curb", "pos": [3.0, 0, 39.1], "rot": 180, "solid": false},
+    {"model": "curb", "pos": [5.0, 0, 39.1], "rot": 180, "solid": false},
+    {"model": "curb", "pos": [7.0, 0, 39.1], "rot": 180, "solid": false},
+    {"model": "curb", "pos": [9.0, 0, 39.1], "rot": 180, "solid": false},
+    {"model": "curb", "pos": [11.0, 0, 39.1], "rot": 180, "solid": false},
+    {"model": "curb", "pos": [-11.0, 0, 40.9], "rot": 0, "solid": false},
+    {"model": "curb", "pos": [-9.0, 0, 40.9], "rot": 0, "solid": false},
+    {"model": "curb", "pos": [-7.0, 0, 40.9], "rot": 0, "solid": false},
+    {"model": "curb", "pos": [-5.0, 0, 40.9], "rot": 0, "solid": false},
+    {"model": "curb", "pos": [-11.0, 0, 43.1], "rot": 180, "solid": false},
+    {"model": "curb", "pos": [-9.0, 0, 43.1], "rot": 180, "solid": false},
+    {"model": "curb", "pos": [-7.0, 0, 43.1], "rot": 180, "solid": false},
+    {"model": "curb", "pos": [-5.0, 0, 43.1], "rot": 180, "solid": false},
+    {"model": "curb", "pos": [-1.5, 0, 62.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.5, 0, 64.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.5, 0, 66.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.5, 0, 68.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.5, 0, 70.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.5, 0, 72.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.5, 0, 74.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.5, 0, 76.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.5, 0, 78.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.5, 0, 80.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.5, 0, 82.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.5, 0, 84.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.5, 0, 86.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.5, 0, 88.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [-1.45, 0, 89.0], "rot": 90, "solid": false},
+    {"model": "curb", "pos": [1.5, 0, 62.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [1.5, 0, 64.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [1.5, 0, 66.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [1.5, 0, 68.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [1.5, 0, 70.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [1.5, 0, 72.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [1.5, 0, 74.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [1.5, 0, 76.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [1.5, 0, 78.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [1.5, 0, 80.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [1.5, 0, 82.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [1.5, 0, 84.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [1.5, 0, 86.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [1.5, 0, 88.0], "rot": -90, "solid": false},
+    {"model": "curb", "pos": [1.45, 0, 89.0], "rot": -90, "solid": false},
     {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-44.0, 0, 125.0], "rot": 180},
     {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-42.0, 0, 125.0], "rot": 180},
     {"colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}], "model": "fence", "pos": [-40.0, 0, 125.0], "rot": 180},
@@ -23647,7 +24475,32 @@ if __name__ == "__main__":
     {"model": "decor_reeds", "pos": [-15.58, 0, 68.7], "rot": 200, "scale": 0.76},
     {"model": "decor_reeds", "pos": [-27.21, 0, 78.96], "rot": 320, "scale": 0.95},
     {"model": "decor_reeds", "pos": [-26.75, 0, 52.89], "rot": 10, "scale": 0.8},
-    {"model": "decor_reeds", "pos": [-20.23, 0, 53.42], "rot": 240, "scale": 0.94}
+    {"model": "decor_reeds", "pos": [-20.23, 0, 53.42], "rot": 240, "scale": 0.94},
+    {"model": "decor_litter2", "pos": [-11.72, 0, 46.58], "rot": 0, "scale": 1.12},
+    {"model": "decor_litter2", "pos": [-5.1, 0, 51.68], "rot": 270, "scale": 0.76},
+    {"model": "decor_litter2", "pos": [7.74, 0, 34.52], "rot": 280, "scale": 1.12},
+    {"model": "decor_litter2", "pos": [10.25, 0, 46.96], "rot": 60, "scale": 1.15},
+    {"model": "decor_litter2", "pos": [12.35, 0, 48.55], "rot": 20, "scale": 0.72},
+    {"model": "decor_litter2", "pos": [2.31, 0, 59.02], "rot": 310, "scale": 0.95},
+    {"model": "decor_litter2", "pos": [7.36, 0, 52.9], "rot": 160, "scale": 0.98},
+    {"model": "decor_litter2", "pos": [7.96, 0, 36.01], "rot": 240, "scale": 1.06},
+    {"model": "decor_litter2", "pos": [-11.81, 0, 57.59], "rot": 180, "scale": 1.03},
+    {"model": "decor_litter2", "pos": [6.4, 0, 44.42], "rot": 100, "scale": 1.11},
+    {"model": "decor_litter2", "pos": [9.04, 0, 51.3], "rot": 340, "scale": 0.85},
+    {"model": "decor_litter2", "pos": [-2.05, 0, 51.04], "rot": 160, "scale": 1.0},
+    {"model": "decor_litter2", "pos": [-1.75, 0, 31.29], "rot": 10, "scale": 0.93},
+    {"model": "decor_litter2", "pos": [2.17, 0, 41.4], "rot": 270, "scale": 1.03},
+    {"model": "decor_litter2", "pos": [12.76, 0, 45.43], "rot": 150, "scale": 1.22},
+    {"model": "decor_litter2", "pos": [-5.97, 0, 43.36], "rot": 0, "scale": 1.05},
+    {"model": "decor_litter2", "pos": [12.98, 0, 33.33], "rot": 310, "scale": 1.12},
+    {"model": "decor_litter2", "pos": [6.25, 0, 47.32], "rot": 140, "scale": 1.19},
+    {"model": "decor_litter2", "pos": [4.5, 0, 36.64], "rot": 140, "scale": 1.25},
+    {"model": "decor_litter2", "pos": [-2.12, 0, 41.68], "rot": 340, "scale": 1.1},
+    {"model": "decor_litter2", "pos": [6.11, 0, 49.74], "rot": 170, "scale": 0.95},
+    {"model": "decor_litter2", "pos": [0.92, 0, 30.12], "rot": 120, "scale": 0.88},
+    {"model": "decor_litter2", "pos": [3.46, 0, 34.88], "rot": 330, "scale": 1.21},
+    {"model": "decor_litter2", "pos": [-3.34, 0, 57.32], "rot": 290, "scale": 0.73},
+    {"model": "decor_litter2", "pos": [-6.94, 0, 31.49], "rot": 110, "scale": 1.15}
   ]
 }
 ```
@@ -24812,36 +25665,36 @@ if __name__ == "__main__":
     {"model": "decor_litter", "pos": [3.12, 0, 133.3], "rot": 230, "scale": 1.16},
     {"model": "decor_litter", "pos": [-48.92, 0, 143.85], "rot": 140, "scale": 0.71},
     {"model": "decor_litter", "pos": [-49.25, 0, 127.42], "rot": 70, "scale": 1.14},
-    {"model": "decor_litter", "pos": [-54.9, 0, 144.33], "rot": 320, "scale": 1.13},
-    {"model": "decor_litter", "pos": [-32.01, 0, 132.13], "rot": 110, "scale": 0.92},
-    {"model": "decor_litter", "pos": [8.01, 0, 139.0], "rot": 210, "scale": 1.03},
-    {"model": "decor_litter", "pos": [-52.47, 0, 140.97], "rot": 320, "scale": 1.24},
-    {"model": "decor_litter", "pos": [27.48, 0, 138.23], "rot": 120, "scale": 0.89},
-    {"model": "decor_litter", "pos": [50.55, 0, 131.91], "rot": 220, "scale": 1.07},
-    {"model": "decor_litter", "pos": [-28.13, 0, 131.18], "rot": 190, "scale": 0.93},
-    {"model": "decor_litter", "pos": [17.54, 0, 138.97], "rot": 50, "scale": 0.72},
-    {"model": "decor_litter", "pos": [-47.98, 0, 137.68], "rot": 60, "scale": 1.22},
-    {"model": "decor_litter", "pos": [-40.5, 0, 132.25], "rot": 150, "scale": 0.91},
-    {"model": "decor_litter", "pos": [15.06, 0, 132.81], "rot": 140, "scale": 1.19},
-    {"model": "decor_litter", "pos": [46.71, 0, 134.02], "rot": 170, "scale": 1.21},
-    {"model": "decor_litter", "pos": [40.94, 0, 127.27], "rot": 250, "scale": 1.05},
-    {"model": "decor_litter", "pos": [-14.4, 0, 127.78], "rot": 350, "scale": 0.99},
-    {"model": "decor_litter", "pos": [-17.42, 0, 134.51], "rot": 220, "scale": 1.28},
-    {"model": "decor_litter", "pos": [-12.26, 0, 139.26], "rot": 180, "scale": 1.14},
-    {"model": "decor_litter", "pos": [-20.25, 0, 143.76], "rot": 210, "scale": 0.96},
-    {"model": "decor_litter", "pos": [-3.09, 0, 135.66], "rot": 150, "scale": 1.03},
-    {"model": "decor_litter", "pos": [-5.64, 0, 133.18], "rot": 150, "scale": 1.06},
-    {"model": "decor_litter", "pos": [-45.18, 0, 134.13], "rot": 30, "scale": 1.28},
-    {"model": "decor_litter", "pos": [-36.08, 0, 137.13], "rot": 310, "scale": 0.99},
-    {"model": "decor_litter", "pos": [37.03, 0, 132.77], "rot": 0, "scale": 0.79},
-    {"model": "decor_litter", "pos": [18.78, 0, 137.12], "rot": 30, "scale": 1.07},
-    {"model": "decor_litter", "pos": [-49.8, 0, 134.07], "rot": 150, "scale": 0.92},
-    {"model": "decor_litter", "pos": [24.96, 0, 142.55], "rot": 120, "scale": 1.15},
-    {"model": "decor_litter", "pos": [-15.43, 0, 140.52], "rot": 30, "scale": 1.27},
-    {"model": "decor_litter", "pos": [-28.09, 0, 127.27], "rot": 280, "scale": 1.2},
-    {"model": "decor_litter", "pos": [-1.34, 0, 135.52], "rot": 20, "scale": 0.76},
-    {"model": "decor_litter", "pos": [-55.29, 0, 142.67], "rot": 250, "scale": 0.86},
-    {"model": "decor_litter", "pos": [-33.39, 0, 136.15], "rot": 230, "scale": 0.81}
+    {"model": "decor_litter2", "pos": [-54.9, 0, 144.33], "rot": 320, "scale": 1.13},
+    {"model": "decor_litter2", "pos": [-32.01, 0, 132.13], "rot": 110, "scale": 0.92},
+    {"model": "decor_litter2", "pos": [8.01, 0, 139.0], "rot": 210, "scale": 1.03},
+    {"model": "decor_litter2", "pos": [-52.47, 0, 140.97], "rot": 320, "scale": 1.24},
+    {"model": "decor_litter2", "pos": [27.48, 0, 138.23], "rot": 120, "scale": 0.89},
+    {"model": "decor_litter2", "pos": [-53.67, 0, 144.65], "rot": 330, "scale": 0.81},
+    {"model": "decor_litter2", "pos": [50.55, 0, 131.91], "rot": 220, "scale": 1.07},
+    {"model": "decor_litter2", "pos": [-28.13, 0, 131.18], "rot": 190, "scale": 0.93},
+    {"model": "decor_litter2", "pos": [17.54, 0, 138.97], "rot": 50, "scale": 0.72},
+    {"model": "decor_litter2", "pos": [-47.98, 0, 137.68], "rot": 60, "scale": 1.22},
+    {"model": "decor_litter2", "pos": [-40.5, 0, 132.25], "rot": 150, "scale": 0.91},
+    {"model": "decor_litter2", "pos": [15.06, 0, 132.81], "rot": 140, "scale": 1.19},
+    {"model": "decor_litter2", "pos": [46.71, 0, 134.02], "rot": 170, "scale": 1.21},
+    {"model": "decor_litter2", "pos": [40.94, 0, 127.27], "rot": 250, "scale": 1.05},
+    {"model": "decor_litter2", "pos": [-16.47, 0, 139.55], "rot": 240, "scale": 0.82},
+    {"model": "decor_litter2", "pos": [-2.55, 0, 137.09], "rot": 230, "scale": 0.91},
+    {"model": "decor_litter2", "pos": [-9.63, 0, 133.19], "rot": 230, "scale": 0.94},
+    {"model": "decor_litter2", "pos": [21.03, 0, 144.38], "rot": 180, "scale": 1.14},
+    {"model": "decor_litter2", "pos": [-20.25, 0, 143.76], "rot": 210, "scale": 0.96},
+    {"model": "decor_litter2", "pos": [-3.09, 0, 135.66], "rot": 150, "scale": 1.03},
+    {"model": "decor_litter2", "pos": [-5.64, 0, 133.18], "rot": 150, "scale": 1.06},
+    {"model": "decor_litter2", "pos": [-14.06, 0, 139.42], "rot": 20, "scale": 0.93},
+    {"model": "decor_litter2", "pos": [-45.18, 0, 134.13], "rot": 30, "scale": 1.28},
+    {"model": "decor_litter2", "pos": [-36.08, 0, 137.13], "rot": 310, "scale": 0.99},
+    {"model": "decor_litter2", "pos": [37.03, 0, 132.77], "rot": 0, "scale": 0.79},
+    {"model": "decor_litter2", "pos": [18.78, 0, 137.12], "rot": 30, "scale": 1.07},
+    {"model": "decor_litter2", "pos": [-49.8, 0, 134.07], "rot": 150, "scale": 0.92},
+    {"model": "decor_litter2", "pos": [24.96, 0, 142.55], "rot": 120, "scale": 1.15},
+    {"model": "decor_litter2", "pos": [-49.44, 0, 144.18], "rot": 230, "scale": 0.82},
+    {"model": "decor_litter2", "pos": [-26.23, 0, 144.14], "rot": 160, "scale": 1.25}
   ]
 }
 ```
@@ -25002,7 +25855,7 @@ if __name__ == "__main__":
     {"model": "grass", "pos": [-3, 0, 1.5], "rot": 226, "solid": false},
     {"model": "grass", "pos": [8.5, 0, -5], "rot": 5, "solid": false},
     {"model": "grass", "pos": [-8.5, 0, 9.5], "rot": 71, "solid": false},
-    {"model": "ivy", "pos": [-6.0, 2.2, -13.78], "rot": 0, "solid": false},
+    {"model": "ivy", "pos": [-5.0, 2.2, -13.78], "rot": 0, "solid": false},
     {"model": "ivy", "pos": [0.0, 2.2, -13.78], "rot": 0, "solid": false},
     {"model": "ivy", "pos": [8.0, 2.2, -13.78], "rot": 0, "solid": false},
     {"model": "house_a", "pos": [-81.0, 0, -144.0], "rot": 0},
@@ -25203,11 +26056,11 @@ if __name__ == "__main__":
     {"model": "fence", "pos": [78.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
     {"model": "fence", "pos": [80.7, 0, 10.9], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
     {"model": "fence", "pos": [82.0, 0, 10.85], "rot": 180, "colliders": [{"size": [2.0, 1.8, 0.12], "offset": [0, 0.9, 0]}]},
-    {"outline": true, "colliders": [{"size": [1.7, 1.2, 3.6], "offset": [0, 0.9, 0]}], "model": "car", "pos": [-30, 0, 8.5], "rot": 90},
-    {"outline": true, "colliders": [{"size": [1.7, 1.2, 3.6], "offset": [0, 0.9, 0]}], "model": "car", "pos": [-48, 0, 8.5], "rot": 90},
+    {"model": "car_blue", "pos": [-30, 0, 8.5], "rot": 90, "colliders": [{"size": [1.7, 1.2, 3.6], "offset": [0, 0.9, 0]}], "outline": true},
+    {"model": "car_yellow", "pos": [-48, 0, 8.5], "rot": 90, "colliders": [{"size": [1.7, 1.2, 3.6], "offset": [0, 0.9, 0]}], "outline": true},
     {"outline": true, "colliders": [{"size": [1.7, 1.2, 3.6], "offset": [0, 0.9, 0]}], "model": "car", "pos": [32, 0, 8.5], "rot": 90},
-    {"outline": true, "colliders": [{"size": [1.7, 1.2, 3.6], "offset": [0, 0.9, 0]}], "model": "car", "pos": [56, 0, 15.5], "rot": 90},
-    {"outline": true, "colliders": [{"size": [1.7, 1.2, 3.6], "offset": [0, 0.9, 0]}], "model": "car", "pos": [-66, 0, 15.5], "rot": 90},
+    {"model": "car_blue", "pos": [56, 0, 15.5], "rot": 90, "colliders": [{"size": [1.7, 1.2, 3.6], "offset": [0, 0.9, 0]}], "outline": true},
+    {"model": "car_yellow", "pos": [-66, 0, 15.5], "rot": 90, "colliders": [{"size": [1.7, 1.2, 3.6], "offset": [0, 0.9, 0]}], "outline": true},
     {"colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}], "model": "bin", "pos": [-36, 0, 8], "rot": 0},
     {"colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}], "model": "bin", "pos": [-35, 0, 8], "rot": 0},
     {"colliders": [{"size": [0.74, 1.12, 0.84], "offset": [0, 0.56, 0]}], "model": "bin", "pos": [44, 0, 8], "rot": 0},
@@ -25452,75 +26305,75 @@ if __name__ == "__main__":
     {"model": "bush", "pos": [-71.8, 0, -91.8], "rot": 60},
     {"model": "bush", "pos": [-68.5, 0, -88.2], "rot": 255},
     {"model": "bush", "pos": [-77.0, 0, -105.4], "rot": 240},
-    {"solid": false, "model": "grass", "pos": [-77.6, 0, -94.2], "rot": 180},
-    {"solid": false, "model": "grass", "pos": [-75.4, 0, -131.0], "rot": 120},
-    {"solid": false, "model": "grass", "pos": [-81.9, 0, -105.8], "rot": 105},
-    {"solid": false, "model": "grass", "pos": [-73.4, 0, -137.8], "rot": 225},
-    {"solid": false, "model": "grass", "pos": [-66.2, 0, -130.3], "rot": 225},
-    {"solid": false, "model": "grass", "pos": [-80.5, 0, -126.0], "rot": 60},
-    {"solid": false, "model": "grass", "pos": [-67.1, 0, -97.9], "rot": 150},
-    {"solid": false, "model": "grass", "pos": [-67.3, 0, -65.2], "rot": 195},
-    {"outline": true, "model": "box", "pos": [-70.8, 0, -57.6], "rot": 0},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [65.8, 0, -102.3], "rot": 60},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [69.8, 0, -126.7], "rot": 105},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [61.3, 0, -81.4], "rot": 345},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [72.6, 0, -91.2], "rot": 300},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [78.1, 0, -83.3], "rot": 165},
-    {"model": "bush", "pos": [79.5, 0, -111.7], "rot": 195},
-    {"model": "bush", "pos": [64.2, 0, -53.4], "rot": 255},
-    {"model": "bush", "pos": [61.7, 0, -46.2], "rot": 330},
-    {"model": "bush", "pos": [79.1, 0, -129.1], "rot": 60},
-    {"model": "bush", "pos": [62.2, 0, -72.2], "rot": 90},
-    {"model": "bush", "pos": [62.7, 0, -132.7], "rot": 180},
-    {"solid": false, "model": "grass", "pos": [72.3, 0, -65.3], "rot": 285},
-    {"solid": false, "model": "grass", "pos": [58.5, 0, -87.3], "rot": 240},
-    {"solid": false, "model": "grass", "pos": [65.3, 0, -63.2], "rot": 270},
-    {"solid": false, "model": "grass", "pos": [65.4, 0, -74.3], "rot": 225},
-    {"solid": false, "model": "grass", "pos": [72.5, 0, -109.0], "rot": 60},
-    {"solid": false, "model": "grass", "pos": [82.0, 0, -62.0], "rot": 90},
-    {"solid": false, "model": "grass", "pos": [76.9, 0, -95.7], "rot": 75},
-    {"solid": false, "model": "grass", "pos": [56.6, 0, -68.8], "rot": 45},
-    {"outline": true, "model": "box", "pos": [75.9, 0, -110.6], "rot": 210},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-12.2, 0, -135.6], "rot": 45},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-36.5, 0, -135.3], "rot": 240},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [11.0, 0, -141.3], "rot": 0},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-19.7, 0, -135.3], "rot": 150},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [43.2, 0, -131.1], "rot": 30},
-    {"model": "bush", "pos": [29.8, 0, -129.3], "rot": 180},
-    {"model": "bush", "pos": [36.4, 0, -130.7], "rot": 60},
-    {"model": "bush", "pos": [-14.7, 0, -131.2], "rot": 150},
-    {"model": "bush", "pos": [-3.5, 0, -124.3], "rot": 255},
-    {"model": "bush", "pos": [30.1, 0, -137.4], "rot": 330},
-    {"model": "bush", "pos": [27.1, 0, -127.3], "rot": 165},
+    {"solid": false, "model": "grass", "pos": [-77.6, 0, -94.2], "rot": 225},
+    {"solid": false, "model": "grass", "pos": [-75.4, 0, -131.0], "rot": 60},
+    {"solid": false, "model": "grass", "pos": [-73.4, 0, -137.8], "rot": 150},
+    {"solid": false, "model": "grass", "pos": [-66.2, 0, -130.3], "rot": 195},
+    {"solid": false, "model": "grass", "pos": [-80.5, 0, -126.0], "rot": 225},
+    {"solid": false, "model": "grass", "pos": [-67.1, 0, -97.9], "rot": 240},
+    {"solid": false, "model": "grass", "pos": [-67.3, 0, -65.2], "rot": 150},
+    {"solid": false, "model": "grass", "pos": [-75.5, 0, -118.4], "rot": 45},
+    {"outline": true, "model": "box", "pos": [-73.5, 0, -100.1], "rot": 180},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [72.5, 0, -62.8], "rot": 300},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [72.0, 0, -90.3], "rot": 165},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [78.5, 0, -90.7], "rot": 75},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [61.7, 0, -121.2], "rot": 150},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [59.5, 0, -54.2], "rot": 285},
+    {"model": "bush", "pos": [64.2, 0, -53.4], "rot": 330},
+    {"model": "bush", "pos": [61.7, 0, -46.2], "rot": 60},
+    {"model": "bush", "pos": [79.1, 0, -129.1], "rot": 90},
+    {"model": "bush", "pos": [62.2, 0, -72.2], "rot": 180},
+    {"model": "bush", "pos": [62.7, 0, -132.7], "rot": 300},
+    {"model": "bush", "pos": [77.6, 0, -101.5], "rot": 315},
+    {"solid": false, "model": "grass", "pos": [76.8, 0, -132.8], "rot": 270},
+    {"solid": false, "model": "grass", "pos": [70.8, 0, -107.7], "rot": 225},
+    {"solid": false, "model": "grass", "pos": [77.3, 0, -107.3], "rot": 60},
+    {"solid": false, "model": "grass", "pos": [74.3, 0, -81.1], "rot": 90},
+    {"solid": false, "model": "grass", "pos": [64.9, 0, -46.1], "rot": 75},
+    {"solid": false, "model": "grass", "pos": [77.7, 0, -64.9], "rot": 45},
+    {"solid": false, "model": "grass", "pos": [68.5, 0, -139.7], "rot": 90},
+    {"solid": false, "model": "grass", "pos": [75.8, 0, -83.1], "rot": 75},
+    {"outline": true, "model": "box", "pos": [69.4, 0, -100.7], "rot": 285},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-18.2, 0, -130.6], "rot": 0},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-55.4, 0, -138.4], "rot": 150},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-14.3, 0, -135.5], "rot": 30},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [-18.5, 0, -125.4], "rot": 330},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [7.7, 0, -140.3], "rot": 300},
+    {"model": "bush", "pos": [45.2, 0, -131.7], "rot": 150},
+    {"model": "bush", "pos": [-38.6, 0, -131.5], "rot": 255},
+    {"model": "bush", "pos": [-21.8, 0, -128.3], "rot": 330},
+    {"model": "bush", "pos": [-28.7, 0, -139.9], "rot": 165},
+    {"model": "bush", "pos": [23.2, 0, -139.1], "rot": 195},
+    {"model": "bush", "pos": [44.6, 0, -139.6], "rot": 75},
     {"solid": false, "model": "grass", "pos": [-14.6, 0, -129.0], "rot": 180},
-    {"solid": false, "model": "grass", "pos": [-52.1, 0, -135.8], "rot": 240},
-    {"solid": false, "model": "grass", "pos": [-7.5, 0, -141.8], "rot": 225},
-    {"solid": false, "model": "grass", "pos": [-20.2, 0, -130.5], "rot": 300},
-    {"solid": false, "model": "grass", "pos": [9.9, 0, -137.8], "rot": 90},
-    {"solid": false, "model": "grass", "pos": [45.8, 0, -130.0], "rot": 330},
-    {"solid": false, "model": "grass", "pos": [-22.2, 0, -130.1], "rot": 45},
-    {"solid": false, "model": "grass", "pos": [3.8, 0, -132.4], "rot": 180},
-    {"outline": true, "model": "box", "pos": [-54.3, 0, -138.5], "rot": 180},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [56.3, 0, -28.6], "rot": 300},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [63.2, 0, -25.0], "rot": 30},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [70.1, 0, -21.7], "rot": 255},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [69.5, 0, -2.8], "rot": 285},
-    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [58.6, 0, -20.4], "rot": 315},
-    {"model": "bush", "pos": [75.7, 0, -38.0], "rot": 285},
-    {"model": "bush", "pos": [80.2, 0, -33.0], "rot": 135},
-    {"model": "bush", "pos": [68.3, 0, -32.6], "rot": 165},
-    {"model": "bush", "pos": [68.9, 0, -13.1], "rot": 240},
-    {"model": "bush", "pos": [57.5, 0, 1.6], "rot": 135},
-    {"model": "bush", "pos": [66.9, 0, -16.8], "rot": 225},
-    {"solid": false, "model": "grass", "pos": [73.0, 0, -15.3], "rot": 240},
-    {"solid": false, "model": "grass", "pos": [63.4, 0, -8.5], "rot": 45},
-    {"solid": false, "model": "grass", "pos": [63.7, 0, -39.4], "rot": 345},
-    {"solid": false, "model": "grass", "pos": [60.1, 0, -6.8], "rot": 210},
-    {"solid": false, "model": "grass", "pos": [66.1, 0, -0.5], "rot": 60},
-    {"solid": false, "model": "grass", "pos": [81.7, 0, 1.6], "rot": 105},
-    {"solid": false, "model": "grass", "pos": [67.2, 0, -19.0], "rot": 285},
-    {"solid": false, "model": "grass", "pos": [81.3, 0, -29.3], "rot": 330},
-    {"outline": true, "model": "box", "pos": [62.2, 0, -35.0], "rot": 135},
+    {"solid": false, "model": "grass", "pos": [-52.1, 0, -135.8], "rot": 270},
+    {"solid": false, "model": "grass", "pos": [-7.5, 0, -141.8], "rot": 0},
+    {"solid": false, "model": "grass", "pos": [-20.2, 0, -130.5], "rot": 45},
+    {"solid": false, "model": "grass", "pos": [9.9, 0, -137.8], "rot": 285},
+    {"solid": false, "model": "grass", "pos": [3.8, 0, -132.4], "rot": 45},
+    {"solid": false, "model": "grass", "pos": [-16.4, 0, -124.0], "rot": 345},
+    {"solid": false, "model": "grass", "pos": [11.9, 0, -129.4], "rot": 105},
+    {"outline": true, "model": "box", "pos": [48.3, 0, -131.8], "rot": 45},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [72.6, 0, -4.4], "rot": 225},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [58.0, 0, -13.7], "rot": 255},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [75.7, 0, -38.0], "rot": 285},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [80.2, 0, -33.0], "rot": 285},
+    {"colliders": [{"size": [0.3, 1.6, 0.3], "offset": [0, 0.8, 0]}], "model": "tree", "pos": [68.3, 0, -32.6], "rot": 15},
+    {"model": "bush", "pos": [67.2, 0, -18.2], "rot": 300},
+    {"model": "bush", "pos": [63.4, 0, -22.5], "rot": 75},
+    {"model": "bush", "pos": [64.1, 0, -16.7], "rot": 195},
+    {"model": "bush", "pos": [68.6, 0, -28.1], "rot": 315},
+    {"model": "bush", "pos": [80.2, 0, -10.8], "rot": 180},
+    {"model": "bush", "pos": [76.1, 0, -14.2], "rot": 15},
+    {"solid": false, "model": "grass", "pos": [79.3, 0, -7.1], "rot": 120},
+    {"solid": false, "model": "grass", "pos": [57.3, 0, 3.5], "rot": 300},
+    {"solid": false, "model": "grass", "pos": [80.6, 0, -36.8], "rot": 270},
+    {"solid": false, "model": "grass", "pos": [79.5, 0, -21.1], "rot": 315},
+    {"solid": false, "model": "grass", "pos": [68.4, 0, 2.8], "rot": 195},
+    {"solid": false, "model": "grass", "pos": [57.4, 0, -16.8], "rot": 165},
+    {"solid": false, "model": "grass", "pos": [59.2, 0, -20.5], "rot": 345},
+    {"solid": false, "model": "grass", "pos": [73.4, 0, -20.0], "rot": 240},
+    {"outline": true, "model": "box", "pos": [74.2, 0, -31.6], "rot": 120},
     {"model": "tree_pine", "pos": [2.0, 0, -37.2], "rot": 315, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
     {"model": "tree_pine", "pos": [-11.6, 0, -52.1], "rot": 210, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
     {"model": "tree_pine", "pos": [-2.9, 0, -50.8], "rot": 135, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
@@ -25533,18 +26386,18 @@ if __name__ == "__main__":
     {"model": "bush_flowers", "pos": [31.7, 0, -78.6], "rot": 105},
     {"model": "bush_flowers", "pos": [-4.5, 0, -81.9], "rot": 30},
     {"model": "bush_flowers", "pos": [-7.2, 0, -78.0], "rot": 165},
-    {"model": "tree_pine", "pos": [-68.7, 0, -139.7], "rot": 255, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
-    {"model": "tree_pine", "pos": [-79.5, 0, -85.3], "rot": 30, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
-    {"model": "tree_pine", "pos": [-72.7, 0, -112.7], "rot": 150, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
-    {"model": "tree_pine", "pos": [62.4, 0, -120.8], "rot": 195, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
-    {"model": "tree_pine", "pos": [75.9, 0, -104.1], "rot": 315, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
-    {"model": "tree_pine", "pos": [74.4, 0, -54.2], "rot": 165, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
-    {"model": "tree_pine", "pos": [-1.3, 0, -129.2], "rot": 15, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
-    {"model": "tree_pine", "pos": [23.0, 0, -124.2], "rot": 225, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
-    {"model": "tree_pine", "pos": [-27.3, 0, -124.5], "rot": 135, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
-    {"model": "tree_pine", "pos": [75.0, 0, -26.6], "rot": 15, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
-    {"model": "tree_pine", "pos": [80.5, 0, -15.8], "rot": 315, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
-    {"model": "tree_pine", "pos": [76.1, 0, -5.3], "rot": 105, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]}
+    {"model": "tree_pine", "pos": [-68.7, 0, -139.7], "rot": 0, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [-69.3, 0, -71.1], "rot": 105, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [-74.7, 0, -59.9], "rot": 240, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [57.5, 0, -126.8], "rot": 240, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [71.1, 0, -112.7], "rot": 150, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [74.5, 0, -95.1], "rot": 210, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [-4.7, 0, -132.3], "rot": 0, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [20.7, 0, -129.3], "rot": 180, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [32.5, 0, -130.0], "rot": 30, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [79.1, 0, 2.1], "rot": 90, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [59.8, 0, -7.4], "rot": 270, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]},
+    {"model": "tree_pine", "pos": [58.8, 0, -31.9], "rot": 105, "colliders": [{"size": [0.25, 1.2, 0.25], "offset": [0, 0.6, 0]}]}
   ],
   "hideouts": [
     {"kind": "box", "pos": [-2, 0.2, -0.35], "size": [0.6, 0.4, 0.6]},
@@ -25570,10 +26423,10 @@ if __name__ == "__main__":
     {"kind": "box", "pos": [2.7, 0.2, -81.65], "size": [0.6, 0.4, 0.6]},
     {"kind": "bench", "pos": [-10.9, 0.2, -103.5], "rot": 180, "size": [1.3, 0.4, 0.4]},
     {"kind": "bench", "pos": [-4.3, 0.2, -89.5], "rot": 270, "size": [1.3, 0.4, 0.4]},
-    {"kind": "box", "pos": [-70.8, 0.2, -56.95], "size": [0.6, 0.4, 0.6]},
-    {"kind": "box", "pos": [75.9, 0.2, -109.95], "size": [0.6, 0.4, 0.6]},
-    {"kind": "box", "pos": [-54.3, 0.2, -137.85], "size": [0.6, 0.4, 0.6]},
-    {"kind": "box", "pos": [62.2, 0.2, -34.35], "size": [0.6, 0.4, 0.6]}
+    {"kind": "box", "pos": [-73.5, 0.2, -99.45], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [69.4, 0.2, -100.05], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [48.3, 0.2, -131.15], "size": [0.6, 0.4, 0.6]},
+    {"kind": "box", "pos": [74.2, 0.2, -30.95], "size": [0.6, 0.4, 0.6]}
   ],
   "spawn_points": [
     {"pos": [3.5, 0, -10], "allowed": [0], "foods": ["sausage", "cookie"]},
@@ -25632,14 +26485,14 @@ if __name__ == "__main__":
     {"pos": [-1.8, 0, -100.6], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
     {"pos": [-35.2, 0, -91.8], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
     {"pos": [14.2, 0, -90.4], "allowed": [0, 1, 2, 3], "foods": ["sausage", "cookie", "pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
-    {"pos": [-81.5, 0, -117.0], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
-    {"pos": [-72.7, 0, -60.2], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
-    {"pos": [81.7, 0, -53.0], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
-    {"pos": [58.5, 0, -136.1], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
-    {"pos": [49.8, 0, -141.6], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
-    {"pos": [8.9, 0, -128.7], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
-    {"pos": [59.0, 0, -12.5], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
-    {"pos": [69.8, 0, 3.9], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]}
+    {"pos": [-78.9, 0, -82.7], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [-71.0, 0, -111.1], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [77.8, 0, -46.9], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [68.0, 0, -68.6], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [-31.3, 0, -134.8], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [-17.9, 0, -140.2], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [63.5, 0, -34.3], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]},
+    {"pos": [78.0, 0, -27.9], "allowed": [1, 2, 3], "foods": ["pizza", "hotdog", "croissant", "fish", "donut", "ice_cream"]}
   ],
   "yarn": [
     {"pos": [-11.3, 1.0, -9.3]},
@@ -25690,10 +26543,10 @@ if __name__ == "__main__":
     {"pos": [9.0, 0, -78.7]},
     {"pos": [-8.9, 0, -88.9]},
     {"pos": [27.3, 0, -82.1]},
-    {"pos": [-72.0, 0, -73.1]},
-    {"pos": [80.7, 0, -97.6]},
-    {"pos": [-31.3, 0, -134.8]},
-    {"pos": [80.8, 0, -7.7]}
+    {"pos": [-78.0, 0, -123.0]},
+    {"pos": [64.5, 0, -97.2]},
+    {"pos": [-31.9, 0, -125.7]},
+    {"pos": [71.9, 0, -8.1]}
   ],
   "hazards": [
     {"type": "dog", "pos": [7, 0, -7], "rot": 90},
@@ -25726,12 +26579,19 @@ if __name__ == "__main__":
   "floaters": [
   ],
   "decor": [
-    {"model": "decor_grass", "pos": [15.69, 0, -24.55], "rot": 230, "scale": 0.97},
-    {"model": "decor_grass", "pos": [-10.14, 0, -48.09], "rot": 100, "scale": 0.95},
-    {"model": "decor_grass", "pos": [10.88, 0, -62.47], "rot": 330, "scale": 0.78},
-    {"model": "decor_grass", "pos": [9.67, 0, -37.79], "rot": 330, "scale": 1.02},
-    {"model": "decor_grass", "pos": [-13.97, 0, -29.94], "rot": 0, "scale": 0.82},
-    {"model": "decor_grass", "pos": [16.65, 0, -62.25], "rot": 80, "scale": 0.75},
+    {"model": "decor_grass", "pos": [4.0, 0, -45.46], "rot": 320, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-12.6, 0, -55.38], "rot": 110, "scale": 1.25},
+    {"model": "decor_grass", "pos": [17.49, 0, -37.41], "rot": 350, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-9.58, 0, -23.85], "rot": 210, "scale": 1.1},
+    {"model": "decor_grass", "pos": [10.87, 0, -65.19], "rot": 140, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-11.3, 0, -63.02], "rot": 240, "scale": 1.29},
+    {"model": "decor_grass", "pos": [11.79, 0, -29.74], "rot": 30, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-10.5, 0, -69.43], "rot": 300, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-2.0, 0, -57.18], "rot": 260, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-13.71, 0, -61.84], "rot": 200, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-14.76, 0, -31.43], "rot": 170, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-17.88, 0, -40.26], "rot": 110, "scale": 0.7},
+    {"model": "decor_grass", "pos": [12.86, 0, -26.0], "rot": 80, "scale": 0.75},
     {"model": "decor_grass", "pos": [-9.2, 0, -32.74], "rot": 60, "scale": 1.23},
     {"model": "decor_grass", "pos": [7.75, 0, -65.69], "rot": 340, "scale": 1.21},
     {"model": "decor_grass", "pos": [-7.86, 0, -28.96], "rot": 260, "scale": 0.82},
@@ -25891,9 +26751,9 @@ if __name__ == "__main__":
     {"model": "decor_grass", "pos": [7.75, 0, -56.85], "rot": 160, "scale": 0.92},
     {"model": "decor_grass", "pos": [7.31, 0, -60.45], "rot": 130, "scale": 1.21},
     {"model": "decor_grass", "pos": [13.14, 0, -40.49], "rot": 260, "scale": 1.08},
-    {"model": "decor_grass", "pos": [-14.98, 0, -31.51], "rot": 170, "scale": 1.18},
-    {"model": "decor_grass", "pos": [-14.99, 0, -50.4], "rot": 180, "scale": 0.84},
-    {"model": "decor_grass", "pos": [3.42, 0, -21.07], "rot": 80, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-9.24, 0, -61.64], "rot": 120, "scale": 0.93},
+    {"model": "decor_grass", "pos": [6.77, 0, -57.99], "rot": 110, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-1.13, 0, -33.92], "rot": 80, "scale": 0.86},
     {"model": "decor_grass", "pos": [-9.16, 0, -56.9], "rot": 250, "scale": 0.93},
     {"model": "decor_grass", "pos": [7.17, 0, -62.78], "rot": 100, "scale": 1.13},
     {"model": "decor_grass", "pos": [-15.26, 0, -67.8], "rot": 180, "scale": 0.91},
@@ -26319,13 +27179,13 @@ if __name__ == "__main__":
     {"model": "decor_grass", "pos": [-0.49, 0, -53.43], "rot": 330, "scale": 0.95},
     {"model": "decor_grass", "pos": [-5.61, 0, -22.03], "rot": 70, "scale": 0.78},
     {"model": "decor_grass", "pos": [12.31, 0, -65.31], "rot": 350, "scale": 1.09},
-    {"model": "decor_grass", "pos": [0.16, 0, -60.71], "rot": 100, "scale": 0.88},
-    {"model": "decor_grass", "pos": [-7.32, 0, -54.61], "rot": 180, "scale": 1.27},
-    {"model": "decor_grass", "pos": [10.32, 0, -36.42], "rot": 300, "scale": 0.78},
-    {"model": "decor_grass", "pos": [-7.49, 0, -63.78], "rot": 330, "scale": 1.02},
-    {"model": "decor_grass", "pos": [-3.46, 0, -43.2], "rot": 280, "scale": 0.76},
-    {"model": "decor_grass", "pos": [-14.2, 0, -67.55], "rot": 100, "scale": 1.28},
-    {"model": "decor_grass", "pos": [11.13, 0, -64.08], "rot": 80, "scale": 0.98},
+    {"model": "decor_flowers", "pos": [0.16, 0, -60.71], "rot": 100, "scale": 0.88},
+    {"model": "decor_flowers", "pos": [-7.32, 0, -54.61], "rot": 180, "scale": 1.27},
+    {"model": "decor_flowers", "pos": [10.32, 0, -36.42], "rot": 300, "scale": 0.78},
+    {"model": "decor_flowers", "pos": [-7.49, 0, -63.78], "rot": 330, "scale": 1.02},
+    {"model": "decor_flowers", "pos": [-3.46, 0, -43.2], "rot": 280, "scale": 0.76},
+    {"model": "decor_flowers", "pos": [-14.2, 0, -67.55], "rot": 100, "scale": 1.28},
+    {"model": "decor_flowers", "pos": [11.13, 0, -64.08], "rot": 80, "scale": 0.98},
     {"model": "decor_flowers", "pos": [2.58, 0, -55.47], "rot": 210, "scale": 0.76},
     {"model": "decor_flowers", "pos": [-6.63, 0, -48.22], "rot": 310, "scale": 1.03},
     {"model": "decor_flowers", "pos": [-16.28, 0, -24.03], "rot": 40, "scale": 0.91},
@@ -26469,26 +27329,25 @@ if __name__ == "__main__":
     {"model": "decor_flowers", "pos": [-16.91, 0, -66.18], "rot": 280, "scale": 1.03},
     {"model": "decor_flowers", "pos": [-13.61, 0, -55.63], "rot": 340, "scale": 0.73},
     {"model": "decor_flowers", "pos": [-12.01, 0, -47.56], "rot": 80, "scale": 1.05},
-    {"model": "decor_flowers", "pos": [-9.62, 0, -67.58], "rot": 350, "scale": 0.91},
-    {"model": "decor_flowers", "pos": [13.79, 0, -43.37], "rot": 300, "scale": 0.82},
-    {"model": "decor_flowers", "pos": [-19.37, 0, -68.51], "rot": 250, "scale": 0.79},
-    {"model": "decor_flowers", "pos": [-19.39, 0, -40.03], "rot": 150, "scale": 0.81},
-    {"model": "decor_flowers", "pos": [-11.99, 0, -19.15], "rot": 330, "scale": 0.87},
-    {"model": "decor_flowers", "pos": [4.27, 0, -54.94], "rot": 120, "scale": 0.85},
-    {"model": "decor_flowers", "pos": [15.67, 0, -52.02], "rot": 350, "scale": 1.05},
-    {"model": "decor_leaves", "pos": [-9.71, 0, -36.36], "rot": 190, "scale": 1.14},
-    {"model": "decor_leaves", "pos": [10.85, 0, -39.72], "rot": 150, "scale": 0.85},
-    {"model": "decor_leaves", "pos": [-16.0, 0, -29.61], "rot": 90, "scale": 1.24},
-    {"model": "decor_leaves", "pos": [-1.3, 0, -60.17], "rot": 0, "scale": 1.2},
-    {"model": "decor_leaves", "pos": [13.38, 0, -19.02], "rot": 150, "scale": 1.07},
-    {"model": "decor_leaves", "pos": [3.29, 0, -53.16], "rot": 240, "scale": 1.06},
-    {"model": "decor_leaves", "pos": [-4.3, 0, -61.36], "rot": 140, "scale": 1.1},
-    {"model": "decor_leaves", "pos": [-10.29, 0, -63.9], "rot": 80, "scale": 1.21},
-    {"model": "decor_leaves", "pos": [1.88, 0, -43.07], "rot": 350, "scale": 0.72},
-    {"model": "decor_leaves", "pos": [-13.13, 0, -29.1], "rot": 150, "scale": 0.88},
-    {"model": "decor_leaves", "pos": [3.02, 0, -53.76], "rot": 60, "scale": 1.27},
-    {"model": "decor_leaves", "pos": [-8.27, 0, -40.11], "rot": 330, "scale": 1.26},
-    {"model": "decor_leaves", "pos": [-1.15, 0, -20.26], "rot": 50, "scale": 1.12},
+    {"model": "decor_leaves", "pos": [-9.62, 0, -67.58], "rot": 350, "scale": 0.91},
+    {"model": "decor_leaves", "pos": [13.79, 0, -43.37], "rot": 300, "scale": 0.82},
+    {"model": "decor_leaves", "pos": [-19.37, 0, -68.51], "rot": 250, "scale": 0.79},
+    {"model": "decor_leaves", "pos": [-19.39, 0, -40.03], "rot": 150, "scale": 0.81},
+    {"model": "decor_leaves", "pos": [-11.99, 0, -19.15], "rot": 330, "scale": 0.87},
+    {"model": "decor_leaves", "pos": [4.27, 0, -54.94], "rot": 120, "scale": 0.85},
+    {"model": "decor_leaves", "pos": [14.78, 0, -34.73], "rot": 350, "scale": 0.91},
+    {"model": "decor_leaves", "pos": [18.17, 0, -39.72], "rot": 160, "scale": 1.18},
+    {"model": "decor_leaves", "pos": [-18.51, 0, -31.83], "rot": 20, "scale": 1.05},
+    {"model": "decor_leaves", "pos": [-10.09, 0, -66.53], "rot": 120, "scale": 1.17},
+    {"model": "decor_leaves", "pos": [-14.32, 0, -30.75], "rot": 170, "scale": 0.81},
+    {"model": "decor_leaves", "pos": [15.4, 0, -69.94], "rot": 110, "scale": 1.06},
+    {"model": "decor_leaves", "pos": [17.41, 0, -37.63], "rot": 200, "scale": 0.76},
+    {"model": "decor_leaves", "pos": [19.59, 0, -49.59], "rot": 100, "scale": 1.13},
+    {"model": "decor_leaves", "pos": [-5.32, 0, -47.43], "rot": 350, "scale": 0.88},
+    {"model": "decor_leaves", "pos": [-18.59, 0, -61.06], "rot": 350, "scale": 1.06},
+    {"model": "decor_leaves", "pos": [-8.28, 0, -40.07], "rot": 190, "scale": 1.23},
+    {"model": "decor_leaves", "pos": [17.87, 0, -54.75], "rot": 250, "scale": 1.01},
+    {"model": "decor_leaves", "pos": [-1.84, 0, -60.73], "rot": 50, "scale": 1.12},
     {"model": "decor_leaves", "pos": [7.29, 0, -27.04], "rot": 0, "scale": 0.82},
     {"model": "decor_leaves", "pos": [-16.81, 0, -42.78], "rot": 110, "scale": 1.05},
     {"model": "decor_leaves", "pos": [7.38, 0, -28.63], "rot": 300, "scale": 0.98},
@@ -26533,8 +27392,9 @@ if __name__ == "__main__":
     {"model": "decor_leaves", "pos": [0.39, 0, -60.76], "rot": 50, "scale": 1.15},
     {"model": "decor_leaves", "pos": [19.64, 0, -25.53], "rot": 70, "scale": 0.75},
     {"model": "decor_leaves", "pos": [1.7, 0, -59.81], "rot": 160, "scale": 1.18},
-    {"model": "decor_leaves", "pos": [-1.51, 0, -25.12], "rot": 350, "scale": 1.07},
-    {"model": "decor_leaves", "pos": [-2.2, 0, -42.01], "rot": 270, "scale": 1.17},
+    {"model": "decor_leaves", "pos": [3.56, 0, -52.95], "rot": 290, "scale": 1.11},
+    {"model": "decor_leaves", "pos": [19.79, 0, -37.65], "rot": 280, "scale": 1.13},
+    {"model": "decor_leaves", "pos": [-12.06, 0, -31.0], "rot": 270, "scale": 1.17},
     {"model": "decor_leaves", "pos": [-10.07, 0, -29.44], "rot": 60, "scale": 1.22},
     {"model": "decor_leaves", "pos": [-16.7, 0, -58.41], "rot": 350, "scale": 0.85},
     {"model": "decor_leaves", "pos": [-19.69, 0, -50.71], "rot": 280, "scale": 0.86},
@@ -26619,13 +27479,13 @@ if __name__ == "__main__":
     {"model": "decor_leaves", "pos": [10.83, 0, -19.65], "rot": 240, "scale": 0.93},
     {"model": "decor_leaves", "pos": [10.2, 0, -46.59], "rot": 290, "scale": 0.8},
     {"model": "decor_leaves", "pos": [15.99, 0, -33.56], "rot": 90, "scale": 1.22},
-    {"model": "decor_leaves", "pos": [0.28, 0, -34.03], "rot": 50, "scale": 1.23},
-    {"model": "decor_leaves", "pos": [-18.19, 0, -27.92], "rot": 310, "scale": 0.87},
-    {"model": "decor_leaves", "pos": [-18.05, 0, -23.41], "rot": 200, "scale": 0.82},
-    {"model": "decor_leaves", "pos": [11.79, 0, -43.18], "rot": 20, "scale": 1.21},
-    {"model": "decor_leaves", "pos": [8.41, 0, -49.72], "rot": 110, "scale": 0.98},
-    {"model": "decor_leaves", "pos": [-15.65, 0, -25.1], "rot": 110, "scale": 0.98},
-    {"model": "decor_leaves", "pos": [-13.37, 0, -56.12], "rot": 110, "scale": 1.22},
+    {"model": "decor_stones", "pos": [0.28, 0, -34.03], "rot": 50, "scale": 1.23},
+    {"model": "decor_stones", "pos": [-18.19, 0, -27.92], "rot": 310, "scale": 0.87},
+    {"model": "decor_stones", "pos": [-18.05, 0, -23.41], "rot": 200, "scale": 0.82},
+    {"model": "decor_stones", "pos": [11.79, 0, -43.18], "rot": 20, "scale": 1.21},
+    {"model": "decor_stones", "pos": [8.41, 0, -49.72], "rot": 110, "scale": 0.98},
+    {"model": "decor_stones", "pos": [-15.65, 0, -25.1], "rot": 110, "scale": 0.98},
+    {"model": "decor_stones", "pos": [-13.37, 0, -56.12], "rot": 110, "scale": 1.22},
     {"model": "decor_stones", "pos": [-7.32, 0, -23.0], "rot": 30, "scale": 1.1},
     {"model": "decor_stones", "pos": [-9.94, 0, -20.51], "rot": 270, "scale": 1.26},
     {"model": "decor_stones", "pos": [-14.27, 0, -63.8], "rot": 340, "scale": 0.98},
@@ -26679,13 +27539,13 @@ if __name__ == "__main__":
     {"model": "decor_stones", "pos": [-4.01, 0, -20.03], "rot": 20, "scale": 0.76},
     {"model": "decor_stones", "pos": [-3.58, 0, -66.23], "rot": 290, "scale": 0.81},
     {"model": "decor_stones", "pos": [4.46, 0, -44.87], "rot": 340, "scale": 0.85},
-    {"model": "decor_stones", "pos": [5.2, 0, -40.15], "rot": 0, "scale": 1.06},
-    {"model": "decor_stones", "pos": [-10.42, 0, -68.56], "rot": 80, "scale": 1.22},
-    {"model": "decor_stones", "pos": [12.25, 0, -25.53], "rot": 130, "scale": 1.17},
-    {"model": "decor_stones", "pos": [7.24, 0, -40.81], "rot": 320, "scale": 1.08},
-    {"model": "decor_stones", "pos": [2.12, 0, -57.85], "rot": 150, "scale": 0.99},
-    {"model": "decor_stones", "pos": [-9.83, 0, -55.2], "rot": 290, "scale": 0.75},
-    {"model": "decor_stones", "pos": [15.06, 0, -20.13], "rot": 90, "scale": 0.97},
+    {"model": "decor_grass", "pos": [9.36, 0, -88.78], "rot": 0, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-18.76, 0, -105.17], "rot": 80, "scale": 1.22},
+    {"model": "decor_grass", "pos": [22.05, 0, -80.35], "rot": 130, "scale": 1.17},
+    {"model": "decor_grass", "pos": [13.03, 0, -89.16], "rot": 320, "scale": 1.08},
+    {"model": "decor_grass", "pos": [3.82, 0, -98.99], "rot": 150, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-17.7, 0, -97.46], "rot": 290, "scale": 0.75},
+    {"model": "decor_grass", "pos": [27.11, 0, -77.23], "rot": 90, "scale": 0.97},
     {"model": "decor_grass", "pos": [0.27, 0, -88.36], "rot": 270, "scale": 0.93},
     {"model": "decor_grass", "pos": [-10.0, 0, -96.73], "rot": 40, "scale": 1.2},
     {"model": "decor_grass", "pos": [-1.42, 0, -105.85], "rot": 300, "scale": 0.89},
@@ -26829,13 +27689,13 @@ if __name__ == "__main__":
     {"model": "decor_grass", "pos": [-27.51, 0, -99.35], "rot": 220, "scale": 0.94},
     {"model": "decor_grass", "pos": [-5.04, 0, -86.7], "rot": 60, "scale": 0.98},
     {"model": "decor_grass", "pos": [-5.51, 0, -92.22], "rot": 350, "scale": 0.98},
-    {"model": "decor_grass", "pos": [-13.19, 0, -76.73], "rot": 300, "scale": 1.2},
-    {"model": "decor_grass", "pos": [13.02, 0, -100.2], "rot": 80, "scale": 0.71},
-    {"model": "decor_grass", "pos": [-21.61, 0, -79.94], "rot": 300, "scale": 1.28},
-    {"model": "decor_grass", "pos": [14.33, 0, -94.93], "rot": 240, "scale": 1.0},
-    {"model": "decor_grass", "pos": [32.58, 0, -90.96], "rot": 110, "scale": 1.22},
-    {"model": "decor_grass", "pos": [-21.07, 0, -89.76], "rot": 130, "scale": 1.17},
-    {"model": "decor_grass", "pos": [-34.0, 0, -89.11], "rot": 310, "scale": 0.86},
+    {"model": "decor_flowers", "pos": [-13.19, 0, -76.73], "rot": 300, "scale": 1.2},
+    {"model": "decor_flowers", "pos": [13.02, 0, -100.2], "rot": 80, "scale": 0.71},
+    {"model": "decor_flowers", "pos": [-21.61, 0, -79.94], "rot": 300, "scale": 1.28},
+    {"model": "decor_flowers", "pos": [14.33, 0, -94.93], "rot": 240, "scale": 1.0},
+    {"model": "decor_flowers", "pos": [32.58, 0, -90.96], "rot": 110, "scale": 1.22},
+    {"model": "decor_flowers", "pos": [-21.07, 0, -89.76], "rot": 130, "scale": 1.17},
+    {"model": "decor_flowers", "pos": [-34.0, 0, -89.11], "rot": 310, "scale": 0.86},
     {"model": "decor_flowers", "pos": [-14.85, 0, -79.32], "rot": 150, "scale": 1.22},
     {"model": "decor_flowers", "pos": [0.22, 0, -102.2], "rot": 230, "scale": 0.97},
     {"model": "decor_flowers", "pos": [-0.81, 0, -105.17], "rot": 300, "scale": 0.94},
@@ -26949,13 +27809,13 @@ if __name__ == "__main__":
     {"model": "decor_flowers", "pos": [22.6, 0, -76.46], "rot": 30, "scale": 1.23},
     {"model": "decor_flowers", "pos": [-32.93, 0, -76.45], "rot": 60, "scale": 1.11},
     {"model": "decor_flowers", "pos": [-31.86, 0, -95.86], "rot": 90, "scale": 1.07},
-    {"model": "decor_flowers", "pos": [-10.38, 0, -105.51], "rot": 80, "scale": 1.22},
-    {"model": "decor_flowers", "pos": [0.71, 0, -85.84], "rot": 60, "scale": 0.85},
-    {"model": "decor_flowers", "pos": [19.38, 0, -95.72], "rot": 330, "scale": 1.17},
-    {"model": "decor_flowers", "pos": [33.87, 0, -83.97], "rot": 160, "scale": 0.82},
-    {"model": "decor_flowers", "pos": [-17.04, 0, -84.22], "rot": 180, "scale": 1.19},
-    {"model": "decor_flowers", "pos": [2.46, 0, -95.51], "rot": 140, "scale": 1.09},
-    {"model": "decor_flowers", "pos": [-8.6, 0, -76.06], "rot": 50, "scale": 1.28},
+    {"model": "decor_stones", "pos": [-10.38, 0, -105.51], "rot": 80, "scale": 1.22},
+    {"model": "decor_stones", "pos": [0.71, 0, -85.84], "rot": 60, "scale": 0.85},
+    {"model": "decor_stones", "pos": [19.38, 0, -95.72], "rot": 330, "scale": 1.17},
+    {"model": "decor_stones", "pos": [33.87, 0, -83.97], "rot": 160, "scale": 0.82},
+    {"model": "decor_stones", "pos": [-17.04, 0, -84.22], "rot": 180, "scale": 1.19},
+    {"model": "decor_stones", "pos": [2.46, 0, -95.51], "rot": 140, "scale": 1.09},
+    {"model": "decor_stones", "pos": [-8.6, 0, -76.06], "rot": 50, "scale": 1.28},
     {"model": "decor_stones", "pos": [8.1, 0, -76.3], "rot": 190, "scale": 0.98},
     {"model": "decor_stones", "pos": [17.92, 0, -104.68], "rot": 80, "scale": 1.22},
     {"model": "decor_stones", "pos": [-6.62, 0, -83.78], "rot": 130, "scale": 1.0},
@@ -26989,23 +27849,22 @@ if __name__ == "__main__":
     {"model": "decor_stones", "pos": [0.57, 0, -95.37], "rot": 110, "scale": 1.15},
     {"model": "decor_stones", "pos": [-22.3, 0, -89.89], "rot": 70, "scale": 1.22},
     {"model": "decor_stones", "pos": [19.41, 0, -81.47], "rot": 50, "scale": 0.75},
-    {"model": "decor_stones", "pos": [-12.89, 0, -96.13], "rot": 50, "scale": 0.72},
-    {"model": "decor_stones", "pos": [-16.72, 0, -88.08], "rot": 210, "scale": 0.74},
-    {"model": "decor_stones", "pos": [-26.49, 0, -77.46], "rot": 350, "scale": 0.92},
-    {"model": "decor_stones", "pos": [-4.7, 0, -87.05], "rot": 210, "scale": 0.99},
-    {"model": "decor_stones", "pos": [-23.24, 0, -83.67], "rot": 150, "scale": 1.08},
-    {"model": "decor_stones", "pos": [33.09, 0, -81.55], "rot": 340, "scale": 0.73},
-    {"model": "decor_stones", "pos": [24.97, 0, -105.82], "rot": 350, "scale": 0.75},
-    {"model": "decor_grass", "pos": [-1.05, 0, 4.97], "rot": 100, "scale": 0.72},
-    {"model": "decor_grass", "pos": [7.18, 0, -11.97], "rot": 330, "scale": 0.93},
-    {"model": "decor_grass", "pos": [-2.64, 0, -10.14], "rot": 230, "scale": 1.13},
-    {"model": "decor_grass", "pos": [8.46, 0, -1.87], "rot": 30, "scale": 1.28},
-    {"model": "decor_grass", "pos": [-9.52, 0, -9.87], "rot": 60, "scale": 0.81},
-    {"model": "decor_grass", "pos": [-4.48, 0, -9.69], "rot": 290, "scale": 0.92},
-    {"model": "decor_grass", "pos": [-0.45, 0, 4.26], "rot": 110, "scale": 1.07},
-    {"model": "decor_grass", "pos": [1.96, 0, 3.22], "rot": 240, "scale": 0.88},
-    {"model": "decor_grass", "pos": [2.93, 0, -1.96], "rot": 310, "scale": 1.22},
-    {"model": "decor_grass", "pos": [-6.68, 0, 0.66], "rot": 250, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-3.94, 0, -5.76], "rot": 50, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-5.11, 0, 0.14], "rot": 210, "scale": 0.74},
+    {"model": "decor_grass", "pos": [1.2, 0, -7.88], "rot": 280, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-3.52, 0, -11.85], "rot": 140, "scale": 1.26},
+    {"model": "decor_grass", "pos": [2.82, 0, 8.11], "rot": 100, "scale": 1.02},
+    {"model": "decor_grass", "pos": [0.49, 0, 2.2], "rot": 230, "scale": 1.04},
+    {"model": "decor_grass", "pos": [6.34, 0, 7.1], "rot": 10, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-10.12, 0, 5.18], "rot": 30, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-2.56, 0, -4.64], "rot": 80, "scale": 0.84},
+    {"model": "decor_grass", "pos": [2.53, 0, 2.64], "rot": 160, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-9.68, 0, -12.16], "rot": 50, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-8.7, 0, -6.32], "rot": 90, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-0.84, 0, -7.38], "rot": 40, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-7.03, 0, -1.98], "rot": 20, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-2.54, 0, -1.77], "rot": 160, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-0.05, 0, 1.0], "rot": 250, "scale": 1.29},
     {"model": "decor_grass", "pos": [10.15, 0, 4.83], "rot": 120, "scale": 0.82},
     {"model": "decor_grass", "pos": [-1.42, 0, -12.55], "rot": 190, "scale": 0.78},
     {"model": "decor_grass", "pos": [-5.01, 0, 7.27], "rot": 120, "scale": 0.74},
@@ -27113,27 +27972,26 @@ if __name__ == "__main__":
     {"model": "decor_grass", "pos": [10.95, 0, -2.0], "rot": 180, "scale": 1.22},
     {"model": "decor_grass", "pos": [-4.32, 0, -12.67], "rot": 250, "scale": 0.73},
     {"model": "decor_grass", "pos": [-9.6, 0, -1.95], "rot": 50, "scale": 1.29},
-    {"model": "decor_grass", "pos": [-7.05, 0, -1.68], "rot": 340, "scale": 0.78},
-    {"model": "decor_grass", "pos": [-1.13, 0, -1.57], "rot": 220, "scale": 0.84},
-    {"model": "decor_grass", "pos": [-4.31, 0, -2.62], "rot": 260, "scale": 0.86},
-    {"model": "decor_grass", "pos": [9.63, 0, -7.81], "rot": 190, "scale": 0.82},
-    {"model": "decor_grass", "pos": [7.33, 0, 6.89], "rot": 80, "scale": 1.03},
-    {"model": "decor_grass", "pos": [-5.59, 0, -7.86], "rot": 130, "scale": 0.99},
+    {"model": "decor_grass", "pos": [8.02, 0, -1.25], "rot": 340, "scale": 0.97},
+    {"model": "decor_grass", "pos": [0.43, 0, -5.28], "rot": 230, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-0.62, 0, 7.72], "rot": 170, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-8.04, 0, -6.46], "rot": 350, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-4.43, 0, -3.88], "rot": 30, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-8.11, 0, -12.02], "rot": 0, "scale": 0.84},
+    {"model": "decor_grass", "pos": [6.72, 0, -2.4], "rot": 80, "scale": 1.09},
     {"model": "decor_grass", "pos": [5.34, 0, 7.26], "rot": 70, "scale": 0.8},
     {"model": "decor_grass", "pos": [-3.81, 0, -13.0], "rot": 220, "scale": 1.19},
     {"model": "decor_grass", "pos": [6.3, 0, -1.97], "rot": 350, "scale": 0.95},
     {"model": "decor_grass", "pos": [-8.84, 0, -1.07], "rot": 290, "scale": 0.9},
     {"model": "decor_grass", "pos": [-3.29, 0, -4.0], "rot": 120, "scale": 0.87},
     {"model": "decor_grass", "pos": [4.7, 0, 6.2], "rot": 280, "scale": 0.88},
-    {"model": "decor_grass", "pos": [-2.31, 0, -2.03], "rot": 30, "scale": 1.18},
+    {"model": "decor_grass", "pos": [9.45, 0, -11.91], "rot": 350, "scale": 0.81},
     {"model": "decor_grass", "pos": [3.03, 0, -6.28], "rot": 10, "scale": 0.71},
     {"model": "decor_grass", "pos": [-6.11, 0, 1.27], "rot": 210, "scale": 0.78},
-    {"model": "decor_grass", "pos": [-2.48, 0, -4.44], "rot": 40, "scale": 1.1},
-    {"model": "decor_grass", "pos": [1.41, 0, -7.45], "rot": 130, "scale": 0.93},
-    {"model": "decor_grass", "pos": [-10.48, 0, -3.65], "rot": 260, "scale": 0.88},
-    {"model": "decor_grass", "pos": [10.7, 0, -4.03], "rot": 50, "scale": 1.26},
-    {"model": "decor_grass", "pos": [0.46, 0, -6.7], "rot": 350, "scale": 0.73},
-    {"model": "decor_grass", "pos": [9.84, 0, -3.55], "rot": 290, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-9.62, 0, -6.03], "rot": 160, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-6.22, 0, -4.48], "rot": 230, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-1.59, 0, -11.4], "rot": 300, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-4.7, 0, -0.95], "rot": 240, "scale": 0.96},
     {"model": "decor_grass", "pos": [-10.61, 0, -3.07], "rot": 100, "scale": 1.15},
     {"model": "decor_grass", "pos": [6.72, 0, 7.81], "rot": 20, "scale": 0.86},
     {"model": "decor_grass", "pos": [-1.88, 0, -5.6], "rot": 250, "scale": 1.03},
@@ -27141,11 +27999,12 @@ if __name__ == "__main__":
     {"model": "decor_grass", "pos": [0.89, 0, 3.12], "rot": 270, "scale": 1.08},
     {"model": "decor_grass", "pos": [2.15, 0, -2.56], "rot": 280, "scale": 0.79},
     {"model": "decor_grass", "pos": [-0.93, 0, -8.62], "rot": 190, "scale": 1.01},
-    {"model": "decor_grass", "pos": [6.93, 0, 2.6], "rot": 150, "scale": 1.12},
-    {"model": "decor_grass", "pos": [-7.26, 0, -7.14], "rot": 300, "scale": 0.95},
-    {"model": "decor_grass", "pos": [-5.77, 0, -10.2], "rot": 240, "scale": 0.92},
-    {"model": "decor_grass", "pos": [-0.34, 0, -7.17], "rot": 80, "scale": 1.02},
-    {"model": "decor_grass", "pos": [4.57, 0, 7.46], "rot": 190, "scale": 0.87},
+    {"model": "decor_flowers", "pos": [4.6, 0, 5.4], "rot": 320, "scale": 1.13},
+    {"model": "decor_flowers", "pos": [-5.62, 0, -12.99], "rot": 70, "scale": 1.21},
+    {"model": "decor_flowers", "pos": [-7.26, 0, -7.14], "rot": 300, "scale": 0.95},
+    {"model": "decor_flowers", "pos": [-5.77, 0, -10.2], "rot": 240, "scale": 0.92},
+    {"model": "decor_flowers", "pos": [-0.34, 0, -7.17], "rot": 80, "scale": 1.02},
+    {"model": "decor_flowers", "pos": [4.57, 0, 7.46], "rot": 190, "scale": 0.87},
     {"model": "decor_flowers", "pos": [5.02, 0, 8.53], "rot": 130, "scale": 0.85},
     {"model": "decor_flowers", "pos": [-0.3, 0, 5.85], "rot": 0, "scale": 1.3},
     {"model": "decor_flowers", "pos": [3.51, 0, -7.56], "rot": 100, "scale": 1.24},
@@ -27200,162 +28059,164 @@ if __name__ == "__main__":
     {"model": "decor_flowers", "pos": [9.39, 0, 4.62], "rot": 70, "scale": 1.23},
     {"model": "decor_flowers", "pos": [5.14, 0, 4.18], "rot": 80, "scale": 0.82},
     {"model": "decor_flowers", "pos": [-10.77, 0, 6.13], "rot": 290, "scale": 0.9},
-    {"model": "decor_flowers", "pos": [2.22, 0, -4.52], "rot": 240, "scale": 1.15},
-    {"model": "decor_flowers", "pos": [4.2, 0, -0.54], "rot": 270, "scale": 1.01},
-    {"model": "decor_flowers", "pos": [9.19, 0, 8.31], "rot": 10, "scale": 1.15},
-    {"model": "decor_flowers", "pos": [9.48, 0, -4.52], "rot": 170, "scale": 0.75},
-    {"model": "decor_flowers", "pos": [1.73, 0, 2.22], "rot": 220, "scale": 0.81},
-    {"model": "decor_flowers", "pos": [-0.72, 0, -4.49], "rot": 160, "scale": 1.06},
-    {"model": "decor_litter", "pos": [9.37, 0, -2.62], "rot": 340, "scale": 0.94},
-    {"model": "decor_litter", "pos": [0.88, 0, -5.91], "rot": 40, "scale": 1.1},
-    {"model": "decor_litter", "pos": [5.36, 0, 0.64], "rot": 300, "scale": 0.89},
-    {"model": "decor_litter", "pos": [-7.7, 0, -3.16], "rot": 290, "scale": 1.18},
-    {"model": "decor_litter", "pos": [-9.98, 0, -2.73], "rot": 220, "scale": 1.02},
-    {"model": "decor_litter", "pos": [-10.1, 0, -0.61], "rot": 350, "scale": 1.28},
-    {"model": "decor_litter", "pos": [-3.42, 0, 9.0], "rot": 20, "scale": 0.93},
-    {"model": "decor_litter", "pos": [-7.85, 0, -5.41], "rot": 90, "scale": 0.82},
-    {"model": "decor_litter", "pos": [-3.25, 0, -12.87], "rot": 200, "scale": 1.18},
-    {"model": "decor_litter", "pos": [-1.0, 0, -7.1], "rot": 260, "scale": 0.86},
-    {"model": "decor_litter", "pos": [7.14, 0, -7.65], "rot": 120, "scale": 0.92},
-    {"model": "decor_litter", "pos": [-9.6, 0, 4.87], "rot": 120, "scale": 0.77},
-    {"model": "decor_litter", "pos": [7.31, 0, 8.16], "rot": 190, "scale": 1.25},
-    {"model": "decor_litter", "pos": [-0.74, 0, -0.23], "rot": 40, "scale": 1.19},
-    {"model": "decor_litter", "pos": [-2.67, 0, -11.04], "rot": 340, "scale": 1.2},
-    {"model": "decor_litter", "pos": [-7.48, 0, -2.38], "rot": 180, "scale": 1.2},
-    {"model": "decor_litter", "pos": [7.94, 0, -10.07], "rot": 160, "scale": 0.99},
-    {"model": "decor_litter", "pos": [-6.08, 0, -11.28], "rot": 260, "scale": 0.97},
-    {"model": "decor_litter", "pos": [0.27, 0, 1.52], "rot": 160, "scale": 0.99},
-    {"model": "decor_litter", "pos": [-6.07, 0, -5.7], "rot": 170, "scale": 0.98},
-    {"model": "decor_litter", "pos": [2.36, 0, -7.39], "rot": 200, "scale": 1.08},
-    {"model": "decor_litter", "pos": [6.68, 0, -4.88], "rot": 340, "scale": 1.2},
-    {"model": "decor_litter", "pos": [-4.57, 0, 0.45], "rot": 200, "scale": 1.15},
-    {"model": "decor_litter", "pos": [-7.15, 0, -3.6], "rot": 120, "scale": 0.72},
-    {"model": "decor_litter", "pos": [-6.86, 0, -1.07], "rot": 190, "scale": 1.11},
-    {"model": "decor_litter", "pos": [4.11, 0, 2.84], "rot": 340, "scale": 0.79},
-    {"model": "decor_litter", "pos": [0.97, 0, -6.82], "rot": 0, "scale": 1.12},
-    {"model": "decor_litter", "pos": [-6.55, 0, 3.57], "rot": 140, "scale": 1.16},
-    {"model": "decor_litter", "pos": [2.71, 0, -12.18], "rot": 350, "scale": 1.05},
-    {"model": "decor_litter", "pos": [3.35, 0, 8.42], "rot": 180, "scale": 1.1},
-    {"model": "decor_litter", "pos": [9.52, 0, 5.66], "rot": 290, "scale": 1.27},
-    {"model": "decor_litter", "pos": [-5.8, 0, 6.21], "rot": 210, "scale": 0.96},
-    {"model": "decor_litter", "pos": [4.09, 0, -5.54], "rot": 140, "scale": 0.73},
-    {"model": "decor_litter", "pos": [8.13, 0, -10.68], "rot": 170, "scale": 1.22},
-    {"model": "decor_litter", "pos": [6.31, 0, 3.51], "rot": 110, "scale": 0.71},
-    {"model": "decor_litter", "pos": [1.45, 0, 9.0], "rot": 10, "scale": 0.83},
-    {"model": "decor_litter", "pos": [-1.26, 0, -11.0], "rot": 30, "scale": 1.22},
-    {"model": "decor_litter", "pos": [7.86, 0, 7.64], "rot": 170, "scale": 1.23},
-    {"model": "decor_litter", "pos": [-6.09, 0, -4.68], "rot": 10, "scale": 0.82},
-    {"model": "decor_litter", "pos": [7.91, 0, -3.42], "rot": 50, "scale": 1.02},
-    {"model": "decor_stones", "pos": [1.01, 0, 2.03], "rot": 330, "scale": 0.7},
-    {"model": "decor_stones", "pos": [-4.36, 0, -2.84], "rot": 310, "scale": 1.08},
-    {"model": "decor_stones", "pos": [2.93, 0, 0.94], "rot": 30, "scale": 1.23},
-    {"model": "decor_stones", "pos": [-1.65, 0, 2.91], "rot": 340, "scale": 1.14},
-    {"model": "decor_stones", "pos": [-6.14, 0, -8.34], "rot": 320, "scale": 0.75},
-    {"model": "decor_stones", "pos": [6.91, 0, -2.82], "rot": 330, "scale": 1.08},
-    {"model": "decor_stones", "pos": [-4.62, 0, -5.09], "rot": 180, "scale": 0.93},
-    {"model": "decor_stones", "pos": [10.88, 0, 6.73], "rot": 50, "scale": 1.06},
-    {"model": "decor_stones", "pos": [-0.8, 0, -12.1], "rot": 300, "scale": 0.84},
-    {"model": "decor_stones", "pos": [-5.82, 0, -12.08], "rot": 220, "scale": 0.9},
-    {"model": "decor_stones", "pos": [-5.33, 0, 5.76], "rot": 140, "scale": 0.76},
-    {"model": "decor_stones", "pos": [0.88, 0, 3.87], "rot": 200, "scale": 0.72},
-    {"model": "decor_stones", "pos": [6.19, 0, 4.36], "rot": 260, "scale": 1.05},
-    {"model": "decor_stones", "pos": [-8.65, 0, 1.89], "rot": 310, "scale": 0.98},
-    {"model": "decor_stones", "pos": [-3.25, 0, -8.77], "rot": 90, "scale": 1.24},
-    {"model": "decor_stones", "pos": [-5.22, 0, -3.72], "rot": 330, "scale": 0.87},
-    {"model": "decor_stones", "pos": [4.15, 0, -2.04], "rot": 100, "scale": 1.26},
-    {"model": "decor_stones", "pos": [-2.73, 0, 6.34], "rot": 310, "scale": 1.01},
-    {"model": "decor_stones", "pos": [9.17, 0, 8.48], "rot": 0, "scale": 1.2},
-    {"model": "decor_stones", "pos": [5.72, 0, 3.97], "rot": 170, "scale": 0.92},
-    {"model": "decor_stones", "pos": [1.4, 0, 0.02], "rot": 330, "scale": 0.78},
-    {"model": "decor_stones", "pos": [0.78, 0, -7.01], "rot": 250, "scale": 1.0},
-    {"model": "decor_stones", "pos": [-9.03, 0, 1.06], "rot": 20, "scale": 1.02},
-    {"model": "decor_stones", "pos": [-5.52, 0, -8.22], "rot": 140, "scale": 1.11},
-    {"model": "decor_stones", "pos": [0.93, 0, -1.18], "rot": 180, "scale": 0.85},
-    {"model": "decor_stones", "pos": [4.84, 0, -10.76], "rot": 260, "scale": 1.07},
-    {"model": "decor_stones", "pos": [-2.76, 0, 3.56], "rot": 230, "scale": 1.08},
-    {"model": "decor_stones", "pos": [-4.3, 0, 3.96], "rot": 250, "scale": 1.0},
-    {"model": "decor_stones", "pos": [-1.43, 0, -0.03], "rot": 50, "scale": 0.72},
-    {"model": "decor_stones", "pos": [4.55, 0, 0.67], "rot": 330, "scale": 0.89},
-    {"model": "decor_litter", "pos": [59.45, 0, 9.24], "rot": 280, "scale": 0.81},
-    {"model": "decor_litter", "pos": [-75.06, 0, 14.62], "rot": 130, "scale": 1.27},
-    {"model": "decor_litter", "pos": [-48.75, 0, 5.68], "rot": 40, "scale": 1.02},
-    {"model": "decor_litter", "pos": [-5.35, 0, 18.03], "rot": 160, "scale": 0.8},
-    {"model": "decor_litter", "pos": [-37.13, 0, 18.75], "rot": 80, "scale": 0.85},
-    {"model": "decor_litter", "pos": [-23.77, 0, 12.46], "rot": 170, "scale": 1.25},
-    {"model": "decor_litter", "pos": [57.51, 0, 20.22], "rot": 170, "scale": 1.23},
-    {"model": "decor_litter", "pos": [-62.65, 0, 13.89], "rot": 20, "scale": 0.93},
-    {"model": "decor_litter", "pos": [-40.21, 0, 18.92], "rot": 100, "scale": 0.92},
-    {"model": "decor_litter", "pos": [48.6, 0, 10.45], "rot": 180, "scale": 1.24},
-    {"model": "decor_litter", "pos": [-78.53, 0, 19.48], "rot": 340, "scale": 1.18},
-    {"model": "decor_litter", "pos": [49.52, 0, 17.93], "rot": 70, "scale": 0.71},
-    {"model": "decor_litter", "pos": [-62.4, 0, 20.35], "rot": 150, "scale": 1.24},
-    {"model": "decor_litter", "pos": [-69.89, 0, 4.88], "rot": 340, "scale": 1.03},
-    {"model": "decor_litter", "pos": [-26.23, 0, 12.7], "rot": 0, "scale": 0.74},
-    {"model": "decor_litter", "pos": [-24.9, 0, 17.95], "rot": 80, "scale": 0.83},
-    {"model": "decor_litter", "pos": [75.8, 0, 12.05], "rot": 270, "scale": 0.84},
-    {"model": "decor_litter", "pos": [38.85, 0, 7.02], "rot": 190, "scale": 1.04},
-    {"model": "decor_litter", "pos": [14.87, 0, 21.41], "rot": 240, "scale": 0.86},
-    {"model": "decor_litter", "pos": [-59.29, 0, 13.96], "rot": 100, "scale": 0.78},
-    {"model": "decor_litter", "pos": [-19.14, 0, 5.43], "rot": 130, "scale": 1.09},
-    {"model": "decor_litter", "pos": [-9.0, 0, 17.27], "rot": 200, "scale": 1.16},
-    {"model": "decor_litter", "pos": [-46.67, 0, 21.02], "rot": 230, "scale": 1.16},
-    {"model": "decor_litter", "pos": [23.0, 0, 9.21], "rot": 20, "scale": 1.11},
-    {"model": "decor_litter", "pos": [-57.52, 0, 15.69], "rot": 280, "scale": 0.95},
-    {"model": "decor_litter", "pos": [-37.8, 0, 8.54], "rot": 70, "scale": 1.26},
-    {"model": "decor_litter", "pos": [22.39, 0, 10.04], "rot": 190, "scale": 1.15},
-    {"model": "decor_litter", "pos": [7.16, 0, 6.67], "rot": 220, "scale": 0.78},
-    {"model": "decor_litter", "pos": [-42.23, 0, 14.35], "rot": 0, "scale": 0.87},
-    {"model": "decor_litter", "pos": [30.44, 0, 13.93], "rot": 200, "scale": 1.29},
-    {"model": "decor_litter", "pos": [70.17, 0, 17.9], "rot": 340, "scale": 1.2},
-    {"model": "decor_litter", "pos": [-54.27, 0, 4.05], "rot": 90, "scale": 0.73},
-    {"model": "decor_litter", "pos": [27.79, 0, 13.05], "rot": 260, "scale": 1.28},
-    {"model": "decor_litter", "pos": [72.2, 0, 5.07], "rot": 180, "scale": 1.2},
-    {"model": "decor_litter", "pos": [-75.82, 0, 9.07], "rot": 120, "scale": 0.9},
-    {"model": "decor_litter", "pos": [-79.21, 0, 6.36], "rot": 130, "scale": 0.82},
-    {"model": "decor_litter", "pos": [-60.28, 0, 4.19], "rot": 70, "scale": 1.18},
-    {"model": "decor_litter", "pos": [-31.93, 0, 19.7], "rot": 120, "scale": 1.03},
-    {"model": "decor_litter", "pos": [-56.12, 0, 5.04], "rot": 120, "scale": 0.86},
-    {"model": "decor_litter", "pos": [-60.31, 0, 10.39], "rot": 220, "scale": 0.98},
-    {"model": "decor_litter", "pos": [-10.87, 0, 13.97], "rot": 270, "scale": 0.95},
-    {"model": "decor_litter", "pos": [68.91, 0, 21.22], "rot": 170, "scale": 1.07},
-    {"model": "decor_litter", "pos": [56.47, 0, 20.16], "rot": 280, "scale": 0.76},
-    {"model": "decor_litter", "pos": [-48.38, 0, 21.47], "rot": 250, "scale": 1.04},
-    {"model": "decor_litter", "pos": [11.1, 0, 7.39], "rot": 160, "scale": 1.12},
-    {"model": "decor_litter", "pos": [38.18, 0, 17.96], "rot": 200, "scale": 0.83},
-    {"model": "decor_litter", "pos": [7.93, 0, 7.83], "rot": 300, "scale": 1.07},
-    {"model": "decor_litter", "pos": [-22.67, 0, 10.24], "rot": 250, "scale": 0.83},
-    {"model": "decor_litter", "pos": [-61.3, 0, 13.33], "rot": 130, "scale": 0.85},
-    {"model": "decor_litter", "pos": [53.19, 0, 19.86], "rot": 120, "scale": 1.16},
-    {"model": "decor_litter", "pos": [-35.6, 0, 5.44], "rot": 140, "scale": 1.29},
-    {"model": "decor_litter", "pos": [-74.43, 0, 9.51], "rot": 90, "scale": 0.9},
-    {"model": "decor_litter", "pos": [-56.27, 0, 19.39], "rot": 280, "scale": 0.88},
-    {"model": "decor_litter", "pos": [-65.05, 0, 13.1], "rot": 90, "scale": 0.92},
-    {"model": "decor_litter", "pos": [79.41, 0, 15.2], "rot": 230, "scale": 1.3},
-    {"model": "decor_litter", "pos": [10.77, 0, 10.49], "rot": 300, "scale": 0.93},
-    {"model": "decor_litter", "pos": [42.16, 0, 10.24], "rot": 10, "scale": 1.07},
-    {"model": "decor_litter", "pos": [-32.77, 0, 16.32], "rot": 320, "scale": 0.87},
-    {"model": "decor_litter", "pos": [-52.86, 0, 18.05], "rot": 190, "scale": 1.3},
-    {"model": "decor_litter", "pos": [52.4, 0, 6.11], "rot": 10, "scale": 0.96},
-    {"model": "decor_litter", "pos": [-47.67, 0, 7.47], "rot": 190, "scale": 1.08},
-    {"model": "decor_litter", "pos": [-58.13, 0, 5.36], "rot": 60, "scale": 0.93},
-    {"model": "decor_litter", "pos": [75.44, 0, 4.3], "rot": 230, "scale": 1.13},
-    {"model": "decor_litter", "pos": [28.92, 0, 21.71], "rot": 270, "scale": 1.02},
-    {"model": "decor_litter", "pos": [44.55, 0, 12.52], "rot": 30, "scale": 1.12},
-    {"model": "decor_litter", "pos": [70.45, 0, 7.05], "rot": 260, "scale": 1.17},
-    {"model": "decor_litter", "pos": [-25.17, 0, 20.5], "rot": 80, "scale": 1.12},
-    {"model": "decor_litter", "pos": [-22.8, 0, 6.67], "rot": 200, "scale": 1.23},
-    {"model": "decor_litter", "pos": [-2.34, 0, 16.78], "rot": 210, "scale": 1.13},
-    {"model": "decor_litter", "pos": [42.59, 0, 7.85], "rot": 80, "scale": 1.15},
-    {"model": "decor_litter", "pos": [-52.79, 0, 13.9], "rot": 0, "scale": 1.3},
-    {"model": "decor_litter", "pos": [-18.82, 0, 9.55], "rot": 350, "scale": 1.06},
-    {"model": "decor_litter", "pos": [-30.72, 0, 14.03], "rot": 350, "scale": 1.21},
-    {"model": "decor_litter", "pos": [6.23, 0, 13.28], "rot": 90, "scale": 0.86},
-    {"model": "decor_litter", "pos": [0.96, 0, 14.15], "rot": 310, "scale": 0.81},
-    {"model": "decor_litter", "pos": [20.63, 0, 7.52], "rot": 200, "scale": 1.07},
-    {"model": "decor_litter", "pos": [6.22, 0, 4.5], "rot": 280, "scale": 1.12},
-    {"model": "decor_litter", "pos": [-57.79, 0, 10.31], "rot": 210, "scale": 0.82},
-    {"model": "decor_litter", "pos": [-54.1, 0, 12.61], "rot": 100, "scale": 1.07},
-    {"model": "decor_litter", "pos": [-53.24, 0, 7.71], "rot": 60, "scale": 1.15},
+    {"model": "decor_litter", "pos": [2.22, 0, -4.52], "rot": 240, "scale": 1.15},
+    {"model": "decor_litter", "pos": [0.28, 0, 0.88], "rot": 280, "scale": 1.04},
+    {"model": "decor_litter", "pos": [-1.69, 0, -2.27], "rot": 70, "scale": 1.28},
+    {"model": "decor_litter", "pos": [-10.37, 0, 3.98], "rot": 70, "scale": 0.93},
+    {"model": "decor_litter", "pos": [6.99, 0, -7.08], "rot": 240, "scale": 1.05},
+    {"model": "decor_litter", "pos": [4.22, 0, -5.34], "rot": 340, "scale": 0.98},
+    {"model": "decor_litter", "pos": [-2.49, 0, 7.56], "rot": 300, "scale": 1.02},
+    {"model": "decor_stones", "pos": [6.72, 0, 5.4], "rot": 340, "scale": 0.94},
+    {"model": "decor_stones", "pos": [0.88, 0, -5.91], "rot": 40, "scale": 1.1},
+    {"model": "decor_stones", "pos": [5.36, 0, 0.64], "rot": 300, "scale": 0.89},
+    {"model": "decor_stones", "pos": [-7.7, 0, -3.16], "rot": 290, "scale": 1.18},
+    {"model": "decor_stones", "pos": [-9.98, 0, -2.73], "rot": 220, "scale": 1.02},
+    {"model": "decor_stones", "pos": [-10.1, 0, -0.61], "rot": 350, "scale": 1.28},
+    {"model": "decor_stones", "pos": [-3.42, 0, 9.0], "rot": 20, "scale": 0.93},
+    {"model": "decor_stones", "pos": [-7.85, 0, -5.41], "rot": 90, "scale": 0.82},
+    {"model": "decor_stones", "pos": [-3.25, 0, -12.87], "rot": 200, "scale": 1.18},
+    {"model": "decor_stones", "pos": [-1.0, 0, -7.1], "rot": 260, "scale": 0.86},
+    {"model": "decor_stones", "pos": [7.14, 0, -7.65], "rot": 120, "scale": 0.92},
+    {"model": "decor_stones", "pos": [-9.6, 0, 4.87], "rot": 120, "scale": 0.77},
+    {"model": "decor_stones", "pos": [7.31, 0, 8.16], "rot": 190, "scale": 1.25},
+    {"model": "decor_stones", "pos": [-0.74, 0, -0.23], "rot": 40, "scale": 1.19},
+    {"model": "decor_stones", "pos": [-2.67, 0, -11.04], "rot": 340, "scale": 1.2},
+    {"model": "decor_stones", "pos": [-7.48, 0, -2.38], "rot": 180, "scale": 1.2},
+    {"model": "decor_stones", "pos": [7.94, 0, -10.07], "rot": 160, "scale": 0.99},
+    {"model": "decor_stones", "pos": [-6.08, 0, -11.28], "rot": 260, "scale": 0.97},
+    {"model": "decor_stones", "pos": [0.27, 0, 1.52], "rot": 160, "scale": 0.99},
+    {"model": "decor_stones", "pos": [-6.07, 0, -5.7], "rot": 170, "scale": 0.98},
+    {"model": "decor_stones", "pos": [2.36, 0, -7.39], "rot": 200, "scale": 1.08},
+    {"model": "decor_stones", "pos": [6.68, 0, -4.88], "rot": 340, "scale": 1.2},
+    {"model": "decor_stones", "pos": [-4.57, 0, 0.45], "rot": 200, "scale": 1.15},
+    {"model": "decor_stones", "pos": [-7.15, 0, -3.6], "rot": 120, "scale": 0.72},
+    {"model": "decor_stones", "pos": [-6.86, 0, -1.07], "rot": 190, "scale": 1.11},
+    {"model": "decor_stones", "pos": [4.11, 0, 2.84], "rot": 340, "scale": 0.79},
+    {"model": "decor_stones", "pos": [0.97, 0, -6.82], "rot": 0, "scale": 1.12},
+    {"model": "decor_stones", "pos": [-6.55, 0, 3.57], "rot": 140, "scale": 1.16},
+    {"model": "decor_stones", "pos": [2.71, 0, -12.18], "rot": 350, "scale": 1.05},
+    {"model": "decor_stones", "pos": [3.35, 0, 8.42], "rot": 180, "scale": 1.1},
+    {"model": "decor_litter", "pos": [70.97, 0, 19.27], "rot": 290, "scale": 1.27},
+    {"model": "decor_litter", "pos": [59.92, 0, 18.9], "rot": 150, "scale": 0.78},
+    {"model": "decor_litter", "pos": [80.25, 0, 10.11], "rot": 280, "scale": 1.11},
+    {"model": "decor_litter", "pos": [-44.57, 0, 7.81], "rot": 180, "scale": 0.76},
+    {"model": "decor_litter", "pos": [61.22, 0, 19.45], "rot": 110, "scale": 0.71},
+    {"model": "decor_litter", "pos": [10.82, 0, 22.0], "rot": 10, "scale": 0.83},
+    {"model": "decor_litter", "pos": [27.47, 0, 16.57], "rot": 30, "scale": 1.22},
+    {"model": "decor_litter", "pos": [58.63, 0, 20.89], "rot": 170, "scale": 1.23},
+    {"model": "decor_litter", "pos": [-78.23, 0, 16.95], "rot": 260, "scale": 0.96},
+    {"model": "decor_litter", "pos": [-68.41, 0, 18.7], "rot": 200, "scale": 1.11},
+    {"model": "decor_litter", "pos": [2.68, 0, 10.14], "rot": 290, "scale": 1.3},
+    {"model": "decor_litter", "pos": [22.97, 0, 15.4], "rot": 0, "scale": 0.74},
+    {"model": "decor_litter", "pos": [-59.08, 0, 12.44], "rot": 340, "scale": 1.14},
+    {"model": "decor_litter", "pos": [-45.78, 0, 7.81], "rot": 320, "scale": 0.75},
+    {"model": "decor_grass", "pos": [51.52, 0, 12.33], "rot": 330, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-34.46, 0, 10.47], "rot": 180, "scale": 0.93},
+    {"model": "decor_grass", "pos": [81.14, 0, 20.14], "rot": 50, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-5.96, 0, 4.74], "rot": 300, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-43.38, 0, 4.75], "rot": 220, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-39.75, 0, 19.35], "rot": 140, "scale": 0.76},
+    {"model": "decor_grass", "pos": [6.53, 0, 17.8], "rot": 200, "scale": 0.72},
+    {"model": "decor_grass", "pos": [46.14, 0, 18.21], "rot": 260, "scale": 1.05},
+    {"model": "decor_grass", "pos": [13.23, 0, 12.74], "rot": 220, "scale": 0.81},
+    {"model": "decor_grass", "pos": [65.09, 0, 21.83], "rot": 90, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-12.81, 0, 13.45], "rot": 290, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-43.67, 0, 12.68], "rot": 90, "scale": 1.23},
+    {"model": "decor_grass", "pos": [78.13, 0, 4.17], "rot": 190, "scale": 0.86},
+    {"model": "decor_grass", "pos": [47.74, 0, 16.03], "rot": 70, "scale": 1.06},
+    {"model": "decor_grass", "pos": [65.17, 0, 13.3], "rot": 350, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-77.23, 0, 13.64], "rot": 170, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-0.91, 0, 5.61], "rot": 340, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-4.67, 0, 7.8], "rot": 250, "scale": 1.17},
+    {"model": "decor_grass", "pos": [31.0, 0, 13.76], "rot": 340, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-40.72, 0, 16.96], "rot": 60, "scale": 0.91},
+    {"model": "decor_grass", "pos": [14.91, 0, 15.2], "rot": 230, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-20.26, 0, 10.61], "rot": 0, "scale": 0.88},
+    {"model": "decor_grass", "pos": [44.41, 0, 11.15], "rot": 80, "scale": 0.96},
+    {"model": "decor_grass", "pos": [14.71, 0, 5.61], "rot": 90, "scale": 1.12},
+    {"model": "decor_grass", "pos": [19.89, 0, 13.49], "rot": 180, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-52.44, 0, 4.76], "rot": 170, "scale": 1.24},
+    {"model": "decor_grass", "pos": [80.56, 0, 21.01], "rot": 120, "scale": 1.01},
+    {"model": "decor_grass", "pos": [10.16, 0, 13.72], "rot": 290, "scale": 1.03},
+    {"model": "decor_grass", "pos": [5.7, 0, 6.87], "rot": 170, "scale": 1.11},
+    {"model": "decor_grass", "pos": [64.08, 0, 8.58], "rot": 220, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-56.43, 0, 20.53], "rot": 140, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-37.36, 0, 12.6], "rot": 210, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-62.65, 0, 13.89], "rot": 20, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-40.21, 0, 18.92], "rot": 100, "scale": 0.92},
+    {"model": "decor_grass", "pos": [48.6, 0, 10.45], "rot": 180, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-78.53, 0, 19.48], "rot": 340, "scale": 1.18},
+    {"model": "decor_grass", "pos": [49.52, 0, 17.93], "rot": 70, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-62.4, 0, 20.35], "rot": 150, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-69.89, 0, 4.88], "rot": 340, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-26.23, 0, 12.7], "rot": 0, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-24.9, 0, 17.95], "rot": 80, "scale": 0.83},
+    {"model": "decor_grass", "pos": [75.8, 0, 12.05], "rot": 270, "scale": 0.84},
+    {"model": "decor_grass", "pos": [38.85, 0, 7.02], "rot": 190, "scale": 1.04},
+    {"model": "decor_grass", "pos": [14.87, 0, 21.41], "rot": 240, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-59.29, 0, 13.96], "rot": 100, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-19.14, 0, 5.43], "rot": 130, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-9.0, 0, 17.27], "rot": 200, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-46.67, 0, 21.02], "rot": 230, "scale": 1.16},
+    {"model": "decor_grass", "pos": [23.0, 0, 9.21], "rot": 20, "scale": 1.11},
+    {"model": "decor_grass", "pos": [-57.52, 0, 15.69], "rot": 280, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-37.8, 0, 8.54], "rot": 70, "scale": 1.26},
+    {"model": "decor_grass", "pos": [22.39, 0, 10.04], "rot": 190, "scale": 1.15},
+    {"model": "decor_grass", "pos": [7.16, 0, 6.67], "rot": 220, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-42.23, 0, 14.35], "rot": 0, "scale": 0.87},
+    {"model": "decor_grass", "pos": [30.44, 0, 13.93], "rot": 200, "scale": 1.29},
+    {"model": "decor_grass", "pos": [70.17, 0, 17.9], "rot": 340, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-54.27, 0, 4.05], "rot": 90, "scale": 0.73},
+    {"model": "decor_grass", "pos": [27.79, 0, 13.05], "rot": 260, "scale": 1.28},
+    {"model": "decor_grass", "pos": [72.2, 0, 5.07], "rot": 180, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-75.82, 0, 9.07], "rot": 120, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-79.21, 0, 6.36], "rot": 130, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-60.28, 0, 4.19], "rot": 70, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-31.93, 0, 19.7], "rot": 120, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-56.12, 0, 5.04], "rot": 120, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-60.31, 0, 10.39], "rot": 220, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-10.87, 0, 13.97], "rot": 270, "scale": 0.95},
+    {"model": "decor_grass", "pos": [68.91, 0, 21.22], "rot": 170, "scale": 1.07},
+    {"model": "decor_grass", "pos": [15.32, 0, 21.2], "rot": 320, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-9.44, 0, 17.26], "rot": 160, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-48.38, 0, 21.47], "rot": 250, "scale": 1.04},
+    {"model": "decor_grass", "pos": [11.1, 0, 7.39], "rot": 160, "scale": 1.12},
+    {"model": "decor_grass", "pos": [38.18, 0, 17.96], "rot": 200, "scale": 0.83},
+    {"model": "decor_grass", "pos": [7.93, 0, 7.83], "rot": 300, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-22.67, 0, 10.24], "rot": 250, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-61.3, 0, 13.33], "rot": 130, "scale": 0.85},
+    {"model": "decor_grass", "pos": [53.19, 0, 19.86], "rot": 120, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-35.6, 0, 5.44], "rot": 140, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-74.43, 0, 9.51], "rot": 90, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-56.27, 0, 19.39], "rot": 280, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-65.05, 0, 13.1], "rot": 90, "scale": 0.92},
+    {"model": "decor_grass", "pos": [79.41, 0, 15.2], "rot": 230, "scale": 1.3},
+    {"model": "decor_grass", "pos": [10.77, 0, 10.49], "rot": 300, "scale": 0.93},
+    {"model": "decor_grass", "pos": [42.16, 0, 10.24], "rot": 10, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-32.77, 0, 16.32], "rot": 320, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-52.86, 0, 18.05], "rot": 190, "scale": 1.3},
+    {"model": "decor_grass", "pos": [52.4, 0, 6.11], "rot": 10, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-47.67, 0, 7.47], "rot": 190, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-58.13, 0, 5.36], "rot": 60, "scale": 0.93},
+    {"model": "decor_grass", "pos": [75.44, 0, 4.3], "rot": 230, "scale": 1.13},
+    {"model": "decor_grass", "pos": [28.92, 0, 21.71], "rot": 270, "scale": 1.02},
+    {"model": "decor_grass", "pos": [44.55, 0, 12.52], "rot": 30, "scale": 1.12},
+    {"model": "decor_grass", "pos": [70.45, 0, 7.05], "rot": 260, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-25.17, 0, 20.5], "rot": 80, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-22.8, 0, 6.67], "rot": 200, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-2.34, 0, 16.78], "rot": 210, "scale": 1.13},
+    {"model": "decor_grass", "pos": [42.59, 0, 7.85], "rot": 80, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-52.79, 0, 13.9], "rot": 0, "scale": 1.3},
+    {"model": "decor_grass", "pos": [-18.82, 0, 9.55], "rot": 350, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-30.72, 0, 14.03], "rot": 350, "scale": 1.21},
+    {"model": "decor_grass", "pos": [79.08, 0, 15.87], "rot": 340, "scale": 0.93},
+    {"model": "decor_grass", "pos": [44.07, 0, 8.92], "rot": 320, "scale": 1.23},
+    {"model": "decor_grass", "pos": [77.72, 0, 18.93], "rot": 120, "scale": 1.14},
+    {"model": "decor_grass", "pos": [63.08, 0, 17.85], "rot": 340, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-79.99, 0, 18.03], "rot": 280, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-57.79, 0, 10.31], "rot": 210, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-54.1, 0, 12.61], "rot": 100, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-53.24, 0, 7.71], "rot": 60, "scale": 1.15},
     {"model": "decor_grass", "pos": [-53.69, 0, 10.24], "rot": 310, "scale": 0.81},
     {"model": "decor_grass", "pos": [-15.85, 0, 5.28], "rot": 180, "scale": 1.08},
     {"model": "decor_grass", "pos": [-0.55, 0, 6.36], "rot": 270, "scale": 1.28},
@@ -27399,463 +28260,473 @@ if __name__ == "__main__":
     {"model": "decor_grass", "pos": [11.54, 0, 21.31], "rot": 230, "scale": 0.78},
     {"model": "decor_grass", "pos": [-78.61, 0, 7.21], "rot": 190, "scale": 1.23},
     {"model": "decor_grass", "pos": [-58.59, 0, 4.08], "rot": 60, "scale": 1.09},
-    {"model": "decor_grass", "pos": [-66.58, 0, 6.53], "rot": 250, "scale": 0.92},
-    {"model": "decor_grass", "pos": [72.24, 0, 5.16], "rot": 260, "scale": 1.07},
-    {"model": "decor_grass", "pos": [40.52, 0, 11.61], "rot": 170, "scale": 0.83},
-    {"model": "decor_grass", "pos": [-32.76, 0, 19.73], "rot": 260, "scale": 1.24},
-    {"model": "decor_grass", "pos": [14.5, 0, 14.75], "rot": 240, "scale": 1.07},
-    {"model": "decor_grass", "pos": [43.51, 0, 15.23], "rot": 10, "scale": 1.09},
-    {"model": "decor_grass", "pos": [5.06, 0, 8.57], "rot": 30, "scale": 0.74},
-    {"model": "decor_grass", "pos": [40.65, 0, 16.27], "rot": 280, "scale": 1.27},
-    {"model": "decor_grass", "pos": [-21.54, 0, 9.12], "rot": 20, "scale": 1.12},
-    {"model": "decor_grass", "pos": [58.61, 0, 18.91], "rot": 10, "scale": 0.79},
-    {"model": "decor_grass", "pos": [12.11, 0, 7.81], "rot": 310, "scale": 1.17},
-    {"model": "decor_grass", "pos": [50.06, 0, 7.44], "rot": 230, "scale": 1.04},
-    {"model": "decor_grass", "pos": [-55.48, 0, 15.04], "rot": 350, "scale": 1.25},
-    {"model": "decor_grass", "pos": [-68.49, 0, 17.7], "rot": 110, "scale": 1.28},
-    {"model": "decor_grass", "pos": [26.01, 0, 17.16], "rot": 350, "scale": 0.91},
-    {"model": "decor_grass", "pos": [-68.18, 0, 15.32], "rot": 130, "scale": 0.96},
-    {"model": "decor_grass", "pos": [-35.46, 0, 17.62], "rot": 150, "scale": 0.87},
-    {"model": "decor_grass", "pos": [58.92, 0, 17.34], "rot": 190, "scale": 1.13},
-    {"model": "decor_grass", "pos": [-62.91, 0, 6.52], "rot": 30, "scale": 0.92},
-    {"model": "decor_grass", "pos": [-33.45, 0, 15.16], "rot": 260, "scale": 0.87},
-    {"model": "decor_grass", "pos": [57.68, 0, 4.89], "rot": 330, "scale": 0.89},
-    {"model": "decor_grass", "pos": [39.32, 0, 20.6], "rot": 350, "scale": 0.97},
-    {"model": "decor_grass", "pos": [37.91, 0, 20.4], "rot": 50, "scale": 1.1},
-    {"model": "decor_grass", "pos": [-1.95, 0, 6.23], "rot": 310, "scale": 0.72},
-    {"model": "decor_grass", "pos": [18.18, 0, 13.49], "rot": 170, "scale": 0.84},
-    {"model": "decor_grass", "pos": [-49.29, 0, 17.49], "rot": 210, "scale": 1.16},
-    {"model": "decor_grass", "pos": [-50.35, 0, 12.02], "rot": 70, "scale": 0.99},
-    {"model": "decor_grass", "pos": [-45.29, 0, 20.44], "rot": 190, "scale": 1.27},
-    {"model": "decor_grass", "pos": [-64.69, 0, 13.23], "rot": 50, "scale": 1.07},
-    {"model": "decor_grass", "pos": [36.8, 0, 12.41], "rot": 200, "scale": 1.11},
-    {"model": "decor_grass", "pos": [18.13, 0, 5.01], "rot": 340, "scale": 0.93},
-    {"model": "decor_grass", "pos": [-76.85, 0, 10.54], "rot": 310, "scale": 0.74},
-    {"model": "decor_grass", "pos": [67.75, 0, 19.76], "rot": 150, "scale": 1.25},
-    {"model": "decor_grass", "pos": [-25.73, 0, 6.32], "rot": 270, "scale": 0.86},
-    {"model": "decor_grass", "pos": [-24.64, 0, 8.76], "rot": 280, "scale": 0.98},
-    {"model": "decor_grass", "pos": [24.36, 0, 19.69], "rot": 270, "scale": 0.89},
-    {"model": "decor_grass", "pos": [-8.06, 0, 14.0], "rot": 30, "scale": 1.21},
-    {"model": "decor_grass", "pos": [-57.8, 0, 7.39], "rot": 280, "scale": 0.91},
-    {"model": "decor_grass", "pos": [-33.24, 0, 4.01], "rot": 280, "scale": 1.04},
-    {"model": "decor_grass", "pos": [-51.74, 0, 18.43], "rot": 230, "scale": 0.95},
-    {"model": "decor_grass", "pos": [19.81, 0, 21.4], "rot": 260, "scale": 1.02},
-    {"model": "decor_grass", "pos": [-22.26, 0, 16.51], "rot": 80, "scale": 0.85},
-    {"model": "decor_grass", "pos": [21.71, 0, 20.79], "rot": 60, "scale": 1.09},
-    {"model": "decor_grass", "pos": [16.88, 0, 7.46], "rot": 90, "scale": 0.93},
-    {"model": "decor_grass", "pos": [-60.54, 0, 19.59], "rot": 310, "scale": 1.0},
-    {"model": "decor_grass", "pos": [-68.95, 0, 21.07], "rot": 150, "scale": 0.94},
-    {"model": "decor_grass", "pos": [-59.72, 0, 16.09], "rot": 230, "scale": 1.21},
-    {"model": "decor_grass", "pos": [-70.39, 0, 13.97], "rot": 70, "scale": 0.92},
-    {"model": "decor_grass", "pos": [78.8, 0, 12.33], "rot": 40, "scale": 1.17},
-    {"model": "decor_grass", "pos": [28.11, 0, 8.08], "rot": 30, "scale": 0.97},
-    {"model": "decor_grass", "pos": [-2.88, 0, 11.24], "rot": 10, "scale": 1.11},
-    {"model": "decor_grass", "pos": [81.03, 0, 21.39], "rot": 240, "scale": 1.25},
-    {"model": "decor_grass", "pos": [16.05, 0, 7.71], "rot": 320, "scale": 0.95},
-    {"model": "decor_grass", "pos": [60.79, 0, 16.29], "rot": 60, "scale": 0.79},
-    {"model": "decor_grass", "pos": [24.78, 0, 14.95], "rot": 150, "scale": 0.79},
-    {"model": "decor_grass", "pos": [13.49, 0, 5.97], "rot": 270, "scale": 1.03},
-    {"model": "decor_grass", "pos": [0.32, 0, 6.2], "rot": 320, "scale": 0.76},
-    {"model": "decor_grass", "pos": [63.8, 0, 19.06], "rot": 300, "scale": 1.12},
-    {"model": "decor_grass", "pos": [-76.1, 0, 12.72], "rot": 0, "scale": 1.19},
-    {"model": "decor_grass", "pos": [-29.29, 0, 15.54], "rot": 70, "scale": 0.97},
-    {"model": "decor_grass", "pos": [-6.14, 0, 17.6], "rot": 40, "scale": 0.77},
-    {"model": "decor_grass", "pos": [60.41, 0, 7.59], "rot": 50, "scale": 0.97},
-    {"model": "decor_grass", "pos": [-24.44, 0, 6.5], "rot": 250, "scale": 0.96},
-    {"model": "decor_grass", "pos": [-61.4, 0, 13.63], "rot": 140, "scale": 0.81},
-    {"model": "decor_grass", "pos": [53.72, 0, 6.98], "rot": 210, "scale": 0.93},
-    {"model": "decor_grass", "pos": [42.63, 0, 14.97], "rot": 70, "scale": 1.22},
-    {"model": "decor_grass", "pos": [69.81, 0, 17.53], "rot": 270, "scale": 1.24},
-    {"model": "decor_grass", "pos": [-42.06, 0, 13.98], "rot": 160, "scale": 1.22},
-    {"model": "decor_grass", "pos": [36.94, 0, 14.94], "rot": 90, "scale": 1.16},
-    {"model": "decor_grass", "pos": [-11.43, 0, 15.52], "rot": 220, "scale": 1.3},
-    {"model": "decor_grass", "pos": [23.4, 0, 9.34], "rot": 270, "scale": 1.0},
-    {"model": "decor_grass", "pos": [-40.38, 0, 6.86], "rot": 270, "scale": 1.06},
-    {"model": "decor_grass", "pos": [18.49, 0, 17.06], "rot": 70, "scale": 1.27},
-    {"model": "decor_grass", "pos": [45.97, 0, 11.57], "rot": 150, "scale": 1.23},
-    {"model": "decor_grass", "pos": [25.7, 0, 9.82], "rot": 170, "scale": 1.26},
-    {"model": "decor_grass", "pos": [13.03, 0, 6.33], "rot": 100, "scale": 0.83},
-    {"model": "decor_grass", "pos": [11.01, 0, 14.31], "rot": 160, "scale": 1.19},
-    {"model": "decor_grass", "pos": [-6.29, 0, 12.89], "rot": 150, "scale": 0.77},
-    {"model": "decor_grass", "pos": [-19.41, 0, 6.08], "rot": 100, "scale": 1.08},
-    {"model": "decor_grass", "pos": [-73.04, 0, 11.29], "rot": 10, "scale": 0.88},
-    {"model": "decor_grass", "pos": [-56.57, 0, 15.78], "rot": 220, "scale": 1.13},
-    {"model": "decor_grass", "pos": [-73.89, 0, 6.61], "rot": 260, "scale": 0.83},
-    {"model": "decor_grass", "pos": [24.4, 0, 20.82], "rot": 320, "scale": 0.97},
-    {"model": "decor_grass", "pos": [-11.73, 0, 11.24], "rot": 90, "scale": 1.0},
-    {"model": "decor_grass", "pos": [-44.93, 0, 18.06], "rot": 160, "scale": 0.85},
-    {"model": "decor_grass", "pos": [9.47, 0, 19.98], "rot": 170, "scale": 0.93},
-    {"model": "decor_grass", "pos": [78.02, 0, 10.56], "rot": 220, "scale": 1.19},
-    {"model": "decor_grass", "pos": [-49.94, 0, 17.78], "rot": 320, "scale": 1.28},
-    {"model": "decor_grass", "pos": [6.52, 0, 4.8], "rot": 220, "scale": 1.08},
-    {"model": "decor_grass", "pos": [68.94, 0, 21.65], "rot": 240, "scale": 1.06},
-    {"model": "decor_grass", "pos": [70.65, 0, 10.5], "rot": 120, "scale": 0.94},
-    {"model": "decor_grass", "pos": [-63.25, 0, 13.87], "rot": 180, "scale": 1.29},
-    {"model": "decor_grass", "pos": [62.0, 0, 13.29], "rot": 250, "scale": 1.02},
-    {"model": "decor_grass", "pos": [-51.04, 0, 6.44], "rot": 100, "scale": 0.83},
-    {"model": "decor_grass", "pos": [-60.32, 0, 13.99], "rot": 40, "scale": 0.98},
-    {"model": "decor_grass", "pos": [51.44, 0, 12.75], "rot": 150, "scale": 0.73},
-    {"model": "decor_grass", "pos": [-1.92, 0, 14.1], "rot": 80, "scale": 1.3},
-    {"model": "decor_grass", "pos": [29.18, 0, 4.65], "rot": 270, "scale": 1.22},
-    {"model": "decor_grass", "pos": [-10.02, 0, 10.25], "rot": 280, "scale": 0.94},
-    {"model": "decor_grass", "pos": [-57.57, 0, 5.85], "rot": 160, "scale": 1.25},
-    {"model": "decor_grass", "pos": [79.06, 0, 8.79], "rot": 130, "scale": 1.21},
-    {"model": "decor_grass", "pos": [-44.39, 0, 20.65], "rot": 240, "scale": 0.91},
-    {"model": "decor_grass", "pos": [-21.58, 0, 7.52], "rot": 240, "scale": 0.81},
-    {"model": "decor_grass", "pos": [74.37, 0, 4.42], "rot": 260, "scale": 0.88},
-    {"model": "decor_grass", "pos": [2.62, 0, 15.32], "rot": 130, "scale": 1.25},
-    {"model": "decor_grass", "pos": [3.08, 0, 13.8], "rot": 200, "scale": 1.1},
-    {"model": "decor_grass", "pos": [55.51, 0, 6.14], "rot": 190, "scale": 0.83},
-    {"model": "decor_stones", "pos": [-28.79, 0, 12.26], "rot": 330, "scale": 1.24},
-    {"model": "decor_stones", "pos": [-15.61, 0, 9.72], "rot": 310, "scale": 1.13},
-    {"model": "decor_stones", "pos": [36.81, 0, 15.61], "rot": 330, "scale": 1.26},
-    {"model": "decor_stones", "pos": [70.14, 0, 8.04], "rot": 350, "scale": 0.74},
-    {"model": "decor_stones", "pos": [-53.96, 0, 11.17], "rot": 190, "scale": 1.3},
-    {"model": "decor_stones", "pos": [13.23, 0, 21.29], "rot": 240, "scale": 1.21},
-    {"model": "decor_stones", "pos": [3.13, 0, 17.29], "rot": 180, "scale": 0.83},
-    {"model": "decor_stones", "pos": [-54.6, 0, 13.17], "rot": 290, "scale": 0.84},
-    {"model": "decor_stones", "pos": [37.9, 0, 13.64], "rot": 90, "scale": 0.72},
-    {"model": "decor_stones", "pos": [-73.28, 0, 4.54], "rot": 280, "scale": 1.13},
-    {"model": "decor_stones", "pos": [35.93, 0, 19.74], "rot": 100, "scale": 1.22},
-    {"model": "decor_stones", "pos": [-41.47, 0, 16.94], "rot": 110, "scale": 1.18},
-    {"model": "decor_stones", "pos": [-26.09, 0, 10.41], "rot": 50, "scale": 0.72},
-    {"model": "decor_stones", "pos": [50.24, 0, 16.29], "rot": 130, "scale": 0.89},
-    {"model": "decor_stones", "pos": [12.36, 0, 14.93], "rot": 320, "scale": 1.16},
-    {"model": "decor_stones", "pos": [-63.2, 0, 19.06], "rot": 40, "scale": 1.15},
-    {"model": "decor_stones", "pos": [-41.86, 0, 5.05], "rot": 40, "scale": 1.06},
-    {"model": "decor_stones", "pos": [-57.83, 0, 5.91], "rot": 280, "scale": 0.8},
-    {"model": "decor_stones", "pos": [58.31, 0, 21.14], "rot": 60, "scale": 0.74},
-    {"model": "decor_stones", "pos": [-13.67, 0, 5.26], "rot": 190, "scale": 0.94},
-    {"model": "decor_stones", "pos": [76.74, 0, 7.85], "rot": 220, "scale": 0.71},
-    {"model": "decor_stones", "pos": [51.39, 0, 5.84], "rot": 180, "scale": 0.76},
-    {"model": "decor_stones", "pos": [-43.18, 0, 13.02], "rot": 320, "scale": 0.83},
-    {"model": "decor_stones", "pos": [-57.66, 0, 6.69], "rot": 160, "scale": 1.21},
-    {"model": "decor_stones", "pos": [-40.72, 0, 13.43], "rot": 220, "scale": 1.29},
-    {"model": "decor_stones", "pos": [57.02, 0, 18.05], "rot": 310, "scale": 0.8},
-    {"model": "decor_stones", "pos": [-44.93, 0, 11.32], "rot": 90, "scale": 0.89},
-    {"model": "decor_stones", "pos": [51.41, 0, 9.3], "rot": 60, "scale": 1.29},
-    {"model": "decor_stones", "pos": [11.71, 0, 14.73], "rot": 100, "scale": 0.77},
-    {"model": "decor_stones", "pos": [75.17, 0, 6.04], "rot": 310, "scale": 1.01},
-    {"model": "decor_stones", "pos": [69.41, 0, 16.36], "rot": 270, "scale": 0.93},
-    {"model": "decor_stones", "pos": [-3.13, 0, 13.21], "rot": 50, "scale": 1.13},
-    {"model": "decor_stones", "pos": [33.78, 0, 4.57], "rot": 230, "scale": 1.21},
-    {"model": "decor_stones", "pos": [43.15, 0, 16.04], "rot": 150, "scale": 0.86},
-    {"model": "decor_stones", "pos": [-48.84, 0, 6.46], "rot": 290, "scale": 1.01},
-    {"model": "decor_stones", "pos": [2.96, 0, 5.69], "rot": 130, "scale": 1.08},
-    {"model": "decor_stones", "pos": [-34.43, 0, 18.79], "rot": 350, "scale": 0.75},
-    {"model": "decor_stones", "pos": [49.61, 0, 14.91], "rot": 170, "scale": 0.71},
-    {"model": "decor_stones", "pos": [-17.01, 0, 4.77], "rot": 220, "scale": 1.29},
-    {"model": "decor_stones", "pos": [34.8, 0, 14.7], "rot": 130, "scale": 0.78},
-    {"model": "decor_litter", "pos": [-22.62, 0, -29.32], "rot": 270, "scale": 1.08},
-    {"model": "decor_litter", "pos": [-24.24, 0, -40.29], "rot": 120, "scale": 1.07},
-    {"model": "decor_litter", "pos": [-39.04, 0, -14.93], "rot": 280, "scale": 1.18},
-    {"model": "decor_litter", "pos": [-23.53, 0, -30.32], "rot": 30, "scale": 1.12},
-    {"model": "decor_litter", "pos": [-39.28, 0, -42.79], "rot": 150, "scale": 1.1},
-    {"model": "decor_litter", "pos": [-54.38, 0, -9.6], "rot": 160, "scale": 0.86},
-    {"model": "decor_litter", "pos": [-23.32, 0, -17.61], "rot": 250, "scale": 0.97},
-    {"model": "decor_litter", "pos": [-25.82, 0, -10.98], "rot": 250, "scale": 1.22},
-    {"model": "decor_litter", "pos": [-39.11, 0, -19.54], "rot": 10, "scale": 0.94},
-    {"model": "decor_litter", "pos": [-30.6, 0, -20.03], "rot": 160, "scale": 1.02},
-    {"model": "decor_litter", "pos": [-59.51, 0, -25.2], "rot": 100, "scale": 1.12},
-    {"model": "decor_litter", "pos": [-27.37, 0, -24.96], "rot": 70, "scale": 1.07},
-    {"model": "decor_litter", "pos": [-26.39, 0, -41.26], "rot": 240, "scale": 0.79},
-    {"model": "decor_litter", "pos": [-60.76, 0, -32.61], "rot": 310, "scale": 1.14},
-    {"model": "decor_litter", "pos": [-48.45, 0, -6.55], "rot": 200, "scale": 1.0},
-    {"model": "decor_litter", "pos": [-22.05, 0, -12.99], "rot": 80, "scale": 0.74},
-    {"model": "decor_litter", "pos": [-22.65, 0, -34.58], "rot": 200, "scale": 1.21},
-    {"model": "decor_litter", "pos": [-45.8, 0, -18.25], "rot": 330, "scale": 1.17},
-    {"model": "decor_litter", "pos": [-53.41, 0, -42.11], "rot": 340, "scale": 0.92},
-    {"model": "decor_litter", "pos": [-29.82, 0, -32.58], "rot": 30, "scale": 0.73},
-    {"model": "decor_litter", "pos": [-55.06, 0, -12.69], "rot": 130, "scale": 0.87},
-    {"model": "decor_litter", "pos": [-61.43, 0, -38.09], "rot": 60, "scale": 0.83},
-    {"model": "decor_litter", "pos": [-32.76, 0, -39.41], "rot": 290, "scale": 1.2},
-    {"model": "decor_litter", "pos": [-46.64, 0, -20.13], "rot": 320, "scale": 1.24},
-    {"model": "decor_litter", "pos": [-25.39, 0, -29.77], "rot": 150, "scale": 1.24},
-    {"model": "decor_litter", "pos": [-36.77, 0, -18.2], "rot": 130, "scale": 1.06},
-    {"model": "decor_litter", "pos": [-41.07, 0, -21.64], "rot": 230, "scale": 1.23},
-    {"model": "decor_litter", "pos": [-22.82, 0, -10.56], "rot": 220, "scale": 0.88},
-    {"model": "decor_litter", "pos": [-60.04, 0, -32.15], "rot": 320, "scale": 1.05},
-    {"model": "decor_litter", "pos": [-31.17, 0, -28.96], "rot": 240, "scale": 1.29},
-    {"model": "decor_litter", "pos": [-26.72, 0, -31.5], "rot": 110, "scale": 0.86},
-    {"model": "decor_litter", "pos": [-41.28, 0, -20.52], "rot": 10, "scale": 1.09},
-    {"model": "decor_litter", "pos": [-29.25, 0, -43.93], "rot": 240, "scale": 1.23},
-    {"model": "decor_litter", "pos": [-52.65, 0, -12.08], "rot": 160, "scale": 0.96},
-    {"model": "decor_litter", "pos": [-27.84, 0, -39.83], "rot": 60, "scale": 1.15},
-    {"model": "decor_litter", "pos": [-61.44, 0, -36.17], "rot": 310, "scale": 1.25},
-    {"model": "decor_litter", "pos": [-30.84, 0, -22.39], "rot": 0, "scale": 1.01},
-    {"model": "decor_litter", "pos": [-46.32, 0, -7.39], "rot": 10, "scale": 0.76},
-    {"model": "decor_litter", "pos": [-38.94, 0, -8.17], "rot": 80, "scale": 1.2},
-    {"model": "decor_litter", "pos": [-24.53, 0, -28.84], "rot": 230, "scale": 1.19},
-    {"model": "decor_litter", "pos": [-31.7, 0, -8.95], "rot": 150, "scale": 1.22},
-    {"model": "decor_litter", "pos": [-42.23, 0, -43.85], "rot": 180, "scale": 0.95},
-    {"model": "decor_litter", "pos": [-31.63, 0, -11.29], "rot": 270, "scale": 1.01},
-    {"model": "decor_litter", "pos": [-57.53, 0, -23.59], "rot": 190, "scale": 0.78},
-    {"model": "decor_litter", "pos": [-61.98, 0, -32.12], "rot": 90, "scale": 0.96},
-    {"model": "decor_litter", "pos": [-28.74, 0, -15.55], "rot": 250, "scale": 1.29},
-    {"model": "decor_litter", "pos": [-47.34, 0, -10.31], "rot": 140, "scale": 1.08},
-    {"model": "decor_litter", "pos": [-27.74, 0, -30.28], "rot": 200, "scale": 1.11},
-    {"model": "decor_litter", "pos": [-22.24, 0, -26.85], "rot": 310, "scale": 0.9},
-    {"model": "decor_litter", "pos": [-24.95, 0, -41.58], "rot": 30, "scale": 1.13},
-    {"model": "decor_litter", "pos": [-30.15, 0, -8.48], "rot": 60, "scale": 1.15},
-    {"model": "decor_litter", "pos": [-36.98, 0, -12.85], "rot": 130, "scale": 1.26},
-    {"model": "decor_litter", "pos": [-26.88, 0, -37.28], "rot": 50, "scale": 1.28},
-    {"model": "decor_litter", "pos": [-57.57, 0, -42.69], "rot": 20, "scale": 1.27},
-    {"model": "decor_litter", "pos": [-46.53, 0, -14.87], "rot": 130, "scale": 0.8},
-    {"model": "decor_litter", "pos": [-54.56, 0, -10.57], "rot": 220, "scale": 0.79},
-    {"model": "decor_litter", "pos": [-44.97, 0, -43.08], "rot": 90, "scale": 0.9},
-    {"model": "decor_litter", "pos": [-53.0, 0, -14.22], "rot": 310, "scale": 0.74},
-    {"model": "decor_litter", "pos": [-60.32, 0, -17.76], "rot": 220, "scale": 0.82},
-    {"model": "decor_litter", "pos": [-60.03, 0, -23.56], "rot": 130, "scale": 1.1},
-    {"model": "decor_grass", "pos": [-23.7, 0, -15.36], "rot": 180, "scale": 1.12},
-    {"model": "decor_grass", "pos": [-47.62, 0, -25.28], "rot": 100, "scale": 1.01},
-    {"model": "decor_grass", "pos": [-52.66, 0, -25.9], "rot": 190, "scale": 0.89},
-    {"model": "decor_grass", "pos": [-59.07, 0, -8.84], "rot": 190, "scale": 1.14},
-    {"model": "decor_grass", "pos": [-31.0, 0, -30.2], "rot": 180, "scale": 1.26},
-    {"model": "decor_grass", "pos": [-35.11, 0, -10.49], "rot": 50, "scale": 0.83},
-    {"model": "decor_grass", "pos": [-41.93, 0, -7.66], "rot": 290, "scale": 1.21},
-    {"model": "decor_grass", "pos": [-31.82, 0, -40.05], "rot": 40, "scale": 1.2},
-    {"model": "decor_grass", "pos": [-40.22, 0, -6.79], "rot": 230, "scale": 0.74},
-    {"model": "decor_grass", "pos": [-27.18, 0, -39.73], "rot": 150, "scale": 1.09},
-    {"model": "decor_grass", "pos": [-31.17, 0, -42.79], "rot": 190, "scale": 0.88},
-    {"model": "decor_grass", "pos": [-31.69, 0, -13.64], "rot": 90, "scale": 1.25},
-    {"model": "decor_grass", "pos": [-30.38, 0, -40.44], "rot": 280, "scale": 0.78},
-    {"model": "decor_grass", "pos": [-30.12, 0, -28.64], "rot": 100, "scale": 1.02},
-    {"model": "decor_grass", "pos": [-27.29, 0, -15.69], "rot": 330, "scale": 0.73},
-    {"model": "decor_grass", "pos": [-32.98, 0, -10.31], "rot": 0, "scale": 0.95},
-    {"model": "decor_grass", "pos": [-43.68, 0, -17.54], "rot": 60, "scale": 1.07},
-    {"model": "decor_grass", "pos": [-40.6, 0, -7.49], "rot": 20, "scale": 0.98},
-    {"model": "decor_grass", "pos": [-30.81, 0, -10.17], "rot": 330, "scale": 0.72},
-    {"model": "decor_grass", "pos": [-51.29, 0, -7.04], "rot": 150, "scale": 1.07},
-    {"model": "decor_grass", "pos": [-55.45, 0, -16.3], "rot": 290, "scale": 0.98},
-    {"model": "decor_grass", "pos": [-60.48, 0, -34.33], "rot": 290, "scale": 0.79},
-    {"model": "decor_grass", "pos": [-44.02, 0, -9.32], "rot": 10, "scale": 0.76},
-    {"model": "decor_grass", "pos": [-46.35, 0, -13.25], "rot": 0, "scale": 0.79},
-    {"model": "decor_grass", "pos": [-22.33, 0, -7.83], "rot": 0, "scale": 1.18},
-    {"model": "decor_grass", "pos": [-45.53, 0, -7.62], "rot": 40, "scale": 0.87},
-    {"model": "decor_grass", "pos": [-53.35, 0, -16.86], "rot": 230, "scale": 0.87},
-    {"model": "decor_grass", "pos": [-44.25, 0, -26.63], "rot": 50, "scale": 1.18},
-    {"model": "decor_grass", "pos": [-25.39, 0, -22.35], "rot": 60, "scale": 0.96},
-    {"model": "decor_grass", "pos": [-60.14, 0, -29.39], "rot": 270, "scale": 0.97},
-    {"model": "decor_grass", "pos": [-22.58, 0, -16.12], "rot": 50, "scale": 0.95},
-    {"model": "decor_grass", "pos": [-48.46, 0, -21.1], "rot": 50, "scale": 0.94},
-    {"model": "decor_grass", "pos": [-39.15, 0, -14.54], "rot": 120, "scale": 0.74},
-    {"model": "decor_grass", "pos": [-49.32, 0, -40.94], "rot": 180, "scale": 0.89},
-    {"model": "decor_grass", "pos": [-61.62, 0, -25.42], "rot": 120, "scale": 0.79},
-    {"model": "decor_grass", "pos": [-46.06, 0, -42.87], "rot": 330, "scale": 0.93},
-    {"model": "decor_grass", "pos": [-47.2, 0, -10.49], "rot": 10, "scale": 0.96},
-    {"model": "decor_grass", "pos": [-42.78, 0, -40.09], "rot": 320, "scale": 0.87},
-    {"model": "decor_grass", "pos": [-23.03, 0, -7.22], "rot": 220, "scale": 0.95},
-    {"model": "decor_grass", "pos": [-55.65, 0, -7.94], "rot": 40, "scale": 0.7},
-    {"model": "decor_grass", "pos": [-22.7, 0, -17.05], "rot": 210, "scale": 0.81},
-    {"model": "decor_grass", "pos": [-35.68, 0, -11.43], "rot": 350, "scale": 1.11},
-    {"model": "decor_grass", "pos": [-30.11, 0, -34.58], "rot": 30, "scale": 1.06},
-    {"model": "decor_grass", "pos": [-54.61, 0, -8.78], "rot": 300, "scale": 0.9},
-    {"model": "decor_grass", "pos": [-29.75, 0, -16.93], "rot": 150, "scale": 0.94},
-    {"model": "decor_grass", "pos": [-23.88, 0, -18.19], "rot": 160, "scale": 1.23},
-    {"model": "decor_grass", "pos": [-40.74, 0, -23.9], "rot": 310, "scale": 0.81},
-    {"model": "decor_grass", "pos": [-24.74, 0, -16.52], "rot": 210, "scale": 1.01},
-    {"model": "decor_grass", "pos": [-23.95, 0, -34.69], "rot": 170, "scale": 0.75},
-    {"model": "decor_grass", "pos": [-29.26, 0, -32.43], "rot": 200, "scale": 0.78},
-    {"model": "decor_grass", "pos": [-30.1, 0, -8.17], "rot": 350, "scale": 0.97},
-    {"model": "decor_grass", "pos": [-26.91, 0, -42.08], "rot": 150, "scale": 0.75},
-    {"model": "decor_grass", "pos": [-60.2, 0, -36.92], "rot": 330, "scale": 1.03},
-    {"model": "decor_grass", "pos": [-56.94, 0, -39.44], "rot": 10, "scale": 0.86},
-    {"model": "decor_grass", "pos": [-31.39, 0, -21.93], "rot": 160, "scale": 1.15},
-    {"model": "decor_grass", "pos": [-55.93, 0, -15.88], "rot": 40, "scale": 0.82},
-    {"model": "decor_grass", "pos": [-50.21, 0, -19.72], "rot": 70, "scale": 1.06},
-    {"model": "decor_grass", "pos": [-51.96, 0, -22.08], "rot": 180, "scale": 1.05},
-    {"model": "decor_grass", "pos": [-56.41, 0, -19.19], "rot": 70, "scale": 0.75},
-    {"model": "decor_grass", "pos": [-41.9, 0, -8.62], "rot": 240, "scale": 1.26},
-    {"model": "decor_grass", "pos": [-44.44, 0, -14.7], "rot": 10, "scale": 0.86},
-    {"model": "decor_grass", "pos": [-25.57, 0, -13.04], "rot": 60, "scale": 1.17},
-    {"model": "decor_grass", "pos": [-31.38, 0, -30.8], "rot": 130, "scale": 0.71},
-    {"model": "decor_grass", "pos": [-34.65, 0, -25.63], "rot": 340, "scale": 0.73},
-    {"model": "decor_grass", "pos": [-57.86, 0, -15.52], "rot": 130, "scale": 1.25},
-    {"model": "decor_grass", "pos": [-44.67, 0, -21.31], "rot": 270, "scale": 0.78},
-    {"model": "decor_grass", "pos": [-32.14, 0, -19.68], "rot": 270, "scale": 0.84},
-    {"model": "decor_grass", "pos": [-33.78, 0, -32.83], "rot": 300, "scale": 0.7},
-    {"model": "decor_grass", "pos": [-27.64, 0, -19.16], "rot": 320, "scale": 0.81},
-    {"model": "decor_grass", "pos": [-36.34, 0, -41.21], "rot": 50, "scale": 1.21},
-    {"model": "decor_grass", "pos": [-61.59, 0, -26.74], "rot": 190, "scale": 0.72},
-    {"model": "decor_grass", "pos": [-26.37, 0, -7.2], "rot": 40, "scale": 1.0},
-    {"model": "decor_grass", "pos": [-44.86, 0, -42.69], "rot": 40, "scale": 1.14},
-    {"model": "decor_grass", "pos": [-29.93, 0, -43.84], "rot": 300, "scale": 1.2},
-    {"model": "decor_grass", "pos": [-32.73, 0, -13.23], "rot": 300, "scale": 0.82},
-    {"model": "decor_grass", "pos": [-29.4, 0, -35.03], "rot": 230, "scale": 1.12},
-    {"model": "decor_grass", "pos": [-46.91, 0, -21.52], "rot": 270, "scale": 0.98},
-    {"model": "decor_grass", "pos": [-42.43, 0, -26.52], "rot": 220, "scale": 0.89},
-    {"model": "decor_grass", "pos": [-46.13, 0, -17.61], "rot": 210, "scale": 1.0},
-    {"model": "decor_grass", "pos": [-40.81, 0, -16.29], "rot": 250, "scale": 0.82},
-    {"model": "decor_grass", "pos": [38.01, 0, -26.6], "rot": 180, "scale": 0.9},
-    {"model": "decor_grass", "pos": [37.8, 0, -15.78], "rot": 270, "scale": 1.03},
-    {"model": "decor_grass", "pos": [45.85, 0, -28.13], "rot": 120, "scale": 0.71},
-    {"model": "decor_grass", "pos": [43.24, 0, -34.68], "rot": 240, "scale": 0.88},
-    {"model": "decor_grass", "pos": [44.95, 0, -29.46], "rot": 210, "scale": 1.04},
-    {"model": "decor_grass", "pos": [37.76, 0, -28.04], "rot": 300, "scale": 1.19},
-    {"model": "decor_grass", "pos": [26.09, 0, -30.71], "rot": 320, "scale": 0.98},
-    {"model": "decor_grass", "pos": [41.69, 0, -19.58], "rot": 310, "scale": 0.89},
-    {"model": "decor_grass", "pos": [46.64, 0, -24.5], "rot": 50, "scale": 1.07},
-    {"model": "decor_grass", "pos": [24.17, 0, -24.77], "rot": 200, "scale": 0.8},
-    {"model": "decor_grass", "pos": [42.54, 0, -26.65], "rot": 70, "scale": 0.93},
-    {"model": "decor_grass", "pos": [30.69, 0, -27.67], "rot": 240, "scale": 1.02},
-    {"model": "decor_grass", "pos": [50.39, 0, -35.08], "rot": 120, "scale": 0.85},
-    {"model": "decor_grass", "pos": [37.27, 0, -26.91], "rot": 320, "scale": 1.18},
-    {"model": "decor_grass", "pos": [26.96, 0, -17.52], "rot": 40, "scale": 0.95},
-    {"model": "decor_grass", "pos": [41.21, 0, -18.78], "rot": 60, "scale": 1.22},
-    {"model": "decor_grass", "pos": [43.99, 0, -24.06], "rot": 320, "scale": 0.77},
-    {"model": "decor_grass", "pos": [28.4, 0, -20.65], "rot": 290, "scale": 0.87},
-    {"model": "decor_grass", "pos": [36.99, 0, -26.49], "rot": 310, "scale": 1.08},
-    {"model": "decor_grass", "pos": [43.12, 0, -27.36], "rot": 140, "scale": 0.87},
-    {"model": "decor_grass", "pos": [50.78, 0, -33.92], "rot": 140, "scale": 1.21},
-    {"model": "decor_grass", "pos": [35.79, 0, -21.19], "rot": 170, "scale": 0.74},
-    {"model": "decor_grass", "pos": [47.14, 0, -20.6], "rot": 90, "scale": 1.14},
-    {"model": "decor_grass", "pos": [38.39, 0, -20.08], "rot": 180, "scale": 0.89},
-    {"model": "decor_grass", "pos": [32.26, 0, -37.42], "rot": 260, "scale": 0.87},
-    {"model": "decor_grass", "pos": [27.91, 0, -35.43], "rot": 160, "scale": 1.18},
-    {"model": "decor_grass", "pos": [29.44, 0, -18.86], "rot": 130, "scale": 1.06},
-    {"model": "decor_grass", "pos": [41.73, 0, -16.72], "rot": 120, "scale": 0.97},
-    {"model": "decor_grass", "pos": [47.92, 0, -28.92], "rot": 290, "scale": 0.89},
-    {"model": "decor_grass", "pos": [26.97, 0, -26.67], "rot": 200, "scale": 0.84},
-    {"model": "decor_grass", "pos": [38.47, 0, -32.51], "rot": 320, "scale": 0.7},
-    {"model": "decor_grass", "pos": [26.01, 0, -16.67], "rot": 10, "scale": 0.92},
-    {"model": "decor_grass", "pos": [34.03, 0, -21.94], "rot": 140, "scale": 1.16},
-    {"model": "decor_grass", "pos": [23.34, 0, -30.17], "rot": 0, "scale": 1.08},
-    {"model": "decor_grass", "pos": [49.71, 0, -38.38], "rot": 50, "scale": 0.89},
-    {"model": "decor_grass", "pos": [27.45, 0, -38.52], "rot": 220, "scale": 0.91},
-    {"model": "decor_grass", "pos": [48.91, 0, -34.69], "rot": 110, "scale": 0.82},
-    {"model": "decor_grass", "pos": [29.17, 0, -31.55], "rot": 270, "scale": 0.96},
-    {"model": "decor_grass", "pos": [24.63, 0, -17.48], "rot": 110, "scale": 0.86},
-    {"model": "decor_grass", "pos": [37.17, 0, -36.26], "rot": 280, "scale": 0.97},
-    {"model": "decor_grass", "pos": [39.4, 0, -26.7], "rot": 10, "scale": 1.24},
-    {"model": "decor_grass", "pos": [46.03, 0, -26.17], "rot": 130, "scale": 1.2},
-    {"model": "decor_grass", "pos": [47.45, 0, -19.94], "rot": 0, "scale": 0.9},
-    {"model": "decor_grass", "pos": [50.42, 0, -32.41], "rot": 70, "scale": 0.73},
-    {"model": "decor_grass", "pos": [43.42, 0, -31.33], "rot": 220, "scale": 0.89},
-    {"model": "decor_grass", "pos": [49.99, 0, -27.29], "rot": 330, "scale": 1.07},
-    {"model": "decor_grass", "pos": [29.37, 0, -16.44], "rot": 140, "scale": 0.78},
-    {"model": "decor_grass", "pos": [23.45, 0, -21.14], "rot": 90, "scale": 0.89},
-    {"model": "decor_grass", "pos": [29.4, 0, -33.49], "rot": 170, "scale": 0.98},
-    {"model": "decor_grass", "pos": [27.46, 0, -35.14], "rot": 120, "scale": 1.02},
-    {"model": "decor_grass", "pos": [48.18, 0, -22.68], "rot": 290, "scale": 0.71},
-    {"model": "decor_grass", "pos": [28.1, 0, -32.69], "rot": 230, "scale": 0.93},
-    {"model": "decor_grass", "pos": [39.25, 0, -32.17], "rot": 290, "scale": 0.98},
-    {"model": "decor_grass", "pos": [41.64, 0, -35.21], "rot": 100, "scale": 1.25},
-    {"model": "decor_grass", "pos": [32.15, 0, -34.84], "rot": 220, "scale": 0.83},
-    {"model": "decor_grass", "pos": [47.07, 0, -31.64], "rot": 310, "scale": 1.24},
-    {"model": "decor_grass", "pos": [40.45, 0, -18.63], "rot": 290, "scale": 0.75},
-    {"model": "decor_grass", "pos": [27.18, 0, -33.86], "rot": 60, "scale": 0.73},
-    {"model": "decor_grass", "pos": [24.33, 0, -30.73], "rot": 60, "scale": 1.08},
-    {"model": "decor_grass", "pos": [42.53, 0, -28.85], "rot": 230, "scale": 0.74},
-    {"model": "decor_grass", "pos": [31.63, 0, -19.56], "rot": 70, "scale": 1.16},
-    {"model": "decor_grass", "pos": [43.69, 0, -23.83], "rot": 320, "scale": 1.18},
-    {"model": "decor_grass", "pos": [37.56, 0, -20.0], "rot": 210, "scale": 0.99},
-    {"model": "decor_grass", "pos": [31.0, 0, -29.52], "rot": 150, "scale": 0.9},
-    {"model": "decor_grass", "pos": [40.84, 0, -17.23], "rot": 40, "scale": 0.83},
-    {"model": "decor_grass", "pos": [27.2, 0, -35.42], "rot": 190, "scale": 1.2},
-    {"model": "decor_grass", "pos": [49.94, 0, -32.01], "rot": 60, "scale": 1.17},
-    {"model": "decor_grass", "pos": [46.97, 0, -24.31], "rot": 340, "scale": 1.1},
-    {"model": "decor_grass", "pos": [33.48, 0, -15.4], "rot": 260, "scale": 0.88},
-    {"model": "decor_grass", "pos": [25.85, 0, -38.81], "rot": 90, "scale": 1.18},
-    {"model": "decor_grass", "pos": [48.6, 0, -19.68], "rot": 200, "scale": 1.05},
-    {"model": "decor_grass", "pos": [33.36, 0, -21.29], "rot": 200, "scale": 0.94},
-    {"model": "decor_grass", "pos": [28.42, 0, -25.14], "rot": 10, "scale": 1.17},
-    {"model": "decor_grass", "pos": [38.62, 0, -22.37], "rot": 40, "scale": 0.85},
-    {"model": "decor_grass", "pos": [48.67, 0, -23.87], "rot": 220, "scale": 0.81},
-    {"model": "decor_grass", "pos": [33.09, 0, -28.5], "rot": 220, "scale": 0.72},
-    {"model": "decor_grass", "pos": [23.58, 0, -37.34], "rot": 130, "scale": 0.87},
-    {"model": "decor_grass", "pos": [36.75, 0, -37.02], "rot": 120, "scale": 0.79},
-    {"model": "decor_grass", "pos": [39.43, 0, -30.24], "rot": 90, "scale": 0.84},
-    {"model": "decor_grass", "pos": [41.54, 0, -32.69], "rot": 270, "scale": 1.24},
-    {"model": "decor_grass", "pos": [43.43, 0, -37.9], "rot": 160, "scale": 0.95},
-    {"model": "decor_grass", "pos": [41.92, 0, -34.38], "rot": 60, "scale": 1.26},
-    {"model": "decor_grass", "pos": [49.71, 0, -35.68], "rot": 240, "scale": 0.97},
-    {"model": "decor_grass", "pos": [36.13, 0, -25.79], "rot": 310, "scale": 0.75},
-    {"model": "decor_grass", "pos": [42.45, 0, -18.55], "rot": 350, "scale": 1.24},
-    {"model": "decor_grass", "pos": [25.52, 0, -26.75], "rot": 320, "scale": 0.88},
-    {"model": "decor_grass", "pos": [31.27, 0, -16.83], "rot": 10, "scale": 1.09},
-    {"model": "decor_grass", "pos": [41.94, 0, -28.32], "rot": 60, "scale": 1.18},
-    {"model": "decor_grass", "pos": [36.01, 0, -36.06], "rot": 190, "scale": 0.9},
-    {"model": "decor_grass", "pos": [31.35, 0, -15.47], "rot": 350, "scale": 0.83},
-    {"model": "decor_grass", "pos": [45.05, 0, -18.76], "rot": 200, "scale": 0.98},
-    {"model": "decor_grass", "pos": [32.53, 0, -36.41], "rot": 150, "scale": 0.98},
-    {"model": "decor_grass", "pos": [27.91, 0, -36.28], "rot": 150, "scale": 0.75},
-    {"model": "decor_grass", "pos": [49.9, 0, -34.54], "rot": 330, "scale": 0.74},
-    {"model": "decor_grass", "pos": [45.32, 0, -18.43], "rot": 170, "scale": 1.28},
-    {"model": "decor_grass", "pos": [26.02, 0, -26.92], "rot": 330, "scale": 0.86},
-    {"model": "decor_grass", "pos": [37.83, 0, -17.6], "rot": 170, "scale": 1.29},
-    {"model": "decor_grass", "pos": [36.79, 0, -29.05], "rot": 40, "scale": 1.14},
-    {"model": "decor_grass", "pos": [45.99, 0, -19.62], "rot": 190, "scale": 1.21},
-    {"model": "decor_grass", "pos": [37.76, 0, -22.63], "rot": 50, "scale": 0.77},
-    {"model": "decor_grass", "pos": [28.98, 0, -29.98], "rot": 110, "scale": 0.9},
-    {"model": "decor_grass", "pos": [32.0, 0, -26.87], "rot": 310, "scale": 1.06},
-    {"model": "decor_grass", "pos": [38.46, 0, -36.27], "rot": 320, "scale": 0.95},
-    {"model": "decor_grass", "pos": [38.43, 0, -17.0], "rot": 320, "scale": 1.03},
-    {"model": "decor_grass", "pos": [48.93, 0, -33.97], "rot": 210, "scale": 1.23},
-    {"model": "decor_grass", "pos": [29.13, 0, -38.15], "rot": 280, "scale": 0.72},
-    {"model": "decor_grass", "pos": [25.87, 0, -15.69], "rot": 330, "scale": 0.83},
-    {"model": "decor_grass", "pos": [31.45, 0, -37.19], "rot": 320, "scale": 0.92},
-    {"model": "decor_grass", "pos": [25.01, 0, -34.75], "rot": 90, "scale": 1.06},
-    {"model": "decor_grass", "pos": [47.92, 0, -22.28], "rot": 220, "scale": 1.04},
-    {"model": "decor_grass", "pos": [29.61, 0, -37.77], "rot": 220, "scale": 0.91},
-    {"model": "decor_grass", "pos": [26.42, 0, -22.53], "rot": 300, "scale": 1.06},
-    {"model": "decor_grass", "pos": [41.84, 0, -17.39], "rot": 170, "scale": 1.19},
-    {"model": "decor_grass", "pos": [45.73, 0, -34.26], "rot": 120, "scale": 0.86},
-    {"model": "decor_grass", "pos": [41.2, 0, -26.47], "rot": 0, "scale": 1.01},
-    {"model": "decor_grass", "pos": [46.44, 0, -19.41], "rot": 0, "scale": 1.29},
-    {"model": "decor_grass", "pos": [29.81, 0, -15.83], "rot": 110, "scale": 0.83},
-    {"model": "decor_grass", "pos": [49.79, 0, -28.06], "rot": 280, "scale": 0.79},
-    {"model": "decor_grass", "pos": [40.42, 0, -17.36], "rot": 190, "scale": 0.95},
-    {"model": "decor_grass", "pos": [34.93, 0, -36.68], "rot": 320, "scale": 1.12},
-    {"model": "decor_flowers", "pos": [30.68, 0, -35.59], "rot": 290, "scale": 0.8},
-    {"model": "decor_flowers", "pos": [34.88, 0, -18.27], "rot": 190, "scale": 1.29},
-    {"model": "decor_flowers", "pos": [23.33, 0, -30.36], "rot": 300, "scale": 1.17},
-    {"model": "decor_flowers", "pos": [40.64, 0, -15.88], "rot": 280, "scale": 0.8},
-    {"model": "decor_flowers", "pos": [27.66, 0, -22.83], "rot": 50, "scale": 1.29},
-    {"model": "decor_flowers", "pos": [48.09, 0, -21.67], "rot": 20, "scale": 1.05},
-    {"model": "decor_flowers", "pos": [29.39, 0, -20.81], "rot": 110, "scale": 1.04},
-    {"model": "decor_flowers", "pos": [49.88, 0, -29.15], "rot": 220, "scale": 1.29},
-    {"model": "decor_flowers", "pos": [39.41, 0, -25.7], "rot": 320, "scale": 1.04},
-    {"model": "decor_flowers", "pos": [43.59, 0, -24.27], "rot": 140, "scale": 0.85},
-    {"model": "decor_flowers", "pos": [38.86, 0, -33.24], "rot": 130, "scale": 0.88},
-    {"model": "decor_flowers", "pos": [25.9, 0, -18.65], "rot": 80, "scale": 0.88},
-    {"model": "decor_flowers", "pos": [38.57, 0, -17.87], "rot": 60, "scale": 0.85},
-    {"model": "decor_flowers", "pos": [48.37, 0, -31.37], "rot": 340, "scale": 0.78},
-    {"model": "decor_flowers", "pos": [25.37, 0, -21.5], "rot": 310, "scale": 1.16},
-    {"model": "decor_flowers", "pos": [33.38, 0, -21.95], "rot": 320, "scale": 1.26},
-    {"model": "decor_flowers", "pos": [34.49, 0, -28.14], "rot": 80, "scale": 1.06},
-    {"model": "decor_flowers", "pos": [29.89, 0, -30.31], "rot": 180, "scale": 0.81},
-    {"model": "decor_flowers", "pos": [44.29, 0, -17.94], "rot": 100, "scale": 0.78},
-    {"model": "decor_flowers", "pos": [29.85, 0, -35.43], "rot": 90, "scale": 0.88},
-    {"model": "decor_flowers", "pos": [35.57, 0, -37.78], "rot": 340, "scale": 0.82},
-    {"model": "decor_flowers", "pos": [43.28, 0, -35.1], "rot": 280, "scale": 1.02},
-    {"model": "decor_flowers", "pos": [30.21, 0, -34.35], "rot": 310, "scale": 1.19},
-    {"model": "decor_flowers", "pos": [27.78, 0, -38.71], "rot": 280, "scale": 0.93},
-    {"model": "decor_flowers", "pos": [36.18, 0, -29.82], "rot": 160, "scale": 1.17},
-    {"model": "decor_flowers", "pos": [46.99, 0, -20.5], "rot": 0, "scale": 1.07},
-    {"model": "decor_flowers", "pos": [47.04, 0, -27.93], "rot": 50, "scale": 1.01},
-    {"model": "decor_flowers", "pos": [50.14, 0, -26.37], "rot": 70, "scale": 0.79},
-    {"model": "decor_flowers", "pos": [31.19, 0, -33.36], "rot": 160, "scale": 1.04},
-    {"model": "decor_flowers", "pos": [33.79, 0, -24.45], "rot": 150, "scale": 1.22},
-    {"model": "decor_flowers", "pos": [38.62, 0, -37.29], "rot": 70, "scale": 0.73},
-    {"model": "decor_flowers", "pos": [34.83, 0, -30.47], "rot": 340, "scale": 0.7},
-    {"model": "decor_flowers", "pos": [46.4, 0, -22.71], "rot": 210, "scale": 1.28},
-    {"model": "decor_flowers", "pos": [34.4, 0, -33.65], "rot": 200, "scale": 0.94},
-    {"model": "decor_flowers", "pos": [43.25, 0, -31.91], "rot": 310, "scale": 0.72},
-    {"model": "decor_flowers", "pos": [48.46, 0, -28.72], "rot": 280, "scale": 1.03},
-    {"model": "decor_flowers", "pos": [40.91, 0, -21.21], "rot": 140, "scale": 1.08},
-    {"model": "decor_flowers", "pos": [24.23, 0, -17.45], "rot": 190, "scale": 1.29},
-    {"model": "decor_flowers", "pos": [48.57, 0, -19.32], "rot": 30, "scale": 0.99},
-    {"model": "decor_flowers", "pos": [34.57, 0, -36.67], "rot": 190, "scale": 0.77},
-    {"model": "decor_grass", "pos": [-67.56, 0, -125.34], "rot": 30, "scale": 0.98},
-    {"model": "decor_grass", "pos": [-69.85, 0, -54.7], "rot": 110, "scale": 1.23},
-    {"model": "decor_grass", "pos": [-80.67, 0, -138.95], "rot": 300, "scale": 1.24},
-    {"model": "decor_grass", "pos": [-68.75, 0, -79.69], "rot": 240, "scale": 1.04},
-    {"model": "decor_grass", "pos": [-78.89, 0, -127.25], "rot": 170, "scale": 1.3},
-    {"model": "decor_grass", "pos": [-81.75, 0, -140.44], "rot": 210, "scale": 0.71},
-    {"model": "decor_grass", "pos": [-73.4, 0, -73.41], "rot": 290, "scale": 0.93},
-    {"model": "decor_grass", "pos": [-67.65, 0, -132.75], "rot": 10, "scale": 0.76},
-    {"model": "decor_grass", "pos": [-66.45, 0, -55.87], "rot": 70, "scale": 0.97},
-    {"model": "decor_grass", "pos": [-67.77, 0, -58.23], "rot": 330, "scale": 0.94},
+    {"model": "decor_stones", "pos": [-66.58, 0, 6.53], "rot": 250, "scale": 0.92},
+    {"model": "decor_stones", "pos": [72.24, 0, 5.16], "rot": 260, "scale": 1.07},
+    {"model": "decor_stones", "pos": [40.52, 0, 11.61], "rot": 170, "scale": 0.83},
+    {"model": "decor_stones", "pos": [-32.76, 0, 19.73], "rot": 260, "scale": 1.24},
+    {"model": "decor_stones", "pos": [14.5, 0, 14.75], "rot": 240, "scale": 1.07},
+    {"model": "decor_stones", "pos": [43.51, 0, 15.23], "rot": 10, "scale": 1.09},
+    {"model": "decor_stones", "pos": [5.06, 0, 8.57], "rot": 30, "scale": 0.74},
+    {"model": "decor_stones", "pos": [40.65, 0, 16.27], "rot": 280, "scale": 1.27},
+    {"model": "decor_stones", "pos": [-21.54, 0, 9.12], "rot": 20, "scale": 1.12},
+    {"model": "decor_stones", "pos": [58.61, 0, 18.91], "rot": 10, "scale": 0.79},
+    {"model": "decor_stones", "pos": [12.11, 0, 7.81], "rot": 310, "scale": 1.17},
+    {"model": "decor_stones", "pos": [50.06, 0, 7.44], "rot": 230, "scale": 1.04},
+    {"model": "decor_stones", "pos": [-55.48, 0, 15.04], "rot": 350, "scale": 1.25},
+    {"model": "decor_stones", "pos": [-68.49, 0, 17.7], "rot": 110, "scale": 1.28},
+    {"model": "decor_stones", "pos": [26.01, 0, 17.16], "rot": 350, "scale": 0.91},
+    {"model": "decor_stones", "pos": [-68.18, 0, 15.32], "rot": 130, "scale": 0.96},
+    {"model": "decor_stones", "pos": [-35.46, 0, 17.62], "rot": 150, "scale": 0.87},
+    {"model": "decor_stones", "pos": [58.92, 0, 17.34], "rot": 190, "scale": 1.13},
+    {"model": "decor_stones", "pos": [-62.91, 0, 6.52], "rot": 30, "scale": 0.92},
+    {"model": "decor_stones", "pos": [-33.45, 0, 15.16], "rot": 260, "scale": 0.87},
+    {"model": "decor_stones", "pos": [57.68, 0, 4.89], "rot": 330, "scale": 0.89},
+    {"model": "decor_stones", "pos": [39.32, 0, 20.6], "rot": 350, "scale": 0.97},
+    {"model": "decor_stones", "pos": [37.91, 0, 20.4], "rot": 50, "scale": 1.1},
+    {"model": "decor_stones", "pos": [-1.95, 0, 6.23], "rot": 310, "scale": 0.72},
+    {"model": "decor_stones", "pos": [18.18, 0, 13.49], "rot": 170, "scale": 0.84},
+    {"model": "decor_stones", "pos": [-49.29, 0, 17.49], "rot": 210, "scale": 1.16},
+    {"model": "decor_stones", "pos": [-50.35, 0, 12.02], "rot": 70, "scale": 0.99},
+    {"model": "decor_stones", "pos": [-45.29, 0, 20.44], "rot": 190, "scale": 1.27},
+    {"model": "decor_stones", "pos": [-64.69, 0, 13.23], "rot": 50, "scale": 1.07},
+    {"model": "decor_stones", "pos": [36.8, 0, 12.41], "rot": 200, "scale": 1.11},
+    {"model": "decor_stones", "pos": [18.13, 0, 5.01], "rot": 340, "scale": 0.93},
+    {"model": "decor_stones", "pos": [-76.85, 0, 10.54], "rot": 310, "scale": 0.74},
+    {"model": "decor_stones", "pos": [67.75, 0, 19.76], "rot": 150, "scale": 1.25},
+    {"model": "decor_stones", "pos": [-25.73, 0, 6.32], "rot": 270, "scale": 0.86},
+    {"model": "decor_stones", "pos": [-24.64, 0, 8.76], "rot": 280, "scale": 0.98},
+    {"model": "decor_stones", "pos": [24.36, 0, 19.69], "rot": 270, "scale": 0.89},
+    {"model": "decor_stones", "pos": [-8.06, 0, 14.0], "rot": 30, "scale": 1.21},
+    {"model": "decor_stones", "pos": [-57.8, 0, 7.39], "rot": 280, "scale": 0.91},
+    {"model": "decor_stones", "pos": [-33.24, 0, 4.01], "rot": 280, "scale": 1.04},
+    {"model": "decor_stones", "pos": [-51.74, 0, 18.43], "rot": 230, "scale": 0.95},
+    {"model": "decor_litter", "pos": [-37.17, 0, -7.27], "rot": 260, "scale": 1.02},
+    {"model": "decor_litter", "pos": [-47.43, 0, -17.59], "rot": 80, "scale": 0.85},
+    {"model": "decor_litter", "pos": [-36.71, 0, -8.55], "rot": 60, "scale": 1.09},
+    {"model": "decor_litter", "pos": [-34.66, 0, -26.42], "rot": 320, "scale": 1.08},
+    {"model": "decor_litter", "pos": [-35.12, 0, -20.61], "rot": 280, "scale": 0.74},
+    {"model": "decor_litter", "pos": [-39.84, 0, -18.26], "rot": 230, "scale": 0.83},
+    {"model": "decor_litter", "pos": [-48.48, 0, -43.89], "rot": 40, "scale": 1.17},
+    {"model": "decor_litter", "pos": [-31.95, 0, -28.99], "rot": 190, "scale": 0.84},
+    {"model": "decor_litter", "pos": [-33.64, 0, -18.66], "rot": 280, "scale": 0.96},
+    {"model": "decor_litter", "pos": [-47.46, 0, -15.74], "rot": 270, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-37.72, 0, -9.13], "rot": 130, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-45.19, 0, -10.91], "rot": 60, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-35.96, 0, -20.88], "rot": 150, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-38.71, 0, -39.85], "rot": 270, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-41.92, 0, -39.35], "rot": 320, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-26.44, 0, -12.21], "rot": 300, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-60.56, 0, -25.6], "rot": 0, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-49.14, 0, -19.65], "rot": 70, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-43.5, 0, -15.3], "rot": 40, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-27.27, 0, -36.43], "rot": 50, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-56.98, 0, -23.68], "rot": 140, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-58.36, 0, -18.3], "rot": 100, "scale": 0.7},
+    {"model": "decor_grass", "pos": [-48.52, 0, -14.72], "rot": 220, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-31.93, 0, -27.81], "rot": 300, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-39.83, 0, -14.26], "rot": 90, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-44.79, 0, -19.69], "rot": 220, "scale": 1.3},
+    {"model": "decor_grass", "pos": [-44.73, 0, -23.8], "rot": 260, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-23.88, 0, -14.35], "rot": 260, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-26.55, 0, -19.05], "rot": 200, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-50.77, 0, -20.37], "rot": 80, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-53.14, 0, -22.45], "rot": 40, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-29.49, 0, -26.46], "rot": 310, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-26.65, 0, -34.57], "rot": 240, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-26.05, 0, -7.53], "rot": 100, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-61.3, 0, -18.04], "rot": 120, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-30.28, 0, -21.9], "rot": 320, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-55.81, 0, -14.17], "rot": 330, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-52.96, 0, -14.31], "rot": 160, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-39.69, 0, -10.26], "rot": 170, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-22.97, 0, -30.15], "rot": 220, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-54.18, 0, -14.91], "rot": 320, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-40.41, 0, -42.31], "rot": 220, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-25.18, 0, -6.74], "rot": 240, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-24.77, 0, -30.28], "rot": 120, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-57.43, 0, -23.16], "rot": 180, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-26.88, 0, -24.38], "rot": 250, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-55.49, 0, -22.97], "rot": 200, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-59.07, 0, -8.06], "rot": 200, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-52.38, 0, -15.26], "rot": 30, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-56.92, 0, -17.38], "rot": 320, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-27.17, 0, -27.5], "rot": 280, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-34.0, 0, -26.93], "rot": 60, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-57.89, 0, -19.91], "rot": 170, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-27.86, 0, -35.28], "rot": 240, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-23.86, 0, -43.11], "rot": 260, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-41.36, 0, -20.1], "rot": 130, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-41.25, 0, -23.3], "rot": 200, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-28.46, 0, -39.49], "rot": 190, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-49.02, 0, -26.56], "rot": 330, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-33.63, 0, -25.28], "rot": 140, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-28.55, 0, -12.3], "rot": 250, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-59.67, 0, -21.57], "rot": 110, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-27.15, 0, -35.31], "rot": 190, "scale": 1.3},
+    {"model": "decor_grass", "pos": [-38.77, 0, -7.5], "rot": 240, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-41.24, 0, -15.94], "rot": 180, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-55.32, 0, -24.65], "rot": 290, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-32.76, 0, -23.65], "rot": 90, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-59.87, 0, -42.87], "rot": 280, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-45.2, 0, -13.39], "rot": 270, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-46.81, 0, -8.87], "rot": 100, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-52.11, 0, -16.69], "rot": 110, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-33.04, 0, -39.34], "rot": 320, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-57.41, 0, -12.21], "rot": 40, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-52.21, 0, -41.78], "rot": 40, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-56.11, 0, -39.97], "rot": 280, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-27.78, 0, -7.81], "rot": 60, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-45.33, 0, -41.33], "rot": 190, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-23.28, 0, -35.86], "rot": 220, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-29.47, 0, -40.11], "rot": 180, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-52.53, 0, -24.96], "rot": 320, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-32.23, 0, -21.65], "rot": 160, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-51.93, 0, -24.09], "rot": 220, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-28.09, 0, -14.34], "rot": 310, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-23.42, 0, -32.06], "rot": 120, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-33.68, 0, -10.86], "rot": 120, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-27.97, 0, -35.96], "rot": 80, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-42.42, 0, -6.78], "rot": 120, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-31.14, 0, -37.88], "rot": 270, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-42.76, 0, -24.56], "rot": 50, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-33.76, 0, -42.8], "rot": 230, "scale": 1.21},
+    {"model": "decor_grass", "pos": [44.89, 0, -22.62], "rot": 150, "scale": 0.86},
+    {"model": "decor_grass", "pos": [28.07, 0, -36.45], "rot": 290, "scale": 1.01},
+    {"model": "decor_grass", "pos": [47.48, 0, -22.03], "rot": 330, "scale": 0.83},
+    {"model": "decor_grass", "pos": [43.31, 0, -19.24], "rot": 130, "scale": 1.08},
+    {"model": "decor_grass", "pos": [30.7, 0, -18.64], "rot": 350, "scale": 0.75},
+    {"model": "decor_grass", "pos": [46.08, 0, -24.25], "rot": 170, "scale": 0.71},
+    {"model": "decor_grass", "pos": [43.36, 0, -24.55], "rot": 130, "scale": 0.78},
+    {"model": "decor_grass", "pos": [24.42, 0, -15.91], "rot": 120, "scale": 1.07},
+    {"model": "decor_grass", "pos": [39.22, 0, -20.11], "rot": 280, "scale": 1.18},
+    {"model": "decor_grass", "pos": [39.22, 0, -32.94], "rot": 240, "scale": 0.92},
+    {"model": "decor_grass", "pos": [23.54, 0, -22.79], "rot": 100, "scale": 0.72},
+    {"model": "decor_grass", "pos": [29.31, 0, -30.71], "rot": 160, "scale": 0.86},
+    {"model": "decor_grass", "pos": [39.0, 0, -32.29], "rot": 200, "scale": 1.12},
+    {"model": "decor_grass", "pos": [48.38, 0, -29.84], "rot": 80, "scale": 0.86},
+    {"model": "decor_grass", "pos": [28.5, 0, -16.48], "rot": 250, "scale": 1.22},
+    {"model": "decor_grass", "pos": [39.17, 0, -23.27], "rot": 10, "scale": 0.94},
+    {"model": "decor_grass", "pos": [45.55, 0, -23.6], "rot": 160, "scale": 1.02},
+    {"model": "decor_grass", "pos": [23.87, 0, -27.14], "rot": 100, "scale": 1.12},
+    {"model": "decor_grass", "pos": [47.97, 0, -26.97], "rot": 70, "scale": 1.07},
+    {"model": "decor_grass", "pos": [27.37, 0, -28.96], "rot": 40, "scale": 1.07},
+    {"model": "decor_grass", "pos": [30.99, 0, -27.09], "rot": 350, "scale": 0.9},
+    {"model": "decor_grass", "pos": [43.24, 0, -30.53], "rot": 80, "scale": 0.74},
+    {"model": "decor_grass", "pos": [44.19, 0, -31.6], "rot": 10, "scale": 0.94},
+    {"model": "decor_grass", "pos": [42.33, 0, -26.36], "rot": 130, "scale": 0.83},
+    {"model": "decor_grass", "pos": [35.55, 0, -30.64], "rot": 190, "scale": 1.13},
+    {"model": "decor_grass", "pos": [23.51, 0, -16.47], "rot": 100, "scale": 1.15},
+    {"model": "decor_grass", "pos": [28.15, 0, -17.06], "rot": 170, "scale": 0.79},
+    {"model": "decor_grass", "pos": [25.08, 0, -34.16], "rot": 70, "scale": 0.95},
+    {"model": "decor_grass", "pos": [46.83, 0, -30.02], "rot": 140, "scale": 1.12},
+    {"model": "decor_grass", "pos": [49.07, 0, -16.2], "rot": 230, "scale": 1.19},
+    {"model": "decor_grass", "pos": [29.05, 0, -38.69], "rot": 230, "scale": 1.11},
+    {"model": "decor_grass", "pos": [40.6, 0, -24.95], "rot": 130, "scale": 1.06},
+    {"model": "decor_grass", "pos": [37.7, 0, -24.7], "rot": 230, "scale": 1.23},
+    {"model": "decor_grass", "pos": [32.6, 0, -37.37], "rot": 280, "scale": 1.01},
+    {"model": "decor_grass", "pos": [41.13, 0, -16.3], "rot": 250, "scale": 1.29},
+    {"model": "decor_grass", "pos": [48.46, 0, -31.45], "rot": 110, "scale": 0.86},
+    {"model": "decor_grass", "pos": [37.54, 0, -23.93], "rot": 10, "scale": 1.09},
+    {"model": "decor_grass", "pos": [47.18, 0, -17.15], "rot": 140, "scale": 1.18},
+    {"model": "decor_grass", "pos": [34.78, 0, -28.76], "rot": 70, "scale": 1.2},
+    {"model": "decor_grass", "pos": [24.85, 0, -34.93], "rot": 350, "scale": 0.99},
+    {"model": "decor_grass", "pos": [36.98, 0, -28.18], "rot": 190, "scale": 0.8},
+    {"model": "decor_grass", "pos": [45.37, 0, -25.21], "rot": 0, "scale": 1.01},
+    {"model": "decor_grass", "pos": [39.97, 0, -33.14], "rot": 250, "scale": 1.23},
+    {"model": "decor_grass", "pos": [46.79, 0, -37.38], "rot": 210, "scale": 1.3},
+    {"model": "decor_grass", "pos": [49.25, 0, -18.18], "rot": 250, "scale": 0.97},
+    {"model": "decor_grass", "pos": [49.28, 0, -30.49], "rot": 210, "scale": 1.06},
+    {"model": "decor_grass", "pos": [47.18, 0, -20.31], "rot": 150, "scale": 1.24},
+    {"model": "decor_grass", "pos": [48.2, 0, -35.17], "rot": 210, "scale": 0.81},
+    {"model": "decor_grass", "pos": [43.91, 0, -27.88], "rot": 260, "scale": 1.22},
+    {"model": "decor_grass", "pos": [37.51, 0, -37.1], "rot": 340, "scale": 1.24},
+    {"model": "decor_grass", "pos": [41.73, 0, -36.43], "rot": 0, "scale": 1.19},
+    {"model": "decor_grass", "pos": [35.65, 0, -28.77], "rot": 0, "scale": 0.81},
+    {"model": "decor_grass", "pos": [32.16, 0, -33.99], "rot": 40, "scale": 1.19},
+    {"model": "decor_grass", "pos": [43.9, 0, -16.09], "rot": 210, "scale": 0.94},
+    {"model": "decor_grass", "pos": [25.43, 0, -26.66], "rot": 180, "scale": 0.83},
+    {"model": "decor_grass", "pos": [46.27, 0, -17.95], "rot": 200, "scale": 1.11},
+    {"model": "decor_grass", "pos": [36.64, 0, -35.51], "rot": 40, "scale": 0.74},
+    {"model": "decor_grass", "pos": [23.85, 0, -35.59], "rot": 310, "scale": 1.26},
+    {"model": "decor_grass", "pos": [24.95, 0, -23.91], "rot": 130, "scale": 1.26},
+    {"model": "decor_grass", "pos": [24.55, 0, -16.79], "rot": 150, "scale": 0.72},
+    {"model": "decor_grass", "pos": [23.37, 0, -34.33], "rot": 130, "scale": 0.8},
+    {"model": "decor_grass", "pos": [27.58, 0, -17.12], "rot": 220, "scale": 0.79},
+    {"model": "decor_grass", "pos": [45.51, 0, -27.24], "rot": 20, "scale": 0.95},
+    {"model": "decor_grass", "pos": [23.26, 0, -22.04], "rot": 220, "scale": 0.82},
+    {"model": "decor_grass", "pos": [23.48, 0, -26.01], "rot": 130, "scale": 1.1},
+    {"model": "decor_grass", "pos": [28.85, 0, -36.18], "rot": 270, "scale": 0.82},
+    {"model": "decor_grass", "pos": [50.72, 0, -20.4], "rot": 180, "scale": 1.12},
+    {"model": "decor_grass", "pos": [32.45, 0, -29.59], "rot": 230, "scale": 0.9},
+    {"model": "decor_grass", "pos": [35.68, 0, -15.29], "rot": 330, "scale": 0.99},
+    {"model": "decor_grass", "pos": [27.02, 0, -20.01], "rot": 190, "scale": 0.89},
+    {"model": "decor_grass", "pos": [30.99, 0, -37.9], "rot": 260, "scale": 0.93},
+    {"model": "decor_grass", "pos": [45.25, 0, -30.55], "rot": 180, "scale": 1.26},
+    {"model": "decor_grass", "pos": [42.17, 0, -17.07], "rot": 50, "scale": 0.83},
+    {"model": "decor_grass", "pos": [47.7, 0, -20.38], "rot": 60, "scale": 1.05},
+    {"model": "decor_grass", "pos": [41.79, 0, -16.12], "rot": 40, "scale": 1.2},
+    {"model": "decor_grass", "pos": [37.09, 0, -33.61], "rot": 340, "scale": 0.97},
+    {"model": "decor_grass", "pos": [48.11, 0, -37.08], "rot": 150, "scale": 1.09},
+    {"model": "decor_grass", "pos": [48.53, 0, -32.05], "rot": 160, "scale": 1.17},
+    {"model": "decor_grass", "pos": [26.28, 0, -18.49], "rot": 0, "scale": 0.76},
+    {"model": "decor_grass", "pos": [35.27, 0, -38.25], "rot": 280, "scale": 0.94},
+    {"model": "decor_grass", "pos": [26.83, 0, -26.74], "rot": 240, "scale": 1.18},
+    {"model": "decor_grass", "pos": [34.48, 0, -21.14], "rot": 0, "scale": 0.95},
+    {"model": "decor_grass", "pos": [35.74, 0, -21.89], "rot": 60, "scale": 1.07},
+    {"model": "decor_grass", "pos": [46.1, 0, -27.82], "rot": 330, "scale": 0.72},
+    {"model": "decor_grass", "pos": [49.61, 0, -33.8], "rot": 230, "scale": 0.8},
+    {"model": "decor_grass", "pos": [43.87, 0, -24.42], "rot": 290, "scale": 0.98},
+    {"model": "decor_grass", "pos": [39.76, 0, -35.95], "rot": 200, "scale": 1.09},
+    {"model": "decor_grass", "pos": [44.91, 0, -24.25], "rot": 20, "scale": 0.97},
+    {"model": "decor_grass", "pos": [25.06, 0, -29.83], "rot": 0, "scale": 0.79},
+    {"model": "decor_grass", "pos": [45.06, 0, -19.15], "rot": 260, "scale": 0.9},
+    {"model": "decor_grass", "pos": [41.94, 0, -38.02], "rot": 100, "scale": 0.83},
+    {"model": "decor_grass", "pos": [35.31, 0, -28.12], "rot": 50, "scale": 1.18},
+    {"model": "decor_grass", "pos": [49.46, 0, -25.19], "rot": 60, "scale": 0.96},
+    {"model": "decor_grass", "pos": [28.3, 0, -33.05], "rot": 20, "scale": 1.24},
+    {"model": "decor_grass", "pos": [26.08, 0, -29.01], "rot": 340, "scale": 1.14},
+    {"model": "decor_grass", "pos": [24.67, 0, -29.15], "rot": 230, "scale": 1.06},
+    {"model": "decor_grass", "pos": [48.79, 0, -37.96], "rot": 340, "scale": 1.04},
+    {"model": "decor_grass", "pos": [45.26, 0, -20.98], "rot": 40, "scale": 0.97},
+    {"model": "decor_grass", "pos": [25.55, 0, -22.47], "rot": 180, "scale": 0.89},
+    {"model": "decor_grass", "pos": [44.13, 0, -36.1], "rot": 250, "scale": 1.2},
+    {"model": "decor_grass", "pos": [48.06, 0, -26.59], "rot": 170, "scale": 0.91},
+    {"model": "decor_grass", "pos": [38.07, 0, -37.07], "rot": 10, "scale": 0.96},
+    {"model": "decor_grass", "pos": [36.42, 0, -37.32], "rot": 320, "scale": 0.87},
+    {"model": "decor_grass", "pos": [45.17, 0, -29.17], "rot": 100, "scale": 0.82},
+    {"model": "decor_grass", "pos": [37.06, 0, -38.24], "rot": 210, "scale": 0.81},
+    {"model": "decor_grass", "pos": [42.45, 0, -35.74], "rot": 110, "scale": 1.03},
+    {"model": "decor_grass", "pos": [35.68, 0, -26.82], "rot": 30, "scale": 1.06},
+    {"model": "decor_grass", "pos": [27.54, 0, -15.9], "rot": 300, "scale": 0.9},
+    {"model": "decor_grass", "pos": [46.19, 0, -21.48], "rot": 150, "scale": 0.94},
+    {"model": "decor_grass", "pos": [50.59, 0, -22.34], "rot": 160, "scale": 1.23},
+    {"model": "decor_grass", "pos": [37.95, 0, -26.25], "rot": 310, "scale": 0.81},
+    {"model": "decor_grass", "pos": [24.31, 0, -29.73], "rot": 100, "scale": 1.01},
+    {"model": "decor_grass", "pos": [38.89, 0, -17.77], "rot": 60, "scale": 0.9},
+    {"model": "decor_grass", "pos": [50.41, 0, -17.35], "rot": 340, "scale": 1.07},
+    {"model": "decor_grass", "pos": [30.32, 0, -20.03], "rot": 190, "scale": 0.78},
+    {"model": "decor_grass", "pos": [26.17, 0, -30.98], "rot": 280, "scale": 1.29},
+    {"model": "decor_grass", "pos": [49.41, 0, -17.17], "rot": 280, "scale": 0.75},
+    {"model": "decor_grass", "pos": [24.34, 0, -28.52], "rot": 170, "scale": 1.19},
+    {"model": "decor_grass", "pos": [23.7, 0, -33.28], "rot": 340, "scale": 0.95},
+    {"model": "decor_grass", "pos": [47.3, 0, -34.47], "rot": 10, "scale": 0.86},
+    {"model": "decor_flowers", "pos": [44.96, 0, -24.9], "rot": 160, "scale": 1.15},
+    {"model": "decor_flowers", "pos": [26.55, 0, -20.76], "rot": 40, "scale": 0.82},
+    {"model": "decor_flowers", "pos": [30.84, 0, -23.39], "rot": 70, "scale": 1.06},
+    {"model": "decor_flowers", "pos": [30.74, 0, -29.47], "rot": 160, "scale": 1.19},
+    {"model": "decor_flowers", "pos": [39.69, 0, -32.56], "rot": 80, "scale": 1.29},
+    {"model": "decor_flowers", "pos": [33.06, 0, -37.05], "rot": 20, "scale": 1.0},
+    {"model": "decor_flowers", "pos": [49.93, 0, -30.09], "rot": 120, "scale": 1.12},
+    {"model": "decor_flowers", "pos": [28.97, 0, -30.19], "rot": 130, "scale": 1.09},
+    {"model": "decor_flowers", "pos": [47.15, 0, -27.85], "rot": 170, "scale": 1.01},
+    {"model": "decor_flowers", "pos": [28.44, 0, -23.91], "rot": 300, "scale": 1.16},
+    {"model": "decor_flowers", "pos": [32.42, 0, -16.68], "rot": 0, "scale": 1.08},
+    {"model": "decor_flowers", "pos": [25.69, 0, -19.35], "rot": 300, "scale": 1.0},
+    {"model": "decor_flowers", "pos": [38.09, 0, -27.24], "rot": 130, "scale": 1.15},
+    {"model": "decor_flowers", "pos": [41.46, 0, -16.08], "rot": 270, "scale": 0.83},
+    {"model": "decor_flowers", "pos": [48.79, 0, -36.63], "rot": 60, "scale": 0.88},
+    {"model": "decor_flowers", "pos": [36.75, 0, -19.52], "rot": 230, "scale": 1.29},
+    {"model": "decor_flowers", "pos": [28.87, 0, -21.66], "rot": 180, "scale": 1.0},
+    {"model": "decor_flowers", "pos": [36.12, 0, -35.71], "rot": 260, "scale": 1.09},
+    {"model": "decor_flowers", "pos": [37.07, 0, -23.88], "rot": 30, "scale": 0.91},
+    {"model": "decor_flowers", "pos": [41.24, 0, -38.09], "rot": 50, "scale": 1.21},
+    {"model": "decor_flowers", "pos": [24.07, 0, -31.6], "rot": 20, "scale": 0.87},
+    {"model": "decor_flowers", "pos": [44.11, 0, -19.15], "rot": 0, "scale": 0.87},
+    {"model": "decor_flowers", "pos": [47.03, 0, -37.43], "rot": 160, "scale": 0.75},
+    {"model": "decor_flowers", "pos": [40.21, 0, -27.65], "rot": 150, "scale": 1.19},
+    {"model": "decor_flowers", "pos": [39.75, 0, -28.97], "rot": 80, "scale": 1.29},
+    {"model": "decor_flowers", "pos": [41.77, 0, -36.17], "rot": 350, "scale": 0.99},
+    {"model": "decor_flowers", "pos": [35.8, 0, -31.06], "rot": 270, "scale": 0.94},
+    {"model": "decor_flowers", "pos": [42.84, 0, -24.28], "rot": 310, "scale": 1.01},
+    {"model": "decor_flowers", "pos": [30.17, 0, -20.08], "rot": 270, "scale": 1.11},
+    {"model": "decor_flowers", "pos": [32.64, 0, -36.37], "rot": 120, "scale": 0.9},
+    {"model": "decor_flowers", "pos": [50.76, 0, -16.38], "rot": 130, "scale": 1.01},
+    {"model": "decor_flowers", "pos": [30.79, 0, -26.13], "rot": 60, "scale": 1.18},
+    {"model": "decor_flowers", "pos": [37.8, 0, -15.78], "rot": 270, "scale": 1.03},
+    {"model": "decor_flowers", "pos": [45.85, 0, -28.13], "rot": 120, "scale": 0.71},
+    {"model": "decor_flowers", "pos": [43.24, 0, -34.68], "rot": 240, "scale": 0.88},
+    {"model": "decor_flowers", "pos": [44.95, 0, -29.46], "rot": 210, "scale": 1.04},
+    {"model": "decor_flowers", "pos": [37.76, 0, -28.04], "rot": 300, "scale": 1.19},
+    {"model": "decor_flowers", "pos": [26.09, 0, -30.71], "rot": 320, "scale": 0.98},
+    {"model": "decor_flowers", "pos": [41.69, 0, -19.58], "rot": 310, "scale": 0.89},
+    {"model": "decor_flowers", "pos": [46.64, 0, -24.5], "rot": 50, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-80.84, 0, -85.75], "rot": 200, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-71.04, 0, -92.69], "rot": 70, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-77.37, 0, -96.49], "rot": 240, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-66.86, 0, -123.82], "rot": 120, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-73.86, 0, -93.68], "rot": 320, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-79.35, 0, -59.0], "rot": 40, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-71.75, 0, -63.65], "rot": 60, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-67.49, 0, -50.18], "rot": 320, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-78.58, 0, -70.55], "rot": 290, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-74.01, 0, -92.13], "rot": 310, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-70.74, 0, -95.32], "rot": 140, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-66.65, 0, -119.55], "rot": 140, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-74.64, 0, -72.55], "rot": 170, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-67.12, 0, -69.86], "rot": 40, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-68.59, 0, -70.38], "rot": 90, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-73.26, 0, -68.46], "rot": 180, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-76.53, 0, -132.49], "rot": 260, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-78.85, 0, -125.12], "rot": 160, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-78.03, 0, -63.96], "rot": 130, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-71.48, 0, -56.05], "rot": 120, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-74.63, 0, -117.58], "rot": 320, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-76.95, 0, -99.34], "rot": 10, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-73.97, 0, -133.63], "rot": 10, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-75.58, 0, -75.32], "rot": 140, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-76.98, 0, -111.7], "rot": 20, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-78.61, 0, -81.87], "rot": 0, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-74.69, 0, -61.1], "rot": 50, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-74.26, 0, -141.5], "rot": 110, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-68.35, 0, -109.15], "rot": 40, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-68.47, 0, -123.31], "rot": 150, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-68.6, 0, -101.18], "rot": 50, "scale": 0.84},
+    {"model": "decor_grass", "pos": [-78.36, 0, -117.19], "rot": 320, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-68.6, 0, -99.03], "rot": 320, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-81.73, 0, -136.62], "rot": 340, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-70.71, 0, -61.48], "rot": 330, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-81.82, 0, -62.38], "rot": 280, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-80.08, 0, -47.38], "rot": 270, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-70.58, 0, -110.01], "rot": 220, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-70.61, 0, -83.04], "rot": 150, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-80.09, 0, -120.95], "rot": 250, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-70.39, 0, -127.55], "rot": 150, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-73.74, 0, -115.56], "rot": 350, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-79.01, 0, -123.31], "rot": 90, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-71.34, 0, -97.27], "rot": 130, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-78.59, 0, -106.67], "rot": 10, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-77.18, 0, -98.03], "rot": 110, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-79.34, 0, -92.44], "rot": 140, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-76.47, 0, -114.67], "rot": 240, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-69.52, 0, -56.23], "rot": 350, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-80.73, 0, -125.41], "rot": 150, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-81.23, 0, -49.57], "rot": 40, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-73.27, 0, -80.42], "rot": 0, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-76.19, 0, -91.94], "rot": 230, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-74.64, 0, -93.86], "rot": 180, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-66.11, 0, -80.13], "rot": 340, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-79.26, 0, -109.29], "rot": 190, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-67.17, 0, -108.77], "rot": 0, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-80.69, 0, -118.0], "rot": 150, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-77.38, 0, -95.44], "rot": 190, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-70.97, 0, -134.7], "rot": 220, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-80.33, 0, -63.29], "rot": 190, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-67.1, 0, -112.51], "rot": 60, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-68.68, 0, -84.07], "rot": 340, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-75.88, 0, -51.16], "rot": 260, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-79.94, 0, -137.6], "rot": 90, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-67.82, 0, -66.97], "rot": 200, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-75.94, 0, -72.92], "rot": 200, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-78.58, 0, -87.14], "rot": 10, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-73.14, 0, -76.91], "rot": 40, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-67.78, 0, -82.46], "rot": 220, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-75.91, 0, -140.44], "rot": 230, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-79.81, 0, -139.1], "rot": 30, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-78.84, 0, -115.5], "rot": 310, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-80.3, 0, -126.86], "rot": 240, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-79.72, 0, -92.78], "rot": 80, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-75.14, 0, -117.71], "rot": 50, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-68.9, 0, -102.46], "rot": 130, "scale": 0.73},
+    {"model": "decor_grass", "pos": [-80.36, 0, -120.17], "rot": 120, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-67.22, 0, -126.03], "rot": 240, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-73.78, 0, -116.67], "rot": 270, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-74.46, 0, -89.53], "rot": 310, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-71.1, 0, -62.81], "rot": 350, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-79.3, 0, -138.43], "rot": 220, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-74.4, 0, -130.67], "rot": 340, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-80.61, 0, -51.31], "rot": 210, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-72.79, 0, -79.0], "rot": 280, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-66.98, 0, -64.77], "rot": 60, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-67.81, 0, -138.44], "rot": 290, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-69.42, 0, -110.19], "rot": 190, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-74.71, 0, -88.53], "rot": 20, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-80.38, 0, -96.46], "rot": 110, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-76.38, 0, -128.74], "rot": 150, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-78.85, 0, -128.28], "rot": 150, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-67.12, 0, -121.83], "rot": 330, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-69.56, 0, -62.35], "rot": 170, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-66.58, 0, -141.49], "rot": 80, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-78.71, 0, -116.3], "rot": 330, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-77.75, 0, -48.36], "rot": 310, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-79.93, 0, -134.75], "rot": 220, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-69.46, 0, -112.41], "rot": 150, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-67.46, 0, -91.58], "rot": 50, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-78.28, 0, -105.0], "rot": 110, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-76.67, 0, -93.52], "rot": 310, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-73.22, 0, -128.24], "rot": 320, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-73.24, 0, -57.09], "rot": 320, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-67.63, 0, -119.74], "rot": 210, "scale": 1.23},
+    {"model": "decor_grass", "pos": [-78.2, 0, -135.16], "rot": 280, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-79.93, 0, -52.24], "rot": 330, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-76.96, 0, -131.63], "rot": 320, "scale": 0.92},
+    {"model": "decor_grass", "pos": [-69.23, 0, -116.35], "rot": 60, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-71.8, 0, -127.65], "rot": 340, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-71.1, 0, -107.56], "rot": 160, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-67.84, 0, -53.45], "rot": 220, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-73.32, 0, -77.54], "rot": 0, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-78.47, 0, -63.9], "rot": 170, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-69.34, 0, -120.8], "rot": 120, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-74.69, 0, -49.42], "rot": 30, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-79.9, 0, -87.66], "rot": 90, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-67.13, 0, -53.25], "rot": 110, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-67.18, 0, -97.9], "rot": 280, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-72.18, 0, -58.4], "rot": 190, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-75.1, 0, -129.73], "rot": 320, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-77.37, 0, -125.71], "rot": 290, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-75.13, 0, -61.78], "rot": 190, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-66.22, 0, -56.53], "rot": 190, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-81.29, 0, -106.4], "rot": 300, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-72.06, 0, -52.93], "rot": 280, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-78.98, 0, -78.6], "rot": 50, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-68.09, 0, -74.32], "rot": 20, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-78.06, 0, -71.16], "rot": 110, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-67.13, 0, -101.94], "rot": 220, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-66.25, 0, -127.46], "rot": 200, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-69.42, 0, -93.81], "rot": 210, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-72.32, 0, -120.45], "rot": 170, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-77.84, 0, -122.16], "rot": 80, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-68.52, 0, -113.9], "rot": 350, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-71.22, 0, -47.45], "rot": 150, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-74.98, 0, -118.59], "rot": 80, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-73.35, 0, -76.36], "rot": 240, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-68.55, 0, -76.49], "rot": 300, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-74.7, 0, -129.36], "rot": 190, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-76.04, 0, -52.74], "rot": 180, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-70.11, 0, -60.54], "rot": 100, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-77.81, 0, -125.14], "rot": 90, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-74.76, 0, -133.79], "rot": 340, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-70.65, 0, -123.92], "rot": 280, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-77.62, 0, -121.15], "rot": 310, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-66.09, 0, -81.0], "rot": 120, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-79.93, 0, -99.06], "rot": 270, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-75.73, 0, -81.78], "rot": 340, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-81.82, 0, -62.03], "rot": 0, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-68.65, 0, -97.42], "rot": 50, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-69.57, 0, -115.56], "rot": 60, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-69.85, 0, -51.96], "rot": 330, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-80.18, 0, -74.82], "rot": 160, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-73.06, 0, -104.28], "rot": 90, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-78.22, 0, -84.78], "rot": 0, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-80.08, 0, -48.77], "rot": 230, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-81.95, 0, -63.93], "rot": 330, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-76.54, 0, -141.42], "rot": 150, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-75.67, 0, -137.25], "rot": 80, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-70.2, 0, -139.44], "rot": 290, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-70.02, 0, -121.59], "rot": 220, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-68.22, 0, -119.06], "rot": 140, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-66.2, 0, -95.56], "rot": 40, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-66.7, 0, -49.83], "rot": 270, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-81.16, 0, -65.43], "rot": 80, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-80.23, 0, -55.34], "rot": 110, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-74.5, 0, -69.09], "rot": 190, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-67.9, 0, -134.02], "rot": 20, "scale": 0.72},
+    {"model": "decor_grass", "pos": [-74.33, 0, -51.85], "rot": 10, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-73.83, 0, -120.86], "rot": 270, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-67.36, 0, -46.34], "rot": 0, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-77.17, 0, -140.01], "rot": 340, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-67.38, 0, -97.29], "rot": 20, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-81.56, 0, -79.43], "rot": 170, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-80.15, 0, -108.1], "rot": 330, "scale": 0.94},
     {"model": "decor_grass", "pos": [-72.25, 0, -96.8], "rot": 50, "scale": 0.95},
     {"model": "decor_grass", "pos": [-74.56, 0, -67.11], "rot": 30, "scale": 0.89},
     {"model": "decor_grass", "pos": [-75.32, 0, -84.57], "rot": 340, "scale": 0.73},
@@ -27885,20 +28756,18 @@ if __name__ == "__main__":
     {"model": "decor_grass", "pos": [-76.19, 0, -54.51], "rot": 280, "scale": 0.79},
     {"model": "decor_grass", "pos": [-69.21, 0, -121.58], "rot": 310, "scale": 0.7},
     {"model": "decor_grass", "pos": [-77.0, 0, -90.27], "rot": 0, "scale": 0.82},
-    {"model": "decor_grass", "pos": [-80.87, 0, -141.76], "rot": 0, "scale": 0.83},
-    {"model": "decor_grass", "pos": [-75.79, 0, -105.9], "rot": 10, "scale": 0.86},
-    {"model": "decor_grass", "pos": [-79.07, 0, -99.73], "rot": 150, "scale": 0.73},
-    {"model": "decor_grass", "pos": [-74.42, 0, -88.52], "rot": 10, "scale": 0.95},
-    {"model": "decor_grass", "pos": [-81.31, 0, -136.32], "rot": 330, "scale": 1.07},
-    {"model": "decor_grass", "pos": [-81.57, 0, -131.15], "rot": 110, "scale": 0.84},
-    {"model": "decor_grass", "pos": [-69.38, 0, -124.76], "rot": 20, "scale": 1.04},
-    {"model": "decor_grass", "pos": [-70.1, 0, -112.59], "rot": 290, "scale": 1.18},
-    {"model": "decor_grass", "pos": [-72.68, 0, -92.17], "rot": 180, "scale": 1.04},
-    {"model": "decor_grass", "pos": [-68.28, 0, -119.01], "rot": 170, "scale": 1.12},
-    {"model": "decor_grass", "pos": [-68.15, 0, -89.19], "rot": 190, "scale": 0.82},
-    {"model": "decor_grass", "pos": [-68.74, 0, -48.56], "rot": 0, "scale": 1.28},
-    {"model": "decor_grass", "pos": [-70.78, 0, -46.3], "rot": 260, "scale": 1.21},
-    {"model": "decor_grass", "pos": [-69.95, 0, -98.25], "rot": 210, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-77.76, 0, -124.41], "rot": 280, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-81.33, 0, -96.5], "rot": 350, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-66.41, 0, -101.47], "rot": 20, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-71.2, 0, -55.25], "rot": 10, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-77.25, 0, -124.83], "rot": 260, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-79.13, 0, -138.88], "rot": 190, "scale": 1.0},
+    {"model": "decor_grass", "pos": [-69.19, 0, -86.11], "rot": 330, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-73.04, 0, -59.65], "rot": 150, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-77.6, 0, -68.16], "rot": 350, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-78.83, 0, -62.41], "rot": 180, "scale": 0.7},
+    {"model": "decor_grass", "pos": [-69.81, 0, -139.71], "rot": 310, "scale": 0.95},
+    {"model": "decor_grass", "pos": [-73.81, 0, -67.77], "rot": 210, "scale": 0.76},
     {"model": "decor_grass", "pos": [-67.9, 0, -52.19], "rot": 230, "scale": 0.85},
     {"model": "decor_grass", "pos": [-81.98, 0, -131.0], "rot": 270, "scale": 1.07},
     {"model": "decor_grass", "pos": [-72.96, 0, -133.3], "rot": 20, "scale": 0.75},
@@ -27906,8 +28775,8 @@ if __name__ == "__main__":
     {"model": "decor_grass", "pos": [-81.04, 0, -135.38], "rot": 70, "scale": 0.97},
     {"model": "decor_grass", "pos": [-69.28, 0, -60.14], "rot": 350, "scale": 0.91},
     {"model": "decor_grass", "pos": [-80.72, 0, -114.99], "rot": 80, "scale": 0.95},
-    {"model": "decor_grass", "pos": [-75.89, 0, -120.22], "rot": 240, "scale": 1.24},
-    {"model": "decor_grass", "pos": [-72.44, 0, -53.86], "rot": 70, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-68.57, 0, -119.16], "rot": 240, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-68.76, 0, -55.49], "rot": 70, "scale": 0.94},
     {"model": "decor_grass", "pos": [-71.84, 0, -48.78], "rot": 270, "scale": 0.74},
     {"model": "decor_grass", "pos": [-67.7, 0, -133.45], "rot": 200, "scale": 0.8},
     {"model": "decor_grass", "pos": [-66.91, 0, -114.31], "rot": 90, "scale": 0.83},
@@ -27916,9 +28785,8 @@ if __name__ == "__main__":
     {"model": "decor_grass", "pos": [-78.59, 0, -49.64], "rot": 300, "scale": 0.81},
     {"model": "decor_grass", "pos": [-78.4, 0, -110.77], "rot": 110, "scale": 0.81},
     {"model": "decor_grass", "pos": [-69.16, 0, -63.63], "rot": 210, "scale": 1.13},
-    {"model": "decor_grass", "pos": [-70.27, 0, -83.1], "rot": 190, "scale": 1.04},
-    {"model": "decor_grass", "pos": [-76.62, 0, -126.0], "rot": 260, "scale": 1.25},
-    {"model": "decor_grass", "pos": [-80.94, 0, -56.89], "rot": 350, "scale": 0.71},
+    {"model": "decor_grass", "pos": [-77.22, 0, -78.11], "rot": 100, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-67.21, 0, -135.62], "rot": 350, "scale": 0.71},
     {"model": "decor_grass", "pos": [-74.22, 0, -47.48], "rot": 320, "scale": 1.12},
     {"model": "decor_grass", "pos": [-81.73, 0, -53.93], "rot": 90, "scale": 1.0},
     {"model": "decor_grass", "pos": [-75.33, 0, -50.79], "rot": 240, "scale": 1.22},
@@ -27936,7 +28804,7 @@ if __name__ == "__main__":
     {"model": "decor_grass", "pos": [-76.15, 0, -139.42], "rot": 30, "scale": 0.95},
     {"model": "decor_grass", "pos": [-68.52, 0, -60.76], "rot": 320, "scale": 1.28},
     {"model": "decor_grass", "pos": [-74.5, 0, -119.34], "rot": 220, "scale": 1.02},
-    {"model": "decor_grass", "pos": [-80.8, 0, -125.37], "rot": 10, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-69.8, 0, -46.72], "rot": 10, "scale": 1.09},
     {"model": "decor_grass", "pos": [-66.21, 0, -48.92], "rot": 70, "scale": 0.79},
     {"model": "decor_grass", "pos": [-75.87, 0, -84.77], "rot": 120, "scale": 0.94},
     {"model": "decor_grass", "pos": [-72.73, 0, -51.77], "rot": 180, "scale": 0.78},
@@ -27959,276 +28827,278 @@ if __name__ == "__main__":
     {"model": "decor_grass", "pos": [-74.73, 0, -106.65], "rot": 270, "scale": 1.18},
     {"model": "decor_grass", "pos": [-69.79, 0, -65.89], "rot": 10, "scale": 0.9},
     {"model": "decor_grass", "pos": [-80.32, 0, -65.08], "rot": 20, "scale": 1.21},
-    {"model": "decor_grass", "pos": [-79.72, 0, -137.4], "rot": 350, "scale": 1.25},
-    {"model": "decor_grass", "pos": [-71.2, 0, -72.94], "rot": 180, "scale": 1.21},
-    {"model": "decor_grass", "pos": [-68.81, 0, -123.1], "rot": 90, "scale": 0.78},
-    {"model": "decor_grass", "pos": [-70.42, 0, -97.56], "rot": 230, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-70.26, 0, -54.16], "rot": 310, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-71.22, 0, -66.51], "rot": 40, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-79.59, 0, -131.18], "rot": 290, "scale": 0.95},
     {"model": "decor_grass", "pos": [-68.94, 0, -96.54], "rot": 80, "scale": 1.17},
-    {"model": "decor_grass", "pos": [-70.85, 0, -83.24], "rot": 30, "scale": 1.18},
-    {"model": "decor_grass", "pos": [-81.43, 0, -50.15], "rot": 0, "scale": 0.92},
-    {"model": "decor_grass", "pos": [-70.76, 0, -114.73], "rot": 180, "scale": 1.26},
-    {"model": "decor_grass", "pos": [-74.38, 0, -96.91], "rot": 320, "scale": 1.29},
-    {"model": "decor_grass", "pos": [-81.56, 0, -78.42], "rot": 50, "scale": 0.92},
-    {"model": "decor_grass", "pos": [-71.52, 0, -90.27], "rot": 90, "scale": 1.13},
-    {"model": "decor_grass", "pos": [-71.59, 0, -62.37], "rot": 280, "scale": 1.04},
-    {"model": "decor_grass", "pos": [-71.84, 0, -52.7], "rot": 300, "scale": 1.14},
-    {"model": "decor_grass", "pos": [-81.5, 0, -114.96], "rot": 310, "scale": 0.92},
-    {"model": "decor_grass", "pos": [-66.61, 0, -73.52], "rot": 120, "scale": 0.88},
-    {"model": "decor_grass", "pos": [-77.39, 0, -52.74], "rot": 270, "scale": 0.87},
+    {"model": "decor_grass", "pos": [-78.3, 0, -54.02], "rot": 230, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-77.02, 0, -116.99], "rot": 40, "scale": 0.99},
+    {"model": "decor_grass", "pos": [-74.49, 0, -52.99], "rot": 10, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-81.34, 0, -107.05], "rot": 250, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-79.74, 0, -126.6], "rot": 60, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-77.05, 0, -135.7], "rot": 260, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-76.3, 0, -74.08], "rot": 140, "scale": 1.3},
+    {"model": "decor_grass", "pos": [-76.24, 0, -49.66], "rot": 270, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-77.88, 0, -64.83], "rot": 270, "scale": 0.87},
     {"model": "decor_grass", "pos": [-73.81, 0, -74.9], "rot": 110, "scale": 0.95},
     {"model": "decor_grass", "pos": [-67.08, 0, -81.32], "rot": 290, "scale": 1.28},
-    {"model": "decor_grass", "pos": [-67.76, 0, -92.49], "rot": 240, "scale": 0.98},
+    {"model": "decor_grass", "pos": [-72.57, 0, -92.15], "rot": 30, "scale": 1.15},
+    {"model": "decor_grass", "pos": [-71.03, 0, -135.85], "rot": 240, "scale": 0.98},
     {"model": "decor_grass", "pos": [-79.87, 0, -95.63], "rot": 240, "scale": 0.99},
     {"model": "decor_grass", "pos": [-71.56, 0, -128.63], "rot": 130, "scale": 0.77},
     {"model": "decor_grass", "pos": [-66.93, 0, -84.53], "rot": 270, "scale": 1.2},
     {"model": "decor_grass", "pos": [-67.58, 0, -81.61], "rot": 140, "scale": 0.81},
     {"model": "decor_grass", "pos": [-67.4, 0, -122.35], "rot": 70, "scale": 0.81},
     {"model": "decor_grass", "pos": [-81.05, 0, -129.6], "rot": 10, "scale": 1.07},
-    {"model": "decor_grass", "pos": [-72.0, 0, -107.67], "rot": 340, "scale": 1.08},
-    {"model": "decor_grass", "pos": [-73.96, 0, -140.53], "rot": 130, "scale": 0.98},
-    {"model": "decor_grass", "pos": [-81.42, 0, -83.99], "rot": 120, "scale": 0.74},
-    {"model": "decor_grass", "pos": [-71.25, 0, -87.37], "rot": 0, "scale": 1.03},
-    {"model": "decor_grass", "pos": [-66.32, 0, -47.97], "rot": 300, "scale": 0.82},
-    {"model": "decor_grass", "pos": [-76.61, 0, -101.18], "rot": 0, "scale": 0.71},
-    {"model": "decor_grass", "pos": [-75.8, 0, -119.46], "rot": 330, "scale": 0.84},
-    {"model": "decor_grass", "pos": [-66.7, 0, -85.91], "rot": 100, "scale": 1.27},
-    {"model": "decor_grass", "pos": [-75.13, 0, -80.87], "rot": 230, "scale": 1.02},
-    {"model": "decor_grass", "pos": [-77.7, 0, -105.44], "rot": 350, "scale": 0.75},
-    {"model": "decor_grass", "pos": [-80.49, 0, -80.18], "rot": 330, "scale": 1.05},
-    {"model": "decor_grass", "pos": [-74.81, 0, -56.23], "rot": 70, "scale": 1.04},
-    {"model": "decor_grass", "pos": [-74.36, 0, -108.53], "rot": 240, "scale": 0.82},
-    {"model": "decor_grass", "pos": [-74.57, 0, -50.97], "rot": 70, "scale": 0.72},
-    {"model": "decor_grass", "pos": [-72.7, 0, -63.09], "rot": 120, "scale": 1.06},
-    {"model": "decor_grass", "pos": [-74.23, 0, -94.17], "rot": 270, "scale": 0.81},
-    {"model": "decor_grass", "pos": [-79.78, 0, -120.36], "rot": 220, "scale": 1.07},
-    {"model": "decor_grass", "pos": [-70.51, 0, -84.61], "rot": 150, "scale": 0.92},
-    {"model": "decor_grass", "pos": [-71.92, 0, -124.72], "rot": 210, "scale": 1.0},
-    {"model": "decor_grass", "pos": [-66.36, 0, -50.14], "rot": 190, "scale": 0.86},
-    {"model": "decor_grass", "pos": [-79.25, 0, -72.08], "rot": 50, "scale": 1.11},
-    {"model": "decor_grass", "pos": [-75.71, 0, -84.37], "rot": 330, "scale": 0.76},
-    {"model": "decor_grass", "pos": [-74.6, 0, -123.72], "rot": 160, "scale": 0.81},
-    {"model": "decor_grass", "pos": [-73.14, 0, -76.41], "rot": 10, "scale": 0.94},
-    {"model": "decor_grass", "pos": [-67.77, 0, -106.37], "rot": 70, "scale": 1.12},
-    {"model": "decor_grass", "pos": [-72.18, 0, -59.37], "rot": 310, "scale": 1.12},
-    {"model": "decor_grass", "pos": [-69.35, 0, -91.48], "rot": 260, "scale": 1.03},
-    {"model": "decor_grass", "pos": [-81.74, 0, -114.55], "rot": 270, "scale": 0.75},
-    {"model": "decor_grass", "pos": [-74.88, 0, -72.84], "rot": 310, "scale": 0.72},
-    {"model": "decor_grass", "pos": [-75.97, 0, -62.67], "rot": 280, "scale": 1.05},
-    {"model": "decor_grass", "pos": [-77.32, 0, -124.25], "rot": 250, "scale": 0.73},
-    {"model": "decor_grass", "pos": [-69.86, 0, -114.82], "rot": 300, "scale": 0.79},
-    {"model": "decor_grass", "pos": [-70.2, 0, -132.31], "rot": 80, "scale": 0.8},
-    {"model": "decor_grass", "pos": [-79.76, 0, -58.29], "rot": 350, "scale": 1.05},
-    {"model": "decor_grass", "pos": [-79.89, 0, -83.08], "rot": 0, "scale": 0.96},
-    {"model": "decor_grass", "pos": [-70.0, 0, -64.91], "rot": 170, "scale": 1.27},
-    {"model": "decor_grass", "pos": [-77.24, 0, -111.13], "rot": 220, "scale": 0.95},
-    {"model": "decor_grass", "pos": [-81.93, 0, -139.11], "rot": 70, "scale": 0.71},
-    {"model": "decor_grass", "pos": [-75.21, 0, -52.55], "rot": 50, "scale": 1.05},
-    {"model": "decor_grass", "pos": [-81.18, 0, -67.28], "rot": 170, "scale": 0.91},
-    {"model": "decor_grass", "pos": [-73.61, 0, -57.26], "rot": 210, "scale": 1.19},
-    {"model": "decor_grass", "pos": [-81.89, 0, -106.76], "rot": 220, "scale": 0.72},
-    {"model": "decor_grass", "pos": [-66.11, 0, -80.9], "rot": 170, "scale": 0.77},
-    {"model": "decor_grass", "pos": [-79.68, 0, -116.25], "rot": 30, "scale": 1.0},
-    {"model": "decor_grass", "pos": [-71.7, 0, -109.1], "rot": 330, "scale": 0.94},
-    {"model": "decor_grass", "pos": [-72.05, 0, -87.0], "rot": 110, "scale": 1.04},
-    {"model": "decor_grass", "pos": [-72.98, 0, -70.42], "rot": 310, "scale": 0.83},
-    {"model": "decor_grass", "pos": [-68.26, 0, -92.52], "rot": 310, "scale": 1.23},
-    {"model": "decor_grass", "pos": [-76.94, 0, -78.34], "rot": 50, "scale": 1.08},
-    {"model": "decor_grass", "pos": [-79.71, 0, -56.24], "rot": 90, "scale": 0.98},
-    {"model": "decor_grass", "pos": [-69.92, 0, -139.91], "rot": 200, "scale": 0.87},
-    {"model": "decor_grass", "pos": [-80.46, 0, -86.36], "rot": 250, "scale": 0.91},
-    {"model": "decor_grass", "pos": [-79.51, 0, -57.26], "rot": 10, "scale": 1.01},
-    {"model": "decor_grass", "pos": [-74.8, 0, -54.27], "rot": 250, "scale": 1.26},
-    {"model": "decor_grass", "pos": [-77.27, 0, -109.12], "rot": 220, "scale": 0.89},
-    {"model": "decor_grass", "pos": [-66.23, 0, -135.52], "rot": 180, "scale": 1.12},
-    {"model": "decor_grass", "pos": [-70.19, 0, -67.24], "rot": 240, "scale": 0.82},
-    {"model": "decor_grass", "pos": [-81.62, 0, -124.49], "rot": 330, "scale": 0.85},
-    {"model": "decor_grass", "pos": [-71.86, 0, -89.88], "rot": 300, "scale": 0.78},
-    {"model": "decor_grass", "pos": [-66.47, 0, -59.47], "rot": 20, "scale": 1.25},
-    {"model": "decor_grass", "pos": [-67.37, 0, -57.88], "rot": 170, "scale": 1.22},
-    {"model": "decor_grass", "pos": [-71.23, 0, -54.45], "rot": 220, "scale": 1.03},
-    {"model": "decor_grass", "pos": [-72.21, 0, -71.07], "rot": 50, "scale": 1.12},
-    {"model": "decor_grass", "pos": [-69.48, 0, -67.32], "rot": 10, "scale": 1.15},
-    {"model": "decor_grass", "pos": [-77.11, 0, -120.6], "rot": 320, "scale": 0.91},
-    {"model": "decor_grass", "pos": [-69.38, 0, -61.03], "rot": 180, "scale": 1.08},
-    {"model": "decor_grass", "pos": [-68.89, 0, -130.19], "rot": 280, "scale": 1.15},
-    {"model": "decor_grass", "pos": [-79.7, 0, -109.92], "rot": 260, "scale": 0.96},
-    {"model": "decor_grass", "pos": [-69.8, 0, -116.83], "rot": 60, "scale": 1.25},
-    {"model": "decor_grass", "pos": [-81.96, 0, -64.8], "rot": 260, "scale": 1.01},
-    {"model": "decor_grass", "pos": [-78.18, 0, -50.42], "rot": 130, "scale": 0.88},
-    {"model": "decor_grass", "pos": [-70.74, 0, -93.93], "rot": 10, "scale": 1.2},
-    {"model": "decor_grass", "pos": [-74.26, 0, -115.05], "rot": 10, "scale": 0.83},
-    {"model": "decor_grass", "pos": [-80.36, 0, -130.25], "rot": 230, "scale": 1.3},
-    {"model": "decor_grass", "pos": [-68.17, 0, -56.77], "rot": 70, "scale": 0.84},
-    {"model": "decor_grass", "pos": [-75.7, 0, -123.6], "rot": 300, "scale": 0.85},
-    {"model": "decor_grass", "pos": [-68.04, 0, -128.3], "rot": 80, "scale": 0.92},
-    {"model": "decor_grass", "pos": [-78.48, 0, -107.9], "rot": 20, "scale": 1.2},
-    {"model": "decor_grass", "pos": [-66.98, 0, -93.38], "rot": 310, "scale": 0.96},
-    {"model": "decor_grass", "pos": [-80.99, 0, -87.01], "rot": 330, "scale": 0.95},
-    {"model": "decor_grass", "pos": [-72.99, 0, -61.81], "rot": 150, "scale": 0.9},
-    {"model": "decor_grass", "pos": [-69.22, 0, -58.84], "rot": 20, "scale": 1.11},
-    {"model": "decor_grass", "pos": [-79.24, 0, -114.8], "rot": 240, "scale": 1.16},
-    {"model": "decor_grass", "pos": [-75.37, 0, -70.87], "rot": 110, "scale": 1.07},
-    {"model": "decor_grass", "pos": [-79.24, 0, -118.71], "rot": 30, "scale": 1.22},
-    {"model": "decor_grass", "pos": [-73.64, 0, -118.89], "rot": 110, "scale": 0.93},
-    {"model": "decor_grass", "pos": [-79.74, 0, -139.51], "rot": 280, "scale": 1.04},
-    {"model": "decor_grass", "pos": [-81.2, 0, -52.34], "rot": 0, "scale": 1.21},
-    {"model": "decor_grass", "pos": [-74.76, 0, -78.01], "rot": 0, "scale": 0.8},
-    {"model": "decor_grass", "pos": [-74.93, 0, -46.04], "rot": 210, "scale": 1.1},
-    {"model": "decor_grass", "pos": [-78.5, 0, -114.05], "rot": 250, "scale": 1.08},
-    {"model": "decor_grass", "pos": [-75.28, 0, -85.85], "rot": 130, "scale": 1.27},
-    {"model": "decor_grass", "pos": [-69.37, 0, -113.89], "rot": 20, "scale": 1.21},
-    {"model": "decor_grass", "pos": [-77.17, 0, -62.74], "rot": 280, "scale": 0.82},
-    {"model": "decor_grass", "pos": [-78.13, 0, -134.79], "rot": 300, "scale": 1.19},
-    {"model": "decor_grass", "pos": [-79.98, 0, -52.21], "rot": 100, "scale": 1.0},
-    {"model": "decor_grass", "pos": [-80.0, 0, -65.88], "rot": 270, "scale": 1.13},
-    {"model": "decor_grass", "pos": [-74.08, 0, -68.57], "rot": 210, "scale": 0.77},
-    {"model": "decor_grass", "pos": [-73.98, 0, -90.48], "rot": 310, "scale": 0.91},
-    {"model": "decor_grass", "pos": [-71.45, 0, -51.87], "rot": 280, "scale": 1.05},
-    {"model": "decor_grass", "pos": [-66.17, 0, -99.42], "rot": 220, "scale": 0.88},
-    {"model": "decor_grass", "pos": [-68.86, 0, -121.83], "rot": 100, "scale": 1.03},
-    {"model": "decor_grass", "pos": [-71.83, 0, -104.81], "rot": 140, "scale": 1.29},
-    {"model": "decor_grass", "pos": [-76.27, 0, -60.63], "rot": 330, "scale": 1.28},
-    {"model": "decor_grass", "pos": [-74.04, 0, -51.29], "rot": 280, "scale": 1.1},
-    {"model": "decor_grass", "pos": [-70.49, 0, -137.77], "rot": 230, "scale": 0.85},
-    {"model": "decor_grass", "pos": [-67.94, 0, -137.05], "rot": 50, "scale": 1.09},
-    {"model": "decor_grass", "pos": [-76.77, 0, -50.58], "rot": 340, "scale": 0.97},
-    {"model": "decor_grass", "pos": [-72.2, 0, -120.7], "rot": 300, "scale": 0.89},
-    {"model": "decor_grass", "pos": [-77.74, 0, -116.46], "rot": 60, "scale": 1.27},
-    {"model": "decor_grass", "pos": [-76.63, 0, -82.31], "rot": 330, "scale": 1.16},
-    {"model": "decor_grass", "pos": [-68.74, 0, -140.88], "rot": 230, "scale": 0.72},
-    {"model": "decor_grass", "pos": [-75.43, 0, -100.93], "rot": 340, "scale": 1.03},
-    {"model": "decor_grass", "pos": [-81.62, 0, -58.49], "rot": 290, "scale": 0.79},
-    {"model": "decor_grass", "pos": [-72.78, 0, -124.1], "rot": 180, "scale": 1.18},
-    {"model": "decor_grass", "pos": [-69.62, 0, -108.48], "rot": 130, "scale": 0.89},
-    {"model": "decor_grass", "pos": [-66.69, 0, -131.09], "rot": 330, "scale": 1.02},
-    {"model": "decor_grass", "pos": [-72.67, 0, -93.4], "rot": 20, "scale": 1.05},
-    {"model": "decor_grass", "pos": [-73.3, 0, -133.12], "rot": 350, "scale": 1.06},
-    {"model": "decor_grass", "pos": [-75.02, 0, -134.72], "rot": 0, "scale": 0.84},
-    {"model": "decor_grass", "pos": [-71.56, 0, -100.98], "rot": 80, "scale": 0.73},
-    {"model": "decor_grass", "pos": [-77.76, 0, -133.68], "rot": 30, "scale": 1.27},
-    {"model": "decor_grass", "pos": [-72.22, 0, -67.45], "rot": 70, "scale": 0.87},
-    {"model": "decor_grass", "pos": [-78.25, 0, -76.5], "rot": 110, "scale": 0.91},
-    {"model": "decor_grass", "pos": [-78.7, 0, -67.74], "rot": 100, "scale": 0.94},
-    {"model": "decor_grass", "pos": [-66.92, 0, -67.45], "rot": 30, "scale": 1.03},
-    {"model": "decor_grass", "pos": [-81.3, 0, -119.05], "rot": 230, "scale": 1.03},
-    {"model": "decor_grass", "pos": [-80.36, 0, -55.48], "rot": 300, "scale": 1.17},
-    {"model": "decor_grass", "pos": [-80.42, 0, -93.84], "rot": 10, "scale": 0.96},
-    {"model": "decor_grass", "pos": [-66.06, 0, -51.2], "rot": 190, "scale": 1.22},
-    {"model": "decor_grass", "pos": [-66.84, 0, -91.86], "rot": 260, "scale": 0.94},
-    {"model": "decor_grass", "pos": [-71.73, 0, -110.66], "rot": 240, "scale": 0.94},
-    {"model": "decor_grass", "pos": [-68.97, 0, -92.8], "rot": 20, "scale": 1.08},
-    {"model": "decor_grass", "pos": [-70.94, 0, -94.92], "rot": 220, "scale": 1.09},
-    {"model": "decor_grass", "pos": [-70.08, 0, -107.72], "rot": 0, "scale": 0.88},
-    {"model": "decor_grass", "pos": [-75.11, 0, -64.16], "rot": 60, "scale": 1.05},
-    {"model": "decor_grass", "pos": [-69.38, 0, -141.72], "rot": 140, "scale": 1.02},
-    {"model": "decor_grass", "pos": [-73.11, 0, -131.55], "rot": 200, "scale": 1.19},
-    {"model": "decor_grass", "pos": [-73.34, 0, -114.99], "rot": 260, "scale": 1.22},
-    {"model": "decor_grass", "pos": [-69.7, 0, -109.76], "rot": 170, "scale": 0.78},
-    {"model": "decor_grass", "pos": [-68.18, 0, -76.92], "rot": 70, "scale": 1.21},
-    {"model": "decor_grass", "pos": [-81.4, 0, -92.67], "rot": 120, "scale": 0.88},
-    {"model": "decor_grass", "pos": [-67.39, 0, -130.54], "rot": 270, "scale": 0.94},
-    {"model": "decor_grass", "pos": [-73.65, 0, -77.1], "rot": 100, "scale": 1.13},
-    {"model": "decor_grass", "pos": [-71.56, 0, -74.27], "rot": 180, "scale": 1.04},
-    {"model": "decor_grass", "pos": [-70.19, 0, -112.04], "rot": 260, "scale": 1.07},
-    {"model": "decor_grass", "pos": [-77.35, 0, -103.73], "rot": 240, "scale": 1.26},
-    {"model": "decor_grass", "pos": [-68.41, 0, -87.06], "rot": 10, "scale": 0.83},
-    {"model": "decor_grass", "pos": [-69.4, 0, -81.22], "rot": 250, "scale": 0.9},
-    {"model": "decor_grass", "pos": [-79.77, 0, -114.26], "rot": 200, "scale": 1.27},
-    {"model": "decor_grass", "pos": [-71.26, 0, -85.75], "rot": 330, "scale": 0.94},
-    {"model": "decor_grass", "pos": [-73.85, 0, -86.44], "rot": 10, "scale": 1.17},
-    {"model": "decor_grass", "pos": [-67.88, 0, -123.15], "rot": 30, "scale": 1.27},
-    {"model": "decor_grass", "pos": [-78.87, 0, -97.69], "rot": 90, "scale": 0.88},
-    {"model": "decor_grass", "pos": [-71.36, 0, -49.1], "rot": 250, "scale": 0.72},
-    {"model": "decor_grass", "pos": [-80.2, 0, -66.34], "rot": 190, "scale": 0.71},
-    {"model": "decor_grass", "pos": [-68.14, 0, -93.96], "rot": 340, "scale": 1.28},
-    {"model": "decor_grass", "pos": [-79.31, 0, -104.42], "rot": 330, "scale": 0.87},
-    {"model": "decor_grass", "pos": [-68.43, 0, -93.19], "rot": 340, "scale": 1.2},
-    {"model": "decor_grass", "pos": [-78.84, 0, -132.14], "rot": 20, "scale": 1.0},
-    {"model": "decor_grass", "pos": [-68.32, 0, -139.6], "rot": 0, "scale": 0.95},
-    {"model": "decor_grass", "pos": [-75.25, 0, -80.46], "rot": 30, "scale": 1.14},
-    {"model": "decor_leaves", "pos": [-67.02, 0, -135.35], "rot": 50, "scale": 0.7},
-    {"model": "decor_leaves", "pos": [-73.38, 0, -86.95], "rot": 40, "scale": 0.76},
-    {"model": "decor_leaves", "pos": [-75.14, 0, -69.66], "rot": 90, "scale": 1.27},
-    {"model": "decor_leaves", "pos": [-73.23, 0, -118.34], "rot": 260, "scale": 0.8},
-    {"model": "decor_leaves", "pos": [-73.79, 0, -100.3], "rot": 50, "scale": 1.09},
-    {"model": "decor_leaves", "pos": [-70.09, 0, -110.28], "rot": 160, "scale": 1.11},
-    {"model": "decor_leaves", "pos": [-79.59, 0, -66.04], "rot": 150, "scale": 1.25},
-    {"model": "decor_leaves", "pos": [-67.49, 0, -112.66], "rot": 70, "scale": 0.72},
-    {"model": "decor_leaves", "pos": [-75.77, 0, -46.89], "rot": 160, "scale": 1.09},
-    {"model": "decor_leaves", "pos": [-66.8, 0, -76.45], "rot": 30, "scale": 1.08},
-    {"model": "decor_leaves", "pos": [-79.75, 0, -134.4], "rot": 160, "scale": 1.15},
-    {"model": "decor_leaves", "pos": [-80.18, 0, -97.93], "rot": 150, "scale": 0.91},
-    {"model": "decor_leaves", "pos": [-73.38, 0, -138.43], "rot": 340, "scale": 0.77},
-    {"model": "decor_leaves", "pos": [-74.82, 0, -86.0], "rot": 290, "scale": 0.9},
-    {"model": "decor_leaves", "pos": [-68.76, 0, -118.2], "rot": 280, "scale": 1.14},
-    {"model": "decor_leaves", "pos": [-81.98, 0, -112.64], "rot": 200, "scale": 0.86},
-    {"model": "decor_leaves", "pos": [-80.72, 0, -59.15], "rot": 330, "scale": 0.75},
-    {"model": "decor_leaves", "pos": [-81.29, 0, -129.86], "rot": 160, "scale": 1.27},
-    {"model": "decor_leaves", "pos": [-76.24, 0, -114.46], "rot": 260, "scale": 1.21},
-    {"model": "decor_leaves", "pos": [-80.1, 0, -89.56], "rot": 310, "scale": 0.87},
-    {"model": "decor_leaves", "pos": [-75.5, 0, -122.75], "rot": 290, "scale": 1.15},
-    {"model": "decor_leaves", "pos": [-79.2, 0, -48.39], "rot": 290, "scale": 0.85},
-    {"model": "decor_leaves", "pos": [-72.49, 0, -94.64], "rot": 160, "scale": 0.89},
-    {"model": "decor_leaves", "pos": [-74.42, 0, -133.02], "rot": 140, "scale": 1.11},
-    {"model": "decor_leaves", "pos": [-72.16, 0, -86.92], "rot": 130, "scale": 1.06},
-    {"model": "decor_leaves", "pos": [-74.72, 0, -90.88], "rot": 120, "scale": 0.73},
-    {"model": "decor_leaves", "pos": [-78.83, 0, -79.25], "rot": 280, "scale": 0.72},
-    {"model": "decor_leaves", "pos": [-74.61, 0, -93.86], "rot": 170, "scale": 0.73},
-    {"model": "decor_leaves", "pos": [-77.71, 0, -60.03], "rot": 210, "scale": 1.1},
-    {"model": "decor_leaves", "pos": [-78.36, 0, -122.92], "rot": 220, "scale": 1.21},
-    {"model": "decor_leaves", "pos": [-78.44, 0, -119.13], "rot": 180, "scale": 0.98},
-    {"model": "decor_leaves", "pos": [-72.23, 0, -122.86], "rot": 280, "scale": 0.89},
-    {"model": "decor_leaves", "pos": [-77.34, 0, -81.33], "rot": 270, "scale": 1.13},
-    {"model": "decor_leaves", "pos": [-72.2, 0, -94.26], "rot": 80, "scale": 1.27},
-    {"model": "decor_leaves", "pos": [-67.17, 0, -128.02], "rot": 170, "scale": 0.74},
-    {"model": "decor_leaves", "pos": [-79.05, 0, -97.73], "rot": 330, "scale": 0.89},
-    {"model": "decor_leaves", "pos": [-81.38, 0, -66.38], "rot": 150, "scale": 0.79},
-    {"model": "decor_leaves", "pos": [-75.5, 0, -70.42], "rot": 30, "scale": 1.08},
-    {"model": "decor_leaves", "pos": [-73.16, 0, -131.23], "rot": 280, "scale": 1.21},
-    {"model": "decor_leaves", "pos": [-77.24, 0, -133.19], "rot": 130, "scale": 1.09},
-    {"model": "decor_leaves", "pos": [-75.89, 0, -110.54], "rot": 130, "scale": 1.1},
-    {"model": "decor_leaves", "pos": [-78.02, 0, -88.21], "rot": 340, "scale": 1.16},
-    {"model": "decor_leaves", "pos": [-75.92, 0, -55.79], "rot": 250, "scale": 0.92},
-    {"model": "decor_leaves", "pos": [-75.21, 0, -71.66], "rot": 170, "scale": 1.04},
-    {"model": "decor_leaves", "pos": [-77.02, 0, -47.4], "rot": 50, "scale": 1.1},
-    {"model": "decor_leaves", "pos": [-78.04, 0, -51.25], "rot": 320, "scale": 1.09},
-    {"model": "decor_leaves", "pos": [-81.36, 0, -50.13], "rot": 40, "scale": 0.77},
-    {"model": "decor_leaves", "pos": [-81.24, 0, -89.96], "rot": 170, "scale": 1.12},
-    {"model": "decor_leaves", "pos": [-80.37, 0, -74.58], "rot": 200, "scale": 1.19},
-    {"model": "decor_leaves", "pos": [-80.21, 0, -65.24], "rot": 40, "scale": 0.92},
-    {"model": "decor_stones", "pos": [-69.33, 0, -84.98], "rot": 110, "scale": 0.84},
-    {"model": "decor_stones", "pos": [-74.19, 0, -75.28], "rot": 180, "scale": 1.02},
-    {"model": "decor_stones", "pos": [-69.81, 0, -93.91], "rot": 40, "scale": 1.29},
-    {"model": "decor_stones", "pos": [-80.14, 0, -64.18], "rot": 20, "scale": 1.07},
-    {"model": "decor_stones", "pos": [-68.25, 0, -139.15], "rot": 160, "scale": 0.84},
-    {"model": "decor_stones", "pos": [-80.95, 0, -114.54], "rot": 250, "scale": 1.14},
-    {"model": "decor_stones", "pos": [-73.73, 0, -90.33], "rot": 120, "scale": 0.75},
-    {"model": "decor_stones", "pos": [-74.74, 0, -48.22], "rot": 160, "scale": 0.8},
-    {"model": "decor_stones", "pos": [-77.55, 0, -66.19], "rot": 30, "scale": 1.01},
-    {"model": "decor_stones", "pos": [-78.98, 0, -56.75], "rot": 210, "scale": 1.07},
-    {"model": "decor_stones", "pos": [-79.68, 0, -66.92], "rot": 200, "scale": 1.23},
-    {"model": "decor_stones", "pos": [-76.92, 0, -131.14], "rot": 250, "scale": 0.84},
-    {"model": "decor_stones", "pos": [-71.46, 0, -113.03], "rot": 110, "scale": 0.99},
-    {"model": "decor_stones", "pos": [-70.94, 0, -63.53], "rot": 320, "scale": 0.8},
-    {"model": "decor_stones", "pos": [-81.53, 0, -65.22], "rot": 220, "scale": 1.26},
-    {"model": "decor_stones", "pos": [-77.13, 0, -51.41], "rot": 110, "scale": 1.16},
-    {"model": "decor_stones", "pos": [-73.36, 0, -46.63], "rot": 110, "scale": 1.07},
-    {"model": "decor_stones", "pos": [-76.8, 0, -93.73], "rot": 340, "scale": 0.9},
-    {"model": "decor_stones", "pos": [-79.37, 0, -138.84], "rot": 250, "scale": 0.84},
-    {"model": "decor_stones", "pos": [-69.47, 0, -106.06], "rot": 200, "scale": 0.99},
-    {"model": "decor_stones", "pos": [-72.31, 0, -113.75], "rot": 100, "scale": 0.77},
-    {"model": "decor_stones", "pos": [-80.6, 0, -100.97], "rot": 20, "scale": 1.21},
-    {"model": "decor_stones", "pos": [-66.53, 0, -71.61], "rot": 30, "scale": 1.22},
-    {"model": "decor_stones", "pos": [-70.57, 0, -53.45], "rot": 220, "scale": 0.73},
-    {"model": "decor_stones", "pos": [-74.1, 0, -76.86], "rot": 240, "scale": 1.26},
-    {"model": "decor_stones", "pos": [-66.27, 0, -52.05], "rot": 50, "scale": 0.97},
-    {"model": "decor_stones", "pos": [-78.62, 0, -88.61], "rot": 290, "scale": 0.7},
-    {"model": "decor_stones", "pos": [-70.08, 0, -113.74], "rot": 240, "scale": 0.77},
-    {"model": "decor_stones", "pos": [-73.81, 0, -89.69], "rot": 300, "scale": 1.3},
-    {"model": "decor_stones", "pos": [-81.42, 0, -76.55], "rot": 50, "scale": 1.13},
-    {"model": "decor_grass", "pos": [57.29, 0, -61.86], "rot": 100, "scale": 1.23},
-    {"model": "decor_grass", "pos": [75.17, 0, -86.91], "rot": 220, "scale": 1.04},
-    {"model": "decor_grass", "pos": [65.07, 0, -87.8], "rot": 120, "scale": 1.12},
+    {"model": "decor_leaves", "pos": [-72.0, 0, -107.67], "rot": 340, "scale": 1.08},
+    {"model": "decor_leaves", "pos": [-73.96, 0, -140.53], "rot": 130, "scale": 0.98},
+    {"model": "decor_leaves", "pos": [-81.42, 0, -83.99], "rot": 120, "scale": 0.74},
+    {"model": "decor_leaves", "pos": [-71.25, 0, -87.37], "rot": 0, "scale": 1.03},
+    {"model": "decor_leaves", "pos": [-66.32, 0, -47.97], "rot": 300, "scale": 0.82},
+    {"model": "decor_leaves", "pos": [-76.61, 0, -101.18], "rot": 0, "scale": 0.71},
+    {"model": "decor_leaves", "pos": [-75.8, 0, -119.46], "rot": 330, "scale": 0.84},
+    {"model": "decor_leaves", "pos": [-66.7, 0, -85.91], "rot": 100, "scale": 1.27},
+    {"model": "decor_leaves", "pos": [-75.13, 0, -80.87], "rot": 230, "scale": 1.02},
+    {"model": "decor_leaves", "pos": [-77.7, 0, -105.44], "rot": 350, "scale": 0.75},
+    {"model": "decor_leaves", "pos": [-80.49, 0, -80.18], "rot": 330, "scale": 1.05},
+    {"model": "decor_leaves", "pos": [-74.81, 0, -56.23], "rot": 70, "scale": 1.04},
+    {"model": "decor_leaves", "pos": [-74.36, 0, -108.53], "rot": 240, "scale": 0.82},
+    {"model": "decor_leaves", "pos": [-74.57, 0, -50.97], "rot": 70, "scale": 0.72},
+    {"model": "decor_leaves", "pos": [-72.7, 0, -63.09], "rot": 120, "scale": 1.06},
+    {"model": "decor_leaves", "pos": [-74.23, 0, -94.17], "rot": 270, "scale": 0.81},
+    {"model": "decor_leaves", "pos": [-79.78, 0, -120.36], "rot": 220, "scale": 1.07},
+    {"model": "decor_leaves", "pos": [-70.51, 0, -84.61], "rot": 150, "scale": 0.92},
+    {"model": "decor_leaves", "pos": [-71.92, 0, -124.72], "rot": 210, "scale": 1.0},
+    {"model": "decor_leaves", "pos": [-66.36, 0, -50.14], "rot": 190, "scale": 0.86},
+    {"model": "decor_leaves", "pos": [-79.25, 0, -72.08], "rot": 50, "scale": 1.11},
+    {"model": "decor_leaves", "pos": [-75.71, 0, -84.37], "rot": 330, "scale": 0.76},
+    {"model": "decor_leaves", "pos": [-74.6, 0, -123.72], "rot": 160, "scale": 0.81},
+    {"model": "decor_leaves", "pos": [-73.14, 0, -76.41], "rot": 10, "scale": 0.94},
+    {"model": "decor_leaves", "pos": [-67.77, 0, -106.37], "rot": 70, "scale": 1.12},
+    {"model": "decor_leaves", "pos": [-72.18, 0, -59.37], "rot": 310, "scale": 1.12},
+    {"model": "decor_leaves", "pos": [-69.35, 0, -91.48], "rot": 260, "scale": 1.03},
+    {"model": "decor_leaves", "pos": [-81.74, 0, -114.55], "rot": 270, "scale": 0.75},
+    {"model": "decor_leaves", "pos": [-74.88, 0, -72.84], "rot": 310, "scale": 0.72},
+    {"model": "decor_leaves", "pos": [-75.97, 0, -62.67], "rot": 280, "scale": 1.05},
+    {"model": "decor_leaves", "pos": [-77.32, 0, -124.25], "rot": 250, "scale": 0.73},
+    {"model": "decor_leaves", "pos": [-69.86, 0, -114.82], "rot": 300, "scale": 0.79},
+    {"model": "decor_leaves", "pos": [-70.2, 0, -132.31], "rot": 80, "scale": 0.8},
+    {"model": "decor_leaves", "pos": [-79.76, 0, -58.29], "rot": 350, "scale": 1.05},
+    {"model": "decor_leaves", "pos": [-79.89, 0, -83.08], "rot": 0, "scale": 0.96},
+    {"model": "decor_leaves", "pos": [-70.0, 0, -64.91], "rot": 170, "scale": 1.27},
+    {"model": "decor_leaves", "pos": [-77.24, 0, -111.13], "rot": 220, "scale": 0.95},
+    {"model": "decor_leaves", "pos": [-81.93, 0, -139.11], "rot": 70, "scale": 0.71},
+    {"model": "decor_leaves", "pos": [-75.21, 0, -52.55], "rot": 50, "scale": 1.05},
+    {"model": "decor_leaves", "pos": [-81.18, 0, -67.28], "rot": 170, "scale": 0.91},
+    {"model": "decor_leaves", "pos": [-73.61, 0, -57.26], "rot": 210, "scale": 1.19},
+    {"model": "decor_leaves", "pos": [-81.89, 0, -106.76], "rot": 220, "scale": 0.72},
+    {"model": "decor_leaves", "pos": [-66.11, 0, -80.9], "rot": 170, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [-79.68, 0, -116.25], "rot": 30, "scale": 1.0},
+    {"model": "decor_leaves", "pos": [-71.7, 0, -109.1], "rot": 330, "scale": 0.94},
+    {"model": "decor_leaves", "pos": [-72.05, 0, -87.0], "rot": 110, "scale": 1.04},
+    {"model": "decor_leaves", "pos": [-72.98, 0, -70.42], "rot": 310, "scale": 0.83},
+    {"model": "decor_leaves", "pos": [-68.26, 0, -92.52], "rot": 310, "scale": 1.23},
+    {"model": "decor_leaves", "pos": [-76.94, 0, -78.34], "rot": 50, "scale": 1.08},
+    {"model": "decor_leaves", "pos": [-79.71, 0, -56.24], "rot": 90, "scale": 0.98},
+    {"model": "decor_stones", "pos": [-69.92, 0, -139.91], "rot": 200, "scale": 0.87},
+    {"model": "decor_stones", "pos": [-80.46, 0, -86.36], "rot": 250, "scale": 0.91},
+    {"model": "decor_stones", "pos": [-79.51, 0, -57.26], "rot": 10, "scale": 1.01},
+    {"model": "decor_stones", "pos": [-74.8, 0, -54.27], "rot": 250, "scale": 1.26},
+    {"model": "decor_stones", "pos": [-77.27, 0, -109.12], "rot": 220, "scale": 0.89},
+    {"model": "decor_stones", "pos": [-66.23, 0, -135.52], "rot": 180, "scale": 1.12},
+    {"model": "decor_stones", "pos": [-70.19, 0, -67.24], "rot": 240, "scale": 0.82},
+    {"model": "decor_stones", "pos": [-81.62, 0, -124.49], "rot": 330, "scale": 0.85},
+    {"model": "decor_stones", "pos": [-71.86, 0, -89.88], "rot": 300, "scale": 0.78},
+    {"model": "decor_stones", "pos": [-66.47, 0, -59.47], "rot": 20, "scale": 1.25},
+    {"model": "decor_stones", "pos": [-67.37, 0, -57.88], "rot": 170, "scale": 1.22},
+    {"model": "decor_stones", "pos": [-71.23, 0, -54.45], "rot": 220, "scale": 1.03},
+    {"model": "decor_stones", "pos": [-72.21, 0, -71.07], "rot": 50, "scale": 1.12},
+    {"model": "decor_stones", "pos": [-69.48, 0, -67.32], "rot": 10, "scale": 1.15},
+    {"model": "decor_stones", "pos": [-77.11, 0, -120.6], "rot": 320, "scale": 0.91},
+    {"model": "decor_stones", "pos": [-69.38, 0, -61.03], "rot": 180, "scale": 1.08},
+    {"model": "decor_stones", "pos": [-68.89, 0, -130.19], "rot": 280, "scale": 1.15},
+    {"model": "decor_stones", "pos": [-79.7, 0, -109.92], "rot": 260, "scale": 0.96},
+    {"model": "decor_stones", "pos": [-66.77, 0, -114.46], "rot": 240, "scale": 0.86},
+    {"model": "decor_stones", "pos": [-80.4, 0, -74.71], "rot": 260, "scale": 1.01},
+    {"model": "decor_stones", "pos": [-78.18, 0, -50.42], "rot": 130, "scale": 0.88},
+    {"model": "decor_stones", "pos": [-70.74, 0, -93.93], "rot": 10, "scale": 1.2},
+    {"model": "decor_stones", "pos": [-74.26, 0, -115.05], "rot": 10, "scale": 0.83},
+    {"model": "decor_stones", "pos": [-80.36, 0, -130.25], "rot": 230, "scale": 1.3},
+    {"model": "decor_stones", "pos": [-68.17, 0, -56.77], "rot": 70, "scale": 0.84},
+    {"model": "decor_stones", "pos": [-75.7, 0, -123.6], "rot": 300, "scale": 0.85},
+    {"model": "decor_stones", "pos": [-68.04, 0, -128.3], "rot": 80, "scale": 0.92},
+    {"model": "decor_stones", "pos": [-78.48, 0, -107.9], "rot": 20, "scale": 1.2},
+    {"model": "decor_stones", "pos": [-66.98, 0, -93.38], "rot": 310, "scale": 0.96},
+    {"model": "decor_stones", "pos": [-80.99, 0, -87.01], "rot": 330, "scale": 0.95},
+    {"model": "decor_grass", "pos": [70.65, 0, -61.81], "rot": 150, "scale": 0.9},
+    {"model": "decor_grass", "pos": [76.76, 0, -58.84], "rot": 20, "scale": 1.11},
+    {"model": "decor_grass", "pos": [60.49, 0, -114.8], "rot": 240, "scale": 1.16},
+    {"model": "decor_grass", "pos": [66.78, 0, -70.87], "rot": 110, "scale": 1.07},
+    {"model": "decor_grass", "pos": [60.49, 0, -118.71], "rot": 30, "scale": 1.22},
+    {"model": "decor_grass", "pos": [69.58, 0, -118.89], "rot": 110, "scale": 0.93},
+    {"model": "decor_grass", "pos": [59.68, 0, -139.51], "rot": 280, "scale": 1.04},
+    {"model": "decor_grass", "pos": [57.3, 0, -52.34], "rot": 0, "scale": 1.21},
+    {"model": "decor_grass", "pos": [67.77, 0, -78.01], "rot": 0, "scale": 0.8},
+    {"model": "decor_grass", "pos": [67.48, 0, -46.04], "rot": 210, "scale": 1.1},
+    {"model": "decor_grass", "pos": [61.68, 0, -114.05], "rot": 250, "scale": 1.08},
+    {"model": "decor_grass", "pos": [66.92, 0, -85.85], "rot": 130, "scale": 1.27},
+    {"model": "decor_grass", "pos": [73.46, 0, -128.48], "rot": 180, "scale": 0.96},
+    {"model": "decor_grass", "pos": [78.05, 0, -113.0], "rot": 280, "scale": 0.82},
+    {"model": "decor_grass", "pos": [62.3, 0, -134.79], "rot": 300, "scale": 1.19},
+    {"model": "decor_grass", "pos": [59.28, 0, -52.21], "rot": 100, "scale": 1.0},
+    {"model": "decor_grass", "pos": [59.26, 0, -65.88], "rot": 270, "scale": 1.13},
+    {"model": "decor_grass", "pos": [68.87, 0, -68.57], "rot": 210, "scale": 0.77},
+    {"model": "decor_grass", "pos": [69.03, 0, -90.48], "rot": 310, "scale": 0.91},
+    {"model": "decor_grass", "pos": [73.14, 0, -51.87], "rot": 280, "scale": 1.05},
+    {"model": "decor_grass", "pos": [65.15, 0, -135.62], "rot": 80, "scale": 0.83},
+    {"model": "decor_grass", "pos": [60.24, 0, -128.07], "rot": 240, "scale": 1.29},
+    {"model": "decor_grass", "pos": [61.7, 0, -136.6], "rot": 330, "scale": 1.21},
+    {"model": "decor_grass", "pos": [69.46, 0, -119.65], "rot": 80, "scale": 1.04},
+    {"model": "decor_grass", "pos": [68.94, 0, -51.29], "rot": 280, "scale": 1.1},
+    {"model": "decor_grass", "pos": [74.7, 0, -137.77], "rot": 230, "scale": 0.85},
+    {"model": "decor_grass", "pos": [78.85, 0, -137.05], "rot": 50, "scale": 1.09},
+    {"model": "decor_grass", "pos": [64.49, 0, -50.58], "rot": 340, "scale": 0.97},
+    {"model": "decor_grass", "pos": [71.93, 0, -120.7], "rot": 300, "scale": 0.89},
+    {"model": "decor_grass", "pos": [62.92, 0, -116.46], "rot": 60, "scale": 1.27},
+    {"model": "decor_grass", "pos": [80.73, 0, -94.38], "rot": 210, "scale": 0.78},
+    {"model": "decor_grass", "pos": [80.62, 0, -92.31], "rot": 130, "scale": 0.71},
+    {"model": "decor_grass", "pos": [65.56, 0, -57.74], "rot": 270, "scale": 0.98},
+    {"model": "decor_grass", "pos": [73.05, 0, -90.92], "rot": 10, "scale": 0.96},
+    {"model": "decor_grass", "pos": [73.31, 0, -139.75], "rot": 120, "scale": 1.25},
+    {"model": "decor_grass", "pos": [68.05, 0, -98.7], "rot": 330, "scale": 0.81},
+    {"model": "decor_grass", "pos": [63.65, 0, -105.21], "rot": 220, "scale": 1.06},
+    {"model": "decor_grass", "pos": [64.29, 0, -50.12], "rot": 70, "scale": 1.15},
+    {"model": "decor_grass", "pos": [69.76, 0, -117.47], "rot": 150, "scale": 1.0},
+    {"model": "decor_grass", "pos": [56.94, 0, -89.87], "rot": 50, "scale": 1.24},
+    {"model": "decor_grass", "pos": [71.53, 0, -100.1], "rot": 40, "scale": 1.21},
+    {"model": "decor_grass", "pos": [62.17, 0, -79.33], "rot": 270, "scale": 0.8},
+    {"model": "decor_grass", "pos": [57.29, 0, -116.54], "rot": 50, "scale": 1.12},
+    {"model": "decor_grass", "pos": [80.54, 0, -83.31], "rot": 70, "scale": 0.87},
+    {"model": "decor_grass", "pos": [62.09, 0, -76.5], "rot": 110, "scale": 0.91},
+    {"model": "decor_grass", "pos": [61.36, 0, -67.74], "rot": 100, "scale": 0.94},
+    {"model": "decor_grass", "pos": [80.51, 0, -67.45], "rot": 30, "scale": 1.03},
+    {"model": "decor_grass", "pos": [57.13, 0, -119.05], "rot": 230, "scale": 1.03},
+    {"model": "decor_grass", "pos": [76.64, 0, -67.33], "rot": 60, "scale": 1.04},
+    {"model": "decor_grass", "pos": [75.2, 0, -67.31], "rot": 60, "scale": 0.83},
+    {"model": "decor_grass", "pos": [65.54, 0, -100.09], "rot": 210, "scale": 1.27},
+    {"model": "decor_grass", "pos": [74.59, 0, -112.23], "rot": 260, "scale": 1.27},
+    {"model": "decor_grass", "pos": [69.58, 0, -76.5], "rot": 260, "scale": 0.94},
+    {"model": "decor_grass", "pos": [72.7, 0, -110.66], "rot": 240, "scale": 0.94},
+    {"model": "decor_grass", "pos": [77.18, 0, -92.8], "rot": 20, "scale": 1.08},
+    {"model": "decor_grass", "pos": [73.98, 0, -94.92], "rot": 220, "scale": 1.09},
+    {"model": "decor_grass", "pos": [75.36, 0, -107.72], "rot": 0, "scale": 0.88},
+    {"model": "decor_grass", "pos": [67.2, 0, -64.16], "rot": 60, "scale": 1.05},
+    {"model": "decor_grass", "pos": [76.51, 0, -141.72], "rot": 140, "scale": 1.02},
+    {"model": "decor_grass", "pos": [70.45, 0, -131.55], "rot": 200, "scale": 1.19},
+    {"model": "decor_grass", "pos": [70.07, 0, -114.99], "rot": 260, "scale": 1.22},
+    {"model": "decor_grass", "pos": [75.98, 0, -109.76], "rot": 170, "scale": 0.78},
+    {"model": "decor_grass", "pos": [78.45, 0, -76.92], "rot": 70, "scale": 1.21},
+    {"model": "decor_grass", "pos": [56.97, 0, -92.67], "rot": 120, "scale": 0.88},
+    {"model": "decor_grass", "pos": [79.74, 0, -130.54], "rot": 270, "scale": 0.94},
+    {"model": "decor_grass", "pos": [69.56, 0, -77.1], "rot": 100, "scale": 1.13},
+    {"model": "decor_grass", "pos": [72.97, 0, -74.27], "rot": 180, "scale": 1.04},
+    {"model": "decor_grass", "pos": [75.19, 0, -112.04], "rot": 260, "scale": 1.07},
+    {"model": "decor_grass", "pos": [63.55, 0, -103.73], "rot": 240, "scale": 1.26},
+    {"model": "decor_grass", "pos": [78.09, 0, -87.06], "rot": 10, "scale": 0.83},
+    {"model": "decor_grass", "pos": [76.48, 0, -81.22], "rot": 250, "scale": 0.9},
+    {"model": "decor_grass", "pos": [56.88, 0, -84.24], "rot": 130, "scale": 0.73},
+    {"model": "decor_grass", "pos": [72.15, 0, -111.53], "rot": 220, "scale": 1.1},
+    {"model": "decor_grass", "pos": [71.23, 0, -87.74], "rot": 330, "scale": 0.94},
+    {"model": "decor_grass", "pos": [66.3, 0, -92.65], "rot": 320, "scale": 1.19},
+    {"model": "decor_grass", "pos": [68.34, 0, -66.78], "rot": 50, "scale": 0.82},
+    {"model": "decor_grass", "pos": [57.53, 0, -62.44], "rot": 0, "scale": 0.98},
+    {"model": "decor_grass", "pos": [76.9, 0, -112.8], "rot": 250, "scale": 0.72},
+    {"model": "decor_grass", "pos": [58.92, 0, -66.34], "rot": 190, "scale": 0.71},
+    {"model": "decor_grass", "pos": [78.52, 0, -93.96], "rot": 340, "scale": 1.28},
+    {"model": "decor_grass", "pos": [60.38, 0, -104.42], "rot": 330, "scale": 0.87},
+    {"model": "decor_grass", "pos": [78.05, 0, -93.19], "rot": 340, "scale": 1.2},
+    {"model": "decor_grass", "pos": [61.14, 0, -132.14], "rot": 20, "scale": 1.0},
+    {"model": "decor_grass", "pos": [81.15, 0, -85.74], "rot": 10, "scale": 1.11},
+    {"model": "decor_grass", "pos": [77.08, 0, -141.82], "rot": 170, "scale": 0.95},
+    {"model": "decor_grass", "pos": [72.67, 0, -53.78], "rot": 200, "scale": 0.74},
+    {"model": "decor_grass", "pos": [71.24, 0, -141.86], "rot": 340, "scale": 1.09},
+    {"model": "decor_grass", "pos": [56.97, 0, -133.07], "rot": 270, "scale": 1.21},
+    {"model": "decor_grass", "pos": [62.16, 0, -50.21], "rot": 350, "scale": 0.71},
+    {"model": "decor_grass", "pos": [69.83, 0, -50.83], "rot": 100, "scale": 1.09},
+    {"model": "decor_grass", "pos": [66.56, 0, -117.71], "rot": 70, "scale": 1.15},
+    {"model": "decor_grass", "pos": [64.59, 0, -69.5], "rot": 160, "scale": 1.11},
+    {"model": "decor_grass", "pos": [59.91, 0, -66.04], "rot": 150, "scale": 1.25},
+    {"model": "decor_grass", "pos": [79.59, 0, -112.66], "rot": 70, "scale": 0.72},
+    {"model": "decor_grass", "pos": [66.12, 0, -46.89], "rot": 160, "scale": 1.09},
+    {"model": "decor_grass", "pos": [80.7, 0, -76.45], "rot": 30, "scale": 1.08},
+    {"model": "decor_grass", "pos": [59.66, 0, -134.4], "rot": 160, "scale": 1.15},
+    {"model": "decor_grass", "pos": [58.96, 0, -97.93], "rot": 150, "scale": 0.91},
+    {"model": "decor_grass", "pos": [70.01, 0, -138.43], "rot": 340, "scale": 0.77},
+    {"model": "decor_grass", "pos": [67.66, 0, -86.0], "rot": 290, "scale": 0.9},
+    {"model": "decor_grass", "pos": [77.52, 0, -118.2], "rot": 280, "scale": 1.14},
+    {"model": "decor_grass", "pos": [56.04, 0, -112.64], "rot": 200, "scale": 0.86},
+    {"model": "decor_grass", "pos": [58.08, 0, -59.15], "rot": 330, "scale": 0.75},
+    {"model": "decor_grass", "pos": [57.16, 0, -129.86], "rot": 160, "scale": 1.27},
+    {"model": "decor_grass", "pos": [65.36, 0, -114.46], "rot": 260, "scale": 1.21},
+    {"model": "decor_grass", "pos": [59.08, 0, -89.56], "rot": 310, "scale": 0.87},
+    {"model": "decor_grass", "pos": [66.57, 0, -122.75], "rot": 290, "scale": 1.15},
+    {"model": "decor_grass", "pos": [60.55, 0, -48.39], "rot": 290, "scale": 0.85},
+    {"model": "decor_grass", "pos": [71.45, 0, -94.64], "rot": 160, "scale": 0.89},
+    {"model": "decor_grass", "pos": [68.31, 0, -133.02], "rot": 140, "scale": 1.11},
+    {"model": "decor_grass", "pos": [72.0, 0, -86.92], "rot": 130, "scale": 1.06},
+    {"model": "decor_grass", "pos": [67.83, 0, -90.88], "rot": 120, "scale": 0.73},
+    {"model": "decor_grass", "pos": [61.15, 0, -79.25], "rot": 280, "scale": 0.72},
+    {"model": "decor_grass", "pos": [68.01, 0, -93.86], "rot": 170, "scale": 0.73},
+    {"model": "decor_grass", "pos": [62.96, 0, -60.03], "rot": 210, "scale": 1.1},
+    {"model": "decor_grass", "pos": [61.91, 0, -122.92], "rot": 220, "scale": 1.21},
+    {"model": "decor_grass", "pos": [61.78, 0, -119.13], "rot": 180, "scale": 0.98},
+    {"model": "decor_grass", "pos": [71.88, 0, -122.86], "rot": 280, "scale": 0.89},
+    {"model": "decor_grass", "pos": [63.57, 0, -81.33], "rot": 270, "scale": 1.13},
+    {"model": "decor_grass", "pos": [71.92, 0, -94.26], "rot": 80, "scale": 1.27},
+    {"model": "decor_grass", "pos": [80.1, 0, -128.02], "rot": 170, "scale": 0.74},
+    {"model": "decor_grass", "pos": [60.8, 0, -97.73], "rot": 330, "scale": 0.89},
+    {"model": "decor_grass", "pos": [57.01, 0, -66.38], "rot": 150, "scale": 0.79},
+    {"model": "decor_grass", "pos": [66.57, 0, -70.42], "rot": 30, "scale": 1.08},
+    {"model": "decor_grass", "pos": [71.82, 0, -60.81], "rot": 190, "scale": 0.95},
+    {"model": "decor_grass", "pos": [81.2, 0, -78.83], "rot": 240, "scale": 1.11},
+    {"model": "decor_grass", "pos": [80.78, 0, -78.34], "rot": 150, "scale": 0.84},
+    {"model": "decor_grass", "pos": [75.76, 0, -79.8], "rot": 240, "scale": 0.85},
+    {"model": "decor_grass", "pos": [66.17, 0, -57.83], "rot": 230, "scale": 0.86},
+    {"model": "decor_grass", "pos": [61.04, 0, -83.19], "rot": 350, "scale": 1.16},
+    {"model": "decor_grass", "pos": [71.82, 0, -57.2], "rot": 150, "scale": 0.88},
+    {"model": "decor_grass", "pos": [61.98, 0, -80.1], "rot": 20, "scale": 0.92},
+    {"model": "decor_grass", "pos": [78.85, 0, -130.09], "rot": 30, "scale": 1.24},
+    {"model": "decor_grass", "pos": [59.9, 0, -115.46], "rot": 300, "scale": 0.76},
+    {"model": "decor_grass", "pos": [74.26, 0, -52.81], "rot": 200, "scale": 1.19},
+    {"model": "decor_grass", "pos": [58.91, 0, -65.24], "rot": 40, "scale": 0.92},
+    {"model": "decor_grass", "pos": [76.59, 0, -84.98], "rot": 110, "scale": 0.84},
+    {"model": "decor_grass", "pos": [68.7, 0, -75.28], "rot": 180, "scale": 1.02},
+    {"model": "decor_grass", "pos": [75.8, 0, -93.91], "rot": 40, "scale": 1.29},
+    {"model": "decor_grass", "pos": [59.02, 0, -64.18], "rot": 20, "scale": 1.07},
+    {"model": "decor_grass", "pos": [78.34, 0, -139.15], "rot": 160, "scale": 0.84},
+    {"model": "decor_grass", "pos": [57.71, 0, -114.54], "rot": 250, "scale": 1.14},
+    {"model": "decor_grass", "pos": [69.44, 0, -90.33], "rot": 120, "scale": 0.75},
+    {"model": "decor_grass", "pos": [67.8, 0, -48.22], "rot": 160, "scale": 0.8},
+    {"model": "decor_grass", "pos": [63.23, 0, -66.19], "rot": 30, "scale": 1.01},
+    {"model": "decor_grass", "pos": [60.9, 0, -56.75], "rot": 210, "scale": 1.07},
+    {"model": "decor_grass", "pos": [59.78, 0, -66.92], "rot": 200, "scale": 1.23},
+    {"model": "decor_grass", "pos": [64.26, 0, -131.14], "rot": 250, "scale": 0.84},
+    {"model": "decor_grass", "pos": [73.13, 0, -113.03], "rot": 110, "scale": 0.99},
+    {"model": "decor_grass", "pos": [73.97, 0, -63.53], "rot": 320, "scale": 0.8},
+    {"model": "decor_grass", "pos": [56.76, 0, -65.22], "rot": 220, "scale": 1.26},
+    {"model": "decor_grass", "pos": [63.91, 0, -51.41], "rot": 110, "scale": 1.16},
+    {"model": "decor_grass", "pos": [70.05, 0, -46.63], "rot": 110, "scale": 1.07},
+    {"model": "decor_grass", "pos": [64.45, 0, -93.73], "rot": 340, "scale": 0.9},
+    {"model": "decor_grass", "pos": [60.27, 0, -138.84], "rot": 250, "scale": 0.84},
+    {"model": "decor_grass", "pos": [76.37, 0, -106.06], "rot": 200, "scale": 0.99},
+    {"model": "decor_grass", "pos": [71.74, 0, -113.75], "rot": 100, "scale": 0.77},
+    {"model": "decor_grass", "pos": [58.28, 0, -100.97], "rot": 20, "scale": 1.21},
+    {"model": "decor_grass", "pos": [81.14, 0, -71.61], "rot": 30, "scale": 1.22},
+    {"model": "decor_grass", "pos": [73.58, 0, -63.61], "rot": 250, "scale": 1.25},
+    {"model": "decor_grass", "pos": [71.73, 0, -107.75], "rot": 310, "scale": 1.17},
+    {"model": "decor_grass", "pos": [66.06, 0, -105.58], "rot": 190, "scale": 1.29},
+    {"model": "decor_grass", "pos": [80.36, 0, -133.32], "rot": 130, "scale": 1.2},
+    {"model": "decor_grass", "pos": [80.42, 0, -141.26], "rot": 180, "scale": 1.05},
+    {"model": "decor_grass", "pos": [65.82, 0, -71.72], "rot": 80, "scale": 1.03},
+    {"model": "decor_grass", "pos": [68.29, 0, -48.02], "rot": 110, "scale": 1.11},
+    {"model": "decor_grass", "pos": [78.99, 0, -133.55], "rot": 30, "scale": 0.79},
+    {"model": "decor_grass", "pos": [73.28, 0, -57.87], "rot": 250, "scale": 1.19},
+    {"model": "decor_grass", "pos": [70.55, 0, -108.51], "rot": 120, "scale": 1.12},
     {"model": "decor_grass", "pos": [80.37, 0, -106.85], "rot": 60, "scale": 0.97},
     {"model": "decor_grass", "pos": [57.45, 0, -105.95], "rot": 220, "scale": 1.01},
     {"model": "decor_grass", "pos": [70.03, 0, -73.16], "rot": 110, "scale": 1.03},
@@ -28277,11 +29147,10 @@ if __name__ == "__main__":
     {"model": "decor_grass", "pos": [74.21, 0, -81.93], "rot": 280, "scale": 1.3},
     {"model": "decor_grass", "pos": [62.63, 0, -74.79], "rot": 230, "scale": 1.02},
     {"model": "decor_grass", "pos": [61.74, 0, -107.57], "rot": 50, "scale": 1.18},
-    {"model": "decor_grass", "pos": [62.37, 0, -141.64], "rot": 130, "scale": 1.27},
-    {"model": "decor_grass", "pos": [74.03, 0, -47.46], "rot": 160, "scale": 0.83},
-    {"model": "decor_grass", "pos": [71.38, 0, -114.81], "rot": 260, "scale": 0.8},
-    {"model": "decor_grass", "pos": [64.72, 0, -107.22], "rot": 340, "scale": 0.87},
-    {"model": "decor_grass", "pos": [77.27, 0, -66.81], "rot": 190, "scale": 0.76},
+    {"model": "decor_grass", "pos": [61.47, 0, -115.91], "rot": 60, "scale": 1.29},
+    {"model": "decor_grass", "pos": [79.72, 0, -120.76], "rot": 180, "scale": 1.25},
+    {"model": "decor_grass", "pos": [60.4, 0, -109.8], "rot": 230, "scale": 1.02},
+    {"model": "decor_grass", "pos": [63.33, 0, -63.47], "rot": 190, "scale": 0.76},
     {"model": "decor_grass", "pos": [80.31, 0, -97.84], "rot": 230, "scale": 1.29},
     {"model": "decor_grass", "pos": [71.56, 0, -111.03], "rot": 270, "scale": 1.02},
     {"model": "decor_grass", "pos": [63.75, 0, -89.68], "rot": 290, "scale": 0.99},
@@ -28297,10 +29166,10 @@ if __name__ == "__main__":
     {"model": "decor_grass", "pos": [66.72, 0, -80.94], "rot": 230, "scale": 0.75},
     {"model": "decor_grass", "pos": [80.45, 0, -56.29], "rot": 250, "scale": 0.87},
     {"model": "decor_grass", "pos": [73.5, 0, -70.8], "rot": 40, "scale": 1.06},
-    {"model": "decor_grass", "pos": [63.49, 0, -103.69], "rot": 0, "scale": 1.26},
-    {"model": "decor_grass", "pos": [71.97, 0, -96.49], "rot": 90, "scale": 1.27},
-    {"model": "decor_grass", "pos": [64.84, 0, -127.39], "rot": 10, "scale": 0.91},
-    {"model": "decor_grass", "pos": [74.12, 0, -104.64], "rot": 290, "scale": 0.77},
+    {"model": "decor_grass", "pos": [56.21, 0, -105.49], "rot": 90, "scale": 0.98},
+    {"model": "decor_grass", "pos": [71.46, 0, -51.32], "rot": 210, "scale": 1.28},
+    {"model": "decor_grass", "pos": [64.3, 0, -68.61], "rot": 220, "scale": 1.12},
+    {"model": "decor_grass", "pos": [64.47, 0, -62.37], "rot": 290, "scale": 0.77},
     {"model": "decor_grass", "pos": [67.39, 0, -88.32], "rot": 20, "scale": 1.21},
     {"model": "decor_grass", "pos": [68.5, 0, -81.72], "rot": 180, "scale": 0.92},
     {"model": "decor_grass", "pos": [60.05, 0, -57.74], "rot": 150, "scale": 0.77},
@@ -28311,9 +29180,8 @@ if __name__ == "__main__":
     {"model": "decor_grass", "pos": [69.37, 0, -87.62], "rot": 110, "scale": 0.9},
     {"model": "decor_grass", "pos": [66.23, 0, -90.78], "rot": 290, "scale": 1.22},
     {"model": "decor_grass", "pos": [61.06, 0, -72.64], "rot": 100, "scale": 1.06},
-    {"model": "decor_grass", "pos": [66.6, 0, -122.55], "rot": 160, "scale": 0.71},
-    {"model": "decor_grass", "pos": [70.17, 0, -74.82], "rot": 10, "scale": 0.72},
-    {"model": "decor_grass", "pos": [77.98, 0, -56.44], "rot": 330, "scale": 0.81},
+    {"model": "decor_grass", "pos": [62.69, 0, -109.49], "rot": 150, "scale": 0.71},
+    {"model": "decor_grass", "pos": [77.12, 0, -117.14], "rot": 330, "scale": 0.81},
     {"model": "decor_grass", "pos": [57.24, 0, -104.89], "rot": 140, "scale": 1.24},
     {"model": "decor_grass", "pos": [80.67, 0, -125.16], "rot": 250, "scale": 0.94},
     {"model": "decor_grass", "pos": [78.57, 0, -96.81], "rot": 260, "scale": 0.72},
@@ -28362,250 +29230,250 @@ if __name__ == "__main__":
     {"model": "decor_grass", "pos": [77.14, 0, -138.26], "rot": 280, "scale": 1.25},
     {"model": "decor_grass", "pos": [64.35, 0, -59.51], "rot": 160, "scale": 0.93},
     {"model": "decor_grass", "pos": [72.02, 0, -140.8], "rot": 30, "scale": 0.8},
-    {"model": "decor_grass", "pos": [81.7, 0, -137.03], "rot": 10, "scale": 1.03},
-    {"model": "decor_grass", "pos": [64.22, 0, -132.72], "rot": 180, "scale": 0.73},
-    {"model": "decor_grass", "pos": [57.03, 0, -132.06], "rot": 20, "scale": 1.13},
-    {"model": "decor_grass", "pos": [79.87, 0, -68.06], "rot": 70, "scale": 0.88},
-    {"model": "decor_grass", "pos": [63.02, 0, -89.72], "rot": 290, "scale": 0.73},
-    {"model": "decor_grass", "pos": [59.09, 0, -46.01], "rot": 210, "scale": 0.92},
-    {"model": "decor_grass", "pos": [73.39, 0, -130.68], "rot": 90, "scale": 1.22},
-    {"model": "decor_grass", "pos": [65.64, 0, -50.17], "rot": 230, "scale": 1.25},
-    {"model": "decor_grass", "pos": [75.63, 0, -99.0], "rot": 30, "scale": 1.13},
-    {"model": "decor_grass", "pos": [78.71, 0, -125.21], "rot": 0, "scale": 0.85},
-    {"model": "decor_grass", "pos": [78.64, 0, -112.12], "rot": 180, "scale": 0.83},
-    {"model": "decor_grass", "pos": [79.12, 0, -79.6], "rot": 110, "scale": 1.23},
-    {"model": "decor_grass", "pos": [74.98, 0, -62.0], "rot": 230, "scale": 0.73},
-    {"model": "decor_grass", "pos": [68.2, 0, -133.83], "rot": 30, "scale": 0.83},
-    {"model": "decor_grass", "pos": [59.29, 0, -106.92], "rot": 80, "scale": 0.94},
-    {"model": "decor_grass", "pos": [59.62, 0, -129.39], "rot": 90, "scale": 0.74},
-    {"model": "decor_grass", "pos": [59.93, 0, -101.39], "rot": 350, "scale": 0.76},
-    {"model": "decor_grass", "pos": [69.78, 0, -72.26], "rot": 330, "scale": 1.25},
-    {"model": "decor_grass", "pos": [65.34, 0, -65.06], "rot": 50, "scale": 1.08},
-    {"model": "decor_grass", "pos": [56.66, 0, -52.71], "rot": 290, "scale": 1.21},
-    {"model": "decor_grass", "pos": [67.29, 0, -113.89], "rot": 320, "scale": 0.73},
-    {"model": "decor_grass", "pos": [71.82, 0, -124.92], "rot": 170, "scale": 1.19},
-    {"model": "decor_grass", "pos": [60.69, 0, -114.68], "rot": 160, "scale": 0.97},
-    {"model": "decor_grass", "pos": [62.18, 0, -118.24], "rot": 260, "scale": 0.96},
-    {"model": "decor_grass", "pos": [63.23, 0, -136.26], "rot": 220, "scale": 1.3},
-    {"model": "decor_grass", "pos": [71.5, 0, -57.09], "rot": 160, "scale": 1.16},
-    {"model": "decor_grass", "pos": [71.58, 0, -137.26], "rot": 200, "scale": 0.88},
-    {"model": "decor_grass", "pos": [79.9, 0, -122.69], "rot": 330, "scale": 0.88},
-    {"model": "decor_grass", "pos": [57.14, 0, -100.61], "rot": 170, "scale": 0.95},
-    {"model": "decor_grass", "pos": [76.35, 0, -80.81], "rot": 150, "scale": 1.06},
-    {"model": "decor_grass", "pos": [77.03, 0, -54.61], "rot": 350, "scale": 1.05},
-    {"model": "decor_grass", "pos": [60.37, 0, -71.05], "rot": 200, "scale": 0.77},
-    {"model": "decor_grass", "pos": [69.92, 0, -131.07], "rot": 230, "scale": 1.26},
-    {"model": "decor_grass", "pos": [64.2, 0, -133.4], "rot": 340, "scale": 0.85},
-    {"model": "decor_grass", "pos": [59.79, 0, -117.89], "rot": 260, "scale": 0.95},
-    {"model": "decor_grass", "pos": [76.98, 0, -51.87], "rot": 140, "scale": 1.0},
-    {"model": "decor_grass", "pos": [72.15, 0, -108.27], "rot": 240, "scale": 1.22},
-    {"model": "decor_grass", "pos": [76.41, 0, -98.53], "rot": 140, "scale": 1.01},
-    {"model": "decor_grass", "pos": [71.07, 0, -86.55], "rot": 330, "scale": 0.89},
-    {"model": "decor_grass", "pos": [58.53, 0, -61.15], "rot": 230, "scale": 1.12},
-    {"model": "decor_grass", "pos": [71.2, 0, -104.02], "rot": 200, "scale": 0.78},
-    {"model": "decor_grass", "pos": [66.66, 0, -140.94], "rot": 230, "scale": 1.29},
-    {"model": "decor_grass", "pos": [68.06, 0, -52.18], "rot": 210, "scale": 0.72},
-    {"model": "decor_grass", "pos": [71.1, 0, -87.89], "rot": 280, "scale": 0.75},
-    {"model": "decor_grass", "pos": [77.89, 0, -60.63], "rot": 150, "scale": 1.18},
-    {"model": "decor_grass", "pos": [56.85, 0, -136.14], "rot": 170, "scale": 0.87},
-    {"model": "decor_grass", "pos": [75.07, 0, -83.93], "rot": 70, "scale": 1.21},
-    {"model": "decor_grass", "pos": [65.61, 0, -73.59], "rot": 340, "scale": 1.18},
-    {"model": "decor_grass", "pos": [59.98, 0, -105.65], "rot": 140, "scale": 0.82},
-    {"model": "decor_grass", "pos": [60.89, 0, -56.68], "rot": 20, "scale": 1.06},
-    {"model": "decor_grass", "pos": [74.98, 0, -70.58], "rot": 290, "scale": 1.22},
-    {"model": "decor_grass", "pos": [70.71, 0, -77.4], "rot": 110, "scale": 0.82},
-    {"model": "decor_grass", "pos": [79.4, 0, -70.59], "rot": 190, "scale": 1.19},
-    {"model": "decor_grass", "pos": [65.5, 0, -138.13], "rot": 230, "scale": 1.11},
-    {"model": "decor_grass", "pos": [75.45, 0, -82.13], "rot": 40, "scale": 1.3},
-    {"model": "decor_grass", "pos": [78.58, 0, -74.69], "rot": 30, "scale": 1.04},
-    {"model": "decor_grass", "pos": [61.64, 0, -69.17], "rot": 0, "scale": 0.82},
-    {"model": "decor_grass", "pos": [73.51, 0, -47.39], "rot": 30, "scale": 1.16},
-    {"model": "decor_grass", "pos": [63.64, 0, -129.18], "rot": 100, "scale": 1.24},
-    {"model": "decor_grass", "pos": [75.14, 0, -108.19], "rot": 300, "scale": 0.76},
-    {"model": "decor_grass", "pos": [59.51, 0, -97.97], "rot": 260, "scale": 1.02},
-    {"model": "decor_grass", "pos": [59.1, 0, -118.23], "rot": 140, "scale": 0.75},
-    {"model": "decor_grass", "pos": [62.65, 0, -140.21], "rot": 130, "scale": 1.04},
-    {"model": "decor_grass", "pos": [65.12, 0, -107.87], "rot": 0, "scale": 1.27},
-    {"model": "decor_grass", "pos": [76.61, 0, -69.93], "rot": 240, "scale": 1.1},
-    {"model": "decor_grass", "pos": [64.38, 0, -71.94], "rot": 180, "scale": 1.13},
-    {"model": "decor_grass", "pos": [68.77, 0, -82.33], "rot": 280, "scale": 0.98},
-    {"model": "decor_grass", "pos": [73.1, 0, -127.65], "rot": 300, "scale": 0.89},
-    {"model": "decor_grass", "pos": [74.33, 0, -132.82], "rot": 290, "scale": 1.04},
-    {"model": "decor_grass", "pos": [81.73, 0, -138.24], "rot": 190, "scale": 0.82},
-    {"model": "decor_grass", "pos": [64.82, 0, -131.92], "rot": 240, "scale": 1.21},
-    {"model": "decor_grass", "pos": [80.13, 0, -58.62], "rot": 150, "scale": 0.84},
-    {"model": "decor_grass", "pos": [77.51, 0, -85.22], "rot": 190, "scale": 0.84},
-    {"model": "decor_grass", "pos": [62.18, 0, -135.81], "rot": 120, "scale": 0.85},
-    {"model": "decor_grass", "pos": [77.09, 0, -98.71], "rot": 260, "scale": 1.1},
-    {"model": "decor_grass", "pos": [77.03, 0, -132.44], "rot": 250, "scale": 1.07},
-    {"model": "decor_grass", "pos": [80.16, 0, -69.86], "rot": 220, "scale": 1.29},
-    {"model": "decor_grass", "pos": [62.73, 0, -138.45], "rot": 10, "scale": 0.75},
-    {"model": "decor_grass", "pos": [59.47, 0, -73.57], "rot": 310, "scale": 0.76},
-    {"model": "decor_grass", "pos": [60.0, 0, -55.71], "rot": 10, "scale": 0.89},
-    {"model": "decor_grass", "pos": [61.46, 0, -99.91], "rot": 340, "scale": 0.87},
-    {"model": "decor_grass", "pos": [79.6, 0, -85.82], "rot": 230, "scale": 1.04},
-    {"model": "decor_grass", "pos": [59.43, 0, -56.09], "rot": 250, "scale": 0.74},
-    {"model": "decor_grass", "pos": [71.01, 0, -105.92], "rot": 60, "scale": 0.74},
-    {"model": "decor_grass", "pos": [81.89, 0, -91.96], "rot": 190, "scale": 0.77},
-    {"model": "decor_grass", "pos": [65.43, 0, -108.04], "rot": 320, "scale": 0.78},
-    {"model": "decor_grass", "pos": [60.79, 0, -98.14], "rot": 260, "scale": 1.29},
-    {"model": "decor_grass", "pos": [58.54, 0, -80.83], "rot": 80, "scale": 0.71},
-    {"model": "decor_grass", "pos": [80.63, 0, -76.62], "rot": 150, "scale": 1.19},
-    {"model": "decor_grass", "pos": [77.1, 0, -106.04], "rot": 150, "scale": 1.05},
-    {"model": "decor_grass", "pos": [64.29, 0, -127.1], "rot": 120, "scale": 1.06},
-    {"model": "decor_grass", "pos": [61.07, 0, -126.79], "rot": 250, "scale": 1.27},
-    {"model": "decor_grass", "pos": [61.23, 0, -106.5], "rot": 150, "scale": 1.1},
-    {"model": "decor_grass", "pos": [64.02, 0, -116.81], "rot": 270, "scale": 1.05},
-    {"model": "decor_grass", "pos": [77.94, 0, -95.85], "rot": 330, "scale": 1.22},
-    {"model": "decor_grass", "pos": [76.22, 0, -83.17], "rot": 200, "scale": 0.86},
-    {"model": "decor_grass", "pos": [78.4, 0, -55.2], "rot": 30, "scale": 1.19},
-    {"model": "decor_grass", "pos": [81.48, 0, -48.75], "rot": 340, "scale": 1.05},
-    {"model": "decor_grass", "pos": [71.24, 0, -61.51], "rot": 250, "scale": 1.2},
-    {"model": "decor_grass", "pos": [70.26, 0, -75.77], "rot": 150, "scale": 0.85},
-    {"model": "decor_grass", "pos": [74.26, 0, -93.98], "rot": 150, "scale": 1.1},
-    {"model": "decor_grass", "pos": [76.89, 0, -114.59], "rot": 200, "scale": 1.0},
-    {"model": "decor_grass", "pos": [77.79, 0, -132.59], "rot": 10, "scale": 0.89},
-    {"model": "decor_grass", "pos": [77.37, 0, -51.46], "rot": 80, "scale": 1.16},
-    {"model": "decor_grass", "pos": [57.07, 0, -80.73], "rot": 310, "scale": 1.14},
-    {"model": "decor_grass", "pos": [62.33, 0, -83.61], "rot": 130, "scale": 1.27},
-    {"model": "decor_grass", "pos": [59.3, 0, -133.59], "rot": 130, "scale": 1.04},
-    {"model": "decor_grass", "pos": [73.27, 0, -98.82], "rot": 270, "scale": 0.93},
-    {"model": "decor_grass", "pos": [72.43, 0, -85.52], "rot": 80, "scale": 0.81},
-    {"model": "decor_grass", "pos": [63.71, 0, -87.39], "rot": 10, "scale": 1.04},
-    {"model": "decor_grass", "pos": [78.06, 0, -85.08], "rot": 250, "scale": 0.96},
-    {"model": "decor_grass", "pos": [79.88, 0, -52.0], "rot": 340, "scale": 1.13},
-    {"model": "decor_grass", "pos": [74.94, 0, -133.39], "rot": 230, "scale": 0.89},
-    {"model": "decor_grass", "pos": [64.71, 0, -137.08], "rot": 310, "scale": 0.74},
-    {"model": "decor_grass", "pos": [56.24, 0, -108.48], "rot": 100, "scale": 1.25},
-    {"model": "decor_grass", "pos": [76.21, 0, -96.04], "rot": 330, "scale": 0.97},
-    {"model": "decor_grass", "pos": [71.05, 0, -108.81], "rot": 90, "scale": 1.22},
-    {"model": "decor_grass", "pos": [76.48, 0, -64.37], "rot": 0, "scale": 0.74},
-    {"model": "decor_grass", "pos": [57.98, 0, -73.68], "rot": 270, "scale": 0.85},
-    {"model": "decor_grass", "pos": [81.33, 0, -90.24], "rot": 310, "scale": 1.0},
-    {"model": "decor_grass", "pos": [73.06, 0, -102.96], "rot": 80, "scale": 0.93},
-    {"model": "decor_grass", "pos": [58.86, 0, -70.12], "rot": 220, "scale": 1.22},
-    {"model": "decor_grass", "pos": [77.91, 0, -88.46], "rot": 0, "scale": 0.91},
-    {"model": "decor_grass", "pos": [65.69, 0, -94.94], "rot": 290, "scale": 1.14},
-    {"model": "decor_grass", "pos": [66.3, 0, -90.25], "rot": 130, "scale": 0.8},
-    {"model": "decor_grass", "pos": [60.14, 0, -121.03], "rot": 340, "scale": 0.91},
-    {"model": "decor_grass", "pos": [79.9, 0, -138.38], "rot": 70, "scale": 1.07},
-    {"model": "decor_grass", "pos": [65.65, 0, -82.5], "rot": 20, "scale": 0.94},
-    {"model": "decor_grass", "pos": [80.04, 0, -124.01], "rot": 220, "scale": 1.04},
-    {"model": "decor_grass", "pos": [80.07, 0, -123.47], "rot": 290, "scale": 1.04},
-    {"model": "decor_grass", "pos": [80.82, 0, -62.46], "rot": 270, "scale": 0.91},
-    {"model": "decor_grass", "pos": [71.51, 0, -107.11], "rot": 190, "scale": 0.9},
-    {"model": "decor_grass", "pos": [79.41, 0, -102.9], "rot": 40, "scale": 1.21},
-    {"model": "decor_grass", "pos": [68.63, 0, -73.95], "rot": 60, "scale": 0.81},
-    {"model": "decor_grass", "pos": [60.74, 0, -77.05], "rot": 130, "scale": 1.05},
-    {"model": "decor_grass", "pos": [62.1, 0, -99.96], "rot": 0, "scale": 1.28},
-    {"model": "decor_grass", "pos": [77.3, 0, -136.2], "rot": 70, "scale": 1.02},
-    {"model": "decor_grass", "pos": [78.9, 0, -57.29], "rot": 140, "scale": 1.01},
-    {"model": "decor_grass", "pos": [59.82, 0, -115.19], "rot": 50, "scale": 1.18},
-    {"model": "decor_grass", "pos": [63.41, 0, -64.39], "rot": 20, "scale": 0.82},
-    {"model": "decor_grass", "pos": [59.56, 0, -138.98], "rot": 320, "scale": 0.86},
-    {"model": "decor_grass", "pos": [74.28, 0, -78.59], "rot": 180, "scale": 0.9},
-    {"model": "decor_grass", "pos": [62.78, 0, -93.63], "rot": 150, "scale": 1.23},
-    {"model": "decor_grass", "pos": [75.12, 0, -73.74], "rot": 230, "scale": 0.72},
-    {"model": "decor_grass", "pos": [74.2, 0, -140.73], "rot": 10, "scale": 0.8},
-    {"model": "decor_grass", "pos": [64.13, 0, -91.64], "rot": 230, "scale": 1.12},
-    {"model": "decor_grass", "pos": [61.71, 0, -48.42], "rot": 10, "scale": 0.84},
-    {"model": "decor_grass", "pos": [75.45, 0, -76.91], "rot": 200, "scale": 1.08},
-    {"model": "decor_grass", "pos": [63.16, 0, -89.19], "rot": 10, "scale": 0.8},
-    {"model": "decor_grass", "pos": [68.65, 0, -57.56], "rot": 0, "scale": 0.8},
-    {"model": "decor_grass", "pos": [59.31, 0, -105.62], "rot": 240, "scale": 0.8},
-    {"model": "decor_grass", "pos": [75.14, 0, -90.66], "rot": 150, "scale": 0.89},
-    {"model": "decor_grass", "pos": [73.5, 0, -105.12], "rot": 10, "scale": 0.87},
-    {"model": "decor_grass", "pos": [71.91, 0, -89.12], "rot": 290, "scale": 1.2},
-    {"model": "decor_grass", "pos": [69.82, 0, -89.86], "rot": 300, "scale": 0.98},
-    {"model": "decor_grass", "pos": [71.21, 0, -54.4], "rot": 0, "scale": 0.76},
-    {"model": "decor_grass", "pos": [64.68, 0, -105.89], "rot": 70, "scale": 1.19},
-    {"model": "decor_grass", "pos": [66.45, 0, -51.71], "rot": 160, "scale": 1.21},
-    {"model": "decor_grass", "pos": [59.79, 0, -121.69], "rot": 60, "scale": 0.83},
-    {"model": "decor_grass", "pos": [74.64, 0, -89.13], "rot": 300, "scale": 0.94},
-    {"model": "decor_grass", "pos": [59.1, 0, -56.44], "rot": 140, "scale": 0.82},
-    {"model": "decor_grass", "pos": [58.62, 0, -50.76], "rot": 120, "scale": 0.89},
-    {"model": "decor_grass", "pos": [60.29, 0, -103.93], "rot": 140, "scale": 0.78},
-    {"model": "decor_grass", "pos": [72.82, 0, -71.44], "rot": 240, "scale": 1.04},
-    {"model": "decor_leaves", "pos": [65.59, 0, -74.74], "rot": 250, "scale": 0.75},
-    {"model": "decor_leaves", "pos": [57.81, 0, -66.56], "rot": 120, "scale": 1.1},
-    {"model": "decor_leaves", "pos": [81.99, 0, -107.48], "rot": 350, "scale": 1.07},
-    {"model": "decor_leaves", "pos": [72.36, 0, -95.11], "rot": 310, "scale": 1.28},
-    {"model": "decor_leaves", "pos": [74.08, 0, -116.1], "rot": 250, "scale": 0.84},
-    {"model": "decor_leaves", "pos": [78.38, 0, -100.87], "rot": 180, "scale": 1.02},
-    {"model": "decor_leaves", "pos": [58.45, 0, -72.22], "rot": 220, "scale": 1.07},
-    {"model": "decor_leaves", "pos": [77.44, 0, -48.61], "rot": 10, "scale": 0.97},
-    {"model": "decor_leaves", "pos": [57.69, 0, -130.43], "rot": 270, "scale": 1.13},
-    {"model": "decor_leaves", "pos": [65.49, 0, -121.9], "rot": 110, "scale": 0.96},
-    {"model": "decor_leaves", "pos": [73.87, 0, -47.32], "rot": 40, "scale": 0.94},
-    {"model": "decor_leaves", "pos": [64.73, 0, -113.43], "rot": 230, "scale": 0.82},
-    {"model": "decor_leaves", "pos": [58.16, 0, -135.66], "rot": 260, "scale": 0.9},
-    {"model": "decor_leaves", "pos": [76.91, 0, -127.05], "rot": 130, "scale": 1.04},
-    {"model": "decor_leaves", "pos": [58.1, 0, -75.45], "rot": 140, "scale": 0.86},
-    {"model": "decor_leaves", "pos": [60.71, 0, -97.82], "rot": 150, "scale": 1.17},
-    {"model": "decor_leaves", "pos": [76.87, 0, -58.35], "rot": 160, "scale": 1.03},
-    {"model": "decor_leaves", "pos": [81.65, 0, -110.38], "rot": 180, "scale": 0.71},
-    {"model": "decor_leaves", "pos": [80.42, 0, -69.12], "rot": 250, "scale": 1.17},
-    {"model": "decor_leaves", "pos": [66.28, 0, -59.76], "rot": 80, "scale": 1.23},
-    {"model": "decor_leaves", "pos": [72.71, 0, -121.45], "rot": 200, "scale": 1.17},
-    {"model": "decor_leaves", "pos": [79.5, 0, -126.09], "rot": 0, "scale": 0.95},
-    {"model": "decor_leaves", "pos": [76.8, 0, -69.73], "rot": 250, "scale": 0.7},
-    {"model": "decor_leaves", "pos": [59.92, 0, -141.18], "rot": 340, "scale": 0.9},
-    {"model": "decor_leaves", "pos": [61.58, 0, -138.23], "rot": 320, "scale": 0.97},
-    {"model": "decor_leaves", "pos": [70.36, 0, -50.01], "rot": 240, "scale": 0.93},
-    {"model": "decor_leaves", "pos": [65.0, 0, -73.49], "rot": 190, "scale": 1.28},
-    {"model": "decor_leaves", "pos": [68.73, 0, -111.87], "rot": 330, "scale": 1.1},
-    {"model": "decor_leaves", "pos": [66.65, 0, -85.89], "rot": 260, "scale": 0.76},
-    {"model": "decor_leaves", "pos": [70.51, 0, -80.59], "rot": 210, "scale": 0.76},
-    {"model": "decor_leaves", "pos": [75.0, 0, -50.73], "rot": 130, "scale": 0.74},
-    {"model": "decor_leaves", "pos": [64.12, 0, -112.56], "rot": 220, "scale": 0.92},
-    {"model": "decor_leaves", "pos": [81.43, 0, -129.39], "rot": 230, "scale": 1.24},
-    {"model": "decor_leaves", "pos": [64.02, 0, -51.89], "rot": 180, "scale": 1.12},
-    {"model": "decor_leaves", "pos": [62.52, 0, -56.64], "rot": 80, "scale": 0.73},
-    {"model": "decor_leaves", "pos": [62.5, 0, -123.03], "rot": 350, "scale": 0.78},
-    {"model": "decor_leaves", "pos": [77.41, 0, -59.83], "rot": 10, "scale": 1.15},
-    {"model": "decor_leaves", "pos": [65.81, 0, -56.56], "rot": 140, "scale": 1.28},
-    {"model": "decor_leaves", "pos": [59.11, 0, -97.38], "rot": 210, "scale": 0.92},
-    {"model": "decor_leaves", "pos": [80.54, 0, -89.6], "rot": 230, "scale": 1.19},
-    {"model": "decor_leaves", "pos": [71.55, 0, -95.42], "rot": 60, "scale": 1.09},
-    {"model": "decor_leaves", "pos": [59.29, 0, -141.5], "rot": 150, "scale": 0.77},
-    {"model": "decor_leaves", "pos": [76.44, 0, -69.82], "rot": 10, "scale": 0.81},
-    {"model": "decor_leaves", "pos": [74.04, 0, -137.19], "rot": 260, "scale": 1.24},
-    {"model": "decor_leaves", "pos": [62.95, 0, -125.92], "rot": 20, "scale": 0.93},
-    {"model": "decor_leaves", "pos": [66.41, 0, -106.26], "rot": 270, "scale": 0.72},
-    {"model": "decor_leaves", "pos": [72.2, 0, -47.67], "rot": 150, "scale": 1.1},
-    {"model": "decor_leaves", "pos": [73.67, 0, -74.14], "rot": 210, "scale": 0.7},
-    {"model": "decor_leaves", "pos": [61.28, 0, -76.66], "rot": 170, "scale": 1.01},
-    {"model": "decor_leaves", "pos": [57.21, 0, -62.09], "rot": 120, "scale": 0.8},
-    {"model": "decor_stones", "pos": [66.35, 0, -94.11], "rot": 140, "scale": 1.25},
-    {"model": "decor_stones", "pos": [69.02, 0, -108.68], "rot": 10, "scale": 1.18},
-    {"model": "decor_stones", "pos": [65.33, 0, -77.29], "rot": 30, "scale": 1.13},
-    {"model": "decor_stones", "pos": [63.42, 0, -49.44], "rot": 80, "scale": 0.91},
-    {"model": "decor_stones", "pos": [63.16, 0, -78.18], "rot": 310, "scale": 0.94},
-    {"model": "decor_stones", "pos": [80.99, 0, -107.1], "rot": 0, "scale": 1.17},
-    {"model": "decor_stones", "pos": [66.46, 0, -82.18], "rot": 300, "scale": 1.14},
-    {"model": "decor_stones", "pos": [63.31, 0, -54.63], "rot": 210, "scale": 1.21},
-    {"model": "decor_stones", "pos": [75.35, 0, -126.81], "rot": 10, "scale": 1.05},
-    {"model": "decor_stones", "pos": [67.1, 0, -48.07], "rot": 120, "scale": 1.01},
-    {"model": "decor_stones", "pos": [78.68, 0, -75.76], "rot": 290, "scale": 1.21},
-    {"model": "decor_stones", "pos": [59.16, 0, -81.38], "rot": 90, "scale": 1.27},
-    {"model": "decor_stones", "pos": [72.47, 0, -73.76], "rot": 50, "scale": 0.76},
-    {"model": "decor_stones", "pos": [73.53, 0, -126.64], "rot": 310, "scale": 1.27},
-    {"model": "decor_stones", "pos": [67.64, 0, -75.54], "rot": 330, "scale": 1.12},
-    {"model": "decor_stones", "pos": [72.15, 0, -52.75], "rot": 290, "scale": 1.19},
-    {"model": "decor_stones", "pos": [81.11, 0, -102.66], "rot": 50, "scale": 1.28},
-    {"model": "decor_stones", "pos": [75.61, 0, -59.38], "rot": 60, "scale": 1.14},
-    {"model": "decor_stones", "pos": [64.87, 0, -75.65], "rot": 110, "scale": 1.12},
-    {"model": "decor_stones", "pos": [71.45, 0, -52.87], "rot": 250, "scale": 1.1},
-    {"model": "decor_stones", "pos": [66.7, 0, -93.03], "rot": 270, "scale": 0.76},
-    {"model": "decor_stones", "pos": [66.76, 0, -138.27], "rot": 30, "scale": 0.85},
-    {"model": "decor_stones", "pos": [73.19, 0, -74.29], "rot": 80, "scale": 0.8},
-    {"model": "decor_stones", "pos": [70.64, 0, -57.89], "rot": 100, "scale": 1.28},
-    {"model": "decor_stones", "pos": [64.77, 0, -118.34], "rot": 320, "scale": 0.77},
-    {"model": "decor_stones", "pos": [64.11, 0, -125.41], "rot": 70, "scale": 0.73},
-    {"model": "decor_stones", "pos": [78.45, 0, -134.28], "rot": 150, "scale": 1.3},
-    {"model": "decor_stones", "pos": [61.43, 0, -75.92], "rot": 10, "scale": 1.19},
-    {"model": "decor_stones", "pos": [81.31, 0, -89.06], "rot": 10, "scale": 0.81},
-    {"model": "decor_stones", "pos": [78.17, 0, -89.03], "rot": 90, "scale": 0.82},
+    {"model": "decor_leaves", "pos": [81.7, 0, -137.03], "rot": 10, "scale": 1.03},
+    {"model": "decor_leaves", "pos": [64.22, 0, -132.72], "rot": 180, "scale": 0.73},
+    {"model": "decor_leaves", "pos": [57.03, 0, -132.06], "rot": 20, "scale": 1.13},
+    {"model": "decor_leaves", "pos": [79.87, 0, -68.06], "rot": 70, "scale": 0.88},
+    {"model": "decor_leaves", "pos": [63.02, 0, -89.72], "rot": 290, "scale": 0.73},
+    {"model": "decor_leaves", "pos": [59.09, 0, -46.01], "rot": 210, "scale": 0.92},
+    {"model": "decor_leaves", "pos": [73.39, 0, -130.68], "rot": 90, "scale": 1.22},
+    {"model": "decor_leaves", "pos": [65.64, 0, -50.17], "rot": 230, "scale": 1.25},
+    {"model": "decor_leaves", "pos": [75.63, 0, -99.0], "rot": 30, "scale": 1.13},
+    {"model": "decor_leaves", "pos": [78.71, 0, -125.21], "rot": 0, "scale": 0.85},
+    {"model": "decor_leaves", "pos": [78.64, 0, -112.12], "rot": 180, "scale": 0.83},
+    {"model": "decor_leaves", "pos": [79.12, 0, -79.6], "rot": 110, "scale": 1.23},
+    {"model": "decor_leaves", "pos": [74.98, 0, -62.0], "rot": 230, "scale": 0.73},
+    {"model": "decor_leaves", "pos": [68.2, 0, -133.83], "rot": 30, "scale": 0.83},
+    {"model": "decor_leaves", "pos": [59.29, 0, -106.92], "rot": 80, "scale": 0.94},
+    {"model": "decor_leaves", "pos": [59.62, 0, -129.39], "rot": 90, "scale": 0.74},
+    {"model": "decor_leaves", "pos": [59.93, 0, -101.39], "rot": 350, "scale": 0.76},
+    {"model": "decor_leaves", "pos": [69.78, 0, -72.26], "rot": 330, "scale": 1.25},
+    {"model": "decor_leaves", "pos": [65.34, 0, -65.06], "rot": 50, "scale": 1.08},
+    {"model": "decor_leaves", "pos": [56.66, 0, -52.71], "rot": 290, "scale": 1.21},
+    {"model": "decor_leaves", "pos": [67.29, 0, -113.89], "rot": 320, "scale": 0.73},
+    {"model": "decor_leaves", "pos": [71.82, 0, -124.92], "rot": 170, "scale": 1.19},
+    {"model": "decor_leaves", "pos": [60.69, 0, -114.68], "rot": 160, "scale": 0.97},
+    {"model": "decor_leaves", "pos": [62.18, 0, -118.24], "rot": 260, "scale": 0.96},
+    {"model": "decor_leaves", "pos": [63.23, 0, -136.26], "rot": 220, "scale": 1.3},
+    {"model": "decor_leaves", "pos": [71.5, 0, -57.09], "rot": 160, "scale": 1.16},
+    {"model": "decor_leaves", "pos": [71.58, 0, -137.26], "rot": 200, "scale": 0.88},
+    {"model": "decor_leaves", "pos": [79.9, 0, -122.69], "rot": 330, "scale": 0.88},
+    {"model": "decor_leaves", "pos": [57.14, 0, -100.61], "rot": 170, "scale": 0.95},
+    {"model": "decor_leaves", "pos": [76.35, 0, -80.81], "rot": 150, "scale": 1.06},
+    {"model": "decor_leaves", "pos": [77.03, 0, -54.61], "rot": 350, "scale": 1.05},
+    {"model": "decor_leaves", "pos": [60.37, 0, -71.05], "rot": 200, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [69.92, 0, -131.07], "rot": 230, "scale": 1.26},
+    {"model": "decor_leaves", "pos": [64.2, 0, -133.4], "rot": 340, "scale": 0.85},
+    {"model": "decor_leaves", "pos": [59.79, 0, -117.89], "rot": 260, "scale": 0.95},
+    {"model": "decor_leaves", "pos": [76.98, 0, -51.87], "rot": 140, "scale": 1.0},
+    {"model": "decor_leaves", "pos": [72.15, 0, -108.27], "rot": 240, "scale": 1.22},
+    {"model": "decor_leaves", "pos": [76.41, 0, -98.53], "rot": 140, "scale": 1.01},
+    {"model": "decor_leaves", "pos": [71.07, 0, -86.55], "rot": 330, "scale": 0.89},
+    {"model": "decor_leaves", "pos": [58.53, 0, -61.15], "rot": 230, "scale": 1.12},
+    {"model": "decor_leaves", "pos": [71.2, 0, -104.02], "rot": 200, "scale": 0.78},
+    {"model": "decor_leaves", "pos": [66.66, 0, -140.94], "rot": 230, "scale": 1.29},
+    {"model": "decor_leaves", "pos": [68.06, 0, -52.18], "rot": 210, "scale": 0.72},
+    {"model": "decor_leaves", "pos": [71.1, 0, -87.89], "rot": 280, "scale": 0.75},
+    {"model": "decor_leaves", "pos": [77.89, 0, -60.63], "rot": 150, "scale": 1.18},
+    {"model": "decor_leaves", "pos": [56.85, 0, -136.14], "rot": 170, "scale": 0.87},
+    {"model": "decor_leaves", "pos": [75.07, 0, -83.93], "rot": 70, "scale": 1.21},
+    {"model": "decor_leaves", "pos": [65.61, 0, -73.59], "rot": 340, "scale": 1.18},
+    {"model": "decor_leaves", "pos": [59.98, 0, -105.65], "rot": 140, "scale": 0.82},
+    {"model": "decor_leaves", "pos": [60.89, 0, -56.68], "rot": 20, "scale": 1.06},
+    {"model": "decor_stones", "pos": [74.98, 0, -70.58], "rot": 290, "scale": 1.22},
+    {"model": "decor_stones", "pos": [70.71, 0, -77.4], "rot": 110, "scale": 0.82},
+    {"model": "decor_stones", "pos": [78.83, 0, -124.96], "rot": 180, "scale": 1.15},
+    {"model": "decor_stones", "pos": [63.88, 0, -102.09], "rot": 20, "scale": 0.89},
+    {"model": "decor_stones", "pos": [65.68, 0, -81.41], "rot": 40, "scale": 1.3},
+    {"model": "decor_stones", "pos": [78.58, 0, -74.69], "rot": 30, "scale": 1.04},
+    {"model": "decor_stones", "pos": [61.64, 0, -69.17], "rot": 0, "scale": 0.82},
+    {"model": "decor_stones", "pos": [73.51, 0, -47.39], "rot": 30, "scale": 1.16},
+    {"model": "decor_stones", "pos": [63.64, 0, -129.18], "rot": 100, "scale": 1.24},
+    {"model": "decor_stones", "pos": [75.14, 0, -108.19], "rot": 300, "scale": 0.76},
+    {"model": "decor_stones", "pos": [59.51, 0, -97.97], "rot": 260, "scale": 1.02},
+    {"model": "decor_stones", "pos": [59.1, 0, -118.23], "rot": 140, "scale": 0.75},
+    {"model": "decor_stones", "pos": [78.69, 0, -96.53], "rot": 160, "scale": 0.79},
+    {"model": "decor_stones", "pos": [65.12, 0, -107.87], "rot": 0, "scale": 1.27},
+    {"model": "decor_stones", "pos": [76.61, 0, -69.93], "rot": 240, "scale": 1.1},
+    {"model": "decor_stones", "pos": [64.38, 0, -71.94], "rot": 180, "scale": 1.13},
+    {"model": "decor_stones", "pos": [68.77, 0, -82.33], "rot": 280, "scale": 0.98},
+    {"model": "decor_stones", "pos": [73.1, 0, -127.65], "rot": 300, "scale": 0.89},
+    {"model": "decor_stones", "pos": [74.33, 0, -132.82], "rot": 290, "scale": 1.04},
+    {"model": "decor_stones", "pos": [81.73, 0, -138.24], "rot": 190, "scale": 0.82},
+    {"model": "decor_stones", "pos": [64.82, 0, -131.92], "rot": 240, "scale": 1.21},
+    {"model": "decor_stones", "pos": [80.13, 0, -58.62], "rot": 150, "scale": 0.84},
+    {"model": "decor_stones", "pos": [77.51, 0, -85.22], "rot": 190, "scale": 0.84},
+    {"model": "decor_stones", "pos": [62.18, 0, -135.81], "rot": 120, "scale": 0.85},
+    {"model": "decor_stones", "pos": [77.09, 0, -98.71], "rot": 260, "scale": 1.1},
+    {"model": "decor_stones", "pos": [77.03, 0, -132.44], "rot": 250, "scale": 1.07},
+    {"model": "decor_stones", "pos": [80.16, 0, -69.86], "rot": 220, "scale": 1.29},
+    {"model": "decor_stones", "pos": [62.73, 0, -138.45], "rot": 10, "scale": 0.75},
+    {"model": "decor_stones", "pos": [59.47, 0, -73.57], "rot": 310, "scale": 0.76},
+    {"model": "decor_stones", "pos": [60.0, 0, -55.71], "rot": 10, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-36.46, 0, -134.11], "rot": 340, "scale": 0.87},
+    {"model": "decor_grass", "pos": [41.65, 0, -131.47], "rot": 230, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-45.21, 0, -125.89], "rot": 250, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-29.82, 0, -140.24], "rot": 330, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-7.42, 0, -134.47], "rot": 60, "scale": 0.74},
+    {"model": "decor_grass", "pos": [51.51, 0, -132.62], "rot": 190, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-19.39, 0, -135.63], "rot": 320, "scale": 0.78},
+    {"model": "decor_grass", "pos": [-39.37, 0, -133.78], "rot": 260, "scale": 1.29},
+    {"model": "decor_grass", "pos": [-49.04, 0, -130.53], "rot": 80, "scale": 0.71},
+    {"model": "decor_grass", "pos": [46.09, 0, -129.74], "rot": 150, "scale": 1.19},
+    {"model": "decor_grass", "pos": [30.91, 0, -135.26], "rot": 150, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-24.3, 0, -139.21], "rot": 120, "scale": 1.06},
+    {"model": "decor_grass", "pos": [-38.16, 0, -139.15], "rot": 250, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-37.45, 0, -135.34], "rot": 150, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-25.44, 0, -137.28], "rot": 270, "scale": 1.05},
+    {"model": "decor_grass", "pos": [34.53, 0, -133.35], "rot": 330, "scale": 1.22},
+    {"model": "decor_grass", "pos": [27.08, 0, -130.97], "rot": 200, "scale": 0.86},
+    {"model": "decor_grass", "pos": [36.5, 0, -125.72], "rot": 30, "scale": 1.19},
+    {"model": "decor_grass", "pos": [49.78, 0, -124.52], "rot": 340, "scale": 1.05},
+    {"model": "decor_grass", "pos": [5.66, 0, -126.91], "rot": 250, "scale": 1.2},
+    {"model": "decor_grass", "pos": [1.43, 0, -129.58], "rot": 150, "scale": 0.85},
+    {"model": "decor_grass", "pos": [18.64, 0, -133.0], "rot": 150, "scale": 1.1},
+    {"model": "decor_grass", "pos": [30.01, 0, -136.86], "rot": 200, "scale": 1.0},
+    {"model": "decor_grass", "pos": [33.88, 0, -140.24], "rot": 10, "scale": 0.89},
+    {"model": "decor_grass", "pos": [32.06, 0, -125.02], "rot": 80, "scale": 1.16},
+    {"model": "decor_grass", "pos": [-44.62, 0, -124.89], "rot": 20, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-4.32, 0, -133.1], "rot": 150, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-34.23, 0, -124.93], "rot": 80, "scale": 1.15},
+    {"model": "decor_grass", "pos": [32.09, 0, -138.15], "rot": 280, "scale": 0.98},
+    {"model": "decor_grass", "pos": [5.89, 0, -139.6], "rot": 180, "scale": 1.22},
+    {"model": "decor_grass", "pos": [12.66, 0, -131.66], "rot": 230, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-15.18, 0, -139.34], "rot": 340, "scale": 1.13},
+    {"model": "decor_grass", "pos": [21.57, 0, -140.39], "rot": 230, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-22.5, 0, -141.08], "rot": 310, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-42.17, 0, -126.26], "rot": 0, "scale": 1.26},
+    {"model": "decor_grass", "pos": [5.82, 0, -139.07], "rot": 250, "scale": 1.3},
+    {"model": "decor_grass", "pos": [-1.62, 0, -128.01], "rot": 300, "scale": 0.82},
+    {"model": "decor_grass", "pos": [16.16, 0, -132.49], "rot": 140, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-21.28, 0, -139.34], "rot": 330, "scale": 1.17},
+    {"model": "decor_grass", "pos": [30.57, 0, -128.98], "rot": 40, "scale": 0.71},
+    {"model": "decor_grass", "pos": [49.2, 0, -131.11], "rot": 270, "scale": 0.85},
+    {"model": "decor_grass", "pos": [-8.3, 0, -125.17], "rot": 340, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-4.09, 0, -130.19], "rot": 260, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-16.94, 0, -140.02], "rot": 300, "scale": 0.91},
+    {"model": "decor_grass", "pos": [37.31, 0, -125.3], "rot": 0, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-18.27, 0, -133.18], "rot": 290, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-15.63, 0, -132.3], "rot": 130, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-42.18, 0, -138.07], "rot": 340, "scale": 0.91},
+    {"model": "decor_grass", "pos": [42.95, 0, -141.32], "rot": 70, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-55.0, 0, -126.75], "rot": 50, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-19.9, 0, -125.08], "rot": 310, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-8.05, 0, -140.37], "rot": 270, "scale": 0.91},
+    {"model": "decor_grass", "pos": [6.82, 0, -135.46], "rot": 190, "scale": 0.9},
+    {"model": "decor_grass", "pos": [40.86, 0, -134.67], "rot": 40, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-5.59, 0, -129.24], "rot": 60, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-39.6, 0, -129.82], "rot": 130, "scale": 1.05},
+    {"model": "decor_grass", "pos": [-33.74, 0, -134.12], "rot": 0, "scale": 1.28},
+    {"model": "decor_grass", "pos": [31.76, 0, -140.91], "rot": 70, "scale": 1.02},
+    {"model": "decor_grass", "pos": [38.63, 0, -126.12], "rot": 140, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-43.52, 0, -136.97], "rot": 50, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-28.1, 0, -127.45], "rot": 20, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-44.66, 0, -141.43], "rot": 320, "scale": 0.86},
+    {"model": "decor_grass", "pos": [18.76, 0, -130.11], "rot": 180, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-30.79, 0, -132.93], "rot": 150, "scale": 1.23},
+    {"model": "decor_grass", "pos": [22.35, 0, -129.2], "rot": 230, "scale": 0.72},
+    {"model": "decor_grass", "pos": [18.39, 0, -141.76], "rot": 10, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-24.99, 0, -132.56], "rot": 230, "scale": 1.12},
+    {"model": "decor_grass", "pos": [-35.42, 0, -124.45], "rot": 10, "scale": 0.84},
+    {"model": "decor_grass", "pos": [23.77, 0, -129.8], "rot": 200, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-29.15, 0, -132.1], "rot": 10, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-5.49, 0, -126.17], "rot": 0, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-45.73, 0, -135.18], "rot": 240, "scale": 0.8},
+    {"model": "decor_grass", "pos": [22.44, 0, -132.37], "rot": 150, "scale": 0.89},
+    {"model": "decor_grass", "pos": [15.39, 0, -135.09], "rot": 10, "scale": 0.87},
+    {"model": "decor_grass", "pos": [8.54, 0, -132.08], "rot": 290, "scale": 1.2},
+    {"model": "decor_grass", "pos": [-0.49, 0, -132.22], "rot": 300, "scale": 0.98},
+    {"model": "decor_grass", "pos": [5.53, 0, -125.57], "rot": 0, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-22.61, 0, -135.23], "rot": 70, "scale": 1.19},
+    {"model": "decor_grass", "pos": [7.43, 0, -128.16], "rot": 250, "scale": 1.26},
+    {"model": "decor_grass", "pos": [-17.64, 0, -137.42], "rot": 40, "scale": 0.79},
+    {"model": "decor_grass", "pos": [-36.31, 0, -129.3], "rot": 130, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-7.95, 0, -139.13], "rot": 300, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-46.63, 0, -125.96], "rot": 140, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-48.72, 0, -124.89], "rot": 120, "scale": 0.89},
+    {"model": "decor_grass", "pos": [-41.54, 0, -134.86], "rot": 140, "scale": 0.78},
+    {"model": "decor_grass", "pos": [12.46, 0, -128.77], "rot": 240, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-18.69, 0, -129.39], "rot": 250, "scale": 0.75},
+    {"model": "decor_grass", "pos": [-52.22, 0, -127.86], "rot": 120, "scale": 1.1},
+    {"model": "decor_grass", "pos": [51.94, 0, -135.53], "rot": 350, "scale": 1.07},
+    {"model": "decor_grass", "pos": [10.48, 0, -133.21], "rot": 310, "scale": 1.28},
+    {"model": "decor_grass", "pos": [17.87, 0, -137.14], "rot": 250, "scale": 0.84},
+    {"model": "decor_grass", "pos": [36.39, 0, -134.29], "rot": 180, "scale": 1.02},
+    {"model": "decor_grass", "pos": [-49.47, 0, -128.92], "rot": 220, "scale": 1.07},
+    {"model": "decor_grass", "pos": [32.36, 0, -124.49], "rot": 10, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-52.72, 0, -139.83], "rot": 270, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-19.14, 0, -138.23], "rot": 110, "scale": 0.96},
+    {"model": "decor_grass", "pos": [17.0, 0, -124.25], "rot": 40, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-22.41, 0, -136.64], "rot": 230, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-50.71, 0, -140.81], "rot": 260, "scale": 0.9},
+    {"model": "decor_grass", "pos": [30.06, 0, -139.2], "rot": 130, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-50.96, 0, -129.52], "rot": 140, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-33.52, 0, -125.77], "rot": 210, "scale": 0.86},
+    {"model": "decor_grass", "pos": [-16.36, 0, -133.72], "rot": 180, "scale": 1.22},
+    {"model": "decor_grass", "pos": [-58.69, 0, -125.09], "rot": 330, "scale": 1.09},
+    {"model": "decor_grass", "pos": [28.17, 0, -134.88], "rot": 10, "scale": 1.26},
+    {"model": "decor_grass", "pos": [31.52, 0, -139.66], "rot": 170, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-24.44, 0, -137.01], "rot": 100, "scale": 1.03},
+    {"model": "decor_grass", "pos": [-12.75, 0, -127.6], "rot": 340, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-41.5, 0, -138.64], "rot": 230, "scale": 1.02},
+    {"model": "decor_grass", "pos": [43.42, 0, -140.55], "rot": 340, "scale": 1.04},
+    {"model": "decor_grass", "pos": [-9.08, 0, -132.06], "rot": 350, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-16.95, 0, -135.77], "rot": 100, "scale": 0.88},
+    {"model": "decor_grass", "pos": [-34.61, 0, -131.16], "rot": 130, "scale": 1.24},
+    {"model": "decor_grass", "pos": [15.32, 0, -134.62], "rot": 0, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-49.61, 0, -131.96], "rot": 40, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-0.76, 0, -127.85], "rot": 300, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-52.46, 0, -136.38], "rot": 190, "scale": 1.18},
+    {"model": "decor_grass", "pos": [12.88, 0, -135.25], "rot": 80, "scale": 0.74},
+    {"model": "decor_grass", "pos": [-18.53, 0, -138.96], "rot": 40, "scale": 0.88},
+    {"model": "decor_grass", "pos": [43.75, 0, -141.1], "rot": 160, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-42.23, 0, -139.64], "rot": 290, "scale": 1.21},
+    {"model": "decor_grass", "pos": [30.36, 0, -127.15], "rot": 240, "scale": 1.17},
+    {"model": "decor_grass", "pos": [21.48, 0, -124.68], "rot": 70, "scale": 1.23},
+    {"model": "decor_grass", "pos": [43.06, 0, -135.34], "rot": 340, "scale": 0.98},
+    {"model": "decor_grass", "pos": [31.29, 0, -131.23], "rot": 310, "scale": 1.2},
+    {"model": "decor_grass", "pos": [12.95, 0, -139.72], "rot": 0, "scale": 0.89},
+    {"model": "decor_grass", "pos": [25.95, 0, -137.51], "rot": 10, "scale": 0.81},
+    {"model": "decor_grass", "pos": [17.69, 0, -141.1], "rot": 260, "scale": 1.24},
+    {"model": "decor_grass", "pos": [-30.07, 0, -138.98], "rot": 20, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-15.15, 0, -135.3], "rot": 270, "scale": 0.72},
+    {"model": "decor_grass", "pos": [9.79, 0, -124.31], "rot": 150, "scale": 1.1},
+    {"model": "decor_grass", "pos": [16.11, 0, -129.28], "rot": 210, "scale": 0.7},
+    {"model": "decor_grass", "pos": [-37.27, 0, -129.75], "rot": 170, "scale": 1.01},
+    {"model": "decor_grass", "pos": [-54.77, 0, -127.02], "rot": 120, "scale": 0.8},
+    {"model": "decor_grass", "pos": [-15.44, 0, -133.02], "rot": 140, "scale": 1.25},
+    {"model": "decor_grass", "pos": [-3.91, 0, -135.75], "rot": 10, "scale": 1.18},
+    {"model": "decor_grass", "pos": [-19.81, 0, -129.87], "rot": 30, "scale": 1.13},
+    {"model": "decor_grass", "pos": [-28.05, 0, -124.64], "rot": 80, "scale": 0.91},
+    {"model": "decor_grass", "pos": [-29.17, 0, -130.03], "rot": 310, "scale": 0.94},
+    {"model": "decor_grass", "pos": [47.66, 0, -135.46], "rot": 0, "scale": 1.17},
+    {"model": "decor_grass", "pos": [-14.94, 0, -130.78], "rot": 300, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-28.51, 0, -125.62], "rot": 210, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-56.78, 0, -132.84], "rot": 160, "scale": 1.29},
+    {"model": "decor_grass", "pos": [43.4, 0, -127.52], "rot": 120, "scale": 1.01},
+    {"model": "decor_grass", "pos": [37.7, 0, -129.58], "rot": 290, "scale": 1.21},
+    {"model": "decor_grass", "pos": [-46.38, 0, -130.63], "rot": 90, "scale": 1.27},
+    {"model": "decor_grass", "pos": [10.96, 0, -129.21], "rot": 50, "scale": 0.76},
+    {"model": "decor_grass", "pos": [15.5, 0, -139.12], "rot": 310, "scale": 1.27},
+    {"model": "decor_grass", "pos": [-9.85, 0, -129.54], "rot": 330, "scale": 1.12},
+    {"model": "decor_grass", "pos": [9.57, 0, -125.26], "rot": 290, "scale": 1.19},
+    {"model": "decor_grass", "pos": [48.16, 0, -134.62], "rot": 50, "scale": 1.28},
+    {"model": "decor_grass", "pos": [24.47, 0, -126.51], "rot": 60, "scale": 1.14},
+    {"model": "decor_grass", "pos": [-21.81, 0, -129.56], "rot": 110, "scale": 1.12},
+    {"model": "decor_grass", "pos": [6.57, 0, -125.29], "rot": 250, "scale": 1.1},
+    {"model": "decor_grass", "pos": [-13.89, 0, -132.82], "rot": 270, "scale": 0.76},
+    {"model": "decor_grass", "pos": [-13.64, 0, -141.3], "rot": 30, "scale": 0.85},
+    {"model": "decor_grass", "pos": [14.03, 0, -129.3], "rot": 80, "scale": 0.8},
+    {"model": "decor_grass", "pos": [3.06, 0, -126.23], "rot": 100, "scale": 1.28},
+    {"model": "decor_grass", "pos": [-22.21, 0, -137.56], "rot": 320, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-25.05, 0, -138.89], "rot": 70, "scale": 0.73},
+    {"model": "decor_grass", "pos": [36.7, 0, -140.55], "rot": 150, "scale": 1.3},
+    {"model": "decor_grass", "pos": [-36.61, 0, -129.61], "rot": 10, "scale": 1.19},
+    {"model": "decor_grass", "pos": [49.04, 0, -132.07], "rot": 10, "scale": 0.81},
+    {"model": "decor_grass", "pos": [35.5, 0, -132.07], "rot": 90, "scale": 0.82},
     {"model": "decor_grass", "pos": [-57.74, 0, -139.35], "rot": 330, "scale": 0.83},
     {"model": "decor_grass", "pos": [43.97, 0, -124.15], "rot": 230, "scale": 1.24},
     {"model": "decor_grass", "pos": [34.62, 0, -137.98], "rot": 340, "scale": 0.89},
@@ -28643,35 +29511,34 @@ if __name__ == "__main__":
     {"model": "decor_grass", "pos": [14.33, 0, -141.3], "rot": 70, "scale": 0.8},
     {"model": "decor_grass", "pos": [-54.54, 0, -141.33], "rot": 320, "scale": 0.99},
     {"model": "decor_grass", "pos": [-34.56, 0, -136.07], "rot": 140, "scale": 0.98},
-    {"model": "decor_grass", "pos": [51.38, 0, -132.46], "rot": 270, "scale": 1.2},
-    {"model": "decor_grass", "pos": [-11.67, 0, -136.05], "rot": 240, "scale": 1.27},
-    {"model": "decor_grass", "pos": [46.07, 0, -134.26], "rot": 300, "scale": 0.82},
-    {"model": "decor_grass", "pos": [-39.82, 0, -138.28], "rot": 240, "scale": 0.87},
-    {"model": "decor_grass", "pos": [-58.69, 0, -139.08], "rot": 100, "scale": 0.94},
-    {"model": "decor_grass", "pos": [-53.48, 0, -137.76], "rot": 130, "scale": 0.7},
-    {"model": "decor_grass", "pos": [-22.36, 0, -133.44], "rot": 210, "scale": 1.2},
-    {"model": "decor_grass", "pos": [-29.82, 0, -139.52], "rot": 10, "scale": 0.89},
-    {"model": "decor_grass", "pos": [-50.65, 0, -130.4], "rot": 160, "scale": 0.72},
-    {"model": "decor_grass", "pos": [11.88, 0, -137.38], "rot": 180, "scale": 1.18},
-    {"model": "decor_grass", "pos": [12.36, 0, -128.95], "rot": 60, "scale": 1.02},
-    {"model": "decor_grass", "pos": [-30.74, 0, -129.96], "rot": 210, "scale": 0.89},
-    {"model": "decor_grass", "pos": [2.54, 0, -138.28], "rot": 30, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-11.52, 0, -128.65], "rot": 40, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-16.8, 0, -130.96], "rot": 10, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-6.34, 0, -133.82], "rot": 290, "scale": 0.82},
+    {"model": "decor_grass", "pos": [-16.37, 0, -125.98], "rot": 200, "scale": 0.8},
+    {"model": "decor_grass", "pos": [9.93, 0, -134.73], "rot": 30, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-15.49, 0, -138.16], "rot": 160, "scale": 0.9},
+    {"model": "decor_grass", "pos": [-6.74, 0, -136.03], "rot": 260, "scale": 0.86},
+    {"model": "decor_grass", "pos": [32.91, 0, -140.65], "rot": 100, "scale": 1.19},
+    {"model": "decor_grass", "pos": [-56.18, 0, -130.45], "rot": 160, "scale": 0.81},
+    {"model": "decor_grass", "pos": [-26.8, 0, -138.41], "rot": 120, "scale": 0.76},
+    {"model": "decor_grass", "pos": [41.68, 0, -132.52], "rot": 170, "scale": 0.9},
+    {"model": "decor_grass", "pos": [10.02, 0, -139.7], "rot": 30, "scale": 0.94},
     {"model": "decor_grass", "pos": [-32.22, 0, -126.45], "rot": 300, "scale": 0.99},
     {"model": "decor_grass", "pos": [40.19, 0, -125.73], "rot": 170, "scale": 0.94},
     {"model": "decor_grass", "pos": [24.06, 0, -128.35], "rot": 110, "scale": 1.02},
-    {"model": "decor_grass", "pos": [-54.84, 0, -126.84], "rot": 320, "scale": 1.02},
-    {"model": "decor_grass", "pos": [-26.95, 0, -125.04], "rot": 280, "scale": 1.15},
-    {"model": "decor_grass", "pos": [-34.84, 0, -136.76], "rot": 50, "scale": 1.23},
-    {"model": "decor_grass", "pos": [49.52, 0, -136.51], "rot": 50, "scale": 0.71},
-    {"model": "decor_grass", "pos": [-15.65, 0, -134.8], "rot": 220, "scale": 0.77},
-    {"model": "decor_grass", "pos": [-29.77, 0, -140.58], "rot": 120, "scale": 0.81},
-    {"model": "decor_grass", "pos": [-55.44, 0, -136.68], "rot": 180, "scale": 1.1},
-    {"model": "decor_grass", "pos": [17.03, 0, -128.77], "rot": 270, "scale": 1.21},
-    {"model": "decor_grass", "pos": [-21.24, 0, -136.11], "rot": 130, "scale": 1.07},
-    {"model": "decor_grass", "pos": [20.83, 0, -134.69], "rot": 140, "scale": 0.73},
-    {"model": "decor_grass", "pos": [49.87, 0, -136.5], "rot": 340, "scale": 1.3},
-    {"model": "decor_grass", "pos": [1.81, 0, -131.69], "rot": 20, "scale": 1.18},
-    {"model": "decor_grass", "pos": [-21.91, 0, -129.99], "rot": 160, "scale": 0.8},
+    {"model": "decor_grass", "pos": [31.23, 0, -132.91], "rot": 180, "scale": 1.07},
+    {"model": "decor_grass", "pos": [-18.83, 0, -133.98], "rot": 280, "scale": 0.83},
+    {"model": "decor_grass", "pos": [-27.4, 0, -140.36], "rot": 190, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-58.36, 0, -134.87], "rot": 250, "scale": 0.97},
+    {"model": "decor_grass", "pos": [-46.12, 0, -137.14], "rot": 50, "scale": 0.96},
+    {"model": "decor_grass", "pos": [-39.11, 0, -141.27], "rot": 180, "scale": 1.02},
+    {"model": "decor_grass", "pos": [27.45, 0, -136.74], "rot": 160, "scale": 1.11},
+    {"model": "decor_grass", "pos": [22.33, 0, -134.24], "rot": 220, "scale": 1.09},
+    {"model": "decor_grass", "pos": [-35.5, 0, -130.88], "rot": 10, "scale": 0.94},
+    {"model": "decor_grass", "pos": [-34.27, 0, -126.57], "rot": 190, "scale": 1.04},
+    {"model": "decor_grass", "pos": [51.81, 0, -132.07], "rot": 10, "scale": 1.13},
+    {"model": "decor_grass", "pos": [36.4, 0, -127.71], "rot": 210, "scale": 0.77},
+    {"model": "decor_grass", "pos": [-4.19, 0, -130.66], "rot": 160, "scale": 0.8},
     {"model": "decor_grass", "pos": [40.54, 0, -139.16], "rot": 100, "scale": 1.25},
     {"model": "decor_grass", "pos": [-11.62, 0, -124.8], "rot": 320, "scale": 1.22},
     {"model": "decor_grass", "pos": [-52.97, 0, -137.33], "rot": 80, "scale": 1.02},
@@ -28704,13 +29571,12 @@ if __name__ == "__main__":
     {"model": "decor_grass", "pos": [47.33, 0, -138.0], "rot": 130, "scale": 0.88},
     {"model": "decor_grass", "pos": [-31.42, 0, -125.08], "rot": 230, "scale": 1.22},
     {"model": "decor_grass", "pos": [-23.31, 0, -131.64], "rot": 70, "scale": 0.78},
-    {"model": "decor_grass", "pos": [-29.42, 0, -129.9], "rot": 110, "scale": 0.79},
-    {"model": "decor_grass", "pos": [-15.73, 0, -124.02], "rot": 210, "scale": 0.85},
-    {"model": "decor_grass", "pos": [13.9, 0, -134.94], "rot": 30, "scale": 0.93},
+    {"model": "decor_grass", "pos": [-40.4, 0, -141.46], "rot": 150, "scale": 1.3},
+    {"model": "decor_grass", "pos": [-22.45, 0, -139.19], "rot": 20, "scale": 1.06},
+    {"model": "decor_grass", "pos": [51.3, 0, -128.7], "rot": 30, "scale": 0.93},
     {"model": "decor_grass", "pos": [24.93, 0, -130.89], "rot": 100, "scale": 1.16},
     {"model": "decor_grass", "pos": [50.94, 0, -138.16], "rot": 340, "scale": 0.72},
-    {"model": "decor_grass", "pos": [22.44, 0, -129.32], "rot": 110, "scale": 0.95},
-    {"model": "decor_grass", "pos": [-21.05, 0, -127.04], "rot": 100, "scale": 1.08},
+    {"model": "decor_grass", "pos": [-39.69, 0, -140.83], "rot": 100, "scale": 1.08},
     {"model": "decor_grass", "pos": [42.8, 0, -137.71], "rot": 40, "scale": 0.92},
     {"model": "decor_grass", "pos": [41.93, 0, -129.31], "rot": 160, "scale": 1.19},
     {"model": "decor_grass", "pos": [-15.11, 0, -138.8], "rot": 350, "scale": 1.26},
@@ -28744,250 +29610,248 @@ if __name__ == "__main__":
     {"model": "decor_grass", "pos": [18.35, 0, -129.38], "rot": 140, "scale": 1.07},
     {"model": "decor_grass", "pos": [-37.3, 0, -140.15], "rot": 340, "scale": 1.12},
     {"model": "decor_grass", "pos": [-42.61, 0, -124.36], "rot": 280, "scale": 1.23},
-    {"model": "decor_grass", "pos": [27.24, 0, -141.49], "rot": 160, "scale": 1.06},
-    {"model": "decor_grass", "pos": [-35.38, 0, -126.3], "rot": 10, "scale": 1.0},
-    {"model": "decor_grass", "pos": [-1.36, 0, -124.85], "rot": 120, "scale": 1.08},
-    {"model": "decor_grass", "pos": [-40.12, 0, -137.04], "rot": 0, "scale": 1.24},
-    {"model": "decor_grass", "pos": [-12.79, 0, -137.13], "rot": 80, "scale": 1.06},
-    {"model": "decor_grass", "pos": [-12.55, 0, -131.93], "rot": 130, "scale": 0.81},
-    {"model": "decor_grass", "pos": [25.69, 0, -134.94], "rot": 250, "scale": 1.18},
-    {"model": "decor_grass", "pos": [3.27, 0, -124.46], "rot": 210, "scale": 0.88},
-    {"model": "decor_grass", "pos": [5.45, 0, -141.24], "rot": 70, "scale": 1.29},
-    {"model": "decor_grass", "pos": [7.98, 0, -140.51], "rot": 350, "scale": 1.14},
-    {"model": "decor_grass", "pos": [22.18, 0, -136.11], "rot": 0, "scale": 0.91},
-    {"model": "decor_grass", "pos": [-59.98, 0, -137.31], "rot": 20, "scale": 0.84},
-    {"model": "decor_grass", "pos": [-1.13, 0, -126.33], "rot": 270, "scale": 1.29},
-    {"model": "decor_grass", "pos": [-34.92, 0, -137.94], "rot": 230, "scale": 0.88},
-    {"model": "decor_grass", "pos": [-56.11, 0, -129.36], "rot": 270, "scale": 0.72},
-    {"model": "decor_grass", "pos": [40.02, 0, -135.52], "rot": 290, "scale": 0.97},
-    {"model": "decor_grass", "pos": [-13.64, 0, -129.33], "rot": 150, "scale": 1.04},
-    {"model": "decor_grass", "pos": [-45.64, 0, -129.75], "rot": 180, "scale": 0.78},
-    {"model": "decor_grass", "pos": [-15.61, 0, -129.9], "rot": 260, "scale": 0.96},
-    {"model": "decor_grass", "pos": [-20.53, 0, -129.52], "rot": 70, "scale": 0.78},
-    {"model": "decor_grass", "pos": [-9.88, 0, -129.74], "rot": 80, "scale": 1.12},
-    {"model": "decor_grass", "pos": [23.14, 0, -141.91], "rot": 240, "scale": 1.25},
-    {"model": "decor_grass", "pos": [-44.69, 0, -132.27], "rot": 20, "scale": 1.16},
-    {"model": "decor_grass", "pos": [-50.1, 0, -130.8], "rot": 280, "scale": 0.83},
-    {"model": "decor_grass", "pos": [11.44, 0, -132.68], "rot": 30, "scale": 1.26},
-    {"model": "decor_grass", "pos": [0.69, 0, -127.0], "rot": 160, "scale": 0.89},
-    {"model": "decor_grass", "pos": [16.37, 0, -138.72], "rot": 20, "scale": 0.92},
-    {"model": "decor_grass", "pos": [16.42, 0, -124.12], "rot": 100, "scale": 0.76},
-    {"model": "decor_grass", "pos": [0.31, 0, -133.65], "rot": 10, "scale": 0.82},
-    {"model": "decor_grass", "pos": [46.56, 0, -135.55], "rot": 180, "scale": 1.14},
-    {"model": "decor_grass", "pos": [39.0, 0, -141.74], "rot": 310, "scale": 1.04},
-    {"model": "decor_grass", "pos": [-50.89, 0, -135.08], "rot": 170, "scale": 1.12},
-    {"model": "decor_grass", "pos": [12.2, 0, -125.62], "rot": 280, "scale": 0.77},
-    {"model": "decor_grass", "pos": [-3.98, 0, -129.87], "rot": 10, "scale": 1.21},
-    {"model": "decor_grass", "pos": [-50.33, 0, -139.59], "rot": 260, "scale": 0.85},
-    {"model": "decor_grass", "pos": [-36.3, 0, -130.76], "rot": 10, "scale": 0.84},
-    {"model": "decor_grass", "pos": [25.78, 0, -141.29], "rot": 160, "scale": 0.9},
-    {"model": "decor_grass", "pos": [40.37, 0, -128.5], "rot": 180, "scale": 0.72},
-    {"model": "decor_grass", "pos": [-2.64, 0, -134.43], "rot": 220, "scale": 1.08},
-    {"model": "decor_grass", "pos": [-27.56, 0, -131.64], "rot": 40, "scale": 1.03},
-    {"model": "decor_grass", "pos": [-20.24, 0, -135.53], "rot": 300, "scale": 0.73},
-    {"model": "decor_grass", "pos": [-1.76, 0, -125.05], "rot": 60, "scale": 0.71},
-    {"model": "decor_grass", "pos": [-19.51, 0, -140.8], "rot": 50, "scale": 1.09},
-    {"model": "decor_grass", "pos": [-55.25, 0, -124.78], "rot": 90, "scale": 0.93},
-    {"model": "decor_grass", "pos": [-1.85, 0, -131.76], "rot": 100, "scale": 1.21},
-    {"model": "decor_grass", "pos": [44.75, 0, -133.56], "rot": 30, "scale": 1.26},
-    {"model": "decor_grass", "pos": [37.76, 0, -130.78], "rot": 270, "scale": 0.93},
-    {"model": "decor_grass", "pos": [-53.91, 0, -130.74], "rot": 180, "scale": 1.2},
-    {"model": "decor_grass", "pos": [4.82, 0, -139.46], "rot": 300, "scale": 1.21},
-    {"model": "decor_grass", "pos": [50.76, 0, -130.37], "rot": 260, "scale": 0.91},
-    {"model": "decor_grass", "pos": [-13.08, 0, -137.97], "rot": 60, "scale": 1.28},
-    {"model": "decor_grass", "pos": [44.36, 0, -135.85], "rot": 150, "scale": 1.17},
-    {"model": "decor_grass", "pos": [16.58, 0, -126.11], "rot": 290, "scale": 1.29},
-    {"model": "decor_grass", "pos": [-56.97, 0, -133.88], "rot": 10, "scale": 1.28},
-    {"model": "decor_grass", "pos": [13.37, 0, -124.21], "rot": 250, "scale": 1.19},
-    {"model": "decor_grass", "pos": [-43.45, 0, -129.27], "rot": 330, "scale": 0.79},
-    {"model": "decor_grass", "pos": [-42.11, 0, -126.98], "rot": 240, "scale": 1.16},
-    {"model": "decor_grass", "pos": [42.55, 0, -135.57], "rot": 340, "scale": 1.26},
-    {"model": "decor_grass", "pos": [-41.49, 0, -139.96], "rot": 230, "scale": 1.21},
-    {"model": "decor_grass", "pos": [35.38, 0, -133.17], "rot": 30, "scale": 0.76},
-    {"model": "decor_grass", "pos": [23.31, 0, -127.49], "rot": 210, "scale": 0.77},
-    {"model": "decor_grass", "pos": [-29.68, 0, -128.13], "rot": 120, "scale": 1.08},
-    {"model": "decor_grass", "pos": [-37.85, 0, -128.59], "rot": 210, "scale": 1.27},
-    {"model": "decor_grass", "pos": [-35.05, 0, -139.98], "rot": 70, "scale": 1.15},
-    {"model": "decor_grass", "pos": [-33.07, 0, -135.37], "rot": 330, "scale": 0.99},
-    {"model": "decor_grass", "pos": [-1.09, 0, -133.62], "rot": 210, "scale": 0.91},
-    {"model": "decor_grass", "pos": [13.25, 0, -132.76], "rot": 290, "scale": 0.96},
-    {"model": "decor_grass", "pos": [45.55, 0, -126.81], "rot": 30, "scale": 1.03},
-    {"model": "decor_grass", "pos": [-24.38, 0, -135.28], "rot": 230, "scale": 0.74},
-    {"model": "decor_grass", "pos": [-11.15, 0, -141.58], "rot": 30, "scale": 1.11},
-    {"model": "decor_grass", "pos": [-53.38, 0, -133.2], "rot": 290, "scale": 1.26},
-    {"model": "decor_grass", "pos": [32.97, 0, -133.82], "rot": 10, "scale": 1.01},
-    {"model": "decor_grass", "pos": [46.26, 0, -131.19], "rot": 270, "scale": 1.24},
-    {"model": "decor_grass", "pos": [-7.73, 0, -136.62], "rot": 220, "scale": 1.1},
-    {"model": "decor_grass", "pos": [16.8, 0, -131.35], "rot": 50, "scale": 1.0},
-    {"model": "decor_grass", "pos": [-13.66, 0, -126.62], "rot": 350, "scale": 0.76},
-    {"model": "decor_grass", "pos": [-33.97, 0, -126.53], "rot": 110, "scale": 0.73},
-    {"model": "decor_grass", "pos": [-33.72, 0, -135.24], "rot": 290, "scale": 1.15},
-    {"model": "decor_grass", "pos": [-2.93, 0, -136.49], "rot": 120, "scale": 0.77},
-    {"model": "decor_grass", "pos": [-28.17, 0, -132.65], "rot": 30, "scale": 0.96},
-    {"model": "decor_grass", "pos": [-28.85, 0, -137.94], "rot": 130, "scale": 1.04},
-    {"model": "decor_grass", "pos": [24.02, 0, -139.04], "rot": 250, "scale": 1.25},
-    {"model": "decor_grass", "pos": [35.34, 0, -125.29], "rot": 170, "scale": 1.16},
-    {"model": "decor_grass", "pos": [-29.81, 0, -141.0], "rot": 200, "scale": 1.12},
-    {"model": "decor_grass", "pos": [24.25, 0, -130.5], "rot": 120, "scale": 1.17},
-    {"model": "decor_grass", "pos": [-41.58, 0, -138.04], "rot": 120, "scale": 1.19},
-    {"model": "decor_grass", "pos": [-41.04, 0, -130.09], "rot": 250, "scale": 1.28},
-    {"model": "decor_grass", "pos": [-36.72, 0, -124.64], "rot": 60, "scale": 1.2},
-    {"model": "decor_grass", "pos": [-3.43, 0, -131.45], "rot": 250, "scale": 1.1},
-    {"model": "decor_grass", "pos": [-44.12, 0, -131.76], "rot": 80, "scale": 0.74},
-    {"model": "decor_grass", "pos": [-37.45, 0, -124.32], "rot": 320, "scale": 1.1},
-    {"model": "decor_grass", "pos": [-23.64, 0, -138.01], "rot": 330, "scale": 0.8},
-    {"model": "decor_grass", "pos": [0.69, 0, -140.84], "rot": 330, "scale": 1.17},
-    {"model": "decor_grass", "pos": [-48.68, 0, -141.64], "rot": 160, "scale": 1.24},
-    {"model": "decor_grass", "pos": [-5.99, 0, -126.39], "rot": 90, "scale": 1.06},
-    {"model": "decor_grass", "pos": [19.46, 0, -124.56], "rot": 330, "scale": 0.83},
-    {"model": "decor_grass", "pos": [-53.67, 0, -141.48], "rot": 300, "scale": 1.22},
-    {"model": "decor_grass", "pos": [-34.4, 0, -127.16], "rot": 200, "scale": 0.77},
-    {"model": "decor_grass", "pos": [-0.11, 0, -140.92], "rot": 180, "scale": 0.95},
-    {"model": "decor_grass", "pos": [10.44, 0, -140.69], "rot": 120, "scale": 0.76},
-    {"model": "decor_grass", "pos": [10.1, 0, -129.46], "rot": 350, "scale": 0.86},
-    {"model": "decor_grass", "pos": [-43.38, 0, -139.0], "rot": 290, "scale": 1.18},
-    {"model": "decor_grass", "pos": [-38.17, 0, -126.95], "rot": 20, "scale": 1.09},
-    {"model": "decor_grass", "pos": [19.37, 0, -125.77], "rot": 100, "scale": 1.04},
-    {"model": "decor_grass", "pos": [-8.96, 0, -130.74], "rot": 270, "scale": 0.87},
-    {"model": "decor_grass", "pos": [17.82, 0, -133.41], "rot": 110, "scale": 0.97},
-    {"model": "decor_grass", "pos": [-1.72, 0, -135.65], "rot": 330, "scale": 0.71},
-    {"model": "decor_grass", "pos": [33.39, 0, -127.1], "rot": 350, "scale": 0.76},
-    {"model": "decor_grass", "pos": [-14.73, 0, -138.96], "rot": 20, "scale": 1.05},
-    {"model": "decor_grass", "pos": [-9.59, 0, -130.73], "rot": 80, "scale": 0.98},
-    {"model": "decor_grass", "pos": [-25.02, 0, -136.46], "rot": 150, "scale": 1.26},
-    {"model": "decor_grass", "pos": [-18.2, 0, -131.0], "rot": 170, "scale": 0.91},
-    {"model": "decor_grass", "pos": [45.26, 0, -133.68], "rot": 340, "scale": 1.04},
-    {"model": "decor_grass", "pos": [27.47, 0, -133.34], "rot": 260, "scale": 1.01},
-    {"model": "decor_grass", "pos": [-13.53, 0, -128.37], "rot": 120, "scale": 1.16},
-    {"model": "decor_grass", "pos": [44.38, 0, -138.28], "rot": 20, "scale": 1.17},
-    {"model": "decor_grass", "pos": [-28.96, 0, -134.47], "rot": 120, "scale": 1.23},
-    {"model": "decor_grass", "pos": [-52.65, 0, -126.49], "rot": 250, "scale": 0.82},
-    {"model": "decor_grass", "pos": [-11.23, 0, -128.54], "rot": 250, "scale": 1.04},
-    {"model": "decor_grass", "pos": [-22.43, 0, -135.7], "rot": 250, "scale": 1.15},
-    {"model": "decor_grass", "pos": [44.95, 0, -141.22], "rot": 210, "scale": 1.07},
-    {"model": "decor_grass", "pos": [11.29, 0, -126.62], "rot": 150, "scale": 0.82},
-    {"model": "decor_grass", "pos": [-9.92, 0, -124.08], "rot": 210, "scale": 1.13},
-    {"model": "decor_grass", "pos": [-24.6, 0, -126.56], "rot": 330, "scale": 0.86},
-    {"model": "decor_grass", "pos": [-16.56, 0, -139.76], "rot": 350, "scale": 1.04},
-    {"model": "decor_grass", "pos": [31.46, 0, -133.54], "rot": 70, "scale": 1.09},
-    {"model": "decor_grass", "pos": [-51.56, 0, -135.48], "rot": 50, "scale": 0.82},
-    {"model": "decor_grass", "pos": [-15.65, 0, -135.62], "rot": 250, "scale": 1.17},
-    {"model": "decor_grass", "pos": [-15.72, 0, -125.99], "rot": 250, "scale": 1.11},
-    {"model": "decor_grass", "pos": [4.79, 0, -134.97], "rot": 140, "scale": 0.77},
-    {"model": "decor_grass", "pos": [51.24, 0, -140.82], "rot": 180, "scale": 1.07},
-    {"model": "decor_grass", "pos": [35.46, 0, -140.36], "rot": 60, "scale": 1.0},
-    {"model": "decor_grass", "pos": [21.36, 0, -124.22], "rot": 140, "scale": 1.25},
-    {"model": "decor_grass", "pos": [-36.92, 0, -127.16], "rot": 10, "scale": 1.13},
-    {"model": "decor_grass", "pos": [16.37, 0, -140.12], "rot": 220, "scale": 1.03},
-    {"model": "decor_grass", "pos": [45.89, 0, -140.18], "rot": 140, "scale": 1.26},
-    {"model": "decor_grass", "pos": [47.51, 0, -124.95], "rot": 40, "scale": 1.02},
-    {"model": "decor_grass", "pos": [-28.9, 0, -136.5], "rot": 150, "scale": 0.96},
-    {"model": "decor_grass", "pos": [-6.85, 0, -137.46], "rot": 120, "scale": 1.23},
-    {"model": "decor_grass", "pos": [-51.05, 0, -135.67], "rot": 20, "scale": 1.18},
-    {"model": "decor_grass", "pos": [47.97, 0, -130.95], "rot": 340, "scale": 1.07},
-    {"model": "decor_grass", "pos": [-37.75, 0, -139.3], "rot": 100, "scale": 1.3},
-    {"model": "decor_grass", "pos": [-32.06, 0, -140.77], "rot": 40, "scale": 0.96},
-    {"model": "decor_grass", "pos": [51.07, 0, -130.19], "rot": 250, "scale": 0.97},
-    {"model": "decor_grass", "pos": [42.4, 0, -124.05], "rot": 330, "scale": 0.73},
-    {"model": "decor_grass", "pos": [-10.49, 0, -141.25], "rot": 300, "scale": 1.04},
-    {"model": "decor_grass", "pos": [-20.09, 0, -128.04], "rot": 70, "scale": 0.91},
-    {"model": "decor_grass", "pos": [16.82, 0, -125.66], "rot": 300, "scale": 1.22},
-    {"model": "decor_grass", "pos": [-50.84, 0, -126.47], "rot": 150, "scale": 1.25},
-    {"model": "decor_grass", "pos": [13.33, 0, -134.74], "rot": 150, "scale": 1.23},
-    {"model": "decor_grass", "pos": [-38.64, 0, -133.62], "rot": 30, "scale": 1.18},
-    {"model": "decor_grass", "pos": [15.79, 0, -139.1], "rot": 180, "scale": 0.99},
-    {"model": "decor_grass", "pos": [8.01, 0, -141.72], "rot": 10, "scale": 0.88},
-    {"model": "decor_grass", "pos": [38.98, 0, -136.83], "rot": 260, "scale": 1.16},
-    {"model": "decor_grass", "pos": [-28.96, 0, -141.67], "rot": 220, "scale": 0.72},
-    {"model": "decor_grass", "pos": [7.25, 0, -134.92], "rot": 210, "scale": 0.93},
-    {"model": "decor_grass", "pos": [-40.47, 0, -139.84], "rot": 10, "scale": 0.94},
-    {"model": "decor_grass", "pos": [-0.94, 0, -138.31], "rot": 60, "scale": 1.14},
-    {"model": "decor_grass", "pos": [22.34, 0, -135.23], "rot": 50, "scale": 1.1},
-    {"model": "decor_grass", "pos": [19.31, 0, -133.13], "rot": 50, "scale": 1.18},
-    {"model": "decor_grass", "pos": [-37.12, 0, -130.31], "rot": 230, "scale": 1.19},
-    {"model": "decor_grass", "pos": [18.92, 0, -131.47], "rot": 20, "scale": 0.84},
-    {"model": "decor_leaves", "pos": [-28.88, 0, -126.53], "rot": 330, "scale": 1.04},
-    {"model": "decor_leaves", "pos": [12.01, 0, -125.72], "rot": 40, "scale": 0.73},
-    {"model": "decor_leaves", "pos": [50.62, 0, -125.36], "rot": 80, "scale": 1.17},
-    {"model": "decor_leaves", "pos": [19.53, 0, -130.73], "rot": 150, "scale": 0.88},
-    {"model": "decor_leaves", "pos": [-44.49, 0, -135.29], "rot": 280, "scale": 1.08},
-    {"model": "decor_leaves", "pos": [8.92, 0, -124.02], "rot": 30, "scale": 0.99},
-    {"model": "decor_leaves", "pos": [23.04, 0, -135.05], "rot": 140, "scale": 0.98},
-    {"model": "decor_leaves", "pos": [48.65, 0, -129.03], "rot": 150, "scale": 0.92},
-    {"model": "decor_leaves", "pos": [16.99, 0, -140.78], "rot": 280, "scale": 0.95},
-    {"model": "decor_leaves", "pos": [19.09, 0, -125.35], "rot": 10, "scale": 0.93},
-    {"model": "decor_leaves", "pos": [44.44, 0, -130.31], "rot": 120, "scale": 0.92},
-    {"model": "decor_leaves", "pos": [51.27, 0, -127.81], "rot": 130, "scale": 1.24},
-    {"model": "decor_leaves", "pos": [-28.64, 0, -140.2], "rot": 310, "scale": 0.88},
-    {"model": "decor_leaves", "pos": [-27.29, 0, -126.25], "rot": 90, "scale": 1.03},
-    {"model": "decor_leaves", "pos": [15.37, 0, -138.8], "rot": 200, "scale": 0.84},
-    {"model": "decor_leaves", "pos": [12.83, 0, -130.63], "rot": 310, "scale": 1.24},
-    {"model": "decor_leaves", "pos": [-31.8, 0, -130.85], "rot": 0, "scale": 1.15},
-    {"model": "decor_leaves", "pos": [32.86, 0, -129.2], "rot": 60, "scale": 1.1},
-    {"model": "decor_leaves", "pos": [-13.6, 0, -126.36], "rot": 170, "scale": 0.73},
-    {"model": "decor_leaves", "pos": [42.44, 0, -124.18], "rot": 50, "scale": 1.23},
-    {"model": "decor_leaves", "pos": [46.6, 0, -130.86], "rot": 320, "scale": 1.02},
-    {"model": "decor_leaves", "pos": [-7.3, 0, -126.56], "rot": 0, "scale": 1.28},
-    {"model": "decor_leaves", "pos": [-18.75, 0, -127.51], "rot": 110, "scale": 0.81},
-    {"model": "decor_leaves", "pos": [-34.53, 0, -127.41], "rot": 330, "scale": 0.92},
-    {"model": "decor_leaves", "pos": [13.94, 0, -132.87], "rot": 270, "scale": 0.72},
-    {"model": "decor_leaves", "pos": [-17.72, 0, -136.44], "rot": 210, "scale": 0.97},
-    {"model": "decor_leaves", "pos": [-44.65, 0, -135.96], "rot": 210, "scale": 0.8},
-    {"model": "decor_leaves", "pos": [21.0, 0, -125.58], "rot": 230, "scale": 0.77},
-    {"model": "decor_leaves", "pos": [36.42, 0, -137.74], "rot": 90, "scale": 0.99},
-    {"model": "decor_leaves", "pos": [-33.61, 0, -130.46], "rot": 110, "scale": 0.78},
-    {"model": "decor_leaves", "pos": [-34.31, 0, -133.29], "rot": 60, "scale": 1.11},
-    {"model": "decor_leaves", "pos": [-47.7, 0, -126.44], "rot": 60, "scale": 1.2},
-    {"model": "decor_leaves", "pos": [9.47, 0, -130.89], "rot": 110, "scale": 1.14},
-    {"model": "decor_leaves", "pos": [-24.65, 0, -135.67], "rot": 90, "scale": 1.02},
-    {"model": "decor_leaves", "pos": [-52.92, 0, -141.28], "rot": 220, "scale": 1.14},
-    {"model": "decor_leaves", "pos": [13.91, 0, -130.12], "rot": 200, "scale": 1.26},
-    {"model": "decor_leaves", "pos": [-30.18, 0, -133.62], "rot": 200, "scale": 1.09},
-    {"model": "decor_leaves", "pos": [4.72, 0, -137.39], "rot": 80, "scale": 0.93},
-    {"model": "decor_leaves", "pos": [14.47, 0, -128.49], "rot": 290, "scale": 0.83},
-    {"model": "decor_leaves", "pos": [-8.49, 0, -138.75], "rot": 90, "scale": 1.1},
-    {"model": "decor_leaves", "pos": [-28.08, 0, -139.03], "rot": 30, "scale": 0.91},
-    {"model": "decor_leaves", "pos": [-22.51, 0, -133.07], "rot": 260, "scale": 0.97},
-    {"model": "decor_leaves", "pos": [32.67, 0, -139.7], "rot": 240, "scale": 0.82},
-    {"model": "decor_leaves", "pos": [11.0, 0, -131.81], "rot": 320, "scale": 0.89},
-    {"model": "decor_leaves", "pos": [20.55, 0, -136.84], "rot": 100, "scale": 1.14},
-    {"model": "decor_leaves", "pos": [9.85, 0, -125.42], "rot": 140, "scale": 0.82},
-    {"model": "decor_leaves", "pos": [-29.39, 0, -141.73], "rot": 350, "scale": 1.07},
-    {"model": "decor_leaves", "pos": [34.65, 0, -129.37], "rot": 60, "scale": 1.08},
-    {"model": "decor_leaves", "pos": [-0.18, 0, -138.48], "rot": 70, "scale": 0.8},
-    {"model": "decor_leaves", "pos": [-39.42, 0, -132.3], "rot": 100, "scale": 1.22},
-    {"model": "decor_stones", "pos": [-5.42, 0, -140.18], "rot": 60, "scale": 1.25},
-    {"model": "decor_stones", "pos": [-5.53, 0, -141.36], "rot": 70, "scale": 1.29},
-    {"model": "decor_stones", "pos": [51.33, 0, -137.98], "rot": 90, "scale": 0.94},
-    {"model": "decor_stones", "pos": [10.25, 0, -127.45], "rot": 220, "scale": 1.14},
-    {"model": "decor_stones", "pos": [14.23, 0, -124.29], "rot": 250, "scale": 0.82},
-    {"model": "decor_stones", "pos": [-5.46, 0, -124.64], "rot": 150, "scale": 1.09},
-    {"model": "decor_stones", "pos": [-50.26, 0, -131.39], "rot": 20, "scale": 0.77},
-    {"model": "decor_stones", "pos": [-59.57, 0, -130.5], "rot": 20, "scale": 1.01},
-    {"model": "decor_stones", "pos": [-37.38, 0, -125.83], "rot": 160, "scale": 0.83},
-    {"model": "decor_stones", "pos": [27.63, 0, -130.56], "rot": 150, "scale": 0.94},
-    {"model": "decor_stones", "pos": [-26.76, 0, -135.3], "rot": 250, "scale": 1.08},
-    {"model": "decor_stones", "pos": [-18.49, 0, -138.73], "rot": 220, "scale": 0.88},
-    {"model": "decor_stones", "pos": [0.3, 0, -124.59], "rot": 220, "scale": 0.91},
-    {"model": "decor_stones", "pos": [-14.05, 0, -140.41], "rot": 330, "scale": 0.77},
-    {"model": "decor_stones", "pos": [-12.18, 0, -135.25], "rot": 40, "scale": 0.99},
-    {"model": "decor_stones", "pos": [6.49, 0, -134.9], "rot": 140, "scale": 0.79},
-    {"model": "decor_stones", "pos": [35.91, 0, -133.84], "rot": 140, "scale": 1.23},
-    {"model": "decor_stones", "pos": [19.83, 0, -126.1], "rot": 330, "scale": 1.1},
-    {"model": "decor_stones", "pos": [-29.6, 0, -138.69], "rot": 100, "scale": 0.84},
-    {"model": "decor_stones", "pos": [-26.9, 0, -138.89], "rot": 240, "scale": 0.71},
-    {"model": "decor_stones", "pos": [-49.08, 0, -129.1], "rot": 310, "scale": 1.21},
-    {"model": "decor_stones", "pos": [-13.22, 0, -136.75], "rot": 300, "scale": 1.29},
-    {"model": "decor_stones", "pos": [-28.08, 0, -127.55], "rot": 0, "scale": 1.15},
-    {"model": "decor_stones", "pos": [-33.62, 0, -141.04], "rot": 220, "scale": 0.98},
-    {"model": "decor_stones", "pos": [-38.48, 0, -141.85], "rot": 70, "scale": 0.77},
-    {"model": "decor_stones", "pos": [-14.89, 0, -135.92], "rot": 320, "scale": 1.02},
-    {"model": "decor_stones", "pos": [45.49, 0, -129.82], "rot": 60, "scale": 0.83},
-    {"model": "decor_stones", "pos": [0.6, 0, -141.46], "rot": 210, "scale": 1.05},
-    {"model": "decor_stones", "pos": [-29.5, 0, -124.52], "rot": 270, "scale": 1.25},
-    {"model": "decor_stones", "pos": [22.31, 0, -137.43], "rot": 240, "scale": 1.19},
-    {"model": "decor_grass", "pos": [66.1, 0, -17.87], "rot": 160, "scale": 1.02},
-    {"model": "decor_grass", "pos": [56.25, 0, -1.64], "rot": 330, "scale": 1.28},
+    {"model": "decor_leaves", "pos": [25.91, 0, -131.08], "rot": 140, "scale": 0.86},
+    {"model": "decor_leaves", "pos": [-25.22, 0, -141.55], "rot": 300, "scale": 1.01},
+    {"model": "decor_leaves", "pos": [46.72, 0, -138.43], "rot": 180, "scale": 0.81},
+    {"model": "decor_leaves", "pos": [-29.14, 0, -124.18], "rot": 70, "scale": 0.95},
+    {"model": "decor_leaves", "pos": [-29.69, 0, -139.63], "rot": 270, "scale": 0.82},
+    {"model": "decor_leaves", "pos": [-53.55, 0, -125.23], "rot": 110, "scale": 1.13},
+    {"model": "decor_leaves", "pos": [-33.09, 0, -138.25], "rot": 250, "scale": 1.18},
+    {"model": "decor_leaves", "pos": [3.27, 0, -124.46], "rot": 210, "scale": 0.88},
+    {"model": "decor_leaves", "pos": [5.45, 0, -141.24], "rot": 70, "scale": 1.29},
+    {"model": "decor_leaves", "pos": [1.84, 0, -136.65], "rot": 200, "scale": 1.0},
+    {"model": "decor_leaves", "pos": [-21.4, 0, -142.0], "rot": 160, "scale": 1.27},
+    {"model": "decor_leaves", "pos": [-34.2, 0, -132.54], "rot": 240, "scale": 0.96},
+    {"model": "decor_leaves", "pos": [-41.15, 0, -138.14], "rot": 30, "scale": 0.92},
+    {"model": "decor_leaves", "pos": [-50.4, 0, -132.68], "rot": 40, "scale": 0.96},
+    {"model": "decor_leaves", "pos": [-28.38, 0, -128.99], "rot": 350, "scale": 1.12},
+    {"model": "decor_leaves", "pos": [20.43, 0, -133.97], "rot": 260, "scale": 1.08},
+    {"model": "decor_leaves", "pos": [32.72, 0, -131.84], "rot": 80, "scale": 1.07},
+    {"model": "decor_leaves", "pos": [37.98, 0, -136.67], "rot": 110, "scale": 0.94},
+    {"model": "decor_leaves", "pos": [15.26, 0, -127.49], "rot": 260, "scale": 0.96},
+    {"model": "decor_leaves", "pos": [-20.53, 0, -129.52], "rot": 70, "scale": 0.78},
+    {"model": "decor_leaves", "pos": [-9.88, 0, -129.74], "rot": 80, "scale": 1.12},
+    {"model": "decor_leaves", "pos": [23.14, 0, -141.91], "rot": 240, "scale": 1.25},
+    {"model": "decor_leaves", "pos": [-44.69, 0, -132.27], "rot": 20, "scale": 1.16},
+    {"model": "decor_leaves", "pos": [-50.1, 0, -130.8], "rot": 280, "scale": 0.83},
+    {"model": "decor_leaves", "pos": [11.44, 0, -132.68], "rot": 30, "scale": 1.26},
+    {"model": "decor_leaves", "pos": [0.69, 0, -127.0], "rot": 160, "scale": 0.89},
+    {"model": "decor_leaves", "pos": [16.37, 0, -138.72], "rot": 20, "scale": 0.92},
+    {"model": "decor_leaves", "pos": [16.42, 0, -124.12], "rot": 100, "scale": 0.76},
+    {"model": "decor_leaves", "pos": [0.31, 0, -133.65], "rot": 10, "scale": 0.82},
+    {"model": "decor_leaves", "pos": [46.56, 0, -135.55], "rot": 180, "scale": 1.14},
+    {"model": "decor_leaves", "pos": [39.19, 0, -131.75], "rot": 50, "scale": 1.24},
+    {"model": "decor_leaves", "pos": [50.8, 0, -130.79], "rot": 170, "scale": 1.12},
+    {"model": "decor_leaves", "pos": [12.2, 0, -125.62], "rot": 280, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [-3.98, 0, -129.87], "rot": 10, "scale": 1.21},
+    {"model": "decor_leaves", "pos": [-50.33, 0, -139.59], "rot": 260, "scale": 0.85},
+    {"model": "decor_leaves", "pos": [-36.3, 0, -130.76], "rot": 10, "scale": 0.84},
+    {"model": "decor_leaves", "pos": [25.78, 0, -141.29], "rot": 160, "scale": 0.9},
+    {"model": "decor_leaves", "pos": [40.37, 0, -128.5], "rot": 180, "scale": 0.72},
+    {"model": "decor_leaves", "pos": [-2.64, 0, -134.43], "rot": 220, "scale": 1.08},
+    {"model": "decor_leaves", "pos": [-27.56, 0, -131.64], "rot": 40, "scale": 1.03},
+    {"model": "decor_leaves", "pos": [-20.24, 0, -135.53], "rot": 300, "scale": 0.73},
+    {"model": "decor_leaves", "pos": [-1.76, 0, -125.05], "rot": 60, "scale": 0.71},
+    {"model": "decor_leaves", "pos": [-19.51, 0, -140.8], "rot": 50, "scale": 1.09},
+    {"model": "decor_leaves", "pos": [-55.25, 0, -124.78], "rot": 90, "scale": 0.93},
+    {"model": "decor_leaves", "pos": [-1.85, 0, -131.76], "rot": 100, "scale": 1.21},
+    {"model": "decor_leaves", "pos": [44.75, 0, -133.56], "rot": 30, "scale": 1.26},
+    {"model": "decor_leaves", "pos": [37.76, 0, -130.78], "rot": 270, "scale": 0.93},
+    {"model": "decor_leaves", "pos": [-12.0, 0, -135.38], "rot": 30, "scale": 0.99},
+    {"model": "decor_leaves", "pos": [-58.74, 0, -127.01], "rot": 110, "scale": 0.78},
+    {"model": "decor_leaves", "pos": [43.84, 0, -126.73], "rot": 20, "scale": 1.09},
+    {"model": "decor_stones", "pos": [25.49, 0, -135.57], "rot": 260, "scale": 0.95},
+    {"model": "decor_stones", "pos": [-43.7, 0, -124.52], "rot": 130, "scale": 0.91},
+    {"model": "decor_stones", "pos": [-32.27, 0, -134.57], "rot": 210, "scale": 1.03},
+    {"model": "decor_stones", "pos": [16.58, 0, -126.11], "rot": 290, "scale": 1.29},
+    {"model": "decor_stones", "pos": [-56.97, 0, -133.88], "rot": 10, "scale": 1.28},
+    {"model": "decor_stones", "pos": [13.37, 0, -124.21], "rot": 250, "scale": 1.19},
+    {"model": "decor_stones", "pos": [-43.45, 0, -129.27], "rot": 330, "scale": 0.79},
+    {"model": "decor_stones", "pos": [-42.11, 0, -126.98], "rot": 240, "scale": 1.16},
+    {"model": "decor_stones", "pos": [42.55, 0, -135.57], "rot": 340, "scale": 1.26},
+    {"model": "decor_stones", "pos": [-41.49, 0, -139.96], "rot": 230, "scale": 1.21},
+    {"model": "decor_stones", "pos": [35.38, 0, -133.17], "rot": 30, "scale": 0.76},
+    {"model": "decor_stones", "pos": [23.31, 0, -127.49], "rot": 210, "scale": 0.77},
+    {"model": "decor_stones", "pos": [-29.68, 0, -128.13], "rot": 120, "scale": 1.08},
+    {"model": "decor_stones", "pos": [-37.85, 0, -128.59], "rot": 210, "scale": 1.27},
+    {"model": "decor_stones", "pos": [-35.05, 0, -139.98], "rot": 70, "scale": 1.15},
+    {"model": "decor_stones", "pos": [-33.07, 0, -135.37], "rot": 330, "scale": 0.99},
+    {"model": "decor_stones", "pos": [-1.09, 0, -133.62], "rot": 210, "scale": 0.91},
+    {"model": "decor_stones", "pos": [13.25, 0, -132.76], "rot": 290, "scale": 0.96},
+    {"model": "decor_stones", "pos": [45.55, 0, -126.81], "rot": 30, "scale": 1.03},
+    {"model": "decor_stones", "pos": [-24.38, 0, -135.28], "rot": 230, "scale": 0.74},
+    {"model": "decor_stones", "pos": [-11.15, 0, -141.58], "rot": 30, "scale": 1.11},
+    {"model": "decor_stones", "pos": [27.47, 0, -127.02], "rot": 30, "scale": 0.75},
+    {"model": "decor_stones", "pos": [9.67, 0, -125.31], "rot": 290, "scale": 1.19},
+    {"model": "decor_stones", "pos": [-57.99, 0, -124.73], "rot": 270, "scale": 1.06},
+    {"model": "decor_stones", "pos": [6.23, 0, -131.85], "rot": 170, "scale": 1.0},
+    {"model": "decor_stones", "pos": [17.13, 0, -133.6], "rot": 190, "scale": 0.79},
+    {"model": "decor_stones", "pos": [14.61, 0, -125.88], "rot": 110, "scale": 1.06},
+    {"model": "decor_stones", "pos": [-50.61, 0, -135.94], "rot": 200, "scale": 1.29},
+    {"model": "decor_stones", "pos": [-48.81, 0, -137.88], "rot": 210, "scale": 0.7},
+    {"model": "decor_stones", "pos": [-46.98, 0, -135.0], "rot": 30, "scale": 1.26},
+    {"model": "decor_grass", "pos": [59.81, 0, -36.82], "rot": 290, "scale": 1.15},
+    {"model": "decor_grass", "pos": [69.25, 0, -26.53], "rot": 120, "scale": 0.77},
+    {"model": "decor_grass", "pos": [63.39, 0, -17.15], "rot": 30, "scale": 0.96},
+    {"model": "decor_grass", "pos": [76.83, 0, -7.67], "rot": 170, "scale": 1.04},
+    {"model": "decor_grass", "pos": [67.44, 0, -14.39], "rot": 130, "scale": 1.04},
+    {"model": "decor_grass", "pos": [75.5, 0, -32.77], "rot": 250, "scale": 1.25},
+    {"model": "decor_grass", "pos": [78.13, 0, 0.84], "rot": 170, "scale": 1.16},
+    {"model": "decor_grass", "pos": [63.01, 0, -37.55], "rot": 200, "scale": 1.12},
+    {"model": "decor_grass", "pos": [75.56, 0, -11.9], "rot": 120, "scale": 1.17},
+    {"model": "decor_grass", "pos": [60.28, 0, -30.33], "rot": 120, "scale": 1.19},
+    {"model": "decor_grass", "pos": [60.4, 0, -10.88], "rot": 250, "scale": 1.28},
+    {"model": "decor_grass", "pos": [61.4, 0, 2.43], "rot": 60, "scale": 1.2},
+    {"model": "decor_grass", "pos": [69.13, 0, -14.2], "rot": 250, "scale": 1.1},
+    {"model": "decor_grass", "pos": [59.69, 0, -14.98], "rot": 80, "scale": 0.74},
+    {"model": "decor_grass", "pos": [61.24, 0, 3.22], "rot": 320, "scale": 1.1},
+    {"model": "decor_grass", "pos": [64.44, 0, -30.24], "rot": 330, "scale": 0.8},
+    {"model": "decor_grass", "pos": [70.09, 0, -37.17], "rot": 330, "scale": 1.17},
+    {"model": "decor_grass", "pos": [58.63, 0, -39.13], "rot": 160, "scale": 1.24},
+    {"model": "decor_grass", "pos": [68.54, 0, -1.83], "rot": 90, "scale": 1.06},
+    {"model": "decor_grass", "pos": [74.45, 0, 2.62], "rot": 330, "scale": 0.83},
+    {"model": "decor_grass", "pos": [57.47, 0, -38.74], "rot": 300, "scale": 1.22},
+    {"model": "decor_grass", "pos": [61.94, 0, -3.72], "rot": 200, "scale": 0.77},
+    {"model": "decor_grass", "pos": [79.95, 0, -9.36], "rot": 180, "scale": 0.95},
+    {"model": "decor_grass", "pos": [72.35, 0, -36.79], "rot": 120, "scale": 0.76},
+    {"model": "decor_grass", "pos": [72.27, 0, -9.36], "rot": 350, "scale": 0.86},
+    {"model": "decor_grass", "pos": [59.86, 0, -32.67], "rot": 290, "scale": 1.18},
+    {"model": "decor_grass", "pos": [61.07, 0, -3.22], "rot": 20, "scale": 1.09},
+    {"model": "decor_grass", "pos": [74.43, 0, -0.32], "rot": 100, "scale": 1.04},
+    {"model": "decor_grass", "pos": [67.85, 0, -12.48], "rot": 270, "scale": 0.87},
+    {"model": "decor_grass", "pos": [74.07, 0, -19.01], "rot": 110, "scale": 0.97},
+    {"model": "decor_grass", "pos": [69.53, 0, -24.47], "rot": 330, "scale": 0.71},
+    {"model": "decor_grass", "pos": [77.68, 0, -3.57], "rot": 350, "scale": 0.76},
+    {"model": "decor_grass", "pos": [66.51, 0, -32.58], "rot": 20, "scale": 1.05},
+    {"model": "decor_grass", "pos": [59.31, 0, -23.65], "rot": 190, "scale": 1.19},
+    {"model": "decor_grass", "pos": [76.07, 0, 0.76], "rot": 230, "scale": 0.86},
+    {"model": "decor_grass", "pos": [70.26, 0, -24.3], "rot": 160, "scale": 0.98},
+    {"model": "decor_grass", "pos": [70.13, 0, -14.49], "rot": 0, "scale": 0.99},
+    {"model": "decor_grass", "pos": [66.68, 0, -26.61], "rot": 40, "scale": 0.95},
+    {"model": "decor_grass", "pos": [75.69, 0, -0.2], "rot": 110, "scale": 0.82},
+    {"model": "decor_grass", "pos": [57.06, 0, -5.52], "rot": 260, "scale": 1.21},
+    {"model": "decor_grass", "pos": [80.89, 0, -1.35], "rot": 40, "scale": 0.78},
+    {"model": "decor_grass", "pos": [72.6, 0, -31.37], "rot": 270, "scale": 0.82},
+    {"model": "decor_grass", "pos": [66.44, 0, -15.39], "rot": 210, "scale": 0.91},
+    {"model": "decor_grass", "pos": [67.8, 0, -22.52], "rot": 190, "scale": 1.26},
+    {"model": "decor_grass", "pos": [57.13, 0, -25.44], "rot": 150, "scale": 0.82},
+    {"model": "decor_grass", "pos": [67.63, 0, 3.8], "rot": 210, "scale": 1.13},
+    {"model": "decor_grass", "pos": [64.22, 0, -2.25], "rot": 330, "scale": 0.86},
+    {"model": "decor_grass", "pos": [66.08, 0, -34.52], "rot": 350, "scale": 1.04},
+    {"model": "decor_grass", "pos": [77.23, 0, -19.31], "rot": 70, "scale": 1.09},
+    {"model": "decor_grass", "pos": [57.96, 0, -24.05], "rot": 50, "scale": 0.82},
+    {"model": "decor_grass", "pos": [66.3, 0, -24.41], "rot": 250, "scale": 1.17},
+    {"model": "decor_grass", "pos": [66.28, 0, -0.86], "rot": 250, "scale": 1.11},
+    {"model": "decor_grass", "pos": [71.04, 0, -22.82], "rot": 140, "scale": 0.77},
+    {"model": "decor_grass", "pos": [81.82, 0, -37.12], "rot": 180, "scale": 1.07},
+    {"model": "decor_grass", "pos": [78.16, 0, -35.99], "rot": 60, "scale": 1.0},
+    {"model": "decor_grass", "pos": [74.89, 0, 3.46], "rot": 140, "scale": 1.25},
+    {"model": "decor_grass", "pos": [61.36, 0, -3.71], "rot": 10, "scale": 1.13},
+    {"model": "decor_grass", "pos": [73.73, 0, -35.39], "rot": 220, "scale": 1.03},
+    {"model": "decor_grass", "pos": [80.58, 0, -35.56], "rot": 140, "scale": 1.26},
+    {"model": "decor_grass", "pos": [80.96, 0, 1.67], "rot": 40, "scale": 1.02},
+    {"model": "decor_grass", "pos": [63.22, 0, -26.56], "rot": 150, "scale": 0.96},
+    {"model": "decor_grass", "pos": [68.34, 0, -28.9], "rot": 120, "scale": 1.23},
+    {"model": "decor_grass", "pos": [58.08, 0, -24.53], "rot": 20, "scale": 1.18},
+    {"model": "decor_grass", "pos": [81.06, 0, -13.0], "rot": 340, "scale": 1.07},
+    {"model": "decor_grass", "pos": [61.17, 0, -33.4], "rot": 100, "scale": 1.3},
+    {"model": "decor_grass", "pos": [62.49, 0, -36.99], "rot": 40, "scale": 0.96},
+    {"model": "decor_grass", "pos": [81.78, 0, -11.12], "rot": 250, "scale": 0.97},
+    {"model": "decor_grass", "pos": [79.77, 0, 3.87], "rot": 330, "scale": 0.73},
+    {"model": "decor_grass", "pos": [67.49, 0, -38.16], "rot": 300, "scale": 1.04},
+    {"model": "decor_grass", "pos": [65.26, 0, -5.88], "rot": 70, "scale": 0.91},
+    {"model": "decor_grass", "pos": [73.83, 0, -0.06], "rot": 300, "scale": 1.22},
+    {"model": "decor_grass", "pos": [58.13, 0, -2.04], "rot": 150, "scale": 1.25},
+    {"model": "decor_grass", "pos": [73.02, 0, -22.25], "rot": 150, "scale": 1.23},
+    {"model": "decor_grass", "pos": [60.96, 0, -19.51], "rot": 30, "scale": 1.18},
+    {"model": "decor_grass", "pos": [73.59, 0, -32.92], "rot": 180, "scale": 0.99},
+    {"model": "decor_grass", "pos": [71.79, 0, -39.31], "rot": 10, "scale": 0.88},
+    {"model": "decor_grass", "pos": [78.98, 0, -27.36], "rot": 260, "scale": 1.16},
+    {"model": "decor_grass", "pos": [63.21, 0, -39.2], "rot": 220, "scale": 0.72},
+    {"model": "decor_grass", "pos": [71.61, 0, -22.7], "rot": 210, "scale": 0.93},
+    {"model": "decor_grass", "pos": [60.53, 0, -34.71], "rot": 10, "scale": 0.94},
+    {"model": "decor_grass", "pos": [69.71, 0, -30.99], "rot": 60, "scale": 1.14},
+    {"model": "decor_grass", "pos": [75.11, 0, -23.46], "rot": 50, "scale": 1.1},
+    {"model": "decor_grass", "pos": [74.41, 0, -18.31], "rot": 50, "scale": 1.18},
+    {"model": "decor_grass", "pos": [61.31, 0, -11.42], "rot": 230, "scale": 1.19},
+    {"model": "decor_grass", "pos": [74.32, 0, -14.27], "rot": 20, "scale": 0.84},
+    {"model": "decor_grass", "pos": [63.22, 0, -2.17], "rot": 330, "scale": 1.04},
+    {"model": "decor_grass", "pos": [72.72, 0, -0.21], "rot": 40, "scale": 0.73},
+    {"model": "decor_grass", "pos": [81.68, 0, 0.68], "rot": 80, "scale": 1.17},
+    {"model": "decor_grass", "pos": [74.46, 0, -12.45], "rot": 150, "scale": 0.88},
+    {"model": "decor_grass", "pos": [78.73, 0, -12.25], "rot": 30, "scale": 1.05},
+    {"model": "decor_grass", "pos": [68.38, 0, -7.38], "rot": 240, "scale": 1.21},
+    {"model": "decor_grass", "pos": [68.07, 0, 2.68], "rot": 180, "scale": 1.07},
+    {"model": "decor_grass", "pos": [62.39, 0, -6.34], "rot": 40, "scale": 1.07},
+    {"model": "decor_grass", "pos": [66.77, 0, -8.93], "rot": 220, "scale": 1.07},
+    {"model": "decor_grass", "pos": [56.67, 0, -27.23], "rot": 120, "scale": 0.92},
+    {"model": "decor_grass", "pos": [81.83, 0, -5.31], "rot": 130, "scale": 1.24},
+    {"model": "decor_grass", "pos": [63.28, 0, -35.6], "rot": 310, "scale": 0.88},
+    {"model": "decor_grass", "pos": [63.59, 0, -1.49], "rot": 90, "scale": 1.03},
+    {"model": "decor_grass", "pos": [73.5, 0, -32.18], "rot": 200, "scale": 0.84},
+    {"model": "decor_grass", "pos": [72.91, 0, -12.2], "rot": 310, "scale": 1.24},
+    {"model": "decor_grass", "pos": [62.55, 0, -12.74], "rot": 0, "scale": 1.15},
+    {"model": "decor_grass", "pos": [77.56, 0, -8.7], "rot": 60, "scale": 1.1},
+    {"model": "decor_grass", "pos": [66.77, 0, -1.77], "rot": 170, "scale": 0.73},
+    {"model": "decor_grass", "pos": [74.71, 0, -10.98], "rot": 50, "scale": 1.23},
+    {"model": "decor_grass", "pos": [80.75, 0, -12.78], "rot": 320, "scale": 1.02},
+    {"model": "decor_grass", "pos": [68.23, 0, -2.27], "rot": 0, "scale": 1.28},
+    {"model": "decor_grass", "pos": [65.58, 0, -4.57], "rot": 110, "scale": 0.81},
+    {"model": "decor_grass", "pos": [61.91, 0, -4.35], "rot": 330, "scale": 0.92},
+    {"model": "decor_grass", "pos": [73.17, 0, -17.69], "rot": 270, "scale": 0.72},
+    {"model": "decor_grass", "pos": [65.82, 0, -26.41], "rot": 210, "scale": 0.97},
+    {"model": "decor_grass", "pos": [59.56, 0, -25.24], "rot": 210, "scale": 0.8},
+    {"model": "decor_grass", "pos": [74.8, 0, 0.15], "rot": 230, "scale": 0.77},
+    {"model": "decor_grass", "pos": [78.38, 0, -29.58], "rot": 90, "scale": 0.99},
+    {"model": "decor_grass", "pos": [62.13, 0, -11.78], "rot": 110, "scale": 0.78},
+    {"model": "decor_grass", "pos": [61.96, 0, -18.71], "rot": 60, "scale": 1.11},
+    {"model": "decor_grass", "pos": [58.86, 0, -1.96], "rot": 60, "scale": 1.2},
+    {"model": "decor_grass", "pos": [72.13, 0, -12.84], "rot": 110, "scale": 1.14},
+    {"model": "decor_grass", "pos": [64.21, 0, -24.52], "rot": 90, "scale": 1.02},
+    {"model": "decor_grass", "pos": [57.64, 0, -38.24], "rot": 220, "scale": 1.14},
+    {"model": "decor_grass", "pos": [73.16, 0, -10.97], "rot": 200, "scale": 1.26},
+    {"model": "decor_grass", "pos": [62.92, 0, -19.51], "rot": 200, "scale": 1.09},
+    {"model": "decor_grass", "pos": [71.02, 0, -28.74], "rot": 80, "scale": 0.93},
+    {"model": "decor_grass", "pos": [73.29, 0, -6.97], "rot": 290, "scale": 0.83},
+    {"model": "decor_grass", "pos": [67.96, 0, -32.06], "rot": 90, "scale": 1.1},
+    {"model": "decor_grass", "pos": [63.41, 0, -32.74], "rot": 30, "scale": 0.91},
+    {"model": "decor_grass", "pos": [64.7, 0, -18.18], "rot": 260, "scale": 0.97},
+    {"model": "decor_grass", "pos": [77.51, 0, -34.39], "rot": 240, "scale": 0.82},
+    {"model": "decor_grass", "pos": [72.48, 0, -15.09], "rot": 320, "scale": 0.89},
+    {"model": "decor_grass", "pos": [74.7, 0, -27.38], "rot": 100, "scale": 1.14},
+    {"model": "decor_grass", "pos": [72.22, 0, 0.52], "rot": 140, "scale": 0.82},
+    {"model": "decor_grass", "pos": [70.53, 0, -36.18], "rot": 60, "scale": 1.08},
+    {"model": "decor_grass", "pos": [69.89, 0, -31.4], "rot": 70, "scale": 0.8},
+    {"model": "decor_grass", "pos": [60.78, 0, -16.29], "rot": 100, "scale": 1.22},
+    {"model": "decor_grass", "pos": [68.67, 0, -35.56], "rot": 60, "scale": 1.25},
+    {"model": "decor_grass", "pos": [68.64, 0, -38.43], "rot": 70, "scale": 1.29},
+    {"model": "decor_grass", "pos": [81.85, 0, -30.17], "rot": 90, "scale": 0.94},
+    {"model": "decor_grass", "pos": [65.11, 0, -23.15], "rot": 250, "scale": 0.82},
+    {"model": "decor_grass", "pos": [68.66, 0, 2.45], "rot": 150, "scale": 1.09},
+    {"model": "decor_grass", "pos": [58.26, 0, -14.05], "rot": 20, "scale": 0.77},
+    {"model": "decor_grass", "pos": [56.1, 0, -11.89], "rot": 20, "scale": 1.01},
+    {"model": "decor_grass", "pos": [61.25, 0, -0.48], "rot": 160, "scale": 0.83},
+    {"model": "decor_grass", "pos": [76.34, 0, -12.03], "rot": 150, "scale": 0.94},
+    {"model": "decor_grass", "pos": [63.72, 0, -23.61], "rot": 250, "scale": 1.08},
+    {"model": "decor_grass", "pos": [65.64, 0, -32.01], "rot": 220, "scale": 0.88},
+    {"model": "decor_grass", "pos": [70.0, 0, 2.55], "rot": 220, "scale": 0.91},
+    {"model": "decor_grass", "pos": [66.67, 0, -36.12], "rot": 330, "scale": 0.77},
+    {"model": "decor_grass", "pos": [67.1, 0, -23.51], "rot": 40, "scale": 0.99},
+    {"model": "decor_grass", "pos": [62.08, 0, -1.59], "rot": 290, "scale": 0.77},
+    {"model": "decor_grass", "pos": [79.18, 0, -8.64], "rot": 120, "scale": 1.02},
+    {"model": "decor_grass", "pos": [74.79, 0, -29.98], "rot": 180, "scale": 1.04},
+    {"model": "decor_grass", "pos": [74.53, 0, -39.5], "rot": 60, "scale": 0.96},
+    {"model": "decor_grass", "pos": [69.22, 0, -2.5], "rot": 260, "scale": 1.13},
+    {"model": "decor_grass", "pos": [77.76, 0, 2.96], "rot": 180, "scale": 0.87},
+    {"model": "decor_grass", "pos": [72.06, 0, -39.81], "rot": 110, "scale": 0.84},
+    {"model": "decor_grass", "pos": [57.39, 0, -24.54], "rot": 70, "scale": 0.82},
+    {"model": "decor_grass", "pos": [56.22, 0, -13.6], "rot": 70, "scale": 0.77},
+    {"model": "decor_grass", "pos": [66.47, 0, -25.14], "rot": 320, "scale": 1.02},
+    {"model": "decor_grass", "pos": [80.78, 0, -30.5], "rot": 340, "scale": 0.86},
+    {"model": "decor_grass", "pos": [72.53, 0, -14.54], "rot": 170, "scale": 1.21},
+    {"model": "decor_grass", "pos": [64.55, 0, -21.38], "rot": 340, "scale": 1.14},
+    {"model": "decor_grass", "pos": [62.6, 0, -22.83], "rot": 320, "scale": 0.93},
+    {"model": "decor_grass", "pos": [62.83, 0, -14.92], "rot": 330, "scale": 1.28},
     {"model": "decor_grass", "pos": [76.12, 0, -20.1], "rot": 300, "scale": 1.18},
     {"model": "decor_grass", "pos": [74.67, 0, -29.57], "rot": 60, "scale": 0.95},
     {"model": "decor_grass", "pos": [66.01, 0, 2.22], "rot": 110, "scale": 0.73},
@@ -29025,10 +29889,11 @@ if __name__ == "__main__":
     {"model": "decor_grass", "pos": [60.66, 0, -32.14], "rot": 280, "scale": 1.14},
     {"model": "decor_grass", "pos": [63.82, 0, -13.93], "rot": 300, "scale": 0.73},
     {"model": "decor_grass", "pos": [73.57, 0, -10.98], "rot": 190, "scale": 1.17},
-    {"model": "decor_grass", "pos": [70.05, 0, -0.97], "rot": 160, "scale": 0.82},
-    {"model": "decor_grass", "pos": [58.1, 0, -36.61], "rot": 30, "scale": 0.91},
-    {"model": "decor_grass", "pos": [62.53, 0, -34.35], "rot": 120, "scale": 0.87},
-    {"model": "decor_grass", "pos": [71.54, 0, -17.09], "rot": 110, "scale": 0.8},
+    {"model": "decor_grass", "pos": [57.69, 0, 1.1], "rot": 340, "scale": 0.97},
+    {"model": "decor_grass", "pos": [62.91, 0, -28.67], "rot": 250, "scale": 0.75},
+    {"model": "decor_grass", "pos": [58.01, 0, -2.49], "rot": 210, "scale": 0.91},
+    {"model": "decor_grass", "pos": [81.26, 0, -30.66], "rot": 170, "scale": 1.08},
+    {"model": "decor_grass", "pos": [61.74, 0, -12.48], "rot": 110, "scale": 0.8},
     {"model": "decor_grass", "pos": [60.2, 0, -35.9], "rot": 60, "scale": 1.03},
     {"model": "decor_grass", "pos": [73.66, 0, -18.58], "rot": 290, "scale": 1.21},
     {"model": "decor_grass", "pos": [63.73, 0, -0.63], "rot": 200, "scale": 1.05},
@@ -29039,27 +29904,26 @@ if __name__ == "__main__":
     {"model": "decor_grass", "pos": [80.39, 0, -27.06], "rot": 160, "scale": 1.05},
     {"model": "decor_grass", "pos": [78.75, 0, -31.15], "rot": 20, "scale": 1.09},
     {"model": "decor_grass", "pos": [68.0, 0, -10.89], "rot": 110, "scale": 1.19},
-    {"model": "decor_grass", "pos": [60.61, 0, -21.09], "rot": 40, "scale": 0.88},
-    {"model": "decor_grass", "pos": [66.24, 0, -9.46], "rot": 130, "scale": 1.04},
-    {"model": "decor_grass", "pos": [69.85, 0, -15.67], "rot": 280, "scale": 1.13},
-    {"model": "decor_grass", "pos": [62.61, 0, -15.76], "rot": 60, "scale": 1.1},
-    {"model": "decor_grass", "pos": [57.22, 0, -25.03], "rot": 80, "scale": 0.95},
-    {"model": "decor_grass", "pos": [61.67, 0, -15.6], "rot": 20, "scale": 1.24},
-    {"model": "decor_grass", "pos": [57.15, 0, -13.61], "rot": 230, "scale": 1.16},
-    {"model": "decor_grass", "pos": [60.44, 0, -25.37], "rot": 280, "scale": 1.2},
-    {"model": "decor_grass", "pos": [76.97, 0, -25.41], "rot": 350, "scale": 0.78},
+    {"model": "decor_grass", "pos": [69.99, 0, -21.82], "rot": 110, "scale": 0.85},
+    {"model": "decor_grass", "pos": [58.26, 0, -26.68], "rot": 250, "scale": 1.22},
+    {"model": "decor_grass", "pos": [78.09, 0, -30.94], "rot": 340, "scale": 0.97},
+    {"model": "decor_grass", "pos": [72.58, 0, -8.62], "rot": 160, "scale": 0.72},
+    {"model": "decor_grass", "pos": [64.41, 0, -10.38], "rot": 20, "scale": 0.94},
+    {"model": "decor_grass", "pos": [57.11, 0, -34.34], "rot": 130, "scale": 0.74},
+    {"model": "decor_grass", "pos": [62.17, 0, -0.29], "rot": 20, "scale": 1.02},
+    {"model": "decor_grass", "pos": [73.18, 0, -23.81], "rot": 260, "scale": 0.8},
+    {"model": "decor_grass", "pos": [64.65, 0, -3.67], "rot": 120, "scale": 0.9},
+    {"model": "decor_grass", "pos": [80.61, 0, -3.12], "rot": 350, "scale": 0.78},
     {"model": "decor_grass", "pos": [81.56, 0, -37.75], "rot": 340, "scale": 0.92},
     {"model": "decor_grass", "pos": [72.04, 0, -31.72], "rot": 230, "scale": 1.08},
     {"model": "decor_grass", "pos": [57.74, 0, -31.68], "rot": 190, "scale": 0.91},
     {"model": "decor_grass", "pos": [68.03, 0, -2.72], "rot": 310, "scale": 1.0},
-    {"model": "decor_grass", "pos": [72.4, 0, -4.67], "rot": 70, "scale": 0.99},
-    {"model": "decor_grass", "pos": [66.83, 0, -16.07], "rot": 80, "scale": 0.97},
-    {"model": "decor_grass", "pos": [79.06, 0, -7.54], "rot": 130, "scale": 1.3},
-    {"model": "decor_grass", "pos": [74.34, 0, -3.31], "rot": 230, "scale": 1.25},
+    {"model": "decor_grass", "pos": [59.2, 0, -30.1], "rot": 340, "scale": 1.09},
+    {"model": "decor_grass", "pos": [67.81, 0, -0.97], "rot": 110, "scale": 1.24},
+    {"model": "decor_grass", "pos": [78.8, 0, -20.92], "rot": 230, "scale": 1.25},
     {"model": "decor_grass", "pos": [73.32, 0, -35.21], "rot": 180, "scale": 0.89},
-    {"model": "decor_grass", "pos": [63.78, 0, -23.04], "rot": 20, "scale": 0.99},
-    {"model": "decor_grass", "pos": [71.56, 0, -2.47], "rot": 120, "scale": 0.9},
-    {"model": "decor_grass", "pos": [59.14, 0, -37.25], "rot": 200, "scale": 0.73},
+    {"model": "decor_grass", "pos": [77.11, 0, 0.98], "rot": 210, "scale": 0.81},
+    {"model": "decor_grass", "pos": [57.83, 0, -23.63], "rot": 200, "scale": 0.73},
     {"model": "decor_grass", "pos": [81.85, 0, -38.09], "rot": 150, "scale": 1.28},
     {"model": "decor_grass", "pos": [57.33, 0, -34.86], "rot": 260, "scale": 0.77},
     {"model": "decor_grass", "pos": [76.92, 0, -13.82], "rot": 50, "scale": 1.25},
@@ -29076,8 +29940,8 @@ if __name__ == "__main__":
     {"model": "decor_grass", "pos": [73.96, 0, -23.51], "rot": 50, "scale": 0.88},
     {"model": "decor_grass", "pos": [58.44, 0, -5.98], "rot": 200, "scale": 1.16},
     {"model": "decor_grass", "pos": [65.34, 0, 1.18], "rot": 300, "scale": 1.21},
-    {"model": "decor_grass", "pos": [78.08, 0, -27.07], "rot": 330, "scale": 1.2},
-    {"model": "decor_grass", "pos": [68.57, 0, 2.64], "rot": 50, "scale": 1.08},
+    {"model": "decor_grass", "pos": [74.31, 0, -3.36], "rot": 180, "scale": 1.06},
+    {"model": "decor_grass", "pos": [77.58, 0, -18.73], "rot": 50, "scale": 1.08},
     {"model": "decor_grass", "pos": [70.15, 0, -11.61], "rot": 310, "scale": 1.08},
     {"model": "decor_grass", "pos": [76.95, 0, -32.86], "rot": 90, "scale": 0.71},
     {"model": "decor_grass", "pos": [65.85, 0, -24.11], "rot": 60, "scale": 0.95},
@@ -29087,31 +29951,28 @@ if __name__ == "__main__":
     {"model": "decor_grass", "pos": [61.52, 0, -2.96], "rot": 300, "scale": 0.81},
     {"model": "decor_grass", "pos": [65.41, 0, -17.43], "rot": 130, "scale": 1.09},
     {"model": "decor_grass", "pos": [71.3, 0, -38.68], "rot": 170, "scale": 1.07},
-    {"model": "decor_grass", "pos": [80.52, 0, -10.63], "rot": 250, "scale": 1.23},
-    {"model": "decor_grass", "pos": [66.74, 0, -32.02], "rot": 220, "scale": 0.79},
-    {"model": "decor_grass", "pos": [58.64, 0, -17.14], "rot": 270, "scale": 1.2},
+    {"model": "decor_grass", "pos": [81.18, 0, -1.1], "rot": 260, "scale": 0.8},
+    {"model": "decor_grass", "pos": [68.15, 0, -31.33], "rot": 270, "scale": 1.2},
     {"model": "decor_grass", "pos": [79.67, 0, -0.91], "rot": 80, "scale": 0.87},
     {"model": "decor_grass", "pos": [75.31, 0, -31.26], "rot": 260, "scale": 0.89},
-    {"model": "decor_grass", "pos": [57.92, 0, -32.15], "rot": 150, "scale": 1.12},
-    {"model": "decor_grass", "pos": [73.48, 0, -21.42], "rot": 10, "scale": 1.18},
-    {"model": "decor_grass", "pos": [60.23, 0, -11.58], "rot": 280, "scale": 1.26},
-    {"model": "decor_grass", "pos": [65.71, 0, -12.3], "rot": 350, "scale": 1.17},
-    {"model": "decor_grass", "pos": [59.0, 0, -26.72], "rot": 30, "scale": 0.91},
-    {"model": "decor_grass", "pos": [59.76, 0, -28.83], "rot": 130, "scale": 0.73},
-    {"model": "decor_grass", "pos": [59.79, 0, -3.88], "rot": 270, "scale": 0.77},
-    {"model": "decor_grass", "pos": [68.85, 0, -4.62], "rot": 30, "scale": 0.88},
-    {"model": "decor_grass", "pos": [71.26, 0, -13.17], "rot": 290, "scale": 1.27},
-    {"model": "decor_grass", "pos": [79.37, 0, -36.23], "rot": 20, "scale": 0.92},
-    {"model": "decor_grass", "pos": [67.5, 0, -7.1], "rot": 100, "scale": 0.79},
-    {"model": "decor_grass", "pos": [69.48, 0, -7.17], "rot": 170, "scale": 0.88},
+    {"model": "decor_grass", "pos": [62.01, 0, -34.86], "rot": 40, "scale": 0.78},
+    {"model": "decor_grass", "pos": [58.69, 0, -9.29], "rot": 270, "scale": 0.93},
+    {"model": "decor_grass", "pos": [56.79, 0, -2.77], "rot": 130, "scale": 1.09},
+    {"model": "decor_grass", "pos": [67.76, 0, -9.89], "rot": 100, "scale": 1.08},
+    {"model": "decor_grass", "pos": [80.27, 0, -15.64], "rot": 70, "scale": 1.28},
+    {"model": "decor_grass", "pos": [71.15, 0, -24.56], "rot": 90, "scale": 1.2},
+    {"model": "decor_grass", "pos": [70.74, 0, -38.11], "rot": 90, "scale": 1.14},
+    {"model": "decor_grass", "pos": [61.82, 0, 2.75], "rot": 70, "scale": 0.81},
+    {"model": "decor_grass", "pos": [64.44, 0, -13.74], "rot": 230, "scale": 1.26},
+    {"model": "decor_grass", "pos": [71.86, 0, -19.62], "rot": 50, "scale": 1.16},
+    {"model": "decor_grass", "pos": [56.95, 0, -21.63], "rot": 100, "scale": 0.8},
+    {"model": "decor_grass", "pos": [64.66, 0, -37.52], "rot": 170, "scale": 0.88},
     {"model": "decor_grass", "pos": [57.83, 0, -39.08], "rot": 240, "scale": 0.94},
     {"model": "decor_grass", "pos": [71.01, 0, -20.79], "rot": 40, "scale": 1.24},
     {"model": "decor_grass", "pos": [67.03, 0, -22.54], "rot": 180, "scale": 1.02},
     {"model": "decor_grass", "pos": [76.31, 0, -27.22], "rot": 280, "scale": 1.1},
-    {"model": "decor_grass", "pos": [56.34, 0, -27.29], "rot": 10, "scale": 1.22},
-    {"model": "decor_grass", "pos": [58.45, 0, 3.8], "rot": 180, "scale": 1.16},
-    {"model": "decor_grass", "pos": [60.15, 0, -8.67], "rot": 160, "scale": 1.19},
-    {"model": "decor_grass", "pos": [80.06, 0, -11.83], "rot": 80, "scale": 1.24},
+    {"model": "decor_grass", "pos": [81.13, 0, -39.08], "rot": 70, "scale": 0.76},
+    {"model": "decor_grass", "pos": [64.0, 0, -4.13], "rot": 260, "scale": 1.08},
     {"model": "decor_grass", "pos": [78.55, 0, -34.97], "rot": 20, "scale": 1.13},
     {"model": "decor_grass", "pos": [62.32, 0, -0.77], "rot": 340, "scale": 0.88},
     {"model": "decor_grass", "pos": [60.06, 0, 2.48], "rot": 140, "scale": 0.85},
@@ -29125,247 +29986,148 @@ if __name__ == "__main__":
     {"model": "decor_grass", "pos": [60.97, 0, -2.49], "rot": 60, "scale": 0.83},
     {"model": "decor_grass", "pos": [71.09, 0, -18.1], "rot": 180, "scale": 0.82},
     {"model": "decor_grass", "pos": [81.43, 0, -7.21], "rot": 310, "scale": 1.16},
-    {"model": "decor_grass", "pos": [64.81, 0, -18.24], "rot": 110, "scale": 1.06},
-    {"model": "decor_grass", "pos": [70.64, 0, -35.25], "rot": 190, "scale": 0.82},
-    {"model": "decor_grass", "pos": [62.72, 0, -20.14], "rot": 10, "scale": 1.11},
-    {"model": "decor_grass", "pos": [79.95, 0, -39.14], "rot": 290, "scale": 1.02},
-    {"model": "decor_grass", "pos": [73.66, 0, -31.39], "rot": 340, "scale": 0.93},
-    {"model": "decor_grass", "pos": [62.13, 0, 0.47], "rot": 180, "scale": 0.78},
-    {"model": "decor_grass", "pos": [61.25, 0, -39.95], "rot": 160, "scale": 0.76},
-    {"model": "decor_grass", "pos": [78.9, 0, -28.37], "rot": 340, "scale": 1.26},
-    {"model": "decor_grass", "pos": [78.33, 0, -31.02], "rot": 40, "scale": 1.29},
-    {"model": "decor_grass", "pos": [76.15, 0, -25.6], "rot": 40, "scale": 1.26},
-    {"model": "decor_grass", "pos": [77.04, 0, -20.28], "rot": 210, "scale": 1.03},
-    {"model": "decor_grass", "pos": [65.96, 0, -13.43], "rot": 20, "scale": 0.7},
-    {"model": "decor_grass", "pos": [59.66, 0, -33.67], "rot": 210, "scale": 0.86},
-    {"model": "decor_grass", "pos": [65.03, 0, -38.05], "rot": 20, "scale": 1.26},
-    {"model": "decor_grass", "pos": [78.22, 0, 1.49], "rot": 10, "scale": 0.8},
-    {"model": "decor_grass", "pos": [63.87, 0, -31.29], "rot": 190, "scale": 0.85},
-    {"model": "decor_grass", "pos": [70.49, 0, -19.79], "rot": 0, "scale": 1.29},
-    {"model": "decor_grass", "pos": [65.48, 0, -10.65], "rot": 50, "scale": 0.71},
-    {"model": "decor_grass", "pos": [74.65, 0, -22.31], "rot": 290, "scale": 0.93},
-    {"model": "decor_grass", "pos": [73.81, 0, 3.12], "rot": 320, "scale": 1.06},
-    {"model": "decor_grass", "pos": [56.57, 0, -26.1], "rot": 90, "scale": 0.88},
-    {"model": "decor_grass", "pos": [69.02, 0, -20.07], "rot": 330, "scale": 0.88},
-    {"model": "decor_grass", "pos": [81.57, 0, -18.24], "rot": 310, "scale": 1.12},
-    {"model": "decor_grass", "pos": [77.37, 0, -33.61], "rot": 40, "scale": 1.29},
-    {"model": "decor_grass", "pos": [65.94, 0, -19.77], "rot": 170, "scale": 1.2},
-    {"model": "decor_grass", "pos": [64.02, 0, -3.23], "rot": 80, "scale": 0.93},
-    {"model": "decor_grass", "pos": [75.3, 0, -4.58], "rot": 220, "scale": 1.12},
-    {"model": "decor_grass", "pos": [79.6, 0, -29.11], "rot": 230, "scale": 0.82},
-    {"model": "decor_grass", "pos": [71.35, 0, -8.23], "rot": 290, "scale": 1.28},
-    {"model": "decor_grass", "pos": [56.58, 0, -36.36], "rot": 340, "scale": 1.24},
-    {"model": "decor_grass", "pos": [62.15, 0, -6.58], "rot": 260, "scale": 0.89},
-    {"model": "decor_grass", "pos": [62.65, 0, -38.26], "rot": 220, "scale": 1.27},
-    {"model": "decor_grass", "pos": [59.96, 0, -9.02], "rot": 330, "scale": 0.98},
-    {"model": "decor_grass", "pos": [77.43, 0, -19.74], "rot": 120, "scale": 1.3},
-    {"model": "decor_grass", "pos": [60.75, 0, -14.32], "rot": 240, "scale": 1.16},
-    {"model": "decor_grass", "pos": [60.1, 0, -24.11], "rot": 60, "scale": 0.93},
-    {"model": "decor_grass", "pos": [58.64, 0, -10.34], "rot": 180, "scale": 0.96},
-    {"model": "decor_grass", "pos": [78.14, 0, -10.72], "rot": 30, "scale": 1.11},
-    {"model": "decor_grass", "pos": [81.31, 0, -13.4], "rot": 330, "scale": 1.2},
-    {"model": "decor_grass", "pos": [56.97, 0, -9.93], "rot": 240, "scale": 0.77},
-    {"model": "decor_grass", "pos": [67.64, 0, -23.94], "rot": 150, "scale": 1.26},
-    {"model": "decor_grass", "pos": [70.26, 0, -22.53], "rot": 220, "scale": 1.12},
-    {"model": "decor_grass", "pos": [79.47, 0, -21.87], "rot": 150, "scale": 0.87},
-    {"model": "decor_grass", "pos": [68.12, 0, -25.54], "rot": 0, "scale": 0.87},
-    {"model": "decor_grass", "pos": [60.56, 0, -3.24], "rot": 170, "scale": 0.95},
-    {"model": "decor_grass", "pos": [78.17, 0, -0.66], "rot": 40, "scale": 1.08},
-    {"model": "decor_grass", "pos": [68.08, 0, -24.03], "rot": 110, "scale": 0.79},
-    {"model": "decor_grass", "pos": [74.04, 0, -21.6], "rot": 200, "scale": 1.22},
-    {"model": "decor_grass", "pos": [75.94, 0, 3.52], "rot": 310, "scale": 1.03},
-    {"model": "decor_grass", "pos": [77.99, 0, 2.74], "rot": 200, "scale": 1.18},
-    {"model": "decor_grass", "pos": [61.88, 0, -8.23], "rot": 350, "scale": 1.18},
-    {"model": "decor_grass", "pos": [63.6, 0, -29.19], "rot": 70, "scale": 1.21},
-    {"model": "decor_grass", "pos": [66.73, 0, -34.91], "rot": 260, "scale": 1.28},
-    {"model": "decor_grass", "pos": [62.58, 0, -2.34], "rot": 180, "scale": 0.88},
-    {"model": "decor_grass", "pos": [68.57, 0, -24.14], "rot": 230, "scale": 1.27},
-    {"model": "decor_grass", "pos": [73.94, 0, -34.14], "rot": 130, "scale": 1.17},
-    {"model": "decor_grass", "pos": [72.52, 0, -24.13], "rot": 10, "scale": 1.09},
-    {"model": "decor_grass", "pos": [59.38, 0, -8.36], "rot": 210, "scale": 0.79},
-    {"model": "decor_grass", "pos": [59.13, 0, -18.13], "rot": 150, "scale": 1.18},
-    {"model": "decor_grass", "pos": [62.34, 0, -14.41], "rot": 140, "scale": 0.71},
-    {"model": "decor_grass", "pos": [77.36, 0, -10.6], "rot": 0, "scale": 1.19},
-    {"model": "decor_grass", "pos": [80.88, 0, -1.08], "rot": 260, "scale": 1.12},
-    {"model": "decor_grass", "pos": [60.58, 0, -4.83], "rot": 220, "scale": 1.13},
-    {"model": "decor_grass", "pos": [56.6, 0, -17.1], "rot": 350, "scale": 0.92},
-    {"model": "decor_grass", "pos": [57.31, 0, -11.48], "rot": 270, "scale": 0.88},
-    {"model": "decor_grass", "pos": [66.42, 0, -4.4], "rot": 0, "scale": 1.1},
-    {"model": "decor_grass", "pos": [80.64, 0, -34.03], "rot": 190, "scale": 1.12},
-    {"model": "decor_grass", "pos": [68.86, 0, -5.9], "rot": 330, "scale": 0.91},
-    {"model": "decor_grass", "pos": [63.42, 0, -5.51], "rot": 40, "scale": 1.28},
-    {"model": "decor_grass", "pos": [68.17, 0, -24.73], "rot": 280, "scale": 0.89},
-    {"model": "decor_grass", "pos": [63.61, 0, -37.86], "rot": 300, "scale": 1.22},
-    {"model": "decor_grass", "pos": [75.49, 0, -6.75], "rot": 80, "scale": 1.02},
-    {"model": "decor_grass", "pos": [81.34, 0, -22.91], "rot": 210, "scale": 0.84},
-    {"model": "decor_grass", "pos": [70.13, 0, 1.23], "rot": 150, "scale": 1.25},
-    {"model": "decor_grass", "pos": [66.1, 0, -28.86], "rot": 330, "scale": 1.19},
-    {"model": "decor_grass", "pos": [57.87, 0, -3.3], "rot": 190, "scale": 0.87},
-    {"model": "decor_grass", "pos": [78.28, 0, -26.09], "rot": 0, "scale": 0.99},
-    {"model": "decor_grass", "pos": [81.46, 0, 3.47], "rot": 200, "scale": 0.98},
-    {"model": "decor_grass", "pos": [58.59, 0, 0.12], "rot": 30, "scale": 0.82},
-    {"model": "decor_grass", "pos": [72.72, 0, -35.45], "rot": 330, "scale": 0.94},
-    {"model": "decor_grass", "pos": [58.93, 0, -31.2], "rot": 70, "scale": 0.87},
-    {"model": "decor_grass", "pos": [79.11, 0, -4.3], "rot": 350, "scale": 1.19},
-    {"model": "decor_grass", "pos": [77.62, 0, -2.04], "rot": 90, "scale": 1.13},
-    {"model": "decor_grass", "pos": [74.67, 0, -24.1], "rot": 170, "scale": 0.71},
-    {"model": "decor_grass", "pos": [65.69, 0, -0.92], "rot": 170, "scale": 0.92},
-    {"model": "decor_grass", "pos": [71.79, 0, -28.76], "rot": 200, "scale": 1.1},
-    {"model": "decor_grass", "pos": [67.48, 0, -5.42], "rot": 40, "scale": 1.19},
-    {"model": "decor_grass", "pos": [74.13, 0, -33.47], "rot": 300, "scale": 1.17},
-    {"model": "decor_grass", "pos": [58.61, 0, -37.69], "rot": 60, "scale": 1.16},
-    {"model": "decor_grass", "pos": [76.62, 0, -27.41], "rot": 80, "scale": 1.07},
-    {"model": "decor_grass", "pos": [69.0, 0, -28.16], "rot": 130, "scale": 0.84},
-    {"model": "decor_grass", "pos": [81.64, 0, -38.87], "rot": 350, "scale": 0.95},
-    {"model": "decor_grass", "pos": [70.32, 0, 2.84], "rot": 50, "scale": 1.19},
-    {"model": "decor_grass", "pos": [67.59, 0, -17.84], "rot": 110, "scale": 0.8},
-    {"model": "decor_grass", "pos": [63.3, 0, -36.67], "rot": 230, "scale": 0.84},
-    {"model": "decor_grass", "pos": [68.25, 0, -4.47], "rot": 350, "scale": 0.71},
-    {"model": "decor_grass", "pos": [79.98, 0, -8.35], "rot": 70, "scale": 1.28},
-    {"model": "decor_grass", "pos": [78.92, 0, -16.28], "rot": 260, "scale": 0.86},
-    {"model": "decor_grass", "pos": [76.57, 0, -8.81], "rot": 60, "scale": 1.13},
-    {"model": "decor_grass", "pos": [81.27, 0, -15.54], "rot": 290, "scale": 0.72},
-    {"model": "decor_grass", "pos": [63.46, 0, -32.34], "rot": 310, "scale": 1.05},
-    {"model": "decor_grass", "pos": [73.36, 0, -7.47], "rot": 340, "scale": 0.73},
-    {"model": "decor_grass", "pos": [56.71, 0, -0.1], "rot": 310, "scale": 0.85},
-    {"model": "decor_grass", "pos": [79.41, 0, 1.65], "rot": 210, "scale": 1.21},
-    {"model": "decor_grass", "pos": [71.9, 0, -32.79], "rot": 60, "scale": 1.1},
-    {"model": "decor_grass", "pos": [65.46, 0, -17.04], "rot": 290, "scale": 1.26},
-    {"model": "decor_grass", "pos": [77.65, 0, -32.08], "rot": 280, "scale": 1.19},
-    {"model": "decor_grass", "pos": [70.17, 0, -1.45], "rot": 60, "scale": 0.98},
-    {"model": "decor_grass", "pos": [73.28, 0, -27.35], "rot": 290, "scale": 0.84},
-    {"model": "decor_grass", "pos": [75.52, 0, -7.63], "rot": 130, "scale": 0.71},
-    {"model": "decor_grass", "pos": [79.63, 0, 3.16], "rot": 260, "scale": 0.72},
-    {"model": "decor_grass", "pos": [70.58, 0, -32.81], "rot": 90, "scale": 0.88},
-    {"model": "decor_grass", "pos": [64.04, 0, -2.45], "rot": 0, "scale": 1.06},
-    {"model": "decor_grass", "pos": [72.07, 0, -39.95], "rot": 320, "scale": 1.21},
-    {"model": "decor_grass", "pos": [64.13, 0, -16.13], "rot": 270, "scale": 0.98},
-    {"model": "decor_grass", "pos": [57.99, 0, 0.67], "rot": 350, "scale": 0.83},
-    {"model": "decor_grass", "pos": [64.57, 0, -35.99], "rot": 230, "scale": 1.05},
-    {"model": "decor_grass", "pos": [61.37, 0, -29.22], "rot": 220, "scale": 1.18},
-    {"model": "decor_grass", "pos": [63.43, 0, -21.56], "rot": 170, "scale": 0.8},
-    {"model": "decor_grass", "pos": [63.33, 0, -18.53], "rot": 350, "scale": 1.25},
-    {"model": "decor_grass", "pos": [64.51, 0, -11.54], "rot": 110, "scale": 0.84},
-    {"model": "decor_grass", "pos": [76.41, 0, -2.46], "rot": 60, "scale": 0.81},
-    {"model": "decor_grass", "pos": [63.04, 0, -6.08], "rot": 90, "scale": 0.78},
-    {"model": "decor_grass", "pos": [63.05, 0, -38.47], "rot": 200, "scale": 0.79},
-    {"model": "decor_grass", "pos": [80.46, 0, -22.46], "rot": 150, "scale": 0.77},
-    {"model": "decor_grass", "pos": [77.7, 0, -29.8], "rot": 170, "scale": 0.89},
-    {"model": "decor_grass", "pos": [80.9, 0, -1.54], "rot": 340, "scale": 0.84},
-    {"model": "decor_grass", "pos": [58.2, 0, 1.64], "rot": 60, "scale": 1.12},
-    {"model": "decor_grass", "pos": [79.03, 0, -27.61], "rot": 270, "scale": 1.05},
-    {"model": "decor_grass", "pos": [59.03, 0, -6.7], "rot": 120, "scale": 1.23},
-    {"model": "decor_grass", "pos": [73.69, 0, -17.65], "rot": 260, "scale": 0.98},
-    {"model": "decor_grass", "pos": [60.0, 0, -20.24], "rot": 170, "scale": 0.81},
-    {"model": "decor_grass", "pos": [68.86, 0, -29.55], "rot": 340, "scale": 0.89},
-    {"model": "decor_grass", "pos": [63.33, 0, -31.28], "rot": 190, "scale": 0.97},
-    {"model": "decor_grass", "pos": [68.88, 0, 1.2], "rot": 130, "scale": 0.85},
-    {"model": "decor_grass", "pos": [66.47, 0, -14.57], "rot": 220, "scale": 1.28},
-    {"model": "decor_grass", "pos": [59.43, 0, -38.92], "rot": 20, "scale": 1.11},
-    {"model": "decor_grass", "pos": [58.8, 0, -31.57], "rot": 350, "scale": 0.96},
-    {"model": "decor_grass", "pos": [56.06, 0, -6.44], "rot": 300, "scale": 0.89},
-    {"model": "decor_grass", "pos": [69.28, 0, -8.7], "rot": 160, "scale": 0.74},
-    {"model": "decor_grass", "pos": [66.9, 0, -21.41], "rot": 40, "scale": 0.88},
-    {"model": "decor_grass", "pos": [56.18, 0, -12.39], "rot": 150, "scale": 0.74},
-    {"model": "decor_grass", "pos": [60.37, 0, -14.94], "rot": 0, "scale": 1.22},
-    {"model": "decor_grass", "pos": [59.36, 0, -28.22], "rot": 310, "scale": 0.72},
-    {"model": "decor_grass", "pos": [60.62, 0, -17.62], "rot": 100, "scale": 1.22},
-    {"model": "decor_grass", "pos": [60.87, 0, -7.75], "rot": 210, "scale": 0.91},
-    {"model": "decor_grass", "pos": [74.13, 0, -22.41], "rot": 160, "scale": 0.94},
-    {"model": "decor_grass", "pos": [64.52, 0, -22.5], "rot": 80, "scale": 0.72},
-    {"model": "decor_grass", "pos": [76.92, 0, -2.15], "rot": 100, "scale": 1.19},
-    {"model": "decor_grass", "pos": [57.94, 0, -16.2], "rot": 310, "scale": 0.82},
-    {"model": "decor_grass", "pos": [79.68, 0, -19.1], "rot": 260, "scale": 0.98},
-    {"model": "decor_grass", "pos": [61.25, 0, -4.61], "rot": 120, "scale": 0.99},
-    {"model": "decor_grass", "pos": [73.64, 0, 3.55], "rot": 10, "scale": 0.74},
-    {"model": "decor_grass", "pos": [69.22, 0, 2.64], "rot": 340, "scale": 1.18},
-    {"model": "decor_grass", "pos": [62.03, 0, -25.0], "rot": 100, "scale": 0.8},
-    {"model": "decor_grass", "pos": [57.7, 0, 2.43], "rot": 110, "scale": 0.94},
-    {"model": "decor_grass", "pos": [74.89, 0, -33.47], "rot": 40, "scale": 1.23},
-    {"model": "decor_grass", "pos": [77.97, 0, -39.13], "rot": 100, "scale": 0.91},
-    {"model": "decor_grass", "pos": [56.61, 0, -12.67], "rot": 30, "scale": 0.78},
-    {"model": "decor_grass", "pos": [65.26, 0, -9.25], "rot": 320, "scale": 1.19},
-    {"model": "decor_grass", "pos": [66.71, 0, -29.28], "rot": 300, "scale": 1.28},
-    {"model": "decor_leaves", "pos": [56.35, 0, -34.01], "rot": 240, "scale": 1.22},
-    {"model": "decor_leaves", "pos": [73.11, 0, -32.66], "rot": 100, "scale": 1.21},
-    {"model": "decor_leaves", "pos": [59.41, 0, -27.84], "rot": 10, "scale": 0.84},
-    {"model": "decor_leaves", "pos": [73.99, 0, -19.87], "rot": 10, "scale": 0.82},
-    {"model": "decor_leaves", "pos": [73.29, 0, -30.96], "rot": 110, "scale": 0.86},
-    {"model": "decor_leaves", "pos": [56.03, 0, -20.84], "rot": 340, "scale": 0.77},
-    {"model": "decor_leaves", "pos": [72.64, 0, -0.28], "rot": 70, "scale": 0.86},
-    {"model": "decor_leaves", "pos": [60.57, 0, -27.59], "rot": 160, "scale": 0.98},
-    {"model": "decor_leaves", "pos": [80.39, 0, -8.48], "rot": 290, "scale": 0.93},
-    {"model": "decor_leaves", "pos": [69.46, 0, -24.42], "rot": 50, "scale": 1.18},
-    {"model": "decor_leaves", "pos": [67.26, 0, 0.26], "rot": 250, "scale": 1.05},
-    {"model": "decor_leaves", "pos": [65.44, 0, -11.81], "rot": 310, "scale": 0.95},
-    {"model": "decor_leaves", "pos": [61.85, 0, -33.94], "rot": 240, "scale": 0.71},
-    {"model": "decor_leaves", "pos": [73.74, 0, -26.92], "rot": 220, "scale": 1.16},
-    {"model": "decor_leaves", "pos": [61.05, 0, -22.21], "rot": 340, "scale": 1.02},
-    {"model": "decor_leaves", "pos": [77.47, 0, -22.7], "rot": 140, "scale": 0.78},
-    {"model": "decor_leaves", "pos": [67.51, 0, -29.45], "rot": 340, "scale": 1.17},
-    {"model": "decor_leaves", "pos": [61.94, 0, -6.66], "rot": 30, "scale": 1.14},
-    {"model": "decor_leaves", "pos": [69.74, 0, -31.63], "rot": 160, "scale": 0.75},
-    {"model": "decor_leaves", "pos": [58.74, 0, -1.77], "rot": 350, "scale": 0.9},
-    {"model": "decor_leaves", "pos": [58.11, 0, -39.65], "rot": 290, "scale": 0.81},
-    {"model": "decor_leaves", "pos": [78.55, 0, 1.31], "rot": 240, "scale": 0.7},
-    {"model": "decor_leaves", "pos": [75.0, 0, -9.5], "rot": 140, "scale": 0.93},
-    {"model": "decor_leaves", "pos": [58.64, 0, 1.98], "rot": 20, "scale": 1.16},
-    {"model": "decor_leaves", "pos": [68.07, 0, -0.48], "rot": 60, "scale": 1.29},
-    {"model": "decor_leaves", "pos": [60.39, 0, -32.28], "rot": 280, "scale": 1.16},
-    {"model": "decor_leaves", "pos": [60.09, 0, -27.78], "rot": 290, "scale": 1.1},
-    {"model": "decor_leaves", "pos": [67.16, 0, 1.19], "rot": 220, "scale": 0.71},
-    {"model": "decor_leaves", "pos": [72.71, 0, -5.56], "rot": 180, "scale": 0.85},
-    {"model": "decor_leaves", "pos": [66.23, 0, -0.55], "rot": 280, "scale": 0.85},
-    {"model": "decor_leaves", "pos": [59.58, 0, -31.94], "rot": 330, "scale": 0.94},
-    {"model": "decor_leaves", "pos": [62.74, 0, -38.42], "rot": 60, "scale": 1.06},
-    {"model": "decor_leaves", "pos": [69.98, 0, -6.55], "rot": 290, "scale": 1.14},
-    {"model": "decor_leaves", "pos": [71.56, 0, 0.42], "rot": 160, "scale": 1.25},
-    {"model": "decor_leaves", "pos": [60.84, 0, -10.54], "rot": 20, "scale": 1.2},
-    {"model": "decor_leaves", "pos": [59.92, 0, -17.21], "rot": 350, "scale": 0.89},
-    {"model": "decor_leaves", "pos": [74.13, 0, -21.31], "rot": 120, "scale": 1.13},
-    {"model": "decor_leaves", "pos": [76.86, 0, -32.64], "rot": 210, "scale": 1.25},
-    {"model": "decor_leaves", "pos": [62.9, 0, -7.58], "rot": 130, "scale": 0.89},
-    {"model": "decor_leaves", "pos": [75.99, 0, 3.09], "rot": 130, "scale": 0.72},
-    {"model": "decor_leaves", "pos": [70.12, 0, -19.24], "rot": 90, "scale": 1.03},
-    {"model": "decor_leaves", "pos": [77.6, 0, -15.85], "rot": 20, "scale": 0.82},
-    {"model": "decor_leaves", "pos": [69.37, 0, -0.85], "rot": 140, "scale": 1.26},
-    {"model": "decor_leaves", "pos": [74.66, 0, -36.05], "rot": 340, "scale": 0.98},
-    {"model": "decor_leaves", "pos": [68.64, 0, -20.67], "rot": 250, "scale": 0.76},
-    {"model": "decor_leaves", "pos": [67.82, 0, -26.88], "rot": 180, "scale": 0.95},
-    {"model": "decor_leaves", "pos": [80.31, 0, -26.35], "rot": 120, "scale": 0.77},
-    {"model": "decor_leaves", "pos": [56.87, 0, -10.09], "rot": 10, "scale": 1.27},
-    {"model": "decor_leaves", "pos": [71.91, 0, -22.11], "rot": 50, "scale": 0.89},
-    {"model": "decor_leaves", "pos": [65.94, 0, -34.07], "rot": 340, "scale": 0.98},
-    {"model": "decor_stones", "pos": [73.15, 0, 0.24], "rot": 290, "scale": 0.95},
-    {"model": "decor_stones", "pos": [64.64, 0, -25.88], "rot": 240, "scale": 1.28},
-    {"model": "decor_stones", "pos": [70.31, 0, -17.61], "rot": 90, "scale": 0.87},
-    {"model": "decor_stones", "pos": [81.74, 0, -33.5], "rot": 80, "scale": 0.8},
-    {"model": "decor_stones", "pos": [68.92, 0, -1.27], "rot": 20, "scale": 0.85},
-    {"model": "decor_stones", "pos": [66.2, 0, -30.46], "rot": 280, "scale": 0.8},
-    {"model": "decor_stones", "pos": [59.91, 0, -22.75], "rot": 320, "scale": 1.25},
-    {"model": "decor_stones", "pos": [62.68, 0, -9.22], "rot": 300, "scale": 0.75},
-    {"model": "decor_stones", "pos": [73.98, 0, -18.45], "rot": 270, "scale": 1.04},
-    {"model": "decor_stones", "pos": [63.94, 0, 3.36], "rot": 140, "scale": 0.94},
-    {"model": "decor_stones", "pos": [60.97, 0, -3.45], "rot": 280, "scale": 1.14},
-    {"model": "decor_stones", "pos": [56.79, 0, -37.18], "rot": 120, "scale": 0.79},
-    {"model": "decor_stones", "pos": [61.57, 0, -24.28], "rot": 260, "scale": 0.72},
-    {"model": "decor_stones", "pos": [72.44, 0, 1.19], "rot": 40, "scale": 0.8},
-    {"model": "decor_stones", "pos": [77.41, 0, -0.17], "rot": 30, "scale": 0.89},
-    {"model": "decor_stones", "pos": [71.23, 0, -13.03], "rot": 80, "scale": 0.76},
-    {"model": "decor_stones", "pos": [78.45, 0, -39.33], "rot": 290, "scale": 1.02},
-    {"model": "decor_stones", "pos": [72.23, 0, -30.05], "rot": 60, "scale": 0.87},
-    {"model": "decor_stones", "pos": [74.25, 0, -36.34], "rot": 190, "scale": 0.73},
-    {"model": "decor_stones", "pos": [73.01, 0, -1.47], "rot": 100, "scale": 1.03},
-    {"model": "decor_stones", "pos": [62.04, 0, 0.3], "rot": 290, "scale": 0.95},
-    {"model": "decor_stones", "pos": [63.67, 0, -25.73], "rot": 30, "scale": 1.15},
-    {"model": "decor_stones", "pos": [68.29, 0, -35.69], "rot": 110, "scale": 0.8},
-    {"model": "decor_stones", "pos": [75.66, 0, -4.75], "rot": 230, "scale": 1.19},
-    {"model": "decor_stones", "pos": [61.85, 0, -29.49], "rot": 280, "scale": 1.22},
-    {"model": "decor_stones", "pos": [74.88, 0, -36.13], "rot": 70, "scale": 1.25},
-    {"model": "decor_stones", "pos": [75.74, 0, -1.45], "rot": 20, "scale": 0.71},
-    {"model": "decor_stones", "pos": [73.31, 0, -2.3], "rot": 70, "scale": 0.91},
-    {"model": "decor_stones", "pos": [61.92, 0, -15.81], "rot": 110, "scale": 1.06},
-    {"model": "decor_stones", "pos": [78.93, 0, -24.51], "rot": 60, "scale": 1.27}
+    {"model": "decor_grass", "pos": [78.35, 0, -31.92], "rot": 190, "scale": 1.04},
+    {"model": "decor_grass", "pos": [61.28, 0, -28.62], "rot": 280, "scale": 1.17},
+    {"model": "decor_grass", "pos": [56.72, 0, -36.03], "rot": 10, "scale": 0.99},
+    {"model": "decor_grass", "pos": [67.93, 0, -18.77], "rot": 120, "scale": 0.86},
+    {"model": "decor_leaves", "pos": [70.16, 0, -0.85], "rot": 180, "scale": 0.78},
+    {"model": "decor_leaves", "pos": [61.25, 0, -39.95], "rot": 160, "scale": 0.76},
+    {"model": "decor_leaves", "pos": [78.9, 0, -28.37], "rot": 340, "scale": 1.26},
+    {"model": "decor_leaves", "pos": [78.33, 0, -31.02], "rot": 40, "scale": 1.29},
+    {"model": "decor_leaves", "pos": [76.15, 0, -25.6], "rot": 40, "scale": 1.26},
+    {"model": "decor_leaves", "pos": [77.04, 0, -20.28], "rot": 210, "scale": 1.03},
+    {"model": "decor_leaves", "pos": [65.96, 0, -13.43], "rot": 20, "scale": 0.7},
+    {"model": "decor_leaves", "pos": [59.66, 0, -33.67], "rot": 210, "scale": 0.86},
+    {"model": "decor_leaves", "pos": [65.03, 0, -38.05], "rot": 20, "scale": 1.26},
+    {"model": "decor_leaves", "pos": [78.22, 0, 1.49], "rot": 10, "scale": 0.8},
+    {"model": "decor_leaves", "pos": [63.87, 0, -31.29], "rot": 190, "scale": 0.85},
+    {"model": "decor_leaves", "pos": [70.49, 0, -19.79], "rot": 0, "scale": 1.29},
+    {"model": "decor_leaves", "pos": [65.48, 0, -10.65], "rot": 50, "scale": 0.71},
+    {"model": "decor_leaves", "pos": [74.65, 0, -22.31], "rot": 290, "scale": 0.93},
+    {"model": "decor_leaves", "pos": [73.81, 0, 3.12], "rot": 320, "scale": 1.06},
+    {"model": "decor_leaves", "pos": [56.57, 0, -26.1], "rot": 90, "scale": 0.88},
+    {"model": "decor_leaves", "pos": [69.02, 0, -20.07], "rot": 330, "scale": 0.88},
+    {"model": "decor_leaves", "pos": [81.57, 0, -18.24], "rot": 310, "scale": 1.12},
+    {"model": "decor_leaves", "pos": [77.37, 0, -33.61], "rot": 40, "scale": 1.29},
+    {"model": "decor_leaves", "pos": [65.94, 0, -19.77], "rot": 170, "scale": 1.2},
+    {"model": "decor_leaves", "pos": [64.02, 0, -3.23], "rot": 80, "scale": 0.93},
+    {"model": "decor_leaves", "pos": [75.3, 0, -4.58], "rot": 220, "scale": 1.12},
+    {"model": "decor_leaves", "pos": [79.6, 0, -29.11], "rot": 230, "scale": 0.82},
+    {"model": "decor_leaves", "pos": [71.35, 0, -8.23], "rot": 290, "scale": 1.28},
+    {"model": "decor_leaves", "pos": [56.58, 0, -36.36], "rot": 340, "scale": 1.24},
+    {"model": "decor_leaves", "pos": [62.15, 0, -6.58], "rot": 260, "scale": 0.89},
+    {"model": "decor_leaves", "pos": [62.65, 0, -38.26], "rot": 220, "scale": 1.27},
+    {"model": "decor_leaves", "pos": [59.96, 0, -9.02], "rot": 330, "scale": 0.98},
+    {"model": "decor_leaves", "pos": [77.43, 0, -19.74], "rot": 120, "scale": 1.3},
+    {"model": "decor_leaves", "pos": [60.75, 0, -14.32], "rot": 240, "scale": 1.16},
+    {"model": "decor_leaves", "pos": [60.1, 0, -24.11], "rot": 60, "scale": 0.93},
+    {"model": "decor_leaves", "pos": [58.64, 0, -10.34], "rot": 180, "scale": 0.96},
+    {"model": "decor_leaves", "pos": [78.14, 0, -10.72], "rot": 30, "scale": 1.11},
+    {"model": "decor_leaves", "pos": [81.31, 0, -13.4], "rot": 330, "scale": 1.2},
+    {"model": "decor_leaves", "pos": [56.97, 0, -9.93], "rot": 240, "scale": 0.77},
+    {"model": "decor_leaves", "pos": [67.64, 0, -23.94], "rot": 150, "scale": 1.26},
+    {"model": "decor_leaves", "pos": [70.26, 0, -22.53], "rot": 220, "scale": 1.12},
+    {"model": "decor_leaves", "pos": [79.47, 0, -21.87], "rot": 150, "scale": 0.87},
+    {"model": "decor_leaves", "pos": [68.12, 0, -25.54], "rot": 0, "scale": 0.87},
+    {"model": "decor_leaves", "pos": [60.56, 0, -3.24], "rot": 170, "scale": 0.95},
+    {"model": "decor_leaves", "pos": [78.17, 0, -0.66], "rot": 40, "scale": 1.08},
+    {"model": "decor_leaves", "pos": [68.08, 0, -24.03], "rot": 110, "scale": 0.79},
+    {"model": "decor_leaves", "pos": [74.04, 0, -21.6], "rot": 200, "scale": 1.22},
+    {"model": "decor_leaves", "pos": [75.94, 0, 3.52], "rot": 310, "scale": 1.03},
+    {"model": "decor_leaves", "pos": [77.99, 0, 2.74], "rot": 200, "scale": 1.18},
+    {"model": "decor_leaves", "pos": [61.88, 0, -8.23], "rot": 350, "scale": 1.18},
+    {"model": "decor_leaves", "pos": [70.62, 0, -35.14], "rot": 180, "scale": 0.81},
+    {"model": "decor_leaves", "pos": [70.24, 0, -2.94], "rot": 260, "scale": 0.83},
+    {"model": "decor_leaves", "pos": [72.65, 0, 2.55], "rot": 160, "scale": 1.26},
+    {"model": "decor_leaves", "pos": [59.08, 0, -27.05], "rot": 340, "scale": 0.99},
+    {"model": "decor_stones", "pos": [65.37, 0, -23.86], "rot": 0, "scale": 0.79},
+    {"model": "decor_stones", "pos": [68.19, 0, -36.69], "rot": 170, "scale": 1.26},
+    {"model": "decor_stones", "pos": [77.35, 0, -26.61], "rot": 130, "scale": 1.17},
+    {"model": "decor_stones", "pos": [72.52, 0, -24.13], "rot": 10, "scale": 1.09},
+    {"model": "decor_stones", "pos": [59.38, 0, -8.36], "rot": 210, "scale": 0.79},
+    {"model": "decor_stones", "pos": [59.13, 0, -18.13], "rot": 150, "scale": 1.18},
+    {"model": "decor_stones", "pos": [62.34, 0, -14.41], "rot": 140, "scale": 0.71},
+    {"model": "decor_stones", "pos": [77.36, 0, -10.6], "rot": 0, "scale": 1.19},
+    {"model": "decor_stones", "pos": [80.88, 0, -1.08], "rot": 260, "scale": 1.12},
+    {"model": "decor_stones", "pos": [60.58, 0, -4.83], "rot": 220, "scale": 1.13},
+    {"model": "decor_stones", "pos": [56.6, 0, -17.1], "rot": 350, "scale": 0.92},
+    {"model": "decor_stones", "pos": [57.31, 0, -11.48], "rot": 270, "scale": 0.88},
+    {"model": "decor_stones", "pos": [66.42, 0, -4.4], "rot": 0, "scale": 1.1},
+    {"model": "decor_stones", "pos": [80.64, 0, -34.03], "rot": 190, "scale": 1.12},
+    {"model": "decor_stones", "pos": [68.86, 0, -5.9], "rot": 330, "scale": 0.91},
+    {"model": "decor_stones", "pos": [64.88, 0, -17.94], "rot": 180, "scale": 1.01},
+    {"model": "decor_stones", "pos": [73.69, 0, -37.04], "rot": 290, "scale": 0.89},
+    {"model": "decor_stones", "pos": [74.17, 0, -25.9], "rot": 180, "scale": 0.7},
+    {"model": "decor_stones", "pos": [59.35, 0, -18.95], "rot": 110, "scale": 1.15},
+    {"model": "decor_stones", "pos": [75.65, 0, -34.3], "rot": 280, "scale": 1.28},
+    {"model": "decor_stones", "pos": [66.1, 0, -25.52], "rot": 340, "scale": 0.73},
+    {"model": "decor_stones", "pos": [72.8, 0, -29.07], "rot": 240, "scale": 1.12},
+    {"model": "decor_stones", "pos": [65.89, 0, -4.01], "rot": 40, "scale": 0.84},
+    {"model": "decor_stones", "pos": [76.88, 0, -27.22], "rot": 200, "scale": 0.78},
+    {"model": "decor_stones", "pos": [68.48, 0, 3.08], "rot": 200, "scale": 0.98},
+    {"model": "decor_stones", "pos": [58.59, 0, 0.12], "rot": 30, "scale": 0.82},
+    {"model": "decor_stones", "pos": [72.72, 0, -35.45], "rot": 330, "scale": 0.94},
+    {"model": "decor_stones", "pos": [58.93, 0, -31.2], "rot": 70, "scale": 0.87},
+    {"model": "decor_stones", "pos": [79.11, 0, -4.3], "rot": 350, "scale": 1.19},
+    {"model": "decor_stones", "pos": [77.62, 0, -2.04], "rot": 90, "scale": 1.13},
+    {"model": "decor_litter2", "pos": [4.79, 0, -5.05], "rot": 170, "scale": 0.71},
+    {"model": "decor_litter2", "pos": [2.11, 0, 2.99], "rot": 50, "scale": 0.73},
+    {"model": "decor_litter2", "pos": [8.48, 0, 1.94], "rot": 190, "scale": 1.21},
+    {"model": "decor_litter2", "pos": [6.75, 0, -6.95], "rot": 40, "scale": 1.06},
+    {"model": "decor_litter2", "pos": [-5.38, 0, 1.08], "rot": 300, "scale": 0.96},
+    {"model": "decor_litter2", "pos": [6.29, 0, -11.49], "rot": 220, "scale": 1.05},
+    {"model": "decor_litter3", "pos": [-1.54, 0, 2.34], "rot": 90, "scale": 1.01},
+    {"model": "decor_litter3", "pos": [6.28, 0, -3.54], "rot": 340, "scale": 0.92},
+    {"model": "decor_litter3", "pos": [10.48, 0, -2.12], "rot": 60, "scale": 1.16},
+    {"model": "decor_litter3", "pos": [6.44, 0, -6.71], "rot": 80, "scale": 1.07},
+    {"model": "decor_litter3", "pos": [0.0, 0, -7.08], "rot": 130, "scale": 0.84},
+    {"model": "decor_litter3", "pos": [10.69, 0, -12.43], "rot": 350, "scale": 0.95},
+    {"model": "decor_litter2", "pos": [8.35, 0, 21.53], "rot": 50, "scale": 1.19},
+    {"model": "decor_litter2", "pos": [-8.92, 0, 13.06], "rot": 110, "scale": 0.8},
+    {"model": "decor_litter2", "pos": [-35.95, 0, 5.36], "rot": 230, "scale": 0.84},
+    {"model": "decor_litter2", "pos": [-4.71, 0, 18.53], "rot": 350, "scale": 0.71},
+    {"model": "decor_litter2", "pos": [69.24, 0, 16.95], "rot": 70, "scale": 1.28},
+    {"model": "decor_litter2", "pos": [62.6, 0, 13.71], "rot": 260, "scale": 0.86},
+    {"model": "decor_litter2", "pos": [47.74, 0, 16.76], "rot": 60, "scale": 1.13},
+    {"model": "decor_litter2", "pos": [77.38, 0, 14.01], "rot": 290, "scale": 0.72},
+    {"model": "decor_litter2", "pos": [-34.96, 0, 7.13], "rot": 310, "scale": 1.05},
+    {"model": "decor_litter2", "pos": [27.53, 0, 17.31], "rot": 340, "scale": 0.73},
+    {"model": "decor_litter2", "pos": [-77.52, 0, 20.32], "rot": 310, "scale": 0.85},
+    {"model": "decor_litter2", "pos": [65.65, 0, 21.04], "rot": 210, "scale": 1.21},
+    {"model": "decor_litter2", "pos": [18.3, 0, 6.95], "rot": 60, "scale": 1.1},
+    {"model": "decor_litter3", "pos": [-22.34, 0, 13.39], "rot": 290, "scale": 1.26},
+    {"model": "decor_litter3", "pos": [54.59, 0, 7.24], "rot": 280, "scale": 1.19},
+    {"model": "decor_litter3", "pos": [7.36, 0, 19.77], "rot": 60, "scale": 0.98},
+    {"model": "decor_litter3", "pos": [26.99, 0, 9.17], "rot": 290, "scale": 0.84},
+    {"model": "decor_litter3", "pos": [41.15, 0, 17.24], "rot": 130, "scale": 0.71},
+    {"model": "decor_litter3", "pos": [67.05, 0, 21.66], "rot": 260, "scale": 0.72},
+    {"model": "decor_litter3", "pos": [-58.9, 0, 20.71], "rot": 30, "scale": 0.71},
+    {"model": "decor_litter3", "pos": [27.54, 0, 18.18], "rot": 10, "scale": 1.01},
+    {"model": "decor_litter3", "pos": [-23.49, 0, 5.95], "rot": 280, "scale": 0.89},
+    {"model": "decor_litter3", "pos": [6.97, 0, 11.74], "rot": 320, "scale": 0.75},
+    {"model": "decor_litter3", "pos": [69.59, 0, 16.19], "rot": 130, "scale": 1.08},
+    {"model": "decor_litter3", "pos": [-52.23, 0, 4.74], "rot": 230, "scale": 1.05},
+    {"model": "decor_litter3", "pos": [52.55, 0, 18.38], "rot": 180, "scale": 0.91},
+    {"model": "decor_litter2", "pos": [-24.59, 0, -33.85], "rot": 180, "scale": 0.78},
+    {"model": "decor_litter2", "pos": [-44.94, 0, -22.74], "rot": 200, "scale": 0.73},
+    {"model": "decor_litter2", "pos": [-30.61, 0, -11.58], "rot": 60, "scale": 0.81},
+    {"model": "decor_litter2", "pos": [-51.17, 0, -14.71], "rot": 90, "scale": 0.78},
+    {"model": "decor_litter2", "pos": [-38.21, 0, -42.72], "rot": 170, "scale": 0.75},
+    {"model": "decor_litter2", "pos": [-47.61, 0, -21.52], "rot": 90, "scale": 1.09},
+    {"model": "decor_litter2", "pos": [-48.53, 0, -18.64], "rot": 70, "scale": 1.04},
+    {"model": "decor_litter2", "pos": [-46.06, 0, -19.11], "rot": 200, "scale": 1.13},
+    {"model": "decor_litter2", "pos": [-34.43, 0, -19.27], "rot": 340, "scale": 0.84},
+    {"model": "decor_litter2", "pos": [-58.62, 0, -8.04], "rot": 60, "scale": 1.12},
+    {"model": "decor_litter3", "pos": [-26.57, 0, -33.3], "rot": 270, "scale": 1.05},
+    {"model": "decor_litter3", "pos": [-57.34, 0, -15.24], "rot": 120, "scale": 1.23},
+    {"model": "decor_litter3", "pos": [-34.79, 0, -24.7], "rot": 260, "scale": 0.98},
+    {"model": "decor_litter3", "pos": [-43.31, 0, -18.94], "rot": 90, "scale": 0.91},
+    {"model": "decor_litter3", "pos": [-57.43, 0, -20.93], "rot": 340, "scale": 0.89},
+    {"model": "decor_litter3", "pos": [-53.84, 0, -15.37], "rot": 280, "scale": 1.05},
+    {"model": "decor_litter3", "pos": [-47.94, 0, -7.96], "rot": 240, "scale": 0.71},
+    {"model": "decor_litter3", "pos": [-60.15, 0, -21.15], "rot": 120, "scale": 0.79},
+    {"model": "decor_litter3", "pos": [-44.39, 0, -43.91], "rot": 160, "scale": 1.1},
+    {"model": "decor_litter3", "pos": [-49.54, 0, -24.59], "rot": 160, "scale": 0.74}
   ],
   "shop": {"pos": [-4.5, 0, -1.5], "rot": 180},
   "road": {"points": [[-83, 0, 12], [83, 0, 12]]}
@@ -29406,6 +30168,9 @@ FOOTPRINTS = {
 	"house_a": (6.0, 6.0, 7.8, -2.8), "house_b": (6.0, 6.0, 9.55, -2.8), "house_c": (6.0, 6.0, 6.45, -2.8),
 	"house_shallow": (6.0, 1.8, 4.7, -0.7),
 }
+
+
+DOOR_HOUSES = ("house_a", "house_c", "house_shallow")   # дома с дверью по центру фасада
 
 
 def kit_run(kind, h):
@@ -29659,6 +30424,11 @@ def generate(desc):
 			if kind == "props":
 				it = {**defaults.get(it["model"], {}), **it}
 				blocked.extend(footprints(it))
+				if it["model"] in DOOR_HOUSES:   # проход у двери — без россыпи (хвост плана 16)
+					x, _, z = it["pos"]
+					ax, az = _local((x, z), float(it.get("rot", 0)), -0.9, 0.2)
+					bx, bz = _local((x, z), float(it.get("rot", 0)), 0.9, 2.4)
+					blocked.append((min(ax, bx), min(az, bz), max(ax, bx), max(az, bz), 0.0))
 			out[kind].append(it)
 			gen[kind].append(it)
 
@@ -29691,6 +30461,27 @@ def generate(desc):
 		elif t == "decor":
 			solid = blocked + wet
 			add("decor", decor(rng, op["model"], op["rect"], op["count"], solid, op.get("min_dist", 0.35)))
+		elif t == "path":
+			# дорожка (план 18): покрытие, подъём над газоном, несплошные бордюры по длинным краям
+			x0, z0, x1, z1 = op["rect"]
+			terrain["paint"].append({"rect": op["rect"], "type": op.get("surface", "gravel")})
+			terrain["features"].append({"type": "lift", "rect": op["rect"], "by": op.get("lift", 0.06)})
+			along_z = (z1 - z0) >= (x1 - x0)
+			sides = "we" if along_z else "ns"
+			gaps = []
+			others = [o["rect"] for o in ops if o["type"] == "path" and o is not op] + [f[:4] for f in blocked]
+			for side in sides:
+				line = {"w": x0, "e": x1, "n": z0, "s": z1}[side]
+				for r in others:   # перекрёсток с другой дорожкой или сплошной пропс на кромке — проём
+					if side in "we" and r[0] - 0.1 <= line <= r[2] + 0.1:
+						a, b = max(z0, r[1]), min(z1, r[3])
+					elif side in "ns" and r[1] - 0.1 <= line <= r[3] + 0.1:
+						a, b = max(x0, r[0]), min(x1, r[2])
+					else:
+						continue
+					if b > a:
+						gaps.append((side, (a + b) / 2, b - a + 0.4))
+			add("props", perimeter(op["rect"], "curb", 2.0, sides, gaps, extra={"solid": False}))
 		elif t == "block":
 			blocked.append(tuple(op["rect"]) + (0.0,))   # полоса без россыпи (маршрут погрузчика)
 		elif t == "flat":
@@ -30010,6 +30801,43 @@ class Primitives(unittest.TestCase):
 		houses = lg.perimeter([0, 0, 24, 6], sides="n", models=["house_a", "house_b", "house_c"])
 		self.assertEqual([h["model"] for h in houses], ["house_a", "house_b", "house_c", "house_a"])
 
+	def test_path_op_paints_lifts_and_curbs(self):
+		# План 18: дорожка — покрытие, подъём над газоном и бордюры по длинным краям (несплошные).
+		d = {"name": "t", "terrain": DESC["terrain"], "zones": [{"name": "z", "ops": [
+			{"type": "path", "rect": [-1, -10, 1, 10], "surface": "gravel", "lift": 0.06}]}]}
+		layout, terrain = lg.generate(d)
+		self.assertIn({"type": "lift", "rect": [-1, -10, 1, 10], "by": 0.06}, terrain["features"])
+		self.assertTrue(any(p.get("type") == "gravel" and p.get("rect") == [-1, -10, 1, 10] for p in terrain["paint"]))
+		curbs = [p for p in layout["props"] if p["model"] == "curb"]
+		self.assertEqual(len(curbs), 20, "по 10 модулей 2 м с двух сторон")
+		self.assertTrue(all(c["solid"] is False for c in curbs), "кот через бордюр проходит")
+		self.assertEqual(sorted({c["pos"][0] for c in curbs}), [-1, 1])
+
+	def test_curbs_leave_junctions_and_props_open(self):
+		# Бордюр не перегораживает перекрёсток дорожек и не идёт сквозь фонтан.
+		d = {"name": "t", "terrain": DESC["terrain"], "zones": [{"name": "z", "ops": [
+			{"type": "place", "props": [{"model": "fountain", "pos": [0, 0, -6], "colliders": [{"size": [3.2, 0.45, 3.2], "offset": [0, 0.225, 0]}]}]},
+			{"type": "path", "rect": [-1, -10, 1, 10], "surface": "gravel"},
+			{"type": "path", "rect": [-10, 3, 10, 5], "surface": "gravel"}]}]}
+		layout, _ = lg.generate(d)
+		for c in [p for p in layout["props"] if p["model"] == "curb"]:
+			x, _, z = c["pos"]
+			if c["rot"] in (90, -90):   # бордюр главной дорожки (вдоль z)
+				self.assertFalse(2 < z < 6, f"бордюр {c['pos']} поперёк перекрёстка")
+				self.assertFalse(-8.6 < z < -3.4, f"бордюр {c['pos']} в фонтане")
+			else:
+				self.assertFalse(-2 < x < 2, f"бордюр {c['pos']} поперёк перекрёстка")
+
+	def test_scatter_keeps_doorways_free(self):
+		# Хвост плана 16: деревья вставали прямо у дверей домов.
+		d = {"name": "t", "terrain": DESC["terrain"], "zones": [{"name": "z", "ops": [
+			{"type": "place", "props": [{"model": "house_a", "pos": [0, 0, 0], "rot": 0}]},
+			{"type": "scatter", "what": "prop", "model": "box", "rect": [-4, 0.5, 4, 4], "count": 30, "min_dist": 0.7}]}]}
+		layout, _ = lg.generate(d)
+		for p in layout["props"]:
+			if p["model"] == "box":
+				self.assertFalse(abs(p["pos"][0]) < 1.0 and p["pos"][2] < 2.4, f"ящик {p['pos']} у двери")
+
 	def test_kit_constants_match_world_builder(self):
 		src = (ROOT / "scripts/world/world_builder.gd").read_text()
 		for name, val in (("KIT_STEP_RISE", lg.KIT_RISE), ("KIT_STEP_TREAD", lg.KIT_TREAD), ("KIT_RAMP_DEG", lg.KIT_RAMP_DEG), ("KIT_WIDTH", lg.KIT_WIDTH)):
@@ -30129,53 +30957,7 @@ class Generate(unittest.TestCase):
   ],
   "default": "grass",
   "features": [],
-  "paint": [
-   {
-    "rect": [
-     -1.1,
-     29,
-     1.1,
-     61
-    ],
-    "type": "gravel"
-   },
-   {
-    "rect": [
-     -15,
-     43.9,
-     15,
-     46.1
-    ],
-    "type": "gravel"
-   },
-   {
-    "rect": [
-     10.9,
-     29,
-     13.1,
-     38
-    ],
-    "type": "gravel"
-   },
-   {
-    "rect": [
-     0,
-     36.9,
-     12,
-     39.1
-    ],
-    "type": "gravel"
-   },
-   {
-    "rect": [
-     -12,
-     40.9,
-     -4,
-     43.1
-    ],
-    "type": "gravel"
-   }
-  ]
+  "paint": []
  },
  "counts": {
   "spawn_points": 35,
@@ -30183,6 +30965,77 @@ class Generate(unittest.TestCase):
   "hideouts": 14
  },
  "zones": [
+  {
+   "name": "дорожки",
+   "ops": [
+    {
+     "type": "path",
+     "rect": [
+      -1.1,
+      29,
+      1.1,
+      61
+     ],
+     "surface": "gravel",
+     "lift": 0.06
+    },
+    {
+     "type": "path",
+     "rect": [
+      -15,
+      43.9,
+      15,
+      46.1
+     ],
+     "surface": "gravel",
+     "lift": 0.06
+    },
+    {
+     "type": "path",
+     "rect": [
+      10.9,
+      29,
+      13.1,
+      38
+     ],
+     "surface": "gravel",
+     "lift": 0.06
+    },
+    {
+     "type": "path",
+     "rect": [
+      0,
+      36.9,
+      12,
+      39.1
+     ],
+     "surface": "gravel",
+     "lift": 0.06
+    },
+    {
+     "type": "path",
+     "rect": [
+      -12,
+      40.9,
+      -4,
+      43.1
+     ],
+     "surface": "gravel",
+     "lift": 0.06
+    },
+    {
+     "type": "path",
+     "rect": [
+      -1.5,
+      61,
+      1.5,
+      90
+     ],
+     "surface": "gravel",
+     "lift": 0.06
+    }
+   ]
+  },
   {
    "name": "край парка",
    "ops": [
@@ -30254,16 +31107,6 @@ class Generate(unittest.TestCase):
      ],
      "radius": 18,
      "height": 3
-    },
-    {
-     "type": "paint",
-     "rect": [
-      -1.5,
-      61,
-      1.5,
-      90
-     ],
-     "surface": "gravel"
     },
     {
      "type": "place",
@@ -31277,6 +32120,18 @@ class Generate(unittest.TestCase):
      "count": 6,
      "rot": "random",
      "min_dist": 3.0
+    },
+    {
+     "type": "decor",
+     "model": "decor_litter2",
+     "rect": [
+      -14,
+      30,
+      14,
+      60
+     ],
+     "count": 25,
+     "min_dist": 1.5
     }
    ]
   }
@@ -34491,7 +35346,19 @@ class Generate(unittest.TestCase):
       58,
       145
      ],
-     "count": 60,
+     "count": 30,
+     "min_dist": 1.0
+    },
+    {
+     "type": "decor",
+     "model": "decor_litter2",
+     "rect": [
+      -58,
+      127,
+      58,
+      145
+     ],
+     "count": 30,
      "min_dist": 1.0
     }
    ]
@@ -34828,22 +35695,52 @@ class Generate(unittest.TestCase):
      "type": "place",
      "props": [
       {
-       "model": "car",
+       "model": "car_blue",
        "pos": [
         -30,
         0,
         8.5
        ],
-       "rot": 90
+       "rot": 90,
+       "colliders": [
+        {
+         "size": [
+          1.7,
+          1.2,
+          3.6
+         ],
+         "offset": [
+          0,
+          0.9,
+          0
+         ]
+        }
+       ],
+       "outline": true
       },
       {
-       "model": "car",
+       "model": "car_yellow",
        "pos": [
         -48,
         0,
         8.5
        ],
-       "rot": 90
+       "rot": 90,
+       "colliders": [
+        {
+         "size": [
+          1.7,
+          1.2,
+          3.6
+         ],
+         "offset": [
+          0,
+          0.9,
+          0
+         ]
+        }
+       ],
+       "outline": true
       },
       {
        "model": "car",
@@ -34852,25 +35749,70 @@ class Generate(unittest.TestCase):
         0,
         8.5
        ],
-       "rot": 90
+       "rot": 90,
+       "colliders": [
+        {
+         "size": [
+          1.7,
+          1.2,
+          3.6
+         ],
+         "offset": [
+          0,
+          0.9,
+          0
+         ]
+        }
+       ],
+       "outline": true
       },
       {
-       "model": "car",
+       "model": "car_blue",
        "pos": [
         56,
         0,
         15.5
        ],
-       "rot": 90
+       "rot": 90,
+       "colliders": [
+        {
+         "size": [
+          1.7,
+          1.2,
+          3.6
+         ],
+         "offset": [
+          0,
+          0.9,
+          0
+         ]
+        }
+       ],
+       "outline": true
       },
       {
-       "model": "car",
+       "model": "car_yellow",
        "pos": [
         -66,
         0,
         15.5
        ],
-       "rot": 90
+       "rot": 90,
+       "colliders": [
+        {
+         "size": [
+          1.7,
+          1.2,
+          3.6
+         ],
+         "offset": [
+          0,
+          0.9,
+          0
+         ]
+        }
+       ],
+       "outline": true
       },
       {
        "model": "bin",
@@ -36471,7 +37413,7 @@ class Generate(unittest.TestCase):
       11,
       9
      ],
-     "count": 40,
+     "count": 7,
      "min_dist": 0.35
     },
     {
@@ -36495,7 +37437,7 @@ class Generate(unittest.TestCase):
       82,
       22
      ],
-     "count": 80,
+     "count": 14,
      "min_dist": 1.0
     },
     {
@@ -36531,7 +37473,7 @@ class Generate(unittest.TestCase):
       -22,
       -6
      ],
-     "count": 60,
+     "count": 10,
      "min_dist": 0.8
     },
     {
@@ -36891,6 +37833,78 @@ class Generate(unittest.TestCase):
        }
       ]
      }
+    },
+    {
+     "type": "decor",
+     "model": "decor_litter2",
+     "rect": [
+      -11,
+      -13,
+      11,
+      9
+     ],
+     "count": 6,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_litter3",
+     "rect": [
+      -11,
+      -13,
+      11,
+      9
+     ],
+     "count": 6,
+     "min_dist": 0.35
+    },
+    {
+     "type": "decor",
+     "model": "decor_litter2",
+     "rect": [
+      -82,
+      4,
+      82,
+      22
+     ],
+     "count": 13,
+     "min_dist": 1.0
+    },
+    {
+     "type": "decor",
+     "model": "decor_litter3",
+     "rect": [
+      -82,
+      4,
+      82,
+      22
+     ],
+     "count": 13,
+     "min_dist": 1.0
+    },
+    {
+     "type": "decor",
+     "model": "decor_litter2",
+     "rect": [
+      -62,
+      -44,
+      -22,
+      -6
+     ],
+     "count": 10,
+     "min_dist": 0.8
+    },
+    {
+     "type": "decor",
+     "model": "decor_litter3",
+     "rect": [
+      -62,
+      -44,
+      -22,
+      -6
+     ],
+     "count": 10,
+     "min_dist": 0.8
     }
    ]
   }
@@ -38197,7 +39211,7 @@ class Generate(unittest.TestCase):
   {
    "model": "ivy",
    "pos": [
-    -6.0,
+    -5.0,
     2.2,
     -13.78
    ],
