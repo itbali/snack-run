@@ -1,7 +1,7 @@
 extends Node
 ## Инструменты разработчика. Запуск: godot --path . ++ --screenshot=build/shot.png
 
-const DEV_ARGS := ["--screenshot=", "--at=", "--phase=", "--album", "--controls"]
+const DEV_ARGS := ["--screenshot=", "--at=", "--phase=", "--album", "--controls", "--hide", "--food"]
 
 
 static func is_dev_run(args: PackedStringArray) -> bool:
@@ -27,6 +27,8 @@ func _ready() -> void:
 			_open_album_later()
 		if arg == "--controls":
 			_open_controls_later()
+		if arg == "--hide" or arg == "--food":
+			_food_and_hide_later(arg == "--hide")
 		if arg.begins_with("--screenshot="):
 			_screenshot_and_quit(arg.trim_prefix("--screenshot="))
 
@@ -52,6 +54,25 @@ func _teleport_later(pos: Vector3, yaw := 0.0) -> void:
 		if rig:
 			rig.global_position = pos + Vector3(0, 0.6, 0)
 			rig.set("_yaw", yaw)
+
+
+func _food_and_hide_later(hide: bool) -> void:
+	## Кадры плана 19: --food — еда в зубах (видны кольца укрытий), --hide — ещё и спрятаться в ближайшем укрытии.
+	for i in 8:
+		await get_tree().process_frame
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	if not hide:
+		return
+	var cat := get_tree().get_first_node_in_group("cat") as Node3D
+	var best: Node3D = null
+	for h in get_tree().get_nodes_in_group("hideouts"):
+		if best == null or (h as Node3D).global_position.distance_to(cat.global_position) < best.global_position.distance_to(cat.global_position):
+			best = h
+	if best:
+		cat.call("teleport", best.global_position)
+		for i in 4:
+			await get_tree().physics_frame
+		cat.call("try_hide")
 
 
 func _open_controls_later() -> void:

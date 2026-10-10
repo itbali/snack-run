@@ -113,3 +113,17 @@ func test_hint_hidden_while_controls_open() -> void:
 	main.toggle_pause()
 	await wait_physics_frames(2)
 	assert_true(_tut().visible)
+
+func test_hide_step_points_to_nearest_hideout() -> void:
+	_tut().step = 4   # «спрячься»
+	await wait_physics_frames(3)
+	var arrow := _tut().get_node("Arrow") as Node3D
+	assert_true(arrow.visible, "стрелка над укрытием")
+	var nearest: Node3D = null
+	for h in get_tree().get_nodes_in_group("hideouts"):
+		if nearest == null or (h as Node3D).global_position.distance_to(cat.global_position) < nearest.global_position.distance_to(cat.global_position):
+			nearest = h
+	assert_lt(Vector2(arrow.global_position.x - nearest.global_position.x, arrow.global_position.z - nearest.global_position.z).length(), 0.1)
+	_tut().step = 0
+	await wait_physics_frames(2)
+	assert_false(arrow.visible)

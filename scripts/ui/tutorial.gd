@@ -13,6 +13,8 @@ var _start := Vector3.ZERO
 var _ate := false
 var _label: Label
 var _panel: PanelContainer
+var _arrow: Node3D
+var _t := 0.0
 
 
 func setup(main: Node, cat: Node3D) -> void:
@@ -37,9 +39,51 @@ func _ready() -> void:
 	_label.name = "Hint"
 	_label.add_theme_font_size_override("font_size", 20)
 	margin.add_child(_label)
+	_arrow = _make_arrow()
 	GameState.food_eaten.connect(func(_items: Array) -> void: _ate = true)
 	process_mode = Node.PROCESS_MODE_ALWAYS   # видимость — и на паузе; шаги — только в игре (_physics_process)
 	visible = not GameState.tutorial_done
+
+
+func _make_arrow() -> Node3D:
+	## Стрелка над ближайшим укрытием на шаге «спрячься» (план 19).
+	var a := Node3D.new()
+	a.name = "Arrow"
+	a.visible = false
+	var cone := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.22
+	cm.bottom_radius = 0.0
+	cm.height = 0.4
+	cone.mesh = cm
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color("#FABE32")
+	m.emission_enabled = true
+	m.emission = Color("#FABE32")
+	m.emission_energy_multiplier = 1.2
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	cone.material_override = m
+	a.add_child(cone)
+	add_child(a)
+	return a
+
+
+func _nearest_hideout() -> Node3D:
+	var best: Node3D = null
+	for h in get_tree().get_nodes_in_group("hideouts"):
+		var n := h as Node3D
+		if best == null or n.global_position.distance_to(_cat.global_position) < best.global_position.distance_to(_cat.global_position):
+			best = n
+	return best
+
+
+func _update_arrow(delta: float) -> void:
+	var show := visible and _cat != null and step_id() == &"hide" and not bool(_cat.get("hidden"))
+	var target := _nearest_hideout() if show else null
+	_arrow.visible = target != null
+	if target:
+		_t += delta
+		_arrow.global_position = target.global_position + Vector3(0, 1.0 + 0.12 * sin(_t * 4.0), 0)
 
 
 func restart() -> void:
@@ -49,7 +93,8 @@ func restart() -> void:
 	_started = false
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_update_arrow(delta)
 	var controls_open: bool = _main != null and _main.get("controls_menu") != null and bool(_main.get("controls_menu").is_open)
 	visible = not GameState.tutorial_done and not controls_open
 
@@ -77,11 +122,11 @@ func _hint() -> String:
 		&"jump":
 			return "Прыгай: %s" % k.call("jump")
 		&"food":
-			return "Подбери вкусняшку — просто подойди к ней"
+			return "Подбери вкусняшку — просто подойди к ней (в зубах до трёх)"
 		&"hide":
-			return "Спрячься в укрытии (коробка, скамейка, куст): %s" % k.call("hide")
+			return "Спрячься: встань в светящееся кольцо у коробки, скамейки, машины или куста и нажми %s" % k.call("hide")
 		&"eat":
-			return "Съешь в укрытии: %s" % k.call("eat")
+			return "Съешь в укрытии: %s — растёт сытость, открываются карточки альбома" % k.call("eat")
 		&"shop":
 			return "Клубочки — деньги: в будке пряжи (откуда ты начал) нажми %s" % k.call("eat")
 	return ""

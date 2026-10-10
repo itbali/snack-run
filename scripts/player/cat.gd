@@ -20,6 +20,7 @@ const WET_SLOW := 0.6   # мокрый кот (дождеватель парка
 
 var camera_rig: CameraRig
 var current_hideout: Area3D
+var _hidden_in: Node   # укрытие, где сейчас глаза (план 19)
 var hidden := false
 var in_safe_zone := false   # внутри будки пряжи: удары не проходят, собака не видит
 var input_enabled := true   # false, пока открыт экран магазина
@@ -214,6 +215,10 @@ func try_hide() -> bool:
 	state = &"hide"
 	if camera_rig:
 		camera_rig.crouch = true
+	_model.visible = false   # кот исчез, в укрытии — только глаза (план 19)
+	_hidden_in = current_hideout
+	if _hidden_in.has_method("show_eyes"):
+		_hidden_in.call("show_eyes", true)
 	hidden_changed.emit(true)
 	return true
 
@@ -222,6 +227,10 @@ func unhide() -> void:
 	if not hidden:
 		return
 	hidden = false
+	_model.visible = true
+	if is_instance_valid(_hidden_in) and _hidden_in.has_method("show_eyes"):
+		_hidden_in.call("show_eyes", false)
+	_hidden_in = null
 	if camera_rig:
 		camera_rig.crouch = false
 	state = &"idle"
@@ -233,6 +242,8 @@ func try_eat() -> bool:
 		return false
 	var items := GameState.eat_all()
 	face.cheer()
+	if is_instance_valid(_hidden_in) and _hidden_in.has_method("squint"):
+		_hidden_in.call("squint")
 	ate.emit(items)
 	return true
 

@@ -20,9 +20,55 @@ const MAX_MOUTH := 5   # максимум после улучшений мага
 @onready var _phase_icon: TextureRect = %PhaseIcon
 @onready var _phase_bar: ProgressBar = %PhaseBar
 var _day_night: DayNight
+var _prompt_panel: PanelContainer
+var _prompt: Label
+
+
+static func prompt_for(in_hideout: bool, hidden: bool, mouth: int, safe: bool) -> String:
+	## Подсказка действия у укрытия и в будке (план 19) — с текущими клавишами.
+	if safe and not hidden:
+		return "%s — магазин" % KeyBindings.key_name("eat")
+	if hidden:
+		return ("%s — съесть" % KeyBindings.key_name("eat")) if mouth > 0 else ("%s — выйти" % KeyBindings.key_name("hide"))
+	if in_hideout:
+		return "%s — спрятаться" % KeyBindings.key_name("hide")
+	return ""
+
+
+func prompt_text() -> String:
+	return _prompt.text if _prompt_panel.visible else ""
+
+
+func _make_prompt() -> void:
+	_prompt_panel = PanelContainer.new()
+	_prompt_panel.name = "PromptPanel"
+	_prompt_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	_prompt_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_prompt_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_prompt_panel.position.y -= 24   # у нижнего края: над котом её быть не должно (там глаза в укрытии)
+	_prompt_panel.visible = false
+	add_child(_prompt_panel)
+	var m := MarginContainer.new()
+	for side in ["left", "right", "top", "bottom"]:
+		m.add_theme_constant_override("margin_" + side, 10)
+	_prompt_panel.add_child(m)
+	_prompt = Label.new()
+	_prompt.name = "Prompt"
+	_prompt.add_theme_font_size_override("font_size", 22)
+	m.add_child(_prompt)
+
+
+func _update_prompt() -> void:
+	var cat := get_tree().get_first_node_in_group("cat")
+	var text := ""
+	if cat:
+		text = prompt_for(cat.get("current_hideout") != null, bool(cat.get("hidden")), GameState.mouth.size(), bool(cat.get("in_safe_zone")))
+	_prompt_panel.visible = text != ""
+	_prompt.text = text
 
 
 func _ready() -> void:
+	_make_prompt()
 	_satiety.max_value = GameState.SATIETY_GATE
 	_yarn_icon.texture = _icon(YARN_ICON)
 	_bell_panel.visible = false
@@ -68,6 +114,7 @@ func _bind_day_night() -> void:
 
 
 func _process(_delta: float) -> void:
+	_update_prompt()
 	if _day_night == null or not is_instance_valid(_day_night):
 		_bind_day_night()   # ленивая привязка: Lighting мог появиться позже HUD или быть пересоздан
 		if _day_night == null:
