@@ -282,6 +282,9 @@ def generate(desc):
 
 	def add(kind, items):
 		for it in items:
+			if kind == "pedestrians":   # коридор прохожего — без россыпи (ревью плана 20)
+				for a, b in zip(it["path"], it["path"][1:]):
+					blocked.append((min(a[0], b[0]) - 0.6, min(a[1], b[1]) - 0.6, max(a[0], b[0]) + 0.6, max(a[1], b[1]) + 0.6, 0.0))
 			if kind == "props":
 				it = {**defaults.get(it["model"], {}), **it}
 				blocked.extend(footprints(it))

@@ -256,6 +256,21 @@ class Primitives(unittest.TestCase):
 			"features": [{"type": "lift", "rect": [-1, -10, 1, 10], "by": 0.06}, {"type": "lift", "rect": [-10, -1, 10, 1], "by": 0.06}]})
 		self.assertAlmostEqual(tg.height_at(g, 0, 0), 0.06, 3, "на перекрёстке не 12 см")
 
+	def test_pedestrian_routes_clear_of_solid_props(self):
+		# Ревью плана 20: прохожие шли сквозь подпорные стены, машины, деревья и кусты.
+		layout, _ = lg.generate(json.loads((ROOT / "data/layout_src/yard.json").read_text()))
+		fps = [(p, f) for p in layout["props"] for f in lg.footprints(p) if f[4] > 0.3]
+		for ped in layout.get("pedestrians", []):
+			pts = ped["path"]
+			for a, b in zip(pts, pts[1:]):
+				n = int(max(abs(b[0] - a[0]), abs(b[1] - a[1])) / 0.25) + 1
+				for k in range(n + 1):
+					x = a[0] + (b[0] - a[0]) * k / n
+					z = a[1] + (b[1] - a[1]) * k / n
+					for p, f in fps:
+						self.assertFalse(f[0] - 0.25 < x < f[2] + 0.25 and f[1] - 0.25 < z < f[3] + 0.25,
+							f"прохожий {pts[0]}…: ({x:.1f},{z:.1f}) в {p['model']} {p['pos']}")
+
 	def test_kit_constants_match_world_builder(self):
 		src = (ROOT / "scripts/world/world_builder.gd").read_text()
 		for name, val in (("KIT_STEP_RISE", lg.KIT_RISE), ("KIT_STEP_TREAD", lg.KIT_TREAD), ("KIT_RAMP_DEG", lg.KIT_RAMP_DEG), ("KIT_WIDTH", lg.KIT_WIDTH)):

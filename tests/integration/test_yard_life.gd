@@ -67,7 +67,7 @@ func test_pedestrians_walk_and_are_harmless() -> void:
 	assert_false(p.is_in_group("hazards"))
 
 func test_chimneys_smoke() -> void:
-	assert_gte(get_tree().get_nodes_in_group("chimney_smoke").size(), 10)
+	assert_gte(get_tree().get_nodes_in_group("chimney_smoke").size(), 8)
 
 func test_ambience_birds_by_day_crickets_at_night() -> void:
 	var amb := main.find_child("Ambience", true, false) as AudioStreamPlayer
@@ -78,3 +78,9 @@ func test_ambience_birds_by_day_crickets_at_night() -> void:
 	_dn().set_time(220.0)
 	await wait_process_frames(3)
 	assert_true(amb.stream.resource_path.ends_with("crickets.wav"), "ночью сверчки")
+
+func test_ambience_loops_whole_file() -> void:
+	# Ревью плана 20: loop_end по сжатым байтам — петля 1,6 с вместо 8.
+	var amb := main.find_child("Ambience", true, false) as AudioStreamPlayer
+	var s := amb.stream as AudioStreamWAV
+	assert_almost_eq(float(s.loop_end), s.get_length() * s.mix_rate, s.mix_rate * 0.05, "петля — весь файл")

@@ -37,8 +37,8 @@ func setup(district: Node) -> void:
 					_add_sway(mi, body.global_position + Vector3(randf(), 0, randf()))
 			if model_name in ["bush_flowers", "flowerbed"]:
 				flowers.append((body as Node3D).global_position)
-			if SMOKE_MODELS.has(model_name):
-				_add_smoke(body as Node3D, SMOKE_MODELS[model_name])
+			if SMOKE_MODELS.has(model_name) and int(absf(body.global_position.x * 7.0 + body.global_position.z * 3.0)) % 3 == 0:
+				_add_smoke(body as Node3D, SMOKE_MODELS[model_name])   # дымит каждая третья труба — летний день
 	_make_butterflies(flowers)
 	_make_flock()
 	_make_ambience()
@@ -156,7 +156,7 @@ func _set_ambience(night: bool) -> void:
 		return
 	var s := load(path) as AudioStreamWAV
 	s.loop_mode = AudioStreamWAV.LOOP_FORWARD
-	s.loop_end = s.data.size() / 2
+	s.loop_end = int(s.get_length() * s.mix_rate)   # в сэмплах; data — сжатые байты (QOA), не длина (ревью плана 20)
 	_amb.stream = s
 	_amb.play()
 
@@ -177,9 +177,9 @@ func _process(delta: float) -> void:
 			continue
 		var a: Vector3 = b.get_meta("anchor")
 		var sd: float = b.get_meta("seed")
-		var ground := Terrain.surface_height(get_tree(), a.x, a.z, 0.0)
 		var pos := a + Vector3(sin(_t * 0.7 + sd) * 1.6, 0, cos(_t * 0.53 + sd * 1.7) * 1.6)
-		pos.y = ground + 0.6 + 0.35 * sin(_t * 1.9 + sd)
+		var ground := Terrain.surface_height(get_tree(), pos.x, pos.z, 0.0)
+		pos.y = ground + 1.05 + 0.3 * sin(_t * 1.9 + sd)   # над клумбами и цветущими кустами, а не в них
 		var d := pos - b.global_position
 		b.global_position = pos
 		if d.length() > 0.0001:

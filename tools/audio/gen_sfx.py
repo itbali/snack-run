@@ -146,6 +146,16 @@ def rustle(duration=0.35):
 	return out
 
 
+def _seamless(out, fade=0.05):
+	"""Петля без щелчка: последние fade с плавно перетекают в первые (кроссфейд в конце файла)."""
+	n = int(RATE * fade)
+	head = out[:n]
+	for i in range(n):
+		k = i / n
+		out[len(out) - n + i] = out[len(out) - n + i] * (1 - k) + head[i] * k
+	return out[n:] + []   # начало, вошедшее в кроссфейд, срезано — стык ровно
+
+
 def birds(duration=8.0):
 	"""Фон дня (план 20): редкие трели разных птиц на тихом шуме листвы; начало и конец сходятся — петля."""
 	rnd = random.Random(41)
@@ -169,7 +179,7 @@ def birds(duration=8.0):
 				if start + j < n:
 					out[start + j] += 0.18 * math.sin(math.pi * u) * math.sin(phase)
 		t0 += rnd.uniform(0.6, 1.6)
-	return out
+	return _seamless(out)
 
 
 def crickets(duration=6.0):
@@ -181,7 +191,7 @@ def crickets(duration=6.0):
 		a = (1 if (t * 3.1) % 1.0 < 0.35 else 0) * (0.5 + 0.5 * math.sin(2 * math.pi * 30 * t))
 		b = (1 if (t * 2.3 + 0.4) % 1.0 < 0.3 else 0) * (0.5 + 0.5 * math.sin(2 * math.pi * 27 * t))
 		out.append(0.12 * a * math.sin(2 * math.pi * 4500 * t) + 0.09 * b * math.sin(2 * math.pi * 3900 * t))
-	return out
+	return _seamless(out)
 
 
 def sprinkle(count=6, gap=0.11):

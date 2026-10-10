@@ -269,7 +269,7 @@ func test_eating_in_hideout_gives_crumbs_and_hearts() -> void:
 	var fx0 := get_tree().get_nodes_in_group("fx").size()
 	cat.try_eat()
 	await wait_process_frames(2)
-	assert_gte(get_tree().get_nodes_in_group("fx").size(), fx0 + 2, "крошки и сердечки")
+	assert_true(get_tree().get_nodes_in_group("fx").any(func(n): return String(n.name) == "Crumbs"), "крошки (сердечки — у кота от Main)")
 
 func test_bush_hideout_throws_leaves() -> void:
 	var b := WorldBuilder.new()
@@ -280,3 +280,21 @@ func test_bush_hideout_throws_leaves() -> void:
 	assert_true(cat.try_hide())
 	await wait_process_frames(2)
 	assert_true(get_tree().get_nodes_in_group("fx").any(func(n): return String(n.name) == "LeafPuff"), "из куста — листья")
+
+func test_cover_is_same_kind_prop_not_nearest_any() -> void:
+	# Ревью плана 20: у коробки рядом тумба — вздрагивала тумба.
+	var b := WorldBuilder.new()
+	world.add_child(b)
+	b.build({"props": [{"model": "box", "pos": [0, 0, -0.65], "rot": 0}, {"model": "bin", "pos": [0.5, 0, 0], "rot": 0}],
+		"hideouts": [{"kind": "box", "pos": [0, 0.2, 0], "size": [0.6, 0.4, 0.6]}]})
+	var h = b.find_children("*", "Hideout", true, false)[0]
+	assert_true(String(h.find_cover().name).begins_with("box"))
+
+func test_eating_in_hideout_does_not_double_hearts() -> void:
+	var h = _box_prop_and_hideout()
+	await wait_physics_frames(3)
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	cat.try_hide()
+	cat.try_eat()
+	await wait_process_frames(2)
+	assert_eq(get_tree().get_nodes_in_group("hearts").size(), 0, "сердечки — у кота (Main), укрытие даёт только крошки")

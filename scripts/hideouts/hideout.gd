@@ -7,6 +7,8 @@ extends Area3D
 const MARGIN := 0.3          # к размеру из раскладки с каждой стороны — проще попасть
 const RING_RANGE := 14.0     # кольцо видно в этом радиусе от кота
 const EYE_GAP := 0.085
+const COVER_MODELS := {&"box": ["box"], &"bench": ["bench"], &"car": ["car"], &"bush": ["bush"], &"barrel": ["barrel"],
+	&"boat": ["boat_upturned"], &"slide": ["slide"]}
 
 @export var kind: StringName = &"box"
 @export var size := Vector3(0.6, 0.4, 0.5)
@@ -129,13 +131,19 @@ func find_cover() -> Node3D:
 	var props := builder.get_node_or_null("Props") if builder else null
 	if props == null:
 		return null
+	var prefixes: Array = COVER_MODELS.get(kind, [])
 	var best := 2.0
-	for c in props.get_children():
-		var n := c as Node3D
-		var d := Vector2(n.global_position.x - global_position.x, n.global_position.z - global_position.z).length()
-		if d < best and n.get_node_or_null("Model"):
-			best = d
-			cover = n
+	for pass_i in 2:   # сначала проп своего вида (коробка, а не соседняя тумба — ревью плана 20), иначе любой ближайший
+		for c in props.get_children():
+			var n := c as Node3D
+			if pass_i == 0 and not prefixes.any(func(pf): return String(n.name).begins_with(pf)):
+				continue
+			var d := Vector2(n.global_position.x - global_position.x, n.global_position.z - global_position.z).length()
+			if d < best and n.get_node_or_null("Model"):
+				best = d
+				cover = n
+		if cover:
+			break
 	return cover
 
 
@@ -163,8 +171,7 @@ func _react_now(kind_of: StringName) -> void:
 			var eyes_at := _eyes.global_position if _eyes.visible else at
 			var crumbs := Effects.burst(parent, eyes_at, Color("#D3AB87"), 14, 0.025, 1.2)
 			if crumbs:
-				crumbs.name = "Crumbs"
-			Effects.hearts(parent, eyes_at + Vector3(0, 0.15, 0))
+				crumbs.name = "Crumbs"   # сердечки при еде даёт Main у кота — здесь только крошки
 			_wobble(0.6)
 
 
