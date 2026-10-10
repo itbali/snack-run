@@ -25,6 +25,7 @@ var in_safe_zone := false   # внутри будки пряжи: удары н�
 var input_enabled := true   # false, пока открыт экран магазина
 var stunned_left := 0.0
 var invulnerable_left := 0.0
+var head_look: HeadLook   # голова за взглядом камеры (план 18)
 var drowning_left := 0.0   # кот тонет: потом возврат на берег (вода, план 12)
 var _shore := Vector3.ZERO
 var face := CatFace.new()   # выражения глаз, переключает меши eyes_* модели
@@ -72,6 +73,9 @@ func _ready() -> void:
 		var tw := TailWiggle.new()
 		tw.name = "TailWiggle"
 		skel.add_child(tw)
+		head_look = HeadLook.new()
+		head_look.name = "HeadLook"
+		skel.add_child(head_look)
 	if camera_rig:
 		(camera_rig.get_node("SpringArm3D") as SpringArm3D).add_excluded_object(get_rid())
 	play_clip(&"idle")
@@ -133,7 +137,20 @@ func _physics_process(delta: float) -> void:
 	_after_move(delta)
 
 
+func _update_head_look() -> void:
+	## Наклон камеры вверх — кот поднимает голову; в стоянии и шагом голова поворачивается к взгляду камеры.
+	if head_look == null or camera_rig == null:
+		return
+	var p: float = camera_rig.get("pitch")
+	head_look.target_pitch = deg_to_rad(p - CameraRig.PITCH_DEG) * 0.8
+	var look := -camera_rig.global_transform.basis.z
+	var face := -_model.global_transform.basis.z
+	var diff := wrapf(atan2(-look.x, -look.z) - atan2(-face.x, -face.z), -PI, PI)
+	head_look.target_yaw = diff if state in [&"idle", &"walk"] and absf(diff) < PI * 0.6 else 0.0
+
+
 func _after_move(delta: float) -> void:
+	_update_head_look()
 	## Приземление: сплющить и пыль; прыжок: вытянуться; бег: пыль каждые 0,25 с.
 	var on_floor := is_on_floor()
 	if on_floor and not was_on_floor:

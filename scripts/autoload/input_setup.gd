@@ -12,6 +12,8 @@ const ACTIONS := {
 	"eat": [KEY_E],
 	"cam_left": [KEY_Q],
 	"cam_right": [KEY_R],
+	"cam_up": [KEY_T],
+	"cam_down": [KEY_G],
 	"album": [KEY_TAB],
 	"pause": [KEY_ESCAPE],
 }
@@ -30,6 +32,8 @@ const PAD_AXES := {
 	"run": [JOY_AXIS_TRIGGER_RIGHT, 1.0],
 	"cam_left": [JOY_AXIS_RIGHT_X, -1.0],
 	"cam_right": [JOY_AXIS_RIGHT_X, 1.0],
+	"cam_up": [JOY_AXIS_RIGHT_Y, -1.0],
+	"cam_down": [JOY_AXIS_RIGHT_Y, 1.0],
 }
 
 

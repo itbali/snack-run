@@ -6,7 +6,8 @@ extends RefCounted
 const REBINDABLE := [
 	["move_forward", "Вперёд"], ["move_back", "Назад"], ["move_left", "Влево"], ["move_right", "Вправо"],
 	["run", "Бежать"], ["jump", "Прыжок"], ["hide", "Спрятаться / выйти"], ["eat", "Съесть, магазин"],
-	["cam_left", "Камера влево"], ["cam_right", "Камера вправо"], ["album", "Альбом"], ["pause", "Пауза"],
+	["cam_left", "Камера влево"], ["cam_right", "Камера вправо"],
+	["cam_up", "Камера вверх"], ["cam_down", "Камера вниз"], ["album", "Альбом"], ["pause", "Пауза"],
 ]
 const NAMES := {KEY_SPACE: "Пробел", KEY_SHIFT: "Shift", KEY_CTRL: "Ctrl", KEY_TAB: "Tab", KEY_ESCAPE: "Esc",
 	KEY_LEFT: "←", KEY_RIGHT: "→", KEY_UP: "↑", KEY_DOWN: "↓", KEY_ENTER: "Enter", KEY_ALT: "Alt"}

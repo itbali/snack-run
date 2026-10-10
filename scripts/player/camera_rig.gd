@@ -9,6 +9,9 @@ const SMOOTH := 8.0
 const HIDE_BELOW := 0.9
 const YAW_SPEED := 2.2
 const PITCH_DEG := -14.0
+const PITCH_MIN := -55.0   # сверху вниз — дальше камера «ныряет» за голову
+const PITCH_MAX := 8.0     # чуть снизу вверх — ниже пружина упирается в землю
+const PITCH_SPEED := 60.0  # град/с с клавиш и стика
 const SHOP_OFFSET := Vector3(1.4, 0.6, 1.4)   # витрина: камера спереди-сбоку кота
 const CROUCH_HEIGHT := 0.3
 const MOUSE_SENS := 0.004   # рад на пиксель
@@ -20,6 +23,7 @@ var shop_view := false
 var shop_view_point := Vector3.ZERO   # если use_shop_point, камера едет сюда, иначе target + SHOP_OFFSET
 var use_shop_point := false
 var _yaw := 0.0
+var pitch := PITCH_DEG   # наклон камеры (план 18): мышь, клавиши cam_up/cam_down, правый стик
 var shake_left := 0.0
 var _shake_amp := 0.05
 var _shake_time := 0.2
@@ -37,6 +41,8 @@ func _physics_process(delta: float) -> void:
 	var axis := Input.get_axis("cam_left", "cam_right")
 	_yaw -= axis * YAW_SPEED * delta
 	rotation.y = _yaw
+	pitch = clamp_pitch(pitch + Input.get_axis("cam_down", "cam_up") * PITCH_SPEED * delta)
+	_arm.rotation_degrees.x = pitch
 	if shake_left > 0.0:
 		shake_left = maxf(shake_left - delta, 0.0)
 		var k := _shake_amp * (shake_left / _shake_time)
@@ -61,6 +67,7 @@ func _physics_process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		turn_by_pixels((event as InputEventMouseMotion).relative.x)
+		tilt_by_pixels((event as InputEventMouseMotion).relative.y)
 
 
 func shake(amplitude := 0.05, seconds := 0.2) -> void:
@@ -72,6 +79,16 @@ func shake(amplitude := 0.05, seconds := 0.2) -> void:
 
 func turn_by_pixels(dx: float) -> void:
 	_yaw -= dx * MOUSE_SENS
+
+
+static func clamp_pitch(p: float) -> float:
+	return clampf(p, PITCH_MIN, PITCH_MAX)
+
+
+func tilt_by_pixels(dy: float) -> void:
+	## Мышь вверх (dy < 0) — взгляд выше.
+	pitch = clamp_pitch(pitch - rad_to_deg(dy * MOUSE_SENS))
+	_arm.rotation_degrees.x = pitch
 
 
 func apply_arm_length(length: float) -> void:
