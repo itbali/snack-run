@@ -131,6 +131,21 @@ def horn(duration=0.8):
 	return out
 
 
+def rustle(duration=0.35):
+	"""Шорох укрытия: короткие шумовые вспышки (картон, листья) с затуханием."""
+	rnd = random.Random(31)
+	out = []
+	n = int(RATE * duration)
+	prev = 0.0
+	for i in range(n):
+		t = i / RATE
+		u = t / duration
+		prev = prev * 0.5 + rnd.uniform(-1.0, 1.0) * 0.5
+		burst = 0.6 + 0.4 * math.sin(t * 2 * math.pi * 23) ** 2
+		out.append(min(1.0, t / 0.01) * (1.0 - u) ** 1.5 * 0.55 * prev * burst)
+	return out
+
+
 def sprinkle(count=6, gap=0.11):
 	"""Бульканье дождевателя: короткие «бульки» — тон 300→700 Гц по 60 мс."""
 	out = []
@@ -170,5 +185,6 @@ if __name__ == "__main__":
 	write("gull.wav", gull())
 	write("wave.wav", wave_sound())
 	write("horn.wav", horn())
+	write("rustle.wav", rustle())
 	write("coo.wav", coo())
-	print("ОК assets/sfx/meow.wav, bark.wav, hiss.wav, sprinkle.wav, coo.wav, splash.wav, gull.wav, wave.wav, horn.wav")
+	print("ОК assets/sfx/meow.wav, bark.wav, hiss.wav, sprinkle.wav, coo.wav, splash.wav, gull.wav, wave.wav, horn.wav, rustle.wav")

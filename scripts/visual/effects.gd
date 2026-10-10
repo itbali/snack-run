@@ -35,7 +35,13 @@ static func burst(parent: Node, pos: Vector3, color: Color, amount := 24, size :
 	mat.vertex_color_use_as_albedo = true
 	mesh.material = mat
 	p.mesh = mesh
+	if parent == null or not parent.is_inside_tree():
+		p.free()   # сцена выгружается — всплеск некуда показать
+		return null
 	parent.add_child(p)
+	if not p.is_inside_tree():
+		p.queue_free()
+		return null
 	p.global_position = pos
 	p.emitting = true
 	_free_later(p)
@@ -64,7 +70,14 @@ static func _particles(parent: Node, name: String, one_shot: bool) -> CPUParticl
 
 
 static func _start(p: CPUParticles3D, pos := Vector3.INF) -> CPUParticles3D:
-	(p.get_meta("fx_parent") as Node).add_child(p)
+	var parent := p.get_meta("fx_parent") as Node
+	if parent == null or not parent.is_inside_tree():
+		p.free()   # сцена выгружается — эффект некуда показать
+		return null
+	parent.add_child(p)
+	if not p.is_inside_tree():   # родитель как раз уходит из дерева (выход кота из укрытия при выгрузке)
+		p.queue_free()
+		return null
 	if pos != Vector3.INF:
 		p.global_position = pos
 	p.emitting = true

@@ -230,3 +230,53 @@ func test_eyes_cast_no_shadow() -> void:
 	var h = _hideout_at(Vector3(0, 0.2, 0))
 	for mi in h.get_node("Eyes").get_children():
 		assert_eq((mi as GeometryInstance3D).cast_shadow, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
+
+# --- План 20: эффекты укрытий ---
+
+func _box_prop_and_hideout() -> Node:
+	var b := WorldBuilder.new()
+	world.add_child(b)
+	b.build({"props": [{"model": "box", "pos": [0, 0, -0.65], "rot": 0}], "hideouts": [{"kind": "box", "pos": [0, 0.2, 0], "size": [0.6, 0.4, 0.6]}]})
+	return b.find_children("*", "Hideout", true, false)[0]
+
+func test_hiding_puffs_dust_wobbles_prop_and_rustles() -> void:
+	var h = _box_prop_and_hideout()
+	await wait_physics_frames(3)
+	Sfx.reset_counters()
+	var fx0 := get_tree().get_nodes_in_group("fx").size()
+	assert_true(cat.try_hide())
+	await wait_process_frames(2)
+	assert_gt(get_tree().get_nodes_in_group("fx").size(), fx0, "облачко при прятании")
+	assert_eq(Sfx.last_played, &"rustle", "шорох")
+	var prop: Node3D = h.get("cover")
+	assert_not_null(prop, "укрытие знает свою коробку")
+	var model := prop.get_node("Model") as Node3D
+	var changed := false
+	for i in 10:
+		await wait_process_frames(1)
+		if not model.scale.is_equal_approx(Vector3.ONE):
+			changed = true
+	assert_true(changed, "коробка вздрогнула")
+	await wait_seconds(0.6)
+	assert_true(model.scale.is_equal_approx(Vector3.ONE), "и вернулась")
+
+func test_eating_in_hideout_gives_crumbs_and_hearts() -> void:
+	var h = _box_prop_and_hideout()
+	await wait_physics_frames(3)
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	cat.try_hide()
+	await wait_process_frames(2)
+	var fx0 := get_tree().get_nodes_in_group("fx").size()
+	cat.try_eat()
+	await wait_process_frames(2)
+	assert_gte(get_tree().get_nodes_in_group("fx").size(), fx0 + 2, "крошки и сердечки")
+
+func test_bush_hideout_throws_leaves() -> void:
+	var b := WorldBuilder.new()
+	world.add_child(b)
+	b.build({"props": [{"model": "bush", "pos": [3, 0, 0], "rot": 0}], "hideouts": [{"kind": "bush", "pos": [3, 0.25, 0], "size": [0.9, 0.5, 0.9]}]})
+	cat.global_position = Vector3(3, 0.05, 0)
+	await wait_physics_frames(4)
+	assert_true(cat.try_hide())
+	await wait_process_frames(2)
+	assert_true(get_tree().get_nodes_in_group("fx").any(func(n): return String(n.name) == "LeafPuff"), "из куста — листья")

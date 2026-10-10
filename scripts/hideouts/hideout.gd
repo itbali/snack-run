@@ -11,6 +11,8 @@ const EYE_GAP := 0.085
 @export var kind: StringName = &"box"
 @export var size := Vector3(0.6, 0.4, 0.5)
 var cat_inside := false
+var cover: Node3D   # проп, под/за которым укрытие (коробка, скамейка, машина, куст) — вздрагивает (план 20)
+var _cover_searched := false
 var _eyes: Node3D
 var _ring: Node3D
 var _t := 0.0
@@ -116,6 +118,59 @@ func _make_eyes() -> Node3D:
 		root.add_child(p)
 	add_child(root)
 	return root
+
+
+func find_cover() -> Node3D:
+	## Ближайший проп района к укрытию (по горизонтали, до 2 м).
+	if _cover_searched:
+		return cover
+	_cover_searched = true
+	var builder := get_parent().get_parent() if get_parent() else null
+	var props := builder.get_node_or_null("Props") if builder else null
+	if props == null:
+		return null
+	var best := 2.0
+	for c in props.get_children():
+		var n := c as Node3D
+		var d := Vector2(n.global_position.x - global_position.x, n.global_position.z - global_position.z).length()
+		if d < best and n.get_node_or_null("Model"):
+			best = d
+			cover = n
+	return cover
+
+
+func react(kind_of: StringName) -> void:
+	## Эффекты укрытия (план 20): hide/exit — пыль (из куста — листья) и пружинистое вздрагивание пропа; eat — крошки и сердечки.
+	if not is_inside_tree() or is_queued_for_deletion():
+		return   # укрытие уходит со сценой (выгрузка района, конец теста)
+	var parent := get_tree().current_scene if get_tree().current_scene else get_parent()
+	var at := global_position + Vector3(0, -size.y * 0.5 + 0.1, 0)
+	match kind_of:
+		&"hide", &"exit":
+			Effects.dust(parent, at, 18)
+			if kind == &"bush":
+				var leaves := Effects.burst(parent, at + Vector3(0, 0.3, 0), Color("#458B59"), 16, 0.05, 1.6)
+				if leaves:
+					leaves.name = "LeafPuff"
+			Sfx.play(&"rustle")
+			_wobble()
+		&"eat":
+			var eyes_at := _eyes.global_position if _eyes.visible else at
+			var crumbs := Effects.burst(parent, eyes_at, Color("#D3AB87"), 14, 0.025, 1.2)
+			if crumbs:
+				crumbs.name = "Crumbs"
+			Effects.hearts(parent, eyes_at + Vector3(0, 0.15, 0))
+			_wobble(0.6)
+
+
+func _wobble(strength := 1.0) -> void:
+	var c := find_cover()
+	if c == null:
+		return
+	var model := c.get_node("Model") as Node3D
+	var tw := model.create_tween()
+	tw.tween_property(model, "scale", Vector3(1.0 + 0.1 * strength, 1.0 - 0.14 * strength, 1.0 + 0.1 * strength), 0.08)
+	tw.tween_property(model, "scale", Vector3.ONE, 0.4).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
 
 
 func show_eyes(on: bool) -> void:

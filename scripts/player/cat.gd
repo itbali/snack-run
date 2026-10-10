@@ -220,6 +220,7 @@ func try_hide() -> bool:
 	_hidden_in = current_hideout
 	if _hidden_in.has_method("show_eyes"):
 		_hidden_in.call("show_eyes", true)
+		_hidden_in.call("react", &"hide")
 	hidden_changed.emit(true)
 	return true
 
@@ -233,6 +234,7 @@ func unhide() -> void:
 		camera_rig.hide_focus = null
 	if is_instance_valid(_hidden_in) and _hidden_in.has_method("show_eyes"):
 		_hidden_in.call("show_eyes", false)
+		_hidden_in.call("react", &"exit")
 	_hidden_in = null
 	if camera_rig:
 		camera_rig.crouch = false
@@ -247,6 +249,7 @@ func try_eat() -> bool:
 	face.cheer()
 	if is_instance_valid(_hidden_in) and _hidden_in.has_method("squint"):
 		_hidden_in.call("squint")
+		_hidden_in.call("react", &"eat")
 	ate.emit(items)
 	return true
 
