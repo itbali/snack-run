@@ -22,53 +22,7 @@
   ],
   "default": "grass",
   "features": [],
-  "paint": [
-   {
-    "rect": [
-     -1.1,
-     29,
-     1.1,
-     61
-    ],
-    "type": "gravel"
-   },
-   {
-    "rect": [
-     -15,
-     43.9,
-     15,
-     46.1
-    ],
-    "type": "gravel"
-   },
-   {
-    "rect": [
-     10.9,
-     29,
-     13.1,
-     38
-    ],
-    "type": "gravel"
-   },
-   {
-    "rect": [
-     0,
-     36.9,
-     12,
-     39.1
-    ],
-    "type": "gravel"
-   },
-   {
-    "rect": [
-     -12,
-     40.9,
-     -4,
-     43.1
-    ],
-    "type": "gravel"
-   }
-  ]
+  "paint": []
  },
  "counts": {
   "spawn_points": 35,
@@ -76,6 +30,77 @@
   "hideouts": 14
  },
  "zones": [
+  {
+   "name": "дорожки",
+   "ops": [
+    {
+     "type": "path",
+     "rect": [
+      -1.1,
+      29,
+      1.1,
+      61
+     ],
+     "surface": "gravel",
+     "lift": 0.06
+    },
+    {
+     "type": "path",
+     "rect": [
+      -15,
+      43.9,
+      15,
+      46.1
+     ],
+     "surface": "gravel",
+     "lift": 0.06
+    },
+    {
+     "type": "path",
+     "rect": [
+      10.9,
+      29,
+      13.1,
+      38
+     ],
+     "surface": "gravel",
+     "lift": 0.06
+    },
+    {
+     "type": "path",
+     "rect": [
+      0,
+      36.9,
+      12,
+      39.1
+     ],
+     "surface": "gravel",
+     "lift": 0.06
+    },
+    {
+     "type": "path",
+     "rect": [
+      -12,
+      40.9,
+      -4,
+      43.1
+     ],
+     "surface": "gravel",
+     "lift": 0.06
+    },
+    {
+     "type": "path",
+     "rect": [
+      -1.5,
+      61,
+      1.5,
+      90
+     ],
+     "surface": "gravel",
+     "lift": 0.06
+    }
+   ]
+  },
   {
    "name": "край парка",
    "ops": [
@@ -147,16 +172,6 @@
      ],
      "radius": 18,
      "height": 3
-    },
-    {
-     "type": "paint",
-     "rect": [
-      -1.5,
-      61,
-      1.5,
-      90
-     ],
-     "surface": "gravel"
     },
     {
      "type": "place",

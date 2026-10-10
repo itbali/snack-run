@@ -6,7 +6,7 @@
   channels — имена 4 покрытий (R, G, B, A), default — покрытие по умолчанию,
   features — по порядку: hill {center, radius, height}, basin {center, radius, depth},
              terrace {rect [x0, z0, x1, z1], height} (плато с отвесным краем, max с текущей высотой),
-             flat {rect, height} (ровно заданная высота).
+             flat {rect, height} (ровно заданная высота), lift {rect, by} (подъём участка — дорожки, план 18).
   paint — по порядку: {rect | circle [x, z, r], type, soft? метры размытия края}.
 Выход data/terrain/<район>.json: size, origin, cell, nx, nz, heights (nz строк по nx, см), splat (base64 RGBA, nx*nz*4).
 Запуск: make terrain  (все файлы из data/terrain_src)."""
@@ -59,6 +59,9 @@ def apply_feature(g, f):
 		elif t == "flat":
 			if _in_rect(x, z, f["rect"]):
 				g.h[j][i] = f["height"]
+		elif t == "lift":
+			if _in_rect(x, z, f["rect"]):
+				g.h[j][i] += f["by"]   # дорожка чуть выше газона (план 18)
 		else:
 			raise ValueError(f"неизвестный рельеф: {t}")
 

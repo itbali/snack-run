@@ -54,3 +54,11 @@ class TestTerrainGen(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLift(unittest.TestCase):
+    def test_lift_raises_path_over_lawn(self):
+        # План 18: дорожки чуть выше газона.
+        g = tg.build(desc(features=[{"type": "lift", "rect": [-2, -10, 2, 10], "by": 0.06}]))
+        self.assertAlmostEqual(tg.height_at(g, 0, 0), 0.06, places=3)
+        self.assertAlmostEqual(tg.height_at(g, 6, 0), 0.0, places=3)

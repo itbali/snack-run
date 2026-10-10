@@ -314,6 +314,27 @@ def generate(desc):
 		elif t == "decor":
 			solid = blocked + wet
 			add("decor", decor(rng, op["model"], op["rect"], op["count"], solid, op.get("min_dist", 0.35)))
+		elif t == "path":
+			# дорожка (план 18): покрытие, подъём над газоном, несплошные бордюры по длинным краям
+			x0, z0, x1, z1 = op["rect"]
+			terrain["paint"].append({"rect": op["rect"], "type": op.get("surface", "gravel")})
+			terrain["features"].append({"type": "lift", "rect": op["rect"], "by": op.get("lift", 0.06)})
+			along_z = (z1 - z0) >= (x1 - x0)
+			sides = "we" if along_z else "ns"
+			gaps = []
+			others = [o["rect"] for o in ops if o["type"] == "path" and o is not op] + [f[:4] for f in blocked]
+			for side in sides:
+				line = {"w": x0, "e": x1, "n": z0, "s": z1}[side]
+				for r in others:   # перекрёсток с другой дорожкой или сплошной пропс на кромке — проём
+					if side in "we" and r[0] - 0.1 <= line <= r[2] + 0.1:
+						a, b = max(z0, r[1]), min(z1, r[3])
+					elif side in "ns" and r[1] - 0.1 <= line <= r[3] + 0.1:
+						a, b = max(x0, r[0]), min(x1, r[2])
+					else:
+						continue
+					if b > a:
+						gaps.append((side, (a + b) / 2, b - a + 0.4))
+			add("props", perimeter(op["rect"], "curb", 2.0, sides, gaps, extra={"solid": False}))
 		elif t == "block":
 			blocked.append(tuple(op["rect"]) + (0.0,))   # полоса без россыпи (маршрут погрузчика)
 		elif t == "flat":

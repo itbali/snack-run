@@ -195,6 +195,33 @@ class Primitives(unittest.TestCase):
 		houses = lg.perimeter([0, 0, 24, 6], sides="n", models=["house_a", "house_b", "house_c"])
 		self.assertEqual([h["model"] for h in houses], ["house_a", "house_b", "house_c", "house_a"])
 
+	def test_path_op_paints_lifts_and_curbs(self):
+		# План 18: дорожка — покрытие, подъём над газоном и бордюры по длинным краям (несплошные).
+		d = {"name": "t", "terrain": DESC["terrain"], "zones": [{"name": "z", "ops": [
+			{"type": "path", "rect": [-1, -10, 1, 10], "surface": "gravel", "lift": 0.06}]}]}
+		layout, terrain = lg.generate(d)
+		self.assertIn({"type": "lift", "rect": [-1, -10, 1, 10], "by": 0.06}, terrain["features"])
+		self.assertTrue(any(p.get("type") == "gravel" and p.get("rect") == [-1, -10, 1, 10] for p in terrain["paint"]))
+		curbs = [p for p in layout["props"] if p["model"] == "curb"]
+		self.assertEqual(len(curbs), 20, "по 10 модулей 2 м с двух сторон")
+		self.assertTrue(all(c["solid"] is False for c in curbs), "кот через бордюр проходит")
+		self.assertEqual(sorted({c["pos"][0] for c in curbs}), [-1, 1])
+
+	def test_curbs_leave_junctions_and_props_open(self):
+		# Бордюр не перегораживает перекрёсток дорожек и не идёт сквозь фонтан.
+		d = {"name": "t", "terrain": DESC["terrain"], "zones": [{"name": "z", "ops": [
+			{"type": "place", "props": [{"model": "fountain", "pos": [0, 0, -6], "colliders": [{"size": [3.2, 0.45, 3.2], "offset": [0, 0.225, 0]}]}]},
+			{"type": "path", "rect": [-1, -10, 1, 10], "surface": "gravel"},
+			{"type": "path", "rect": [-10, 3, 10, 5], "surface": "gravel"}]}]}
+		layout, _ = lg.generate(d)
+		for c in [p for p in layout["props"] if p["model"] == "curb"]:
+			x, _, z = c["pos"]
+			if c["rot"] in (90, -90):   # бордюр главной дорожки (вдоль z)
+				self.assertFalse(2 < z < 6, f"бордюр {c['pos']} поперёк перекрёстка")
+				self.assertFalse(-8.6 < z < -3.4, f"бордюр {c['pos']} в фонтане")
+			else:
+				self.assertFalse(-2 < x < 2, f"бордюр {c['pos']} поперёк перекрёстка")
+
 	def test_kit_constants_match_world_builder(self):
 		src = (ROOT / "scripts/world/world_builder.gd").read_text()
 		for name, val in (("KIT_STEP_RISE", lg.KIT_RISE), ("KIT_STEP_TREAD", lg.KIT_TREAD), ("KIT_RAMP_DEG", lg.KIT_RAMP_DEG), ("KIT_WIDTH", lg.KIT_WIDTH)):
