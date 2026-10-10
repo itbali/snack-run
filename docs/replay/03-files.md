@@ -5,7 +5,7 @@
 Отступы в GDScript и Makefile — табы; в Python проекта — тоже табы, кроме
 `palette.py` и тестов Blender (пробелы). Копировать как есть.
 
-Файлов: 327
+Файлов: 331
 
 ## `CLAUDE.md`
 
@@ -86,7 +86,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 - `scripts/world/gate.gd` (ворота по сытости), `scripts/world/yarn_shop.gd` (будка: безопасная зона, возрождение, витрина), `scripts/food/yarn_pickup.gd`.
 - `scripts/visual/toon.gd` — `Toon.apply(root, width_m, character)`; ширина в метрах, пересчитывается под масштаб узла; обводка — `assets/shaders/outline_fur.gdshader`, у персонажей rim и шум. `scripts/visual/effects.gd` — `Effects.burst/dust/hearts/sparkles/trail/zzz/leaves` (частицы; одноразовые удаляются по таймеру).
 - `scripts/autoload/sfx.gd` — звуки (`Sfx.play(&"eat")`, один вызов на событие), файлы и лицензии в `assets/sfx/README.md`; `assets/ui/theme.tres` (Nunito, плашки), `assets/shaders/vignette.gdshader`; `scripts/core/mouse.gd` (`Mouse.capture`, в headless no-op).
-- `scripts/autoload/input_setup.gd` (InputMap в коде), `dev_tools.gd` (`++ --screenshot=path`).
+- `scripts/autoload/input_setup.gd` (InputMap в коде) + `scripts/core/key_bindings.gd` (переназначение, `user://settings.cfg`); `scripts/ui/controls_menu.gd` («Управление и помощь»), `scripts/ui/tutorial.gd` (обучение); `dev_tools.gd` (`++ --screenshot=path`, `--at`, `--phase`, `--album`, `--controls`; отладочный запуск не пишет сохранение).
 - `tools/blender/`: `palette.py`, `lib.py` (rounded_box, world_extent, tri_count, check_asset), `export.py`, `build.py`, `cat.py` (сварка + subdivision) + `cat_eyes.py` (глаза) + `cat_fluff.py` (пучки, усы, ошейник), `dog.py` + `dog_sleep.py` (поза «спит»), `gen/*.py` (каждый: `SPEC` + `build()`); `tools/audio/gen_sfx.py`; `tools/images/gen.py` + `manifest.json`; `export_presets.cfg`.
 - `scripts/world/terrain.gd` (`Terrain`: меш тайлами, `HeightMapShape3D` «Floor», шейдер `terrain.gdshader` со сплатом, `height_at`); `WorldBuilder.terrain_path` — раскладка привязывается к высоте (`"snap": false` — абсолютно); набор террас `tools/blender/terrace_kit.py`; демо `scenes/dev/terrain_demo.tscn`.
 - `scripts/world/floater.gd` (`Floater`: лодки и бочки качаются, раскладка `floaters`); порт — `PortTerrain` + `PortBuilder` в `district_yard.tscn`, `data/layout_src/port.json`.
@@ -156,7 +156,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 
 ## Статус и что дальше
 
-- Планы 10 «Рельеф», 11 «Двор ×3», 12 «Парк ×3, вода», 13 «Порт», 14 «Опасности порта» и 15 «Рыбалка» и 16 «Наполнение и логика мира» выполнены 2026-10-09/10 — этап 3 закрыт (спек `2026-10-09-snack-run-scale-terrain-design.md`). Дальше план 17 (обучение, помощь, переназначение клавиш); владелец: делать подряд, не ждать его оценки.
+- Планы 10 «Рельеф», 11 «Двор ×3», 12 «Парк ×3, вода», 13 «Порт», 14 «Опасности порта» и 15 «Рыбалка», 16 «Наполнение и логика мира» и 17 «Обучение и помощь» выполнены 2026-10-09/10 — этап 3 закрыт (спек `2026-10-09-snack-run-scale-terrain-design.md`). Дальше — по дорожной карте (отложенные мелочи, этап 4: случайные события, дворовые коты) или плейтест владельца; владелец: делать подряд, не ждать его оценки.
 - Планы 1–9 выполнены и слиты в `main`: фундамент, игровой цикл, хаб и прогрессия, полировка, визуальная полировка, текстуры крупных поверхностей, этап 2 (сутки, парк, опасности парка). Отложенные мелочи — в дорожной карте.
 - Отложено по просьбе владельца: текстуры пропсов («потом вернёмся к текстурам»).
 - Открытый вопрос владельцу: лицензия весов UniMate для сгенерированных движений (код MIT, для весов явной лицензии не найдено).
@@ -1388,7 +1388,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, -0.2)
 extends Node
 ## Инструменты разработчика. Запуск: godot --path . ++ --screenshot=build/shot.png
 
-const DEV_ARGS := ["--screenshot=", "--at=", "--phase=", "--album"]
+const DEV_ARGS := ["--screenshot=", "--at=", "--phase=", "--album", "--controls"]
 
 
 static func is_dev_run(args: PackedStringArray) -> bool:
@@ -1412,6 +1412,8 @@ func _ready() -> void:
 				_teleport_later(Vector3(v[0], v[1], v[2]), deg_to_rad(v[3]) if v.size() > 3 else 0.0)
 		if arg == "--album":
 			_open_album_later()
+		if arg == "--controls":
+			_open_controls_later()
 		if arg.begins_with("--screenshot="):
 			_screenshot_and_quit(arg.trim_prefix("--screenshot="))
 
@@ -1437,6 +1439,16 @@ func _teleport_later(pos: Vector3, yaw := 0.0) -> void:
 		if rig:
 			rig.global_position = pos + Vector3(0, 0.6, 0)
 			rig.set("_yaw", yaw)
+
+
+func _open_controls_later() -> void:
+	## Кадр экрана «Управление и помощь» (план 17).
+	for i in 6:
+		await get_tree().process_frame
+	var main := get_tree().current_scene
+	if main and main.get("controls_menu"):
+		main.call("toggle_pause")
+		main.get("controls_menu").call("open")
 
 
 func _open_album_later() -> void:
@@ -1493,6 +1505,7 @@ signal yarn_changed(count: int)
 signal upgrade_bought(id: StringName)
 signal skin_changed(id: StringName)
 signal food_stolen(food: FoodDef)
+signal tutorial_finished()
 signal cat_petted(spilled: Array)
 
 const MAX_HEARTS := 3
@@ -1501,6 +1514,7 @@ const GOAL_FIRST := 3
 const GOAL_STEP := 2
 const SATIETY_GATE := 10   # сытость, открывающая арку в кафе (план 3)
 const PARK_GATE := 25      # сытость, открывающая ворота в парк (этап 2)
+const PORT_GATE := 50      # сытость, открывающая ворота в порт (этап 3)
 const YARN_PER_CARD := 3
 const SPEED_BONUS := 1.15
 const STEALTH_BONUS := 0.7
@@ -1520,6 +1534,7 @@ var upgrades := {}       # id товара -> true
 var skin: StringName = DEFAULT_SKIN
 var speed_mult := 1.0
 var stealth_mult := 1.0
+var tutorial_done := false   # обучение пройдено или пропущено (план 17)
 
 
 func reset() -> void:
@@ -1535,6 +1550,7 @@ func reset() -> void:
 	yarn_taken = {}
 	upgrades = {}
 	skin = DEFAULT_SKIN
+	tutorial_done = false
 	_apply_upgrades()
 	hearts_changed.emit(hearts, max_hearts)
 	mouth_changed.emit(mouth)
@@ -1630,6 +1646,13 @@ func peck() -> bool:
 		cat_fainted.emit()
 		return true
 	return false
+
+
+func finish_tutorial() -> void:
+	if tutorial_done:
+		return
+	tutorial_done = true
+	tutorial_finished.emit()
 
 
 func revive() -> void:
@@ -1753,6 +1776,7 @@ func to_dict() -> Dictionary:
 		"skin": String(skin),
 		"goal_target": goal_target,
 		"goal_done": goal_done,
+		"tutorial_done": tutorial_done,
 	}
 
 
@@ -1782,6 +1806,10 @@ func from_dict(d: Dictionary) -> void:
 		goal_target = maxi(int(d["goal_target"]), GOAL_FIRST)
 	if d.get("goal_done") is float or d.get("goal_done") is int:
 		goal_done = maxi(int(d["goal_done"]), 0)
+	if d.get("tutorial_done") is bool:
+		tutorial_done = d["tutorial_done"]
+	else:
+		tutorial_done = satiety > 0 or not album.is_empty()   # старое сохранение: с прогрессом обучение не нужно
 	hearts_changed.emit(hearts, max_hearts)
 	mouth_changed.emit(mouth)
 	satiety_changed.emit(satiety)
@@ -1831,6 +1859,7 @@ const PAD_AXES := {
 
 func _ready() -> void:
 	register()
+	KeyBindings.load_saved()   # переназначенные клавиши (план 17)
 
 
 static func register() -> void:
@@ -4167,6 +4196,8 @@ var _fade: ColorRect
 @onready var shop_menu: ShopMenu = $ShopMenu
 @onready var album_menu: AlbumMenu = $AlbumMenu
 @onready var pause_menu: PauseMenu = $PauseMenu
+var controls_menu: ControlsMenu
+var tutorial: Tutorial
 
 
 func _ready() -> void:
@@ -4206,10 +4237,20 @@ func _ready() -> void:
 	album_menu.closed.connect(func() -> void: _set_paused(false))
 	pause_menu.resumed.connect(func() -> void: _set_paused(false))
 	pause_menu.reset_requested.connect(reset_progress)
+	controls_menu = ControlsMenu.new()
+	controls_menu.name = "ControlsMenu"
+	add_child(controls_menu)
+	pause_menu.controls_requested.connect(controls_menu.open)
+	tutorial = Tutorial.new()
+	tutorial.name = "Tutorial"
+	tutorial.setup(self, _cat)
+	add_child(tutorial)
+	pause_menu.skip_tutorial_requested.connect(tutorial.skip)
 	for g in get_tree().get_nodes_in_group("gates"):
 		g.opened.connect(func() -> void: hud.flash_bell(g.label, 3.0))
 	for sig in [GameState.album_changed, GameState.satiety_changed, GameState.yarn_changed, GameState.upgrade_bought, GameState.skin_changed]:
 		sig.connect(_on_progress_changed.unbind(1))
+	GameState.tutorial_finished.connect(_on_progress_changed)
 	Mouse.capture(true)
 
 
@@ -4319,7 +4360,9 @@ func close_shop() -> void:
 
 
 func on_back_pressed() -> void:
-	if shop_menu.is_open:
+	if controls_menu and controls_menu.is_open:
+		controls_menu.back()   # Esc: отмена ожидания клавиши или закрытие «Управления» (пауза остаётся)
+	elif shop_menu.is_open:
 		close_shop()
 	elif album_menu.is_open:
 		toggle_album()
@@ -5122,6 +5165,7 @@ func _make_card(f: FoodDef) -> Control:
 
 
 func open() -> void:
+	_close.text = "Закрыть (%s)" % KeyBindings.key_name("album")   # текущая клавиша (план 17)
 	is_open = true
 	visible = true
 	refresh()
@@ -5148,6 +5192,170 @@ func refresh() -> void:
 		(card.get_node("Count") as Label).text = "×%d" % n
 		card.modulate.a = 1.0 if n > 0 else LOCKED_ALPHA
 		(card.get_node("Icon") as TextureRect).self_modulate = Color.WHITE if n > 0 else Color(0.2, 0.2, 0.25)   # серый силуэт (спек 2.6)
+```
+
+## `scripts/ui/controls_menu.gd`
+
+```gdscript
+class_name ControlsMenu
+extends CanvasLayer
+## «Управление и помощь» (план 17): краткие правила и клавиши; кнопка клавиши → «нажмите клавишу…» → новая клавиша
+## (Esc — отмена); «Сбросить», «Закрыть». Работает на паузе; настройки сохраняются (KeyBindings).
+
+signal closed
+
+const HELP := "Собирай вкусняшки — до трёх в зубах. Неси их в укрытие (коробка, скамейка, куст, машина) и съешь там: так " + \
+	"растёт сытость и открываются карточки альбома. Сытость открывает ворота: кафе — 10, парк — 25, порт — 50. " + \
+	"Опасности выбивают еду и снимают сердечки; в будке пряжи безопасно, там магазин за клубочки."
+const WAITING := "нажмите клавишу…"
+
+var is_open := false
+var standalone := false   # на заставке нет MenuInput: Esc закрывает сам экран
+var capturing := ""
+var _captured_frame := -1
+var _buttons := {}
+var _help: Label
+
+
+func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	layer = 30   # поверх паузы (22), альбома (21), магазина (20) и обучения
+	visible = false
+	var panel := PanelContainer.new()
+	panel.name = "Panel"
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	panel.theme = load("res://assets/ui/theme.tres")
+	add_child(panel)
+	var margin := MarginContainer.new()
+	for side in ["left", "right", "top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 20)
+	panel.add_child(margin)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	margin.add_child(box)
+	var title := Label.new()
+	title.text = "Управление и помощь"
+	title.add_theme_font_size_override("font_size", 26)
+	box.add_child(title)
+	_help = Label.new()
+	_help.name = "Help"
+	_help.text = HELP
+	_help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_help.custom_minimum_size = Vector2(620, 0)
+	_help.add_theme_font_size_override("font_size", 16)
+	box.add_child(_help)
+	var grid := GridContainer.new()
+	grid.name = "Keys"
+	grid.columns = 4
+	grid.add_theme_constant_override("h_separation", 12)
+	box.add_child(grid)
+	for row in KeyBindings.REBINDABLE:
+		var action: String = row[0]
+		var label := Label.new()
+		label.text = row[1]
+		label.add_theme_font_size_override("font_size", 16)
+		grid.add_child(label)
+		var b := Button.new()
+		b.name = "Key_" + action
+		b.custom_minimum_size = Vector2(130, 0)
+		b.pressed.connect(start_capture.bind(action))
+		grid.add_child(b)
+		_buttons[action] = b
+	var bar := HBoxContainer.new()
+	bar.add_theme_constant_override("separation", 12)
+	box.add_child(bar)
+	var reset := Button.new()
+	reset.name = "Reset"
+	reset.text = "Сбросить клавиши"
+	reset.pressed.connect(reset_bindings)
+	bar.add_child(reset)
+	var close_b := Button.new()
+	close_b.name = "Close"
+	close_b.text = "Закрыть"
+	close_b.pressed.connect(close)
+	bar.add_child(close_b)
+	_refresh()
+
+
+func rows() -> Array:
+	return KeyBindings.REBINDABLE
+
+
+func help_text() -> String:
+	return _help.text
+
+
+func key_button(action: String) -> Button:
+	return _buttons[action]
+
+
+func open() -> void:
+	is_open = true
+	visible = true
+	capturing = ""
+	_refresh()
+	(_buttons["move_forward"] as Button).grab_focus()
+
+
+func close() -> void:
+	if not is_open:
+		return
+	is_open = false
+	visible = false
+	capturing = ""
+	closed.emit()
+
+
+func back() -> void:
+	## Esc/«назад»: отменяет ожидание клавиши, иначе закрывает. Нажатие, уже поймавшее клавишу в этом кадре, не закрывает меню.
+	if _captured_frame == Engine.get_process_frames():
+		return
+	if capturing != "":
+		capturing = ""
+		_refresh()
+	else:
+		close()
+
+
+func start_capture(action: String) -> void:
+	capturing = action
+	_refresh()
+
+
+func handle_key(code: int) -> void:
+	if capturing == "":
+		return
+	_captured_frame = Engine.get_process_frames()
+	if code != KEY_ESCAPE:
+		KeyBindings.rebind(capturing, code)
+		KeyBindings.save()
+	capturing = ""
+	_refresh()
+
+
+func reset_bindings() -> void:
+	KeyBindings.reset()
+	KeyBindings.save()
+	_refresh()
+
+
+func _input(event: InputEvent) -> void:
+	if not (event is InputEventKey) or not event.pressed or event.echo:
+		return
+	if capturing == "":
+		if standalone and is_open and (event as InputEventKey).physical_keycode == KEY_ESCAPE:
+			close()
+			get_viewport().set_input_as_handled()
+		return
+	handle_key((event as InputEventKey).physical_keycode)
+	get_viewport().set_input_as_handled()
+
+
+func _refresh() -> void:
+	for action in _buttons:
+		(_buttons[action] as Button).text = WAITING if action == capturing else KeyBindings.key_name(action)
 ```
 
 ## `scripts/ui/hud.gd`
@@ -5304,16 +5512,19 @@ func satiety_label_text() -> String:
 
 
 func _on_satiety(value: int) -> void:
-	# Ближайшая цель сытости: кафе (10), потом парк (25).
+	# Ближайшая цель сытости: кафе (10), потом парк (25), потом порт (50).
 	if value < GameState.SATIETY_GATE:
 		_satiety.max_value = GameState.SATIETY_GATE
 		_satiety_label.text = "Сытость %d/%d" % [value, GameState.SATIETY_GATE]
 	elif value < GameState.PARK_GATE:
 		_satiety.max_value = GameState.PARK_GATE
 		_satiety_label.text = "До парка %d/%d" % [value, GameState.PARK_GATE]
+	elif value < GameState.PORT_GATE:
+		_satiety.max_value = GameState.PORT_GATE
+		_satiety_label.text = "До порта %d/%d" % [value, GameState.PORT_GATE]
 	else:
-		_satiety.max_value = GameState.PARK_GATE
-		_satiety_label.text = "Парк открыт"
+		_satiety.max_value = GameState.PORT_GATE
+		_satiety_label.text = "Порт открыт"
 	_satiety.value = value
 
 
@@ -5363,6 +5574,8 @@ extends CanvasLayer
 
 signal resumed
 signal reset_requested
+signal controls_requested
+signal skip_tutorial_requested
 
 var is_open := false
 
@@ -5377,9 +5590,25 @@ func _ready() -> void:
 	_continue.pressed.connect(close)
 	_reset.pressed.connect(func() -> void: reset_requested.emit())
 	_quit.pressed.connect(func() -> void: get_tree().quit())
+	# План 17: «Управление и помощь» и «Пропустить обучение» — перед «Выйти».
+	var controls := Button.new()
+	controls.name = "Controls"
+	controls.text = "Управление и помощь"
+	controls.pressed.connect(func() -> void: controls_requested.emit())
+	_quit.add_sibling(controls)
+	_quit.get_parent().move_child(controls, _quit.get_index())
+	var skip := Button.new()
+	skip.name = "SkipTutorial"
+	skip.text = "Пропустить обучение"
+	skip.pressed.connect(func() -> void:
+		skip_tutorial_requested.emit()
+		skip.visible = false)
+	_quit.add_sibling(skip)
+	_quit.get_parent().move_child(skip, _quit.get_index())
 
 
 func open() -> void:
+	(find_child("SkipTutorial", true, false) as Button).visible = not GameState.tutorial_done
 	is_open = true
 	visible = true
 	_continue.grab_focus()
@@ -5432,6 +5661,7 @@ func _ready() -> void:
 
 
 func open() -> void:
+	_close.text = "Закрыть (%s)" % KeyBindings.key_name("pause")   # текущая клавиша (план 17)
 	is_open = true
 	visible = true
 	refresh()
@@ -5501,6 +5731,16 @@ func _ready() -> void:
 	_continue.pressed.connect(continue_game)
 	_play.pressed.connect(new_game)
 	_quit.pressed.connect(func() -> void: get_tree().quit())
+	var menu := ControlsMenu.new()   # план 17: клавиши видно и можно поменять до начала игры
+	menu.name = "ControlsMenu"
+	menu.standalone = true
+	add_child(menu)
+	var controls := Button.new()
+	controls.name = "Controls"
+	controls.text = "Управление"
+	controls.pressed.connect(menu.open)
+	_quit.add_sibling(controls)
+	_quit.get_parent().move_child(controls, _quit.get_index())
 	(_continue if _continue.visible else _play).grab_focus()
 
 
@@ -5521,6 +5761,120 @@ func new_game() -> void:
 func _go() -> void:
 	if switch_scenes:
 		get_tree().change_scene_to_file("res://scenes/main.tscn")
+```
+
+## `scripts/ui/tutorial.gd`
+
+```gdscript
+class_name Tutorial
+extends CanvasLayer
+## Обучение (план 17): подсказка вверху экрана по шагам с текущими клавишами; шаг закрывается действием игрока.
+## Игра не ставится на паузу. Пройдено или пропущено — GameState.tutorial_done (в сохранении), больше не показывается.
+
+const STEPS := [&"move", &"run", &"jump", &"food", &"hide", &"eat", &"shop"]
+
+var step := 0
+var _cat: Node3D
+var _main: Node
+var _start := Vector3.ZERO
+var _ate := false
+var _label: Label
+var _panel: PanelContainer
+
+
+func setup(main: Node, cat: Node3D) -> void:
+	_main = main
+	_cat = cat
+
+
+func _ready() -> void:
+	layer = 5
+	_panel = PanelContainer.new()
+	_panel.name = "Panel"
+	_panel.theme = load("res://assets/ui/theme.tres")
+	_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_panel.position.y = 16
+	add_child(_panel)
+	var margin := MarginContainer.new()
+	for side in ["left", "right", "top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 12)
+	_panel.add_child(margin)
+	_label = Label.new()
+	_label.name = "Hint"
+	_label.add_theme_font_size_override("font_size", 20)
+	margin.add_child(_label)
+	GameState.food_eaten.connect(func(_items: Array) -> void: _ate = true)
+	visible = not GameState.tutorial_done
+	if _cat:
+		_start = _cat.global_position
+
+
+func step_id() -> StringName:
+	return STEPS[mini(step, STEPS.size() - 1)]
+
+
+func text() -> String:
+	return _label.text
+
+
+func skip() -> void:
+	GameState.finish_tutorial()
+	visible = false
+
+
+func _hint() -> String:
+	var k := KeyBindings.key_name
+	match step_id():
+		&"move":
+			return "Ходи: %s %s %s %s" % [k.call("move_forward"), k.call("move_left"), k.call("move_back"), k.call("move_right")]
+		&"run":
+			return "Беги: держи %s" % k.call("run")
+		&"jump":
+			return "Прыгай: %s" % k.call("jump")
+		&"food":
+			return "Подбери вкусняшку — просто подойди к ней"
+		&"hide":
+			return "Спрячься в укрытии (коробка, скамейка, куст): %s" % k.call("hide")
+		&"eat":
+			return "Съешь в укрытии: %s" % k.call("eat")
+		&"shop":
+			return "Клубочки — деньги: в будке пряжи нажми %s" % k.call("eat")
+	return ""
+
+
+func _done() -> bool:
+	match step_id():
+		&"move":
+			return _cat.global_position.distance_to(_start) > 2.0
+		&"run":
+			return _cat.get("state") == &"run"
+		&"jump":
+			return _cat.get("state") == &"jump"
+		&"food":
+			return not GameState.mouth.is_empty()
+		&"hide":
+			return bool(_cat.get("hidden"))
+		&"eat":
+			return _ate
+		&"shop":
+			return _main != null and bool(_main.get("shop_menu").is_open)
+	return false
+
+
+func _physics_process(_delta: float) -> void:
+	if GameState.tutorial_done:
+		visible = false
+		return
+	if _cat == null:
+		return
+	if _done():
+		step += 1
+		_ate = false
+		if step >= STEPS.size():
+			skip()
+			return
+	_label.text = "Обучение %d/%d · %s" % [step + 1, STEPS.size(), _hint()]
 ```
 
 ## `scripts/visual/effects.gd`
@@ -7371,6 +7725,73 @@ func test_hit_flashes_and_shakes_camera() -> void:
 	assert_gt((rig.get_node("SpringArm3D") as SpringArm3D).position.length(), 0.001, "пружина смещена шумом")
 ```
 
+## `tests/integration/test_controls_menu.gd`
+
+```gdscript
+extends GutTest
+## План 17: экран «Управление и помощь» — видеть и менять клавиши.
+
+const MainScene := preload("res://scenes/main.tscn")
+var main
+
+func before_each() -> void:
+	GameState.reset()
+	SaveGame.path = "user://test_save.json"
+	SaveGame.clear()
+	KeyBindings.path = "user://test_settings.cfg"
+	KeyBindings.reset()
+	main = MainScene.instantiate()
+	add_child_autofree(main)
+	await wait_physics_frames(3)
+
+func after_each() -> void:
+	KeyBindings.reset()
+	KeyBindings.path = "user://settings.cfg"
+	SaveGame.clear()
+
+func test_pause_menu_opens_controls_with_all_actions() -> void:
+	main.toggle_pause()
+	var btn := main.pause_menu.find_child("Controls", true, false) as Button
+	assert_not_null(btn, "в паузе есть «Управление и помощь»")
+	btn.pressed.emit()
+	var menu = main.controls_menu
+	assert_true(menu.is_open)
+	assert_eq(menu.rows().size(), KeyBindings.REBINDABLE.size())
+	assert_true(menu.help_text().contains("укрыт"), "есть краткие правила")
+	assert_eq(menu.key_button("jump").text, "Пробел")
+	menu.close()
+	main.toggle_pause()
+
+func test_rebind_through_menu_and_cancel_with_esc() -> void:
+	main.toggle_pause()
+	var menu = main.controls_menu
+	menu.open()
+	menu.start_capture("jump")
+	assert_eq(menu.key_button("jump").text, "нажмите клавишу…")
+	menu.handle_key(KEY_ESCAPE)
+	assert_eq(KeyBindings.keys_of("jump"), [KEY_SPACE], "Esc — отмена, а не новая клавиша")
+	menu.start_capture("jump")
+	menu.handle_key(KEY_J)
+	assert_eq(KeyBindings.keys_of("jump"), [KEY_J])
+	assert_eq(menu.key_button("jump").text, "J")
+	assert_true(FileAccess.file_exists(KeyBindings.path), "настройки сохранены")
+	menu.reset_bindings()
+	assert_eq(KeyBindings.keys_of("jump"), [KEY_SPACE])
+	menu.close()
+	main.toggle_pause()
+
+func test_close_labels_follow_bindings() -> void:
+	KeyBindings.rebind("album", KEY_J)
+	main.toggle_album()
+	assert_true((main.album_menu.find_child("Close", true, false) as Button).text.contains("(J)"))
+	main.toggle_album()
+
+func test_controls_menu_is_drawn_above_pause_and_tutorial() -> void:
+	# Кадр плана 17: меню паузы рисовалось поверх «Управления».
+	for other in [main.pause_menu, main.album_menu, main.shop_menu, main.tutorial]:
+		assert_gt(main.controls_menu.layer, (other as CanvasLayer).layer, "выше %s" % other.name)
+```
+
 ## `tests/integration/test_cyclist.gd`
 
 ```gdscript
@@ -8475,10 +8896,17 @@ func test_satiety_target_moves_from_cafe_to_park() -> void:
 	assert_almost_eq((hud.get_node("%Satiety") as ProgressBar).max_value, 25.0, 0.01)
 	GameState.satiety = 25
 	GameState.satiety_changed.emit(25)
-	assert_eq(hud.satiety_label_text(), "Парк открыт")
+	assert_eq(hud.satiety_label_text(), "До порта 25/50", "план 17: после парка цель — ворота в порт")
+	GameState.satiety = 50
+	GameState.satiety_changed.emit(50)
+	assert_eq(hud.satiety_label_text(), "Порт открыт")
 	GameState.satiety = 4
 	GameState.satiety_changed.emit(4)
 	assert_eq(hud.satiety_label_text(), "Сытость 4/10")
+
+func test_port_gate_matches_game_state_constant() -> void:
+	var gates: Array = WorldBuilder.load_layout("res://data/layout/park.json")["gates"]
+	assert_true(gates.any(func(g): return int(g["satiety"]) == GameState.PORT_GATE), "ворота в порт — GameState.PORT_GATE")
 ```
 
 ## `tests/integration/test_lighting.gd`
@@ -8823,6 +9251,20 @@ func test_dev_album_fill_does_not_touch_the_save() -> void:
 	DevTools.fill_album(main)
 	assert_false(main.autosave, "кадр альбома не пишет сохранение")
 	main.autosave = true
+
+func test_title_has_controls_screen() -> void:
+	# План 17: «Управление» на заставке — до начала игры видно и меняются клавиши.
+	var title := (load("res://scenes/ui/title.tscn") as PackedScene).instantiate()
+	title.set("switch_scenes", false)
+	add_child_autofree(title)
+	await wait_process_frames(2)
+	var btn := title.find_child("Controls", true, false) as Button
+	assert_not_null(btn)
+	btn.pressed.emit()
+	var menu := title.find_child("ControlsMenu", true, false) as ControlsMenu
+	assert_not_null(menu)
+	assert_true(menu.is_open)
+	menu.close()
 ```
 
 ## `tests/integration/test_park.gd`
@@ -10294,6 +10736,106 @@ func test_port_terrain_channels_use_sand_and_planks() -> void:
 	add_child_autofree(pt)
 	assert_eq((pt.material.get_shader_parameter("tex_g") as Texture2D).resource_path, "res://assets/images/textures/sand.png")
 	assert_eq((pt.material.get_shader_parameter("tex_b") as Texture2D).resource_path, "res://assets/images/textures/planks.png")
+```
+
+## `tests/integration/test_tutorial.gd`
+
+```gdscript
+extends GutTest
+## План 17: обучение по шагам с текущими клавишами; один раз; можно пропустить.
+
+const MainScene := preload("res://scenes/main.tscn")
+var main
+var cat
+
+func before_each() -> void:
+	GameState.reset()
+	SaveGame.path = "user://test_save.json"
+	SaveGame.clear()
+	KeyBindings.reset()
+	main = MainScene.instantiate()
+	add_child_autofree(main)
+	await wait_physics_frames(5)
+	cat = main.find_child("Cat", true, false)
+
+func after_each() -> void:
+	for a in ["move_forward", "run", "jump"]:
+		Input.action_release(a)
+	KeyBindings.reset()
+	SaveGame.clear()
+
+func _tut():
+	return main.tutorial
+
+func test_fresh_game_walks_through_all_steps() -> void:
+	var t = _tut()
+	assert_true(t.visible)
+	assert_eq(t.step_id(), &"move")
+	assert_true(t.text().contains("W"), "подсказка с клавишами: %s" % t.text())
+	cat.global_position += Vector3(3, 0, 0)
+	await wait_physics_frames(3)
+	assert_eq(t.step_id(), &"run")
+	Input.action_press("move_forward")
+	Input.action_press("run")
+	await wait_physics_frames(20)
+	Input.action_release("run")
+	Input.action_release("move_forward")
+	assert_eq(t.step_id(), &"jump")
+	KeyBindings.rebind("jump", KEY_J)
+	await wait_physics_frames(2)
+	assert_true(t.text().contains("J"), "после переназначения подсказка показывает новую клавишу")
+	Input.action_press("jump")
+	await wait_physics_frames(3)
+	Input.action_release("jump")
+	await wait_physics_frames(3)
+	assert_eq(t.step_id(), &"food")
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	await wait_physics_frames(2)
+	assert_eq(t.step_id(), &"hide")
+	cat.hidden = true
+	await wait_physics_frames(2)
+	assert_eq(t.step_id(), &"eat")
+	GameState.eat_all()
+	await wait_physics_frames(2)
+	assert_eq(t.step_id(), &"shop")
+	cat.hidden = false
+	main.open_shop()
+	await wait_physics_frames(2)
+	main.close_shop()
+	await wait_physics_frames(2)
+	assert_true(GameState.tutorial_done)
+	assert_false(t.visible)
+	assert_true(GameState.to_dict().get("tutorial_done", false), "в сохранении")
+
+func test_skip_from_pause_menu() -> void:
+	main.toggle_pause()
+	var btn := main.pause_menu.find_child("SkipTutorial", true, false) as Button
+	assert_not_null(btn)
+	assert_true(btn.visible)
+	btn.pressed.emit()
+	assert_true(GameState.tutorial_done)
+	assert_false(_tut().visible)
+	assert_false(btn.visible, "после пропуска кнопки нет")
+	main.toggle_pause()
+
+func test_not_shown_when_done() -> void:
+	GameState.finish_tutorial()
+	SaveGame.save_now()   # перезапуск: Main читает сохранение
+	var m2 = MainScene.instantiate()
+	add_child_autofree(m2)
+	await wait_physics_frames(3)
+	assert_false(m2.tutorial.visible)
+
+func test_old_save_with_progress_skips_tutorial() -> void:
+	var d := GameState.to_dict()
+	d.erase("tutorial_done")
+	d["satiety"] = 12
+	GameState.from_dict(d)
+	assert_true(GameState.tutorial_done, "старое сохранение с прогрессом — без обучения")
+	d["satiety"] = 0
+	d["album"] = {}
+	GameState.from_dict(d)
+	assert_false(GameState.tutorial_done, "пустое старое сохранение — с обучением")
 ```
 
 ## `tests/integration/test_wasp.gd`
@@ -17668,7 +18210,7 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
   мусор и прочая мелочь по всем районам, чтобы уровни не были пустыми; проверка логики — нет бесконечных стен и «домов»
   из одной стены, дома — замкнутые объёмы с крышами, проходы осмысленны.
 - Отложено из ревью плана 16: деревья у дверей верхнего двора; плющ над окном дома без двери.
-- План 17. Обучение и помощь: короткое обучение в начале (подсказки по шагам: ходить, бежать, прыгать, прятаться, есть,
+- План 17 — ВЫПОЛНЕН 2026-10-10 (`2026-10-10-snack-run-17-tutorial.md`). Обучение и помощь: короткое обучение в начале (подсказки по шагам: ходить, бежать, прыгать, прятаться, есть,
   магазин), экран помощи и настройки с просмотром и переназначением клавиш управления (сохраняются).
 ```
 
