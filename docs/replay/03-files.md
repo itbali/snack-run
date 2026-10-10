@@ -1923,6 +1923,7 @@ const DAY := ["res://assets/music/day_happy_clappy.ogg", "res://assets/music/day
 const NIGHT := ["res://assets/music/night_feel_good_island.ogg"]
 const FADE := 2.0
 const BASE_DB := -10.0
+const ROTATE := 75.0   # днём смена петли кроссфейдом по таймеру, а не по окончании (без «провала» громкости)
 
 var volume := 0.7
 var _a: AudioStreamPlayer
@@ -1930,6 +1931,7 @@ var _b: AudioStreamPlayer
 var _track := ""
 var _day_i := 0
 var _fade := 0.0
+var _play_t := 0.0
 var active := false   # Main включает: на заставке тихо
 
 
@@ -1939,8 +1941,6 @@ func _ready() -> void:
 	_b = AudioStreamPlayer.new()
 	add_child(_a)
 	add_child(_b)
-	_a.finished.connect(_next_day)
-	_b.finished.connect(_next_day)
 
 
 func playing() -> bool:
@@ -1987,7 +1987,7 @@ func _switch(path: String) -> void:
 	_track = path
 	var s := load(path) as AudioStream
 	if s is AudioStreamOggVorbis:
-		(s as AudioStreamOggVorbis).loop = false   # по окончании — следующая дневная петля
+		(s as AudioStreamOggVorbis).loop = true   # петли бесшовные; ночная звучит всю ночь (ревью плана 21)
 	var tmp := _a
 	_a = _b
 	_b = tmp   # _a — новая, _b — затухает
@@ -1995,6 +1995,7 @@ func _switch(path: String) -> void:
 	_a.volume_db = -60.0
 	_a.play()
 	_fade = 0.0
+	_play_t = 0.0
 
 
 func _apply_volume() -> void:
@@ -2013,7 +2014,10 @@ func _process(delta: float) -> void:
 		return
 	var want := _want()
 	if want != _track and (DayNight.is_night(get_tree()) or _track in NIGHT or _track == ""):
-		_switch(want)   # день ↔ ночь — сразу кроссфейдом; днём смена петли — по её окончании
+		_switch(want)   # день ↔ ночь — сразу кроссфейдом
+	_play_t += delta
+	if _play_t >= ROTATE and not DayNight.is_night(get_tree()):
+		_next_day()   # днём — следующая петля кроссфейдом
 	_fade += delta
 	_apply_volume()
 ```
@@ -2135,18 +2139,19 @@ func play(name: StringName, pitch_jitter := 0.06) -> AudioStreamPlayer:
 
 const HEAR_RANGE := 26.0   # дальше звук опасности не слышен (план 21: дождеватели парка булькали на всю карту)
 const FULL_RANGE := 6.0
+const NEAR_RANGE := 11.0   # шумные «фоновые» опасности (дождеватели): слышно, только подойдя
 
 
-func play_at(name: StringName, pos: Vector3, pitch_jitter := 0.06) -> AudioStreamPlayer:
+func play_at(name: StringName, pos: Vector3, pitch_jitter := 0.06, hear := HEAR_RANGE) -> AudioStreamPlayer:
 	## Звук из точки мира: слышен только рядом с котом, тише с расстоянием.
 	var cat := get_tree().get_first_node_in_group("cat") as Node3D if is_inside_tree() else null
 	var listener := cat.global_position if cat else pos
 	var d := listener.distance_to(pos)
-	if d > HEAR_RANGE:
+	if d > hear:
 		return null
 	var p := play(name, pitch_jitter)
 	if p:
-		var k := clampf((d - FULL_RANGE) / (HEAR_RANGE - FULL_RANGE), 0.0, 1.0)
+		var k := clampf((d - FULL_RANGE) / maxf(hear - FULL_RANGE, 0.1), 0.0, 1.0)
 		p.volume_db += linear_to_db(lerpf(1.0, 0.05, k))
 	return p
 ```
@@ -3036,6 +3041,13 @@ func _ring() -> void:
 	get_tree().create_timer(bell_lead, false).timeout.connect(_depart)
 
 
+func bell_point(cat_pos: Vector3) -> Vector3:
+	## Звонок слышен с ближайшей к коту точки дороги: велосипед после поездки стоит в её конце (ревью плана 21).
+	if path == null or path.curve == null:
+		return global_position
+	return path.global_transform * path.curve.get_closest_point(path.global_transform.affine_inverse() * cat_pos)
+
+
 func _depart() -> void:
 	if not is_inside_tree() or path == null:
 		return
@@ -3076,8 +3088,8 @@ func _on_body(body: Node3D) -> void:
 ```gdscript
 class_name Dog
 extends HazardBase
-## Собака: спит, замечает кота в конусе, 1 с настораживается, гонится 1,2× скорости кота,
-## теряет след в укрытии (2 с) или устаёт (8 с), возвращается домой (спек 3.2).
+## Собака: днём бродит у дома, ночью спит; замечает кота в конусе (или чует с едой), 0,6 с лает, гонится рывками
+## с передышками, теряет след в укрытии (2 с) или устаёт (6 с), возвращается домой (спек 3.2, план 21).
 
 const VISION_HALF_ANGLE := 50.0
 const VISION_RANGE := 7.0
@@ -3088,6 +3100,7 @@ const SMELL := 4.5
 const LUNGE := 0.8          # рывок, с
 const PANT := 0.45          # передышка между рывками — шанс увернуться
 const LUNGE_SPEED := 5.6    # быстрее бегущего кота (4,0)
+const WANDER_TIMEOUT := 4.0 # цель прогулки недостижима (куст, угол дома) — бросить
 const RETURN_TIMEOUT := 8.0   # дольше идёт домой — значит упёрлась (стена террасы): переносится домой (ревью плана 11)
 
 var brain := ChaseBrain.new()
@@ -3096,6 +3109,7 @@ var _zzz_t := 0.0
 var _wander_to := Vector3.INF
 var _wander_wait := 0.0
 var _lunge_t := 0.0
+var _wander_t := 0.0
 var _return_t := 0.0
 
 @onready var _model: Node3D = $Model
@@ -3219,13 +3233,34 @@ func _wander(delta: float) -> void:
 		move_and_slide()
 		play_clip(&"idle")
 		if _wander_wait <= 0.0:
-			var a := randf() * TAU
-			_wander_to = home + Vector3(cos(a), 0, sin(a)) * randf_range(1.0, WANDER)
+			_wander_to = home   # нет свободной точки — идёт домой
+			for i in 6:
+				var a := randf() * TAU
+				var p := home + Vector3(cos(a), 0, sin(a)) * randf_range(1.0, WANDER)
+				if wander_target_free(p):
+					_wander_to = p
+					break
+			_wander_t = 0.0
 		return
-	if move_towards_point(_wander_to, walk_speed * 0.8, delta) < 0.3:
+	_wander_t += delta
+	if move_towards_point(_wander_to, walk_speed * 0.8, delta) < 0.3 or _wander_t >= WANDER_TIMEOUT:
 		_wander_to = Vector3.INF
 		_wander_wait = randf_range(1.0, 2.5)
 	play_clip(&"walk")
+
+
+func wander_target_free(p: Vector3) -> bool:
+	## Точка прогулки не внутри пропса (куст, урна, угол дома): проба на высоте спины собаки.
+	if not is_inside_tree():
+		return true
+	var q := PhysicsShapeQueryParameters3D.new()
+	var s := SphereShape3D.new()
+	s.radius = 0.35
+	q.shape = s
+	q.transform = Transform3D(Basis(), Vector3(p.x, global_position.y + 0.45, p.z))
+	q.collision_mask = Layers.WORLD
+	q.exclude = [get_rid()]
+	return get_world_3d().direct_space_state.intersect_shape(q, 1).is_empty()
 
 
 func play_clip(name: StringName) -> void:
@@ -4039,6 +4074,9 @@ const COOLDOWN := 10.0
 const WALK := 0.35
 const CREEP_DIST := 6.0
 const CREEP_SPEED := 0.9
+const LEASH := 3.5          # дальше от дома стая не уходит, без еды возвращается (ревью плана 21)
+const HOME_SPEED := 0.6
+var home := Vector3.INF
 
 var mode: StringName = &"idle"      # idle | scattered | sleep
 var cooldown_left := 0.0
@@ -4118,12 +4156,26 @@ func _physics_process(delta: float) -> void:
 			_scatter()
 	if mode == &"scattered" and cooldown_left <= 0.0:
 		mode = &"idle"
+	if home == Vector3.INF:
+		home = global_position
+	var crept := false
 	if cat and mode == &"idle" and not GameState.mouth.is_empty() and cooldown_left <= 0.0 and cat.get("state") != &"run" \
-			and not bool(cat.get("hidden")):
+			and not bool(cat.get("hidden")) and not bool(cat.get("in_safe_zone")):
 		var to := cat.global_position - global_position
 		to.y = 0.0
 		if to.length() < CREEP_DIST and to.length() > 1.0:
-			global_position += to.normalized() * CREEP_SPEED * delta   # стая подбирается к коту с едой (план 21)
+			var next := global_position + to.normalized() * CREEP_SPEED * delta   # стая подбирается к коту с едой (план 21)
+			var off := Vector2(next.x - home.x, next.z - home.z)
+			if off.length() > LEASH:
+				off = off.normalized() * LEASH
+			global_position = Vector3(home.x + off.x, global_position.y, home.z + off.y)
+			crept = true
+	if not crept:
+		var back := Vector3(home.x - global_position.x, 0, home.z - global_position.z)
+		if back.length() > 0.05:
+			global_position += back.normalized() * minf(HOME_SPEED * delta, back.length())
+	if global_position.distance_to(home) > 0.01:
+		global_position.y = Terrain.surface_height(get_tree(), global_position.x, global_position.z, home.y)
 	_move_birds(delta)
 
 
@@ -4242,7 +4294,7 @@ func _physics_process(delta: float) -> void:
 		_spray.emitting = phase == &"on"
 		_bubbles.emitting = phase == &"warn"
 		if phase == &"warn":
-			Sfx.play_at(&"sprinkle", global_position, 0.1)
+			Sfx.play_at(&"sprinkle", global_position, 0.1, Sfx.NEAR_RANGE)
 	if phase == &"on":
 		for body in _zone.get_overlapping_bodies():
 			if body.is_in_group("cat") and body.has_method("wet") and not bool(body.get("hidden")):
@@ -4454,7 +4506,8 @@ func _physics_process(delta: float) -> void:
 	_foam.emitting = foaming or front > 0.0
 	_foam.position = Vector3(0, 0.05, inland * front)
 	if foaming and not _foam_sounded:
-		Sfx.play_at(&"wave", global_position)
+		var c := get_tree().get_first_node_in_group("cat") as Node3D
+		Sfx.play_at(&"wave", sound_point(c.global_position) if c else global_position)
 		_foam_sounded = true
 	if u < RUN:
 		_check_cat(front)
@@ -4462,6 +4515,12 @@ func _physics_process(delta: float) -> void:
 		_hit_this_roll = false
 		if not foaming:
 			_foam_sounded = false
+
+
+func sound_point(cat_pos: Vector3) -> Vector3:
+	## Шум наката — с ближайшей к коту точки линии воды (полоса до 68 м; ревью плана 21).
+	var local := global_transform.affine_inverse() * cat_pos
+	return global_transform * Vector3(clampf(local.x, -width / 2.0, width / 2.0), 0.0, 0.0)
 
 
 func _update_strip(front: float) -> void:
@@ -4820,7 +4879,7 @@ func _ready() -> void:
 	for c in get_tree().get_nodes_in_group("hazards"):
 		if c.has_signal("bell"):
 			c.bell.connect(func() -> void:
-				Sfx.play_at(&"bell", (c as Node3D).global_position))   # без плашки (план 21): звонок слышно рядом
+				Sfx.play_at(&"bell", c.bell_point(_cat.global_position)))   # без плашки (план 21): звонок слышно рядом
 	shop_menu.closed.connect(close_shop)
 	album_menu.closed.connect(func() -> void: _set_paused(false))
 	pause_menu.resumed.connect(func() -> void: _set_paused(false))
@@ -9279,6 +9338,15 @@ func test_cyclist_rides_often() -> void:
 	var c := Cyclist.new()
 	assert_lte(c.interval_max, 10.0)
 	c.free()
+
+func test_bell_rings_from_road_point_nearest_cat() -> void:
+	# Ревью плана 21 (C1): после поездки велосипед стоит в конце дороги, звонок оттуда не слышен у начала.
+	var c = _cyclist(100.0, 0.2)
+	var p: Vector3 = c.bell_point(Vector3(-5, 0, 3))
+	assert_almost_eq(p.x, -5.0, 0.05, "звонок с ближайшей к коту точки дороги")
+	assert_almost_eq(p.z, 0.0, 0.05)
+	var code := FileAccess.get_file_as_string("res://scripts/main.gd")
+	assert_true(code.contains("bell_point("), "Main звонит из bell_point")
 ```
 
 ## `tests/integration/test_day_night.gd`
@@ -9662,6 +9730,25 @@ func test_dog_chases_in_lunges() -> void:
 		cat.global_position = dog.global_position + Vector3(0, 0, -5)   # кот держит дистанцию
 	assert_gt(speeds.max(), 5.0, "рывок быстрее бегущего кота")
 	assert_lt(speeds.min(), 0.6, "между рывками — передышка (можно увернуться)")
+
+func test_dog_gives_up_unreachable_wander_target() -> void:
+	# Ревью плана 21 (I4): цель прогулки в кусте — собака упиралась в него до конца игры.
+	var wall := StaticBody3D.new()
+	wall.collision_layer = Layers.WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(1.4, 1.4, 1.4)
+	shape.shape = box
+	wall.position = Vector3(2.5, 0.7, 0)
+	wall.add_child(shape)
+	world.add_child(wall)
+	await wait_physics_frames(3)
+	assert_false(dog.wander_target_free(Vector3(2.5, 0, 0)), "внутри куста цель занята")
+	assert_true(dog.wander_target_free(Vector3(-2.5, 0, 0)))
+	dog.set("_wander_wait", 0.0)
+	dog.set("_wander_to", Vector3(2.5, 0, 0))
+	await wait_seconds(Dog.WANDER_TIMEOUT + 0.5)
+	assert_ne(dog.get("_wander_to"), Vector3(2.5, 0, 0), "бросила недостижимую цель")
 ```
 
 ## `tests/integration/test_dog_asset.gd`
@@ -11562,6 +11649,20 @@ func test_flock_creeps_toward_cat_with_food() -> void:
 	await wait_seconds(1.5)
 	var d1 := Vector2(cat.global_position.x - flock.global_position.x, cat.global_position.z - flock.global_position.z).length()
 	assert_lt(d1, d0 - 0.5, "стая ближе")
+
+func test_creeping_flock_stays_on_leash_and_walks_home() -> void:
+	# Ревью плана 21 (I5): стая уходила за котом навсегда.
+	await wait_physics_frames(2)
+	var home: Vector3 = flock.global_position
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	for i in 12:
+		cat.global_position = flock.global_position + Vector3(4, 0.05, 0)
+		await wait_seconds(0.5)
+	assert_lte(Vector2(flock.global_position.x - home.x, flock.global_position.z - home.z).length(), PigeonFlock.LEASH + 0.1, "не дальше поводка")
+	GameState.mouth.clear()
+	cat.global_position = home + Vector3(-9, 0.05, 0)
+	await wait_seconds(4.0)
+	assert_lt(flock.global_position.distance_to(home), PigeonFlock.LEASH - 1.0, "без еды стая возвращается домой")
 ```
 
 ## `tests/integration/test_port.gd`
@@ -12060,6 +12161,15 @@ func test_forklift_turns_smoothly_at_route_end() -> void:
 		await wait_physics_frames(1)
 	await wait_physics_frames(2)
 	assert_lt(absf(wrapf(f.rotation.y - r0, -PI, PI)), 1.0, "в первые кадры разворот только начался")
+
+func test_wave_sound_from_nearest_point_of_shore() -> void:
+	# Ревью плана 21 (I3): волна 68 м звучала из центра — на краю пляжа предупреждения не было.
+	var w := _wave()
+	w.global_position = Vector3(0, 0, 0)
+	var p: Vector3 = w.call("sound_point", Vector3(30, 0, -2))
+	assert_almost_eq(p.x, 10.0, 0.05, "край полосы, а не центр")
+	var q: Vector3 = w.call("sound_point", Vector3(4, 0, -2))
+	assert_almost_eq(q.x, 4.0, 0.05)
 ```
 
 ## `tests/integration/test_shop_menu.gd`
@@ -12210,6 +12320,29 @@ func test_music_day_and_night_with_volume_setting() -> void:
 	GameSettings.load_saved()
 	assert_almost_eq(GameSettings.music, 0.0, 0.001, "громкость сохранена")
 	GameSettings.set_music(0.7, get_tree())
+
+func test_night_music_keeps_playing_and_day_loops_rotate() -> void:
+	# Ревью плана 21 (I2): ночная петля кончалась через 52 с и до утра была тишина.
+	var dn = get_tree().get_first_node_in_group("day_night")
+	dn.set("time_scale", 0.0)
+	dn.set_time(220.0)
+	await wait_seconds(0.3)
+	var s: AudioStream = Music._a.stream
+	assert_true(s is AudioStreamOggVorbis and (s as AudioStreamOggVorbis).loop, "ночная петля зациклена")
+	dn.set_time(50.0)
+	await wait_seconds(2.5)
+	var t0 := Music.current_track()
+	Music.set("_play_t", Music.ROTATE)
+	await wait_process_frames(3)
+	assert_ne(Music.current_track(), t0, "дневные петли сменяются по таймеру")
+	assert_true(Music._b.playing, "смена кроссфейдом, старая ещё звучит")
+
+func test_sprinkler_heard_only_close() -> void:
+	# Ревью плана 21: три дождевателя ядра парка в 26 м всё ещё булькали в ритм.
+	var cat = main.find_child("Cat", true, false)
+	assert_null(Sfx.play_at(&"sprinkle", cat.global_position + Vector3(14, 0, 0), 0.1, Sfx.NEAR_RANGE), "дождеватель за 14 м не слышен")
+	var code := FileAccess.get_file_as_string("res://scripts/hazards/sprinkler.gd")
+	assert_true(code.contains("Sfx.NEAR_RANGE"))
 ```
 
 ## `tests/integration/test_sprinkler.gd`
@@ -20498,6 +20631,8 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
 - План 21. Звук, музыка и враги поинтереснее (`2026-10-10-snack-run-21-fun.md`) — ВЫПОЛНЕН 2026-10-10: позиционные звуки
   опасностей, без плашки велосипедиста, CC0-музыка дня и ночи с громкостью, собака бродит и гонится рывками, оса пикирует,
   голуби подкрадываются, велосипедист чаще.
+- Отложено из ревью плана 21: бродящая собака бьёт касанием без лая; отдых осы короче 3 с, удар на возврате, замечает через
+  край террасы; ползунок музыки пишет файл на каждом шаге; собака чует еду сквозь забор.
 ```
 
 ## `docs/superpowers/notes/2026-10-07-unimate-attempt.md`
