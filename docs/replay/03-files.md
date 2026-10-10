@@ -78,7 +78,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 - `scripts/player/cat.gd` (CharacterBody3D: idle/walk/run/jump/hide/hit, `take_hit`, `try_hide`, `try_eat`, `teleport`, `set_fade`, `threaten/cheer`, `squash/flash`), `cat_face.gd` (выражения глаз по мешам `eyes_*`, моргание), `camera_rig.gd` (`crouch`, `shop_view`, мышь, прозрачность кота, `shake`), модификаторы скелета `head_scaler.gd`, `leg_scaler.gd`, `tail_wiggle.gd`.
 - `scripts/autoload/game_state.gd` — сердечки, зубы (3), сытость, альбом, цель сессии; сигналы `cat_hit`, `cat_fainted` и др. В тестах `GameState.reset()` в `before_each`.
 - `scripts/core/` (`Layers`, `Rarity`), `scripts/food/` (`FoodDef`, `FoodCatalog`, `FoodPickup`, `FoodSpawnPoint`), `data/food/*.tres`.
-- `scripts/hideouts/hideout.gd`, `scripts/world/world_builder.gd` (двор из `data/layout/yard.json`), `scripts/world/spill_spawner.gd`.
+- `scripts/hideouts/hideout.gd` (зона +0,3 м, кольцо с едой в зубах, глаза кота при прятании), `scripts/world/world_builder.gd` (двор из `data/layout/yard.json`), `scripts/world/spill_spawner.gd`.
 - `scripts/hazards/`: `perception.gd`, `chase_brain.gd` (чистые), `hazard_base.gd`, `dog.gd`, `wasp.gd`, `cyclist.gd`; парк: `sprinkler.gd`, `pigeon_flock.gd`, `park_person.gd` → `gardener.gd`, `kid.gd`, `guard.gd`; порт: `gull.gd`, `wave.gd`, `forklift.gd`, `crab.gd`, `fisher.gd` (`third_party/crab_methodicalpixel/`); модели людей `tools/blender/human.py`, голубя `pigeon.py`.
 - `scripts/ui/hud.gd` + `scenes/ui/hud.tscn`; экраны `shop_menu.gd`, `album_menu.gd`, `pause_menu.gd`, `title.gd` (главная сцена `scenes/ui/title.tscn`), `menu_input.gd` (опрос клавиш меню, работает на паузе).
 - `scripts/core/shop_item.gd`, `shop_catalog.gd`, `cat_skin.gd`, `skin_catalog.gd`; данные `data/shop/*.tres`, `data/skins/*.tres`.
@@ -158,7 +158,7 @@ make export        # build/SnackRun.zip с «Snack Run.app» (macOS universal, a
 
 ## Статус и что дальше
 
-- Планы 10 «Рельеф», 11 «Двор ×3», 12 «Парк ×3, вода», 13 «Порт», 14 «Опасности порта» и 15 «Рыбалка», 16 «Наполнение и логика мира», 17 «Обучение и помощь» и 18 «Хвосты и полировка» выполнены 2026-10-09/10 — этап 3 закрыт (спек `2026-10-09-snack-run-scale-terrain-design.md`). Дальше — по дорожной карте (отложенные мелочи, этап 4: случайные события, дворовые коты) или плейтест владельца; владелец: делать подряд, не ждать его оценки.
+- Планы 10 «Рельеф», 11 «Двор ×3», 12 «Парк ×3, вода», 13 «Порт», 14 «Опасности порта» и 15 «Рыбалка», 16 «Наполнение и логика мира», 17 «Обучение и помощь» 18 «Хвосты и полировка» и 19 «Укрытия понятнее» выполнены 2026-10-09/10 — этап 3 закрыт (спек `2026-10-09-snack-run-scale-terrain-design.md`). Дальше — по дорожной карте (отложенные мелочи, этап 4: случайные события, дворовые коты) или плейтест владельца; владелец: делать подряд, не ждать его оценки.
 - Планы 1–9 выполнены и слиты в `main`: фундамент, игровой цикл, хаб и прогрессия, полировка, визуальная полировка, текстуры крупных поверхностей, этап 2 (сутки, парк, опасности парка). Отложенные мелочи — в дорожной карте.
 - Отложено по просьбе владельца: текстуры пропсов («потом вернёмся к текстурам»).
 - Открытый вопрос владельцу: лицензия весов UniMate для сгенерированных движений (код MIT, для весов явной лицензии не найдено).
@@ -1390,7 +1390,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, -0.2)
 extends Node
 ## Инструменты разработчика. Запуск: godot --path . ++ --screenshot=build/shot.png
 
-const DEV_ARGS := ["--screenshot=", "--at=", "--phase=", "--album", "--controls"]
+const DEV_ARGS := ["--screenshot=", "--at=", "--phase=", "--album", "--controls", "--hide", "--food"]
 
 
 static func is_dev_run(args: PackedStringArray) -> bool:
@@ -1416,6 +1416,8 @@ func _ready() -> void:
 			_open_album_later()
 		if arg == "--controls":
 			_open_controls_later()
+		if arg == "--hide" or arg == "--food":
+			_food_and_hide_later(arg == "--hide")
 		if arg.begins_with("--screenshot="):
 			_screenshot_and_quit(arg.trim_prefix("--screenshot="))
 
@@ -1441,6 +1443,25 @@ func _teleport_later(pos: Vector3, yaw := 0.0) -> void:
 		if rig:
 			rig.global_position = pos + Vector3(0, 0.6, 0)
 			rig.set("_yaw", yaw)
+
+
+func _food_and_hide_later(hide: bool) -> void:
+	## Кадры плана 19: --food — еда в зубах (видны кольца укрытий), --hide — ещё и спрятаться в ближайшем укрытии.
+	for i in 8:
+		await get_tree().process_frame
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	if not hide:
+		return
+	var cat := get_tree().get_first_node_in_group("cat") as Node3D
+	var best: Node3D = null
+	for h in get_tree().get_nodes_in_group("hideouts"):
+		if best == null or (h as Node3D).global_position.distance_to(cat.global_position) < best.global_position.distance_to(cat.global_position):
+			best = h
+	if best:
+		cat.call("teleport", best.global_position)
+		for i in 4:
+			await get_tree().physics_frame
+		cat.call("try_hide")
 
 
 func _open_controls_later() -> void:
@@ -4223,24 +4244,179 @@ func _check_cat(front: float) -> void:
 ```gdscript
 class_name Hideout
 extends Area3D
-## Объём укрытия (коробка, под машиной, под лавкой). Кот прячется только внутри.
+## Объём укрытия (коробка, под машиной, под лавкой, куст). Кот прячется только внутри.
+## План 19 (просьба владельца): зона чуть больше данных; с едой в зубах укрытие подсвечено кольцом;
+## спрятавшийся кот исчезает, а в укрытии видны его глаза — моргают, смотрят на камеру, жмурятся, когда он ест.
+
+const MARGIN := 0.3          # к размеру из раскладки с каждой стороны — проще попасть
+const RING_RANGE := 14.0     # кольцо видно в этом радиусе от кота
+const EYE_GAP := 0.085
 
 @export var kind: StringName = &"box"
 @export var size := Vector3(0.6, 0.4, 0.5)
 var cat_inside := false
+var _eyes: Node3D
+var _ring: MeshInstance3D
+var _t := 0.0
+var _next_blink := 2.5
+var _squint_left := 0.0
 
 @onready var _shape: CollisionShape3D = $Collision
 
 
 func _ready() -> void:
+	add_to_group("hideouts")
 	collision_layer = Layers.AREA
 	collision_mask = Layers.CAT
 	monitorable = false
 	var box := BoxShape3D.new()
-	box.size = size
+	box.size = size + Vector3(MARGIN * 2.0, MARGIN, MARGIN * 2.0)
 	_shape.shape = box
 	body_entered.connect(_on_enter)
 	body_exited.connect(_on_exit)
+	_ring = _make_ring()
+	_eyes = _make_eyes()
+
+
+func _make_ring() -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.name = "Ring"
+	var torus := TorusMesh.new()
+	var r := maxf(size.x, size.z) * 0.5 + 0.25
+	torus.inner_radius = r
+	torus.outer_radius = r + 0.06
+	torus.rings = 24
+	torus.ring_segments = 6
+	mi.mesh = torus
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.albedo_color = Color(0.98, 0.75, 0.2, 0.75)
+	m.emission_enabled = true
+	m.emission = Color("#FABE32")
+	m.emission_energy_multiplier = 1.5
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.position.y = -size.y * 0.5 + 0.03
+	mi.visible = false
+	add_child(mi)
+	return mi
+
+
+func _make_eyes() -> Node3D:
+	var root := Node3D.new()
+	root.name = "Eyes"
+	root.top_level = true
+	root.visible = false
+	var white := StandardMaterial3D.new()
+	white.albedo_color = Color("#F4F1E8")
+	white.emission_enabled = true   # видно и в тени под машиной, ночью светятся
+	white.emission = Color("#FFF6D8")
+	white.emission_energy_multiplier = 0.8
+	var iris := StandardMaterial3D.new()
+	iris.albedo_color = Color("#6FA04A")   # радужка как у кота (палитра eye_green)
+	iris.emission_enabled = true
+	iris.emission = Color("#6FA04A")
+	iris.emission_energy_multiplier = 0.6
+	var pupil := StandardMaterial3D.new()
+	pupil.albedo_color = Color("#394151")
+	pupil.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	for side in [-1.0, 1.0]:
+		var e := MeshInstance3D.new()
+		var s := SphereMesh.new()
+		s.radius = 0.06
+		s.height = 0.09
+		e.mesh = s
+		e.material_override = white
+		e.position = Vector3(side * EYE_GAP, 0, 0)
+		root.add_child(e)
+		var ir := MeshInstance3D.new()
+		var irs := SphereMesh.new()
+		irs.radius = 0.036
+		irs.height = 0.05
+		ir.mesh = irs
+		ir.material_override = iris
+		ir.position = Vector3(side * EYE_GAP, 0, -0.042)
+		root.add_child(ir)
+		var p := MeshInstance3D.new()
+		var ps := SphereMesh.new()
+		ps.radius = 0.02
+		ps.height = 0.05
+		p.mesh = ps
+		p.material_override = pupil
+		p.scale = Vector3(0.5, 1.2, 0.5)   # вертикальный кошачий зрачок
+		p.position = Vector3(side * EYE_GAP, 0, -0.062)
+		root.add_child(p)
+	add_child(root)
+	return root
+
+
+func show_eyes(on: bool) -> void:
+	_eyes.visible = on
+	_eyes.scale = Vector3.ONE
+	if on:
+		_place_eyes()
+
+
+func squint(seconds := 0.9) -> void:
+	_squint_left = seconds   # довольно жмурится, пока ест
+
+
+func _place_eyes() -> void:
+	## Глаза выглядывают из укрытия со стороны камеры и смотрят на неё.
+	var cam := get_viewport().get_camera_3d()
+	var center := global_position + Vector3(0, -size.y * 0.5 + 0.18, 0)
+	if cam == null:
+		_eyes.global_position = center
+		return
+	var to := cam.global_position - center
+	to.y = 0.0
+	if to.length() > 0.01:
+		to = to.normalized()
+		var want := center + to * minf(size.x, size.z) * 0.45
+		# Коробка или сиденье между укрытием и камерой — глаза выглядывают перед ним (кадр плана 19).
+		var space := get_world_3d().direct_space_state
+		# Луч от камеры к глазам и чуть ниже них (нижний край зрачка): если по пути коробка или сиденье —
+		# глаза выглядывают с ближней к камере грани (кадр плана 19).
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(cam.global_position, center - Vector3(0, 0.06, 0), Layers.WORLD))
+		if not hit.is_empty():
+			var p: Vector3 = hit["position"]
+			var n: Vector3 = hit["normal"]
+			if n.y > 0.7:
+				want = p + Vector3(0, 0.05, 0)   # попали в верх коробки/сиденья — глаза выглядывают поверх
+			else:
+				var back := cam.global_position - p
+				back.y = 0.0
+				want = Vector3(p.x, center.y, p.z) + back.normalized() * 0.1
+		center = want
+	_eyes.global_position = center
+	var look := cam.global_position   # смотрят прямо в камеру — и по высоте
+	if look.distance_to(center) > 0.01:
+		_eyes.look_at(look, Vector3.UP)   # −Z (радужка и зрачок) — к камере
+
+
+func _process(delta: float) -> void:
+	var cat := get_tree().get_first_node_in_group("cat") as Node3D
+	var carrying := not GameState.mouth.is_empty()
+	var near := cat != null and cat.global_position.distance_to(global_position) < RING_RANGE
+	var cat_hidden := cat != null and bool(cat.get("hidden"))
+	_ring.visible = carrying and near and not (cat_hidden and cat_inside)
+	if _ring.visible:
+		_t += delta
+		_ring.scale = Vector3.ONE * (1.0 + 0.06 * sin(_t * 4.0))
+	if not _eyes.visible:
+		return
+	_place_eyes()
+	_next_blink -= delta
+	var sy := 1.0
+	if _squint_left > 0.0:
+		_squint_left -= delta
+		sy = 0.3
+	elif _next_blink <= 0.0:
+		sy = 0.1
+		if _next_blink < -0.12:
+			_next_blink = randf_range(2.0, 4.5)
+	_eyes.scale = Vector3(1, sy, 1)
 
 
 # Доступ к полям кота через set/get/call: у типизированного Node3D GDScript не даст
@@ -4658,6 +4834,7 @@ const WET_SLOW := 0.6   # мокрый кот (дождеватель парка
 
 var camera_rig: CameraRig
 var current_hideout: Area3D
+var _hidden_in: Node   # укрытие, где сейчас глаза (план 19)
 var hidden := false
 var in_safe_zone := false   # внутри будки пряжи: удары не проходят, собака не видит
 var input_enabled := true   # false, пока открыт экран магазина
@@ -4852,6 +5029,10 @@ func try_hide() -> bool:
 	state = &"hide"
 	if camera_rig:
 		camera_rig.crouch = true
+	_model.visible = false   # кот исчез, в укрытии — только глаза (план 19)
+	_hidden_in = current_hideout
+	if _hidden_in.has_method("show_eyes"):
+		_hidden_in.call("show_eyes", true)
 	hidden_changed.emit(true)
 	return true
 
@@ -4860,6 +5041,10 @@ func unhide() -> void:
 	if not hidden:
 		return
 	hidden = false
+	_model.visible = true
+	if is_instance_valid(_hidden_in) and _hidden_in.has_method("show_eyes"):
+		_hidden_in.call("show_eyes", false)
+	_hidden_in = null
 	if camera_rig:
 		camera_rig.crouch = false
 	state = &"idle"
@@ -4871,6 +5056,8 @@ func try_eat() -> bool:
 		return false
 	var items := GameState.eat_all()
 	face.cheer()
+	if is_instance_valid(_hidden_in) and _hidden_in.has_method("squint"):
+		_hidden_in.call("squint")
 	ate.emit(items)
 	return true
 
@@ -5604,9 +5791,55 @@ const MAX_MOUTH := 5   # максимум после улучшений мага
 @onready var _phase_icon: TextureRect = %PhaseIcon
 @onready var _phase_bar: ProgressBar = %PhaseBar
 var _day_night: DayNight
+var _prompt_panel: PanelContainer
+var _prompt: Label
+
+
+static func prompt_for(in_hideout: bool, hidden: bool, mouth: int, safe: bool) -> String:
+	## Подсказка действия у укрытия и в будке (план 19) — с текущими клавишами.
+	if safe and not hidden:
+		return "%s — магазин" % KeyBindings.key_name("eat")
+	if hidden:
+		return ("%s — съесть" % KeyBindings.key_name("eat")) if mouth > 0 else ("%s — выйти" % KeyBindings.key_name("hide"))
+	if in_hideout:
+		return "%s — спрятаться" % KeyBindings.key_name("hide")
+	return ""
+
+
+func prompt_text() -> String:
+	return _prompt.text if _prompt_panel.visible else ""
+
+
+func _make_prompt() -> void:
+	_prompt_panel = PanelContainer.new()
+	_prompt_panel.name = "PromptPanel"
+	_prompt_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	_prompt_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_prompt_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_prompt_panel.position.y -= 24   # у нижнего края: над котом её быть не должно (там глаза в укрытии)
+	_prompt_panel.visible = false
+	add_child(_prompt_panel)
+	var m := MarginContainer.new()
+	for side in ["left", "right", "top", "bottom"]:
+		m.add_theme_constant_override("margin_" + side, 10)
+	_prompt_panel.add_child(m)
+	_prompt = Label.new()
+	_prompt.name = "Prompt"
+	_prompt.add_theme_font_size_override("font_size", 22)
+	m.add_child(_prompt)
+
+
+func _update_prompt() -> void:
+	var cat := get_tree().get_first_node_in_group("cat")
+	var text := ""
+	if cat:
+		text = prompt_for(cat.get("current_hideout") != null, bool(cat.get("hidden")), GameState.mouth.size(), bool(cat.get("in_safe_zone")))
+	_prompt_panel.visible = text != ""
+	_prompt.text = text
 
 
 func _ready() -> void:
+	_make_prompt()
 	_satiety.max_value = GameState.SATIETY_GATE
 	_yarn_icon.texture = _icon(YARN_ICON)
 	_bell_panel.visible = false
@@ -5652,6 +5885,7 @@ func _bind_day_night() -> void:
 
 
 func _process(_delta: float) -> void:
+	_update_prompt()
 	if _day_night == null or not is_instance_valid(_day_night):
 		_bind_day_night()   # ленивая привязка: Lighting мог появиться позже HUD или быть пересоздан
 		if _day_night == null:
@@ -6002,6 +6236,8 @@ var _start := Vector3.ZERO
 var _ate := false
 var _label: Label
 var _panel: PanelContainer
+var _arrow: Node3D
+var _t := 0.0
 
 
 func setup(main: Node, cat: Node3D) -> void:
@@ -6026,9 +6262,51 @@ func _ready() -> void:
 	_label.name = "Hint"
 	_label.add_theme_font_size_override("font_size", 20)
 	margin.add_child(_label)
+	_arrow = _make_arrow()
 	GameState.food_eaten.connect(func(_items: Array) -> void: _ate = true)
 	process_mode = Node.PROCESS_MODE_ALWAYS   # видимость — и на паузе; шаги — только в игре (_physics_process)
 	visible = not GameState.tutorial_done
+
+
+func _make_arrow() -> Node3D:
+	## Стрелка над ближайшим укрытием на шаге «спрячься» (план 19).
+	var a := Node3D.new()
+	a.name = "Arrow"
+	a.visible = false
+	var cone := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.22
+	cm.bottom_radius = 0.0
+	cm.height = 0.4
+	cone.mesh = cm
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color("#FABE32")
+	m.emission_enabled = true
+	m.emission = Color("#FABE32")
+	m.emission_energy_multiplier = 1.2
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	cone.material_override = m
+	a.add_child(cone)
+	add_child(a)
+	return a
+
+
+func _nearest_hideout() -> Node3D:
+	var best: Node3D = null
+	for h in get_tree().get_nodes_in_group("hideouts"):
+		var n := h as Node3D
+		if best == null or n.global_position.distance_to(_cat.global_position) < best.global_position.distance_to(_cat.global_position):
+			best = n
+	return best
+
+
+func _update_arrow(delta: float) -> void:
+	var show := visible and _cat != null and step_id() == &"hide" and not bool(_cat.get("hidden"))
+	var target := _nearest_hideout() if show else null
+	_arrow.visible = target != null
+	if target:
+		_t += delta
+		_arrow.global_position = target.global_position + Vector3(0, 1.0 + 0.12 * sin(_t * 4.0), 0)
 
 
 func restart() -> void:
@@ -6038,7 +6316,8 @@ func restart() -> void:
 	_started = false
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_update_arrow(delta)
 	var controls_open: bool = _main != null and _main.get("controls_menu") != null and bool(_main.get("controls_menu").is_open)
 	visible = not GameState.tutorial_done and not controls_open
 
@@ -6066,11 +6345,11 @@ func _hint() -> String:
 		&"jump":
 			return "Прыгай: %s" % k.call("jump")
 		&"food":
-			return "Подбери вкусняшку — просто подойди к ней"
+			return "Подбери вкусняшку — просто подойди к ней (в зубах до трёх)"
 		&"hide":
-			return "Спрячься в укрытии (коробка, скамейка, куст): %s" % k.call("hide")
+			return "Спрячься: встань в светящееся кольцо у коробки, скамейки, машины или куста и нажми %s" % k.call("hide")
 		&"eat":
-			return "Съешь в укрытии: %s" % k.call("eat")
+			return "Съешь в укрытии: %s — растёт сытость, открываются карточки альбома" % k.call("eat")
 		&"shop":
 			return "Клубочки — деньги: в будке пряжи (откуда ты начал) нажми %s" % k.call("eat")
 	return ""
@@ -9256,6 +9535,104 @@ func test_movement_input_leaves_hideout() -> void:
 	await wait_physics_frames(3)
 	Input.action_release("move_forward")
 	assert_false(cat.hidden)
+
+# --- План 19: укрытия понятнее (просьба владельца: «кот исчезает, а у укрытия появляются глаза») ---
+
+func test_zone_is_a_bit_larger_than_data_size() -> void:
+	var h = _hideout_at(Vector3(0, 0.2, 0))
+	cat.global_position = Vector3(0.5, 0.05, 0)   # раньше зона 0,6 м — до края 0,3 м
+	await wait_physics_frames(4)
+	assert_true(cat.try_hide(), "в 0,5 м от центра уже укрытие")
+
+func test_hidden_cat_vanishes_and_hideout_shows_eyes() -> void:
+	var h = _hideout_at(Vector3(0, 0.2, 0))
+	await wait_physics_frames(3)
+	assert_true(cat.try_hide())
+	await wait_process_frames(2)
+	assert_false(cat.get_node("Model").visible, "кот исчез")
+	var eyes := h.get_node("Eyes") as Node3D
+	assert_true(eyes.visible, "в укрытии глаза")
+	cat.unhide()
+	await wait_process_frames(2)
+	assert_true(cat.get_node("Model").visible)
+	assert_false(eyes.visible)
+
+func test_eyes_squint_happily_when_eating() -> void:
+	var h = _hideout_at(Vector3(0, 0.2, 0))
+	await wait_physics_frames(3)
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	cat.try_hide()
+	cat.try_eat()
+	await wait_process_frames(2)
+	assert_lt((h.get_node("Eyes") as Node3D).scale.y, 0.6, "довольно жмурится")
+
+func test_ring_glows_only_with_food_in_mouth() -> void:
+	var h = _hideout_at(Vector3(3, 0.2, 0))
+	await wait_process_frames(3)
+	var ring := h.get_node("Ring") as Node3D
+	assert_false(ring.visible, "без еды кольца нет")
+	GameState.pick_up(FoodCatalog.get_by_id(&"cookie"))
+	await wait_process_frames(3)
+	assert_true(ring.visible, "с едой укрытие подсвечено")
+
+func test_prompts() -> void:
+	assert_eq(Hud.prompt_for(true, false, 0, false), "%s — спрятаться" % KeyBindings.key_name("hide"))
+	assert_eq(Hud.prompt_for(true, true, 2, false), "%s — съесть" % KeyBindings.key_name("eat"))
+	assert_eq(Hud.prompt_for(true, true, 0, false), "%s — выйти" % KeyBindings.key_name("hide"))
+	assert_eq(Hud.prompt_for(false, false, 0, true), "%s — магазин" % KeyBindings.key_name("eat"))
+	assert_eq(Hud.prompt_for(false, false, 3, false), "", "вне укрытия подсказки нет")
+
+func test_eyes_not_hidden_behind_prop_from_camera() -> void:
+	# План 19, кадр: камера по другую сторону коробки — коробка закрывала глаза. Глаза — перед препятствием, к камере.
+	var h = _hideout_at(Vector3(0, 0.2, 0))
+	var wall := StaticBody3D.new()
+	wall.collision_layer = Layers.WORLD
+	var cs := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(0.6, 0.6, 0.1)
+	cs.shape = box
+	wall.add_child(cs)
+	wall.position = Vector3(0, 0.3, -0.3)
+	world.add_child(wall)
+	var cam := Camera3D.new()
+	world.add_child(cam)
+	cam.global_position = Vector3(0, 1.0, -2.0)
+	cam.current = true
+	await wait_physics_frames(3)
+	cat.try_hide()
+	await wait_process_frames(3)
+	var eyes := h.get_node("Eyes") as Node3D
+	var space := world.get_world_3d().direct_space_state
+	var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(eyes.global_position, cam.global_position, Layers.WORLD))
+	assert_true(hit.is_empty(), "между глазами и камерой ничего: %s" % [eyes.global_position])
+
+func test_eyes_peek_over_low_box_seen_from_above() -> void:
+	# Кадр плана 19: камера сверху-сзади, луч упирался в верх коробки — глаза оказывались внутри неё.
+	var h = _hideout_at(Vector3(0, 0.2, 0))
+	var b := StaticBody3D.new()
+	b.collision_layer = Layers.WORLD
+	var cs := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(0.45, 0.3, 0.35)
+	cs.shape = box
+	cs.position.y = 0.15
+	b.add_child(cs)
+	b.position = Vector3(0, 0, -0.65)
+	world.add_child(b)
+	var cam := Camera3D.new()
+	world.add_child(cam)
+	cam.global_position = Vector3(0, 0.75, -1.75)
+	cam.current = true
+	await wait_physics_frames(3)
+	cat.try_hide()
+	await wait_process_frames(3)
+	var eyes := h.get_node("Eyes") as Node3D
+	var q := PhysicsPointQueryParameters3D.new()
+	q.position = eyes.global_position
+	q.collision_mask = Layers.WORLD
+	assert_eq(world.get_world_3d().direct_space_state.intersect_point(q).size(), 0, "глаза не внутри коробки: %s" % [eyes.global_position])
+	var hit := world.get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(cam.global_position, eyes.global_position, Layers.WORLD))
+	assert_true(hit.is_empty(), "камера видит глаза")
 ```
 
 ## `tests/integration/test_hit.gd`
@@ -11444,6 +11821,20 @@ func test_hint_hidden_while_controls_open() -> void:
 	main.toggle_pause()
 	await wait_physics_frames(2)
 	assert_true(_tut().visible)
+
+func test_hide_step_points_to_nearest_hideout() -> void:
+	_tut().step = 4   # «спрячься»
+	await wait_physics_frames(3)
+	var arrow := _tut().get_node("Arrow") as Node3D
+	assert_true(arrow.visible, "стрелка над укрытием")
+	var nearest: Node3D = null
+	for h in get_tree().get_nodes_in_group("hideouts"):
+		if nearest == null or (h as Node3D).global_position.distance_to(cat.global_position) < nearest.global_position.distance_to(cat.global_position):
+			nearest = h
+	assert_lt(Vector2(arrow.global_position.x - nearest.global_position.x, arrow.global_position.z - nearest.global_position.z).length(), 0.1)
+	_tut().step = 0
+	await wait_physics_frames(2)
+	assert_false(arrow.visible)
 ```
 
 ## `tests/integration/test_wasp.gd`
@@ -19002,6 +19393,8 @@ Blender скриптами, `make test` гоняет GUT и Blender-тесты, 
 - План 18. Хвосты и полировка (`2026-10-10-snack-run-18-polish.md`) — ВЫПОЛНЕН 2026-10-10: камера вверх-вниз и голова кота за
   взглядом, трава из травинок, машины и мусор, размытие вдали и частицы с настройками, блики на воде, текстуры пропсов,
   дорожки с бордюрами, хвосты ревью планов 4, 10, 13–16.
+- План 19. Укрытия понятнее (`2026-10-10-snack-run-19-hideouts.md`) — ВЫПОЛНЕН 2026-10-10: кольца у укрытий, подсказки клавиш,
+  стрелка в обучении, глаза кота в укрытии вместо кота.
 ```
 
 ## `docs/superpowers/notes/2026-10-07-unimate-attempt.md`
